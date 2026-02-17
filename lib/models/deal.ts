@@ -2,6 +2,8 @@ export type FinancingType = 'cash' | 'loan';
 
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
+export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
+
 export interface PurchaseInputs {
   dealName: string;
   purchasePrice: number;
@@ -13,6 +15,10 @@ export interface PurchaseInputs {
   loanTermYears: number;
   pointsPercent: number;
   financingType: FinancingType;
+  propertyTaxAnnualOverride: number | null;
+  insuranceAnnualOverride: number | null;
+  hoaMonthly: number;
+  pmiMonthly: number;
 }
 
 export interface LongTermInputs {
@@ -62,6 +68,13 @@ export interface FlipInputs {
   sellerConcessions: number;
 }
 
+export interface VariableExpenseCategory {
+  key: string;
+  label: string;
+  monthlyAmount: number;
+  appliesTo: Record<ExpenseStrategyKey, boolean>;
+}
+
 export interface MasterAssumptions {
   holdYears: number;
   annualAppreciationPercent: number;
@@ -76,6 +89,7 @@ export interface DealInputModel {
   padSplit: PadSplitInputs;
   brrrr: BrrrrInputs;
   flip: FlipInputs;
+  variableExpenses: VariableExpenseCategory[];
   assumptions: MasterAssumptions;
 }
 
@@ -135,7 +149,11 @@ export const defaultDealInput: DealInputModel = {
     interestRate: 0.068,
     loanTermYears: 30,
     pointsPercent: 0.01,
-    financingType: 'loan'
+    financingType: 'loan',
+    propertyTaxAnnualOverride: null,
+    insuranceAnnualOverride: null,
+    hoaMonthly: 0,
+    pmiMonthly: 0
   },
   longTerm: {
     grossRentMonthly: 2950,
@@ -179,6 +197,18 @@ export const defaultDealInput: DealInputModel = {
     sellClosingCostPercent: 0.02,
     sellerConcessions: 3000
   },
+  variableExpenses: [
+    { key: 'power', label: 'Power', monthlyAmount: 300, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'water', label: 'Water / Sewer', monthlyAmount: 180, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'trash', label: 'Trash', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'gas', label: 'Gas', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'internet', label: 'Internet', monthlyAmount: 75, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
+    { key: 'pool', label: 'Pool Service', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
+    { key: 'lawn', label: 'Lawn Service', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
+    { key: 'licensing', label: 'Licensing / Permits', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'padsplit-cleaning', label: 'PadSplit Monthly Cleaning', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } },
+    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
+  ],
   assumptions: {
     holdYears: 10,
     annualAppreciationPercent: 0.04,

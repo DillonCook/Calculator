@@ -1,5 +1,5 @@
 import { buildTimeline, calculateIrr, calculateRemainingBalance, estimateSaleProceeds } from '@/lib/engine/investment-math';
-import type { DealInputModel, StrategyOutput } from '@/lib/models/deal';
+import type { DealInputModel, ExpenseStrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
@@ -24,6 +24,20 @@ const getPurchaseLoanTerms = (input: DealInputModel) => {
     purchase.financingType === 'loan' ? calculateMonthlyPayment(loanAmount, purchase.interestRate, purchase.loanTermYears) : 0;
 
   return { loanAmount, debtService };
+};
+
+const getMonthlyFixedCosts = (input: DealInputModel): number => {
+  const { purchase } = input;
+  const annualTax = purchase.propertyTaxAnnualOverride ?? purchase.purchasePrice * 0.017;
+  const annualInsurance = purchase.insuranceAnnualOverride ?? purchase.purchasePrice * 0.01;
+
+  return annualTax / 12 + annualInsurance / 12 + purchase.hoaMonthly + purchase.pmiMonthly;
+};
+
+const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrategyKey): number => {
+  return input.variableExpenses.reduce((sum, expense) => {
+    return expense.appliesTo[strategy] ? sum + expense.monthlyAmount : sum;
+  }, 0);
 };
 
 const buildLeveredTimeline = (
@@ -103,12 +117,14 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const base = createBaseOutput('longTerm', 'Stabilized buy-and-hold with reserves and fixed expenses.');
 
   const { loanAmount, debtService } = getPurchaseLoanTerms(input);
+  const fixedCosts = getMonthlyFixedCosts(input);
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'longTerm');
 
   const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
   const vacancy = gross * longTerm.vacancyPercent;
   const maintenance = gross * longTerm.maintenancePercent;
   const capex = gross * longTerm.capexPercent;
-  const noi = gross - vacancy - maintenance - capex - longTerm.ownerExpensesMonthly;
+  const noi = gross - vacancy - maintenance - capex - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
@@ -150,8 +166,10 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const cleanerCost = bookings * airbnb.cleanerCostPerTurn;
 
   const { loanAmount, debtService } = getPurchaseLoanTerms(input);
+  const fixedCosts = getMonthlyFixedCosts(input);
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'airbnb');
 
-  const noi = gross - platformFees - cleanerCost - airbnb.ownerExpensesMonthly;
+  const noi = gross - platformFees - cleanerCost - airbnb.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
@@ -191,8 +209,10 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const platformFees = gross * padSplit.platformFeePercent;
 
   const { loanAmount, debtService } = getPurchaseLoanTerms(input);
+  const fixedCosts = getMonthlyFixedCosts(input);
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'padSplit');
 
-  const noi = gross - platformFees - padSplit.turnoverCostMonthly - padSplit.ownerExpensesMonthly;
+  const noi = gross - platformFees - padSplit.turnoverCostMonthly - padSplit.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
@@ -229,7 +249,9 @@ export const calculateBrrrrStrategy = (
   const { brrrr, purchase } = input;
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
-  const totalHoldingCosts = brrrr.holdingMonths * brrrr.holdingExpensesMonthly;
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
+  const fixedCosts = getMonthlyFixedCosts(input);
+  const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts);
   const refiLoanAmount = purchase.arv * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
 
@@ -249,6 +271,15 @@ export const calculateBrrrrStrategy = (
     brrrr.refinanceRate,
     purchase.loanTermYears
   );
+  const timeline = [...timelineData.timeline];
+
+  if (timeline.length === 1) {
+    timeline.push(cashBackAtRefi);
+  } else {
+    timeline[1] += cashBackAtRefi;
+  }
+
+  const irr = calculateIrr(timeline);
 
   return {
     ...base,
@@ -259,9 +290,9 @@ export const calculateBrrrrStrategy = (
     roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,
     totalCashNeeded: purchaseCashNeeded + totalHoldingCosts,
     noiMonthly: longTermNoiMonthly,
-    irr: timelineData.irr,
+    irr,
     saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline
+    cashFlowTimeline: timeline
   };
 };
 
@@ -272,7 +303,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const salePrice = purchase.arv;
   const agentCommission = salePrice * flip.agentCommissionPercent;
   const closingCosts = salePrice * flip.sellClosingCostPercent;
-  const holdingCosts = flip.holdingMonths * flip.holdingExpensesMonthly;
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
+  const fixedCosts = getMonthlyFixedCosts(input);
+  const holdingCosts = flip.holdingMonths * (flip.holdingExpensesMonthly + fixedCosts + strategyVariableCosts);
 
   const netProfit =
     salePrice -
@@ -284,8 +317,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     flip.sellerConcessions -
     holdingCosts;
 
+  const totalCashInvested = purchaseCashNeeded + holdingCosts;
   const monthly = netProfit / Math.max(flip.holdingMonths, 1);
-  const timeline = [-Math.abs(purchaseCashNeeded + holdingCosts), netProfit];
+  const timeline = [-Math.abs(totalCashInvested), totalCashInvested + netProfit];
 
   return {
     ...base,

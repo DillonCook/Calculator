@@ -20,6 +20,8 @@ A mobile-first, premium-feel real estate investment calculator SaaS foundation b
   - True IRR (from yearly cashflow timeline)
 - Strategy comparison board to evaluate monthly performance and return metrics side-by-side
 - Scenario save/load vault (local storage + cloud-ready JSON schema)
+- Variable expense matrix with per-strategy toggles (LT/STR/PadSplit/Flip)
+- Purchase tax/insurance auto estimates with override inputs
 - Printable PDF-oriented report view (`/print`) powered by an export schema
 
 ## Architecture
