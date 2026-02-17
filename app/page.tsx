@@ -6,6 +6,7 @@ import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { ScenarioToolbar } from '@/components/dashboard/scenario-toolbar';
 import { StrategyBreakdown } from '@/components/dashboard/strategy-breakdown';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
+import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
@@ -63,6 +64,7 @@ export default function HomePage() {
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
             <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+            <StrategyModuleInputs active={activeStrategy} model={model} onChange={setModel} />
             <StrategyBreakdown data={result} active={activeStrategy} />
             <TimelineCard
               output={result[activeStrategy]}
