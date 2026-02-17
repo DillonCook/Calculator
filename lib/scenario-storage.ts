@@ -1,7 +1,29 @@
 import type { DealInputModel, ScenarioRecord } from '@/lib/models/deal';
+import { defaultDealInput } from '@/lib/models/deal';
 
 const STORAGE_KEY = 'investor-command-center.scenarios.v1';
 const APP_VERSION = '0.2.0';
+
+
+const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
+  return {
+    ...defaultDealInput,
+    ...payload,
+    purchase: { ...defaultDealInput.purchase, ...payload.purchase },
+    longTerm: { ...defaultDealInput.longTerm, ...payload.longTerm },
+    airbnb: { ...defaultDealInput.airbnb, ...payload.airbnb },
+    padSplit: { ...defaultDealInput.padSplit, ...payload.padSplit },
+    brrrr: { ...defaultDealInput.brrrr, ...payload.brrrr },
+    flip: { ...defaultDealInput.flip, ...payload.flip },
+    assumptions: { ...defaultDealInput.assumptions, ...payload.assumptions },
+    variableExpenses: Array.isArray(payload.variableExpenses) && payload.variableExpenses.length > 0 ? payload.variableExpenses : defaultDealInput.variableExpenses
+  };
+};
+
+const normalizeScenario = (record: ScenarioRecord): ScenarioRecord => ({
+  ...record,
+  payload: normalizeDealInput(record.payload)
+});
 
 
 const createId = () => {
@@ -55,7 +77,7 @@ export const readScenarios = (): ScenarioRecord[] => {
 
   try {
     const parsed = JSON.parse(raw) as ScenarioRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map((record) => normalizeScenario(record)) : [];
   } catch {
     return [];
   }
@@ -68,12 +90,13 @@ export const writeScenarios = (records: ScenarioRecord[]) => {
 
 export const upsertScenario = (record: ScenarioRecord) => {
   const records = readScenarios();
-  const index = records.findIndex((entry) => entry.scenarioId === record.scenarioId);
+  const normalizedRecord = normalizeScenario(record);
+  const index = records.findIndex((entry) => entry.scenarioId === normalizedRecord.scenarioId);
 
   if (index >= 0) {
-    records[index] = { ...record, updatedAt: new Date().toISOString() };
+    records[index] = { ...normalizedRecord, updatedAt: new Date().toISOString() };
   } else {
-    records.unshift(record);
+    records.unshift(normalizedRecord);
   }
 
   writeScenarios(records);
@@ -93,7 +116,7 @@ export const encodeScenario = (record: ScenarioRecord): string => {
 export const decodeScenario = (value: string): ScenarioRecord | null => {
   try {
     const raw = decodeBase64Url(value);
-    return JSON.parse(raw) as ScenarioRecord;
+    return normalizeScenario(JSON.parse(raw) as ScenarioRecord);
   } catch {
     return null;
   }

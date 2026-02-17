@@ -1,4 +1,6 @@
-export type FinancingType = 'cash' | 'loan';
+export type FinancingType = 'cash' | 'loan' | 'heloc';
+
+export type AmortizationType = 'PI' | 'IO';
 
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
@@ -15,6 +17,10 @@ export interface PurchaseInputs {
   loanTermYears: number;
   pointsPercent: number;
   financingType: FinancingType;
+  amortizationType: AmortizationType;
+  helocAmount: number;
+  helocRate: number;
+  helocClosingCosts: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
@@ -99,6 +105,7 @@ export interface StrategyOutput {
   annualCashFlow: number;
   capRate: number;
   cashOnCashReturn: number;
+  dscr: number;
   roi: number;
   irr: number;
   totalCashNeeded: number;
@@ -150,6 +157,10 @@ export const defaultDealInput: DealInputModel = {
     loanTermYears: 30,
     pointsPercent: 0.01,
     financingType: 'loan',
+    amortizationType: 'PI',
+    helocAmount: 0,
+    helocRate: 0.09,
+    helocClosingCosts: 0,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
     hoaMonthly: 0,
@@ -205,9 +216,10 @@ export const defaultDealInput: DealInputModel = {
     { key: 'internet', label: 'Internet', monthlyAmount: 75, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
     { key: 'pool', label: 'Pool Service', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
     { key: 'lawn', label: 'Lawn Service', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
-    { key: 'licensing', label: 'Licensing / Permits', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'licensing', label: 'Pest Control', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
     { key: 'padsplit-cleaning', label: 'PadSplit Monthly Cleaning', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } },
-    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
+    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'other-2', label: 'Other 2', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
   ],
   assumptions: {
     holdYears: 10,

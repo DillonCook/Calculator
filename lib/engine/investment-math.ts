@@ -1,12 +1,15 @@
+import type { AmortizationType, FinancingType } from '@/lib/models/deal';
 import { annualToMonthlyRate } from '@/lib/engine/finance';
 
 export const calculateRemainingBalance = (
   principal: number,
   annualRate: number,
   termYears: number,
-  elapsedYears: number
+  elapsedYears: number,
+  amortizationType: AmortizationType = 'PI'
 ): number => {
   if (principal <= 0) return 0;
+  if (amortizationType === 'IO') return principal;
 
   const monthlyRate = annualToMonthlyRate(annualRate);
   const periods = Math.max(termYears * 12, 1);
@@ -25,14 +28,40 @@ export const calculateRemainingBalance = (
   return principal * (numerator / denominator);
 };
 
+export const getAcquisitionDebtPayoffAtMonth = ({
+  financingType,
+  initialLoanAmount,
+  annualRate,
+  termYears,
+  monthsElapsed,
+  amortizationType,
+  helocAmount
+}: {
+  financingType: FinancingType;
+  initialLoanAmount: number;
+  annualRate: number;
+  termYears: number;
+  monthsElapsed: number;
+  amortizationType: AmortizationType;
+  helocAmount: number;
+}): number => {
+  if (financingType === 'cash') return 0;
+  if (financingType === 'heloc') return Math.max(helocAmount, 0);
+  if (amortizationType === 'IO') return Math.max(initialLoanAmount, 0);
+
+  return calculateRemainingBalance(initialLoanAmount, annualRate, termYears, monthsElapsed / 12, 'PI');
+};
+
 export const estimateSaleProceeds = (
   purchasePrice: number,
+  arv: number,
   annualAppreciationPercent: number,
   sellingCostPercent: number,
   remainingLoanBalance: number,
   holdYears: number
 ): number => {
-  const salePrice = purchasePrice * Math.pow(1 + annualAppreciationPercent, holdYears);
+  const baseValue = arv > 0 ? arv : purchasePrice;
+  const salePrice = baseValue * Math.pow(1 + annualAppreciationPercent, holdYears);
   const sellingCosts = salePrice * sellingCostPercent;
   return salePrice - sellingCosts - remainingLoanBalance;
 };
