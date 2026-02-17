@@ -1,33 +1,48 @@
-import type { StrategyOutput } from '@/lib/models/deal';
+import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 interface TimelineCardProps {
   output: StrategyOutput;
-  holdYears: number;
-  onHoldYearsChange: (years: number) => void;
+  assumptions: MasterAssumptions;
+  onAssumptionsChange: (updates: Partial<MasterAssumptions>) => void;
 }
 
-export function TimelineCard({ output, holdYears, onHoldYearsChange }: TimelineCardProps) {
+export function TimelineCard({ output, assumptions, onAssumptionsChange }: TimelineCardProps) {
   return (
     <details className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold">IRR Cashflow Timeline (Year 0..N)</h3>
+        <h3 className="text-lg font-semibold">IRR Stream & Exit Assumptions</h3>
         <p className="text-xs text-muted">IRR-ready stream</p>
       </summary>
 
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-        <label className="max-w-[180px] space-y-1">
-          <span className="text-xs text-muted">Hold years (optional)</span>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="space-y-1">
+          <span className="text-xs text-muted">Hold years</span>
           <input
             className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
             type="number"
             min={1}
-            value={holdYears}
-            onChange={(event) => onHoldYearsChange(Math.max(Number(event.target.value) || 1, 1))}
+            value={assumptions.holdYears}
+            onChange={(event) => onAssumptionsChange({ holdYears: Math.max(Number(event.target.value) || 1, 1) })}
           />
         </label>
-        <p className="text-xs text-muted">Add years to extend the IRR stream instantly.</p>
+
+        <PercentField
+          label="NOI growth %"
+          value={assumptions.noiGrowthPercent}
+          onChange={(value) => onAssumptionsChange({ noiGrowthPercent: value })}
+        />
+        <PercentField
+          label="Appreciation %"
+          value={assumptions.annualAppreciationPercent}
+          onChange={(value) => onAssumptionsChange({ annualAppreciationPercent: value })}
+        />
+        <PercentField
+          label="Selling cost %"
+          value={assumptions.sellingCostPercent}
+          onChange={(value) => onAssumptionsChange({ sellingCostPercent: value })}
+        />
       </div>
 
       <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
@@ -39,5 +54,21 @@ export function TimelineCard({ output, holdYears, onHoldYearsChange }: TimelineC
         ))}
       </div>
     </details>
+  );
+}
+
+function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
+  const displayValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
+
+  return (
+    <label className="space-y-1">
+      <span className="text-xs text-muted">{label}</span>
+      <input
+        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
+        type="number"
+        value={displayValue}
+        onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
+      />
+    </label>
   );
 }

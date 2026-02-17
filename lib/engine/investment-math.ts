@@ -1,4 +1,4 @@
-import type { AmortizationType, FinancingType } from '@/lib/models/deal';
+import type { AmortizationType } from '@/lib/models/deal';
 import { annualToMonthlyRate } from '@/lib/engine/finance';
 
 export const calculateRemainingBalance = (
@@ -37,7 +37,7 @@ export const getAcquisitionDebtPayoffAtMonth = ({
   amortizationType,
   helocAmount
 }: {
-  financingType: FinancingType;
+  financingType: 'cash' | 'loan';
   initialLoanAmount: number;
   annualRate: number;
   termYears: number;
@@ -45,11 +45,10 @@ export const getAcquisitionDebtPayoffAtMonth = ({
   amortizationType: AmortizationType;
   helocAmount: number;
 }): number => {
-  if (financingType === 'cash') return 0;
-  if (financingType === 'heloc') return Math.max(helocAmount, 0);
-  if (amortizationType === 'IO') return Math.max(initialLoanAmount, 0);
+  if (financingType === 'cash') return Math.max(helocAmount, 0);
+  if (amortizationType === 'IO') return Math.max(initialLoanAmount, 0) + Math.max(helocAmount, 0);
 
-  return calculateRemainingBalance(initialLoanAmount, annualRate, termYears, monthsElapsed / 12, 'PI');
+  return calculateRemainingBalance(initialLoanAmount, annualRate, termYears, monthsElapsed / 12, 'PI') + Math.max(helocAmount, 0);
 };
 
 export const estimateSaleProceeds = (

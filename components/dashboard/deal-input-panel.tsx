@@ -83,28 +83,19 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                   ]}
                 />
               )}
-
-              {value.purchase.financingType === 'heloc' && (
-                <>
-                  <Input
-                    label="HELOC amount"
-                    type="number"
-                    value={value.purchase.helocAmount}
-                    onChange={(v) => update('purchase', 'helocAmount', Number(v))}
-                  />
-                  <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
-                  <Input
-                    label="HELOC closing costs"
-                    type="number"
-                    value={value.purchase.helocClosingCosts}
-                    onChange={(v) => update('purchase', 'helocClosingCosts', Number(v))}
-                  />
-                </>
-              )}
-
-              {value.purchase.financingType === 'cash' && (
-                <p className="text-xs text-muted sm:col-span-2">No debt inputs needed for all-cash purchases.</p>
-              )}
+              <Input
+                label="HELOC amount (supplemental)"
+                type="number"
+                value={value.purchase.helocAmount}
+                onChange={(v) => update('purchase', 'helocAmount', Number(v))}
+              />
+              <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
+              <Input
+                label="HELOC closing costs"
+                type="number"
+                value={value.purchase.helocClosingCosts}
+                onChange={(v) => update('purchase', 'helocClosingCosts', Number(v))}
+              />
             </div>
           </div>
 
@@ -159,7 +150,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           </div>
         </Section>
 
-        <Section title="Strategy Modules + Assumptions" defaultOpen={false}>
+        <Section title="Strategy Modules" defaultOpen={false}>
           <div className="grid gap-3 lg:grid-cols-2">
             <StrategyCard title="Long-Term Rental">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -196,20 +187,21 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
               </div>
             </StrategyCard>
 
-            <StrategyCard title="BRRRR + Flip + Master Assumptions">
+            <StrategyCard title="BRRRR">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input label="BRRRR hold months" type="number" value={value.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
                 <PercentInput label="Refi target LTV %" value={value.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
                 <PercentInput label="Refi rate %" value={value.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
                 <PercentInput label="Refi closing %" value={value.brrrr.refinanceClosingCostPercent} onChange={(v) => update('brrrr', 'refinanceClosingCostPercent', v)} />
+              </div>
+            </StrategyCard>
+
+            <StrategyCard title="Flip">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Input label="Flip hold months" type="number" value={value.flip.holdingMonths} onChange={(v) => update('flip', 'holdingMonths', Number(v))} />
                 <PercentInput label="Agent commission %" value={value.flip.agentCommissionPercent} onChange={(v) => update('flip', 'agentCommissionPercent', v)} />
                 <PercentInput label="Sell closing %" value={value.flip.sellClosingCostPercent} onChange={(v) => update('flip', 'sellClosingCostPercent', v)} />
                 <Input label="Seller concessions" type="number" value={value.flip.sellerConcessions} onChange={(v) => update('flip', 'sellerConcessions', Number(v))} />
-                <Input label="Hold years" type="number" value={value.assumptions.holdYears} onChange={(v) => update('assumptions', 'holdYears', Number(v))} />
-                <PercentInput label="NOI growth %" value={value.assumptions.noiGrowthPercent} onChange={(v) => update('assumptions', 'noiGrowthPercent', v)} />
-                <PercentInput label="Appreciation %" value={value.assumptions.annualAppreciationPercent} onChange={(v) => update('assumptions', 'annualAppreciationPercent', v)} />
-                <PercentInput label="Selling cost %" value={value.assumptions.sellingCostPercent} onChange={(v) => update('assumptions', 'sellingCostPercent', v)} />
               </div>
             </StrategyCard>
           </div>

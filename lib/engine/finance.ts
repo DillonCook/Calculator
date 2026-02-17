@@ -1,4 +1,4 @@
-import type { AmortizationType, FinancingType } from '@/lib/models/deal';
+import type { AmortizationType } from '@/lib/models/deal';
 
 export const annualToMonthlyRate = (annualRate: number): number => annualRate / 12;
 
@@ -36,7 +36,7 @@ export const calculateAcquisitionDebtService = ({
   helocAmount,
   helocRate
 }: {
-  financingType: FinancingType;
+  financingType: 'cash' | 'loan';
   amortizationType: AmortizationType;
   purchasePrice: number;
   downPaymentPercent: number;
@@ -45,22 +45,25 @@ export const calculateAcquisitionDebtService = ({
   helocAmount: number;
   helocRate: number;
 }) => {
-  if (financingType === 'cash') return { principal: 0, debtService: 0 };
+  const primaryPrincipal = financingType === 'loan' ? calculateLoanAmount(purchasePrice, downPaymentPercent) : 0;
+  const primaryDebtService =
+    financingType === 'loan'
+      ? amortizationType === 'IO'
+        ? calculateInterestOnlyPayment(primaryPrincipal, interestRate)
+        : calculateMonthlyPayment(primaryPrincipal, interestRate, loanTermYears)
+      : 0;
 
-  if (financingType === 'heloc') {
-    return {
-      principal: helocAmount,
-      debtService: calculateInterestOnlyPayment(helocAmount, helocRate)
-    };
-  }
+  const helocPrincipal = Math.max(helocAmount, 0);
+  const helocDebtService = calculateInterestOnlyPayment(helocPrincipal, helocRate);
 
-  const principal = calculateLoanAmount(purchasePrice, downPaymentPercent);
-  const debtService =
-    amortizationType === 'IO'
-      ? calculateInterestOnlyPayment(principal, interestRate)
-      : calculateMonthlyPayment(principal, interestRate, loanTermYears);
-
-  return { principal, debtService };
+  return {
+    primaryPrincipal,
+    primaryDebtService,
+    helocPrincipal,
+    helocDebtService,
+    principal: primaryPrincipal + helocPrincipal,
+    debtService: primaryDebtService + helocDebtService
+  };
 };
 
 export const calculateCashToClose = (
@@ -69,22 +72,16 @@ export const calculateCashToClose = (
   downPaymentPercent: number,
   closingCostPercent: number,
   pointsPercent: number,
-  financingType: FinancingType,
+  financingType: 'cash' | 'loan',
+  helocAmount = 0,
   helocClosingCosts = 0
 ): number => {
   const closingCosts = purchasePrice * closingCostPercent;
 
-  if (financingType === 'cash') {
-    return purchasePrice + rehabBudget + closingCosts;
-  }
+  const baseCashToClose =
+    financingType === 'cash'
+      ? purchasePrice + rehabBudget + closingCosts
+      : purchasePrice * downPaymentPercent + closingCosts + calculateLoanAmount(purchasePrice, downPaymentPercent) * pointsPercent + rehabBudget;
 
-  if (financingType === 'heloc') {
-    return purchasePrice + rehabBudget + closingCosts + helocClosingCosts;
-  }
-
-  const loanAmount = calculateLoanAmount(purchasePrice, downPaymentPercent);
-  const downPayment = purchasePrice * downPaymentPercent;
-  const points = loanAmount * pointsPercent;
-
-  return downPayment + closingCosts + points + rehabBudget;
+  return Math.max(baseCashToClose - Math.max(helocAmount, 0), 0) + Math.max(helocClosingCosts, 0);
 };

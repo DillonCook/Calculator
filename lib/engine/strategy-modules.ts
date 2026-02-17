@@ -114,6 +114,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     purchase.closingCostPercent,
     purchase.pointsPercent,
     purchase.financingType,
+    purchase.helocAmount,
     purchase.helocClosingCosts
   );
 
@@ -281,7 +282,7 @@ export const calculateBrrrrStrategy = (
   const refiLoanAmount = purchase.arv * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
 
-  const initialAcquisitionDebt = getPurchaseLoanTerms(input).principal;
+  const initialAcquisitionDebt = getPurchaseLoanTerms(input).primaryPrincipal;
   const payoffInitialLoan = getAcquisitionDebtPayoffAtMonth({
     financingType: purchase.financingType,
     initialLoanAmount: initialAcquisitionDebt,

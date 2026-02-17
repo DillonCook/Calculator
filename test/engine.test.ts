@@ -191,7 +191,7 @@ test('HELOC debt service is included in operating monthly cash flow', () => {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
-      financingType: 'heloc' as const,
+      financingType: 'cash' as const,
       helocAmount: 180000,
       helocRate: 0.1
     }
@@ -263,4 +263,22 @@ test('BRRRR cash back uses payoff of initial acquisition debt', () => {
   const yearOneSale = model.assumptions.holdYears === 1 ? result.brrrr.saleProceeds ?? 0 : 0;
 
   near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + expectedCashBack, 0.01);
+});
+
+
+test('HELOC supplemental amount reduces out-of-pocket cash-to-close', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'loan' as const,
+      helocAmount: 20000,
+      helocClosingCosts: 1200
+    }
+  };
+
+  const baseline = calculateDeal(defaultDealInput).purchase.totalCashNeeded;
+  const adjusted = calculateDeal(model).purchase.totalCashNeeded;
+
+  near(adjusted, Math.max(baseline - 20000, 0) + 1200);
 });

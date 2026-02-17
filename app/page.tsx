@@ -66,9 +66,9 @@ export default function HomePage() {
             <StrategyBreakdown data={result} active={activeStrategy} />
             <TimelineCard
               output={result[activeStrategy]}
-              holdYears={model.assumptions.holdYears}
-              onHoldYearsChange={(years) =>
-                setModel((current) => ({ ...current, assumptions: { ...current.assumptions, holdYears: years } }))
+              assumptions={model.assumptions}
+              onAssumptionsChange={(updates) =>
+                setModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
               }
             />
             <StrategyComparison data={result} />

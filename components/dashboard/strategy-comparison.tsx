@@ -48,10 +48,11 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   style={{ width: `${Math.abs(barWidth)}%` }}
                 />
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-y-1 text-xs text-muted sm:grid-cols-4">
+              <div className="mt-2 grid grid-cols-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
                 <span>CoC {percent.format(output.cashOnCashReturn)}</span>
                 <span>ROI {percent.format(output.roi)}</span>
                 <span>DSCR {output.dscr.toFixed(2)}</span>
+                <span>IRR {percent.format(output.irr)}</span>
                 <span className="text-right">Cap {percent.format(output.capRate)}</span>
               </div>
             </div>
