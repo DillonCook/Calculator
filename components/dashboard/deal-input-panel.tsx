@@ -1,14 +1,12 @@
 'use client';
 
+import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 
 interface DealInputPanelProps {
   value: DealInputModel;
   onChange: (next: DealInputModel) => void;
 }
-
-const inputClass =
-  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none ring-accent placeholder:text-muted focus:ring-2';
 
 const strategyLabels: Record<ExpenseStrategyKey, string> = {
   longTerm: 'LT',
@@ -52,7 +50,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
   return (
     <section className="scrollbar-premium rounded-2xl border border-white/10 bg-panel p-5 shadow-soft xl:max-h-[calc(100vh-2.5rem)] xl:overflow-y-auto">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Deal Inputs</h2>
+        <h2 className="text-lg font-semibold">Core Deal Inputs</h2>
         <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Whole number % inputs</span>
       </div>
 
@@ -179,92 +177,8 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           </div>
         </Section>
 
-        <Section title="Strategy Modules" defaultOpen={false}>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <StrategyCard title="Long-Term Rental">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="Gross rent / mo" type="number" value={value.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
-                <Input label="Other income / mo" type="number" value={value.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
-                <PercentInput label="Vacancy %" value={value.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
-                <PercentInput label="Maintenance %" value={value.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
-                <PercentInput label="CapEx %" value={value.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
-                <PercentInput label="Mgmt fee %" value={value.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
-                <Input label="Other LT expenses / mo" type="number" value={value.longTerm.ownerExpensesMonthly} onChange={(v) => update('longTerm', 'ownerExpensesMonthly', Number(v))} />
-              </div>
-            </StrategyCard>
-
-            <StrategyCard title="Airbnb / STR">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="ADR" type="number" value={value.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
-                <Input label="Cleaning fee charged" type="number" value={value.airbnb.cleaningFeeCharged} onChange={(v) => update('airbnb', 'cleaningFeeCharged', Number(v))} />
-                <Input label="Avg nights per booking" type="number" value={value.airbnb.averageNightsPerBooking} onChange={(v) => update('airbnb', 'averageNightsPerBooking', Number(v))} />
-                <PercentInput label="Occupancy %" value={value.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
-                <PercentInput label="Platform fee %" value={value.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', v)} />
-                <Input label="Nights per month" type="number" value={value.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
-                <Input label="Cleaner cost / turn" type="number" value={value.airbnb.cleanerCostPerTurn} onChange={(v) => update('airbnb', 'cleanerCostPerTurn', Number(v))} />
-                <PercentInput label="Maintenance reserve %" value={value.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
-                <PercentInput label="CapEx reserve %" value={value.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
-                <PercentInput label="Mgmt fee %" value={value.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
-                <Input label="STR furnishing (one-time)" type="number" value={value.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
-                <Input label="Other STR expenses / mo" type="number" value={value.airbnb.ownerExpensesMonthly} onChange={(v) => update('airbnb', 'ownerExpensesMonthly', Number(v))} />
-              </div>
-            </StrategyCard>
-
-            <StrategyCard title="PadSplit">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="Rentable rooms" type="number" value={value.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
-                <Input label="Weekly rate / room" type="number" value={value.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
-                <PercentInput label="Occupancy %" value={value.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
-                <Input label="Other income / mo" type="number" value={value.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
-                <PercentInput label="Platform fee %" value={value.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
-                <PercentInput label="Maintenance reserve %" value={value.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
-                <PercentInput label="CapEx reserve %" value={value.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
-                <PercentInput label="Mgmt fee %" value={value.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', v)} />
-                <Input label="Turnover cost / mo" type="number" value={value.padSplit.turnoverCostMonthly} onChange={(v) => update('padSplit', 'turnoverCostMonthly', Number(v))} />
-                <Input label="Furnishing (one-time)" type="number" value={value.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
-              </div>
-            </StrategyCard>
-
-            <StrategyCard title="BRRRR">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="BRRRR hold months" type="number" value={value.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
-                <PercentInput label="Refi target LTV %" value={value.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
-                <PercentInput label="Refi rate %" value={value.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
-                <PercentInput label="Refi closing %" value={value.brrrr.refinanceClosingCostPercent} onChange={(v) => update('brrrr', 'refinanceClosingCostPercent', v)} />
-                <Select
-                  label="Post-refi ops model"
-                  value={value.brrrr.operatingStrategy}
-                  onChange={(v) => update('brrrr', 'operatingStrategy', v as DealInputModel['brrrr']['operatingStrategy'])}
-                  options={[
-                    { label: 'Long-Term', value: 'longTerm' },
-                    { label: 'Airbnb / STR', value: 'airbnb' },
-                    { label: 'PadSplit', value: 'padSplit' }
-                  ]}
-                />
-              </div>
-            </StrategyCard>
-
-            <StrategyCard title="Flip">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input label="Flip hold months" type="number" value={value.flip.holdingMonths} onChange={(v) => update('flip', 'holdingMonths', Number(v))} />
-                <PercentInput label="Agent commission %" value={value.flip.agentCommissionPercent} onChange={(v) => update('flip', 'agentCommissionPercent', v)} />
-                <PercentInput label="Sell closing %" value={value.flip.sellClosingCostPercent} onChange={(v) => update('flip', 'sellClosingCostPercent', v)} />
-                <Input label="Seller concessions" type="number" value={value.flip.sellerConcessions} onChange={(v) => update('flip', 'sellerConcessions', Number(v))} />
-              </div>
-            </StrategyCard>
-          </div>
-        </Section>
       </div>
     </section>
-  );
-}
-
-function StrategyCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <h3 className="mb-2 text-sm font-medium text-white">{title}</h3>
-      {children}
-    </div>
   );
 }
 
@@ -274,74 +188,5 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
       <summary className="cursor-pointer list-none text-sm font-medium text-white">{title}</summary>
       <div className="mt-3">{children}</div>
     </details>
-  );
-}
-
-function Input({
-  label,
-  value,
-  onChange,
-  type = 'text'
-}: {
-  label: string;
-  value: number | string;
-  onChange: (value: string) => void;
-  type?: string;
-}) {
-  return (
-    <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
-      <input className={inputClass} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
-  );
-}
-
-function PercentInput({
-  label,
-  value,
-  onChange
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  const displayValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
-
-  return (
-    <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
-      <input
-        className={inputClass}
-        type="number"
-        step="1"
-        value={displayValue}
-        onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
-      />
-    </label>
-  );
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { label: string; value: string }[];
-}) {
-  return (
-    <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
-      <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-panel">
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
