@@ -158,7 +158,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     purchaseCashNeeded,
     annual,
     loanAmount,
-    purchase.interestRate,
+    purchase.financingType === 'heloc' ? purchase.helocRate : purchase.interestRate,
     purchase.loanTermYears
   );
 
@@ -208,7 +208,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     investedCapital,
     annual,
     loanAmount,
-    purchase.interestRate,
+    purchase.financingType === 'heloc' ? purchase.helocRate : purchase.interestRate,
     purchase.loanTermYears
   );
 
@@ -266,7 +266,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     investedCapital,
     annual,
     loanAmount,
-    purchase.interestRate,
+    purchase.financingType === 'heloc' ? purchase.helocRate : purchase.interestRate,
     purchase.loanTermYears
   );
 
