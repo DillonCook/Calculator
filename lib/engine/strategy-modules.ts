@@ -271,6 +271,15 @@ export const calculateBrrrrStrategy = (
     brrrr.refinanceRate,
     purchase.loanTermYears
   );
+  const timeline = [...timelineData.timeline];
+
+  if (timeline.length === 1) {
+    timeline.push(cashBackAtRefi);
+  } else {
+    timeline[1] += cashBackAtRefi;
+  }
+
+  const irr = calculateIrr(timeline);
 
   return {
     ...base,
@@ -281,9 +290,9 @@ export const calculateBrrrrStrategy = (
     roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,
     totalCashNeeded: purchaseCashNeeded + totalHoldingCosts,
     noiMonthly: longTermNoiMonthly,
-    irr: timelineData.irr,
+    irr,
     saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline
+    cashFlowTimeline: timeline
   };
 };
 
@@ -308,8 +317,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     flip.sellerConcessions -
     holdingCosts;
 
+  const totalCashInvested = purchaseCashNeeded + holdingCosts;
   const monthly = netProfit / Math.max(flip.holdingMonths, 1);
-  const timeline = [-Math.abs(purchaseCashNeeded + holdingCosts), netProfit];
+  const timeline = [-Math.abs(totalCashInvested), totalCashInvested + netProfit];
 
   return {
     ...base,

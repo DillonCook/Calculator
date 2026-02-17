@@ -99,3 +99,48 @@ test('long-term timeline covers Year 0..N and produces irr from cashflows', () =
   assert.ok(result.longTerm.cashFlowTimeline[0] < 0);
   assert.ok(result.longTerm.irr !== 0);
 });
+
+
+test('flip IRR timeline exits at full terminal cash flow, not net profit only', () => {
+  const result = calculateDeal(defaultDealInput);
+  const { purchase: p, flip: f } = defaultDealInput;
+
+  const fixed = fixedCostsMonthly();
+  const variable = variableCostMonthly('flip');
+  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable);
+  const totalCashInvested = result.purchase.totalCashNeeded + holdingCosts;
+
+  const netProfit =
+    p.arv -
+    p.purchasePrice -
+    p.rehabBudget -
+    p.purchasePrice * p.closingCostPercent -
+    p.arv * f.agentCommissionPercent -
+    p.arv * f.sellClosingCostPercent -
+    f.sellerConcessions -
+    holdingCosts;
+
+  near(result.flip.cashFlowTimeline[0], -Math.abs(totalCashInvested));
+  near(result.flip.cashFlowTimeline[1], totalCashInvested + netProfit);
+  assert.notEqual(result.flip.cashFlowTimeline[1], netProfit);
+});
+
+test('brrrr IRR timeline includes refinance cash event in year one', () => {
+  const result = calculateDeal(defaultDealInput);
+  const { purchase: p, brrrr, assumptions } = defaultDealInput;
+
+  const strategyVariableCosts = variableCostMonthly('flip');
+  const holdingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCostsMonthly() + strategyVariableCosts);
+  const initialOutflow = result.purchase.totalCashNeeded + holdingCosts;
+
+  const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
+  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
+  const cashBackAtRefi = refiLoanAmount - p.purchasePrice - p.rehabBudget - refiClosingCosts;
+
+  near(result.brrrr.cashFlowTimeline[0], -Math.abs(initialOutflow));
+  assert.ok(result.brrrr.cashFlowTimeline.length >= 2);
+
+  const baseYearOneFlow = result.brrrr.annualCashFlow * Math.pow(1 + assumptions.noiGrowthPercent, 0);
+  const yearOneSale = assumptions.holdYears === 1 ? result.brrrr.saleProceeds : 0;
+  near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + cashBackAtRefi);
+});
