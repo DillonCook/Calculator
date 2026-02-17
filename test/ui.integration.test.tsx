@@ -38,6 +38,26 @@ describe('dashboard integration', () => {
     expect(options.some((option) => option?.includes('Tampa Duplex - Sample Deal'))).toBe(true);
   });
 
+
+  it('purchase price auto-updates ARV until ARV is manually overridden', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    const arv = screen.getByLabelText('ARV');
+
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '300000');
+    expect(arv).toHaveValue(300000);
+
+    await user.clear(arv);
+    await user.type(arv, '350000');
+
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '320000');
+    expect(arv).toHaveValue(350000);
+  });
+
   it('print view link includes encoded scenario payload', () => {
     render(<HomePage />);
 

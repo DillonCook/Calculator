@@ -13,7 +13,11 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
   const longTerm = calculateLongTermStrategy(input, purchase.totalCashNeeded);
   const airbnb = calculateAirbnbStrategy(input, purchase.totalCashNeeded);
   const padSplit = calculatePadSplitStrategy(input, purchase.totalCashNeeded);
-  const brrrr = calculateBrrrrStrategy(input, purchase.totalCashNeeded, longTerm.noiMonthly ?? 0);
+  const brrrr = calculateBrrrrStrategy(input, purchase.totalCashNeeded, {
+    longTerm: longTerm.noiMonthly ?? 0,
+    airbnb: airbnb.noiMonthly ?? 0,
+    padSplit: padSplit.noiMonthly ?? 0
+  });
   const flip = calculateFlipStrategy(input, purchase.totalCashNeeded);
 
   const strategyCashFlows = [

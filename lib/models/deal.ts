@@ -1,8 +1,12 @@
 export type FinancingType = 'cash' | 'loan';
 
+export type AmortizationType = 'PI' | 'IO';
+
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
 export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
+
+export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
 export interface PurchaseInputs {
   dealName: string;
@@ -15,6 +19,10 @@ export interface PurchaseInputs {
   loanTermYears: number;
   pointsPercent: number;
   financingType: FinancingType;
+  amortizationType: AmortizationType;
+  helocAmount: number;
+  helocRate: number;
+  helocClosingCosts: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
@@ -27,6 +35,7 @@ export interface LongTermInputs {
   vacancyPercent: number;
   maintenancePercent: number;
   capexPercent: number;
+  managementFeePercent: number;
   ownerExpensesMonthly: number;
 }
 
@@ -38,7 +47,11 @@ export interface AirbnbInputs {
   cleaningFeeCharged: number;
   cleanerCostPerTurn: number;
   averageNightsPerBooking: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  managementFeePercent: number;
   ownerExpensesMonthly: number;
+  furnishingOneTime: number;
 }
 
 export interface PadSplitInputs {
@@ -46,7 +59,11 @@ export interface PadSplitInputs {
   avgWeeklyRatePerRoom: number;
   occupancyPercent: number;
   weeksPerMonth: number;
+  otherIncomeMonthly: number;
   platformFeePercent: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  managementFeePercent: number;
   turnoverCostMonthly: number;
   ownerExpensesMonthly: number;
   furnishingOneTime: number;
@@ -58,6 +75,7 @@ export interface BrrrrInputs {
   refinanceLtvPercent: number;
   refinanceRate: number;
   refinanceClosingCostPercent: number;
+  operatingStrategy: BrrrrOperatingStrategy;
 }
 
 export interface FlipInputs {
@@ -99,6 +117,7 @@ export interface StrategyOutput {
   annualCashFlow: number;
   capRate: number;
   cashOnCashReturn: number;
+  dscr: number;
   roi: number;
   irr: number;
   totalCashNeeded: number;
@@ -143,13 +162,17 @@ export const defaultDealInput: DealInputModel = {
     dealName: 'Tampa Duplex - Sample Deal',
     purchasePrice: 285000,
     rehabBudget: 25000,
-    arv: 360000,
+    arv: 285000,
     downPaymentPercent: 0.2,
     closingCostPercent: 0.015,
     interestRate: 0.068,
     loanTermYears: 30,
     pointsPercent: 0.01,
     financingType: 'loan',
+    amortizationType: 'PI',
+    helocAmount: 0,
+    helocRate: 0.09,
+    helocClosingCosts: 0,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
     hoaMonthly: 0,
@@ -161,6 +184,7 @@ export const defaultDealInput: DealInputModel = {
     vacancyPercent: 0.06,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
+    managementFeePercent: 0.08,
     ownerExpensesMonthly: 550
   },
   airbnb: {
@@ -171,14 +195,22 @@ export const defaultDealInput: DealInputModel = {
     cleaningFeeCharged: 125,
     cleanerCostPerTurn: 110,
     averageNightsPerBooking: 3,
-    ownerExpensesMonthly: 675
+    maintenancePercent: 0.04,
+    capexPercent: 0.04,
+    managementFeePercent: 0.18,
+    ownerExpensesMonthly: 675,
+    furnishingOneTime: 18000
   },
   padSplit: {
     rentableRooms: 5,
     avgWeeklyRatePerRoom: 195,
     occupancyPercent: 0.9,
     weeksPerMonth: 4.33,
+    otherIncomeMonthly: 150,
     platformFeePercent: 0.08,
+    maintenancePercent: 0.04,
+    capexPercent: 0.04,
+    managementFeePercent: 0.12,
     turnoverCostMonthly: 140,
     ownerExpensesMonthly: 820,
     furnishingOneTime: 16200
@@ -188,7 +220,8 @@ export const defaultDealInput: DealInputModel = {
     holdingExpensesMonthly: 480,
     refinanceLtvPercent: 0.75,
     refinanceRate: 0.065,
-    refinanceClosingCostPercent: 0.03
+    refinanceClosingCostPercent: 0.03,
+    operatingStrategy: 'longTerm'
   },
   flip: {
     holdingMonths: 6,
@@ -205,9 +238,10 @@ export const defaultDealInput: DealInputModel = {
     { key: 'internet', label: 'Internet', monthlyAmount: 75, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
     { key: 'pool', label: 'Pool Service', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
     { key: 'lawn', label: 'Lawn Service', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
-    { key: 'licensing', label: 'Licensing / Permits', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'licensing', label: 'Pest Control', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
     { key: 'padsplit-cleaning', label: 'PadSplit Monthly Cleaning', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } },
-    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
+    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'other-2', label: 'Other 2', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
   ],
   assumptions: {
     holdYears: 10,

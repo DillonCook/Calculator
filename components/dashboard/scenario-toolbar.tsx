@@ -62,9 +62,10 @@ export function ScenarioToolbar({ model, onLoadScenario }: ScenarioToolbarProps)
     const text = await file.text();
     const parsed = JSON.parse(text) as ScenarioRecord;
     const next = upsertScenario(parsed);
+    const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
     setScenarios(next);
     setSelectedId(parsed.scenarioId);
-    onLoadScenario(parsed.payload);
+    onLoadScenario(imported?.payload ?? model);
   };
 
   return (
