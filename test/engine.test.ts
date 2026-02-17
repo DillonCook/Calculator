@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { calculateDeal } from '../lib/engine/deal-engine';
-import { calculateLoanAmount, calculateMonthlyPayment } from '../lib/engine/finance';
+import { calculateLoanAmount, calculateMonthlyPayment, calculateMonthlyPmi } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 
 const near = (actual: number, expected: number, epsilon = 0.01) => {
@@ -23,20 +23,37 @@ test('purchase cash-to-close uses loan points on loan amount (not purchase price
   near(result.purchase.totalCashNeeded, expected);
 });
 
-test('long-term module returns correct NOI, debt service, monthly and cap rate', () => {
-  const result = calculateDeal(defaultDealInput);
-  const p = defaultDealInput.purchase;
-  const lt = defaultDealInput.longTerm;
+test('long-term module returns NOI, debt service, monthly, cap rate, and dscr', () => {
+  const input = structuredClone(defaultDealInput);
+  input.purchase.hoaMonthly = 120;
+  input.purchase.includePmi = true;
+  const result = calculateDeal(input);
+
+  const p = input.purchase;
+  const lt = input.longTerm;
 
   const gross = lt.grossRentMonthly + lt.otherIncomeMonthly;
-  const noi = gross - gross * lt.vacancyPercent - gross * lt.maintenancePercent - gross * lt.capexPercent - lt.ownerExpensesMonthly;
-  const debt = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+  const noi =
+    gross -
+    gross * lt.vacancyPercent -
+    gross * lt.managementFeePercent -
+    gross * lt.maintenancePercent -
+    gross * lt.capexPercent -
+    lt.ownerExpensesMonthly -
+    p.hoaMonthly;
+
+  const loanAmount = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
+  const debt =
+    calculateMonthlyPayment(loanAmount, p.interestRate, p.loanTermYears, p.amortizationType) +
+    calculateMonthlyPmi(loanAmount, p.includePmi);
+
   const expectedMonthly = noi - debt;
   const expectedCapRate = (noi * 12) / p.purchasePrice;
 
   near(result.longTerm.noiMonthly ?? 0, noi);
   near(result.longTerm.monthlyCashFlow, expectedMonthly);
   near(result.longTerm.capRate, expectedCapRate, 0.000001);
+  near(result.longTerm.dscr, noi / debt, 0.000001);
 });
 
 test('BRRRR monthly cash flow uses refinance debt service and refinance rate', () => {
@@ -46,15 +63,17 @@ test('BRRRR monthly cash flow uses refinance debt service and refinance rate', (
   const ltNoi = result.longTerm.noiMonthly ?? 0;
 
   const refiLoanAmount = p.arv * b.refinanceLtvPercent;
-  const refiDebt = calculateMonthlyPayment(refiLoanAmount, b.refinanceRate, p.loanTermYears);
+  const refiDebt = calculateMonthlyPayment(refiLoanAmount, b.refinanceRate, p.loanTermYears, p.amortizationType);
   const expectedMonthly = ltNoi - refiDebt;
 
   near(result.brrrr.monthlyCashFlow, expectedMonthly);
 });
 
 test('flip net profit math matches monthly and ROI', () => {
-  const result = calculateDeal(defaultDealInput);
-  const { purchase: p, flip: f } = defaultDealInput;
+  const input = structuredClone(defaultDealInput);
+  input.purchase.hoaMonthly = 90;
+  const result = calculateDeal(input);
+  const { purchase: p, flip: f } = input;
 
   const salePrice = p.arv;
   const netProfit =
@@ -65,12 +84,26 @@ test('flip net profit math matches monthly and ROI', () => {
     salePrice * f.agentCommissionPercent -
     salePrice * f.sellClosingCostPercent -
     f.sellerConcessions -
-    f.holdingMonths * f.holdingExpensesMonthly;
+    f.holdingMonths * (f.holdingExpensesMonthly + p.hoaMonthly);
 
   near(result.flip.monthlyCashFlow, netProfit / f.holdingMonths);
   near(result.flip.roi, netProfit / result.purchase.totalCashNeeded, 0.000001);
 });
 
+test('interest-only amortization increases monthly cash flow versus principal-and-interest', () => {
+  const ioInput = structuredClone(defaultDealInput);
+  ioInput.purchase.amortizationType = 'interestOnly';
+  ioInput.purchase.includePmi = false;
+
+  const piInput = structuredClone(defaultDealInput);
+  piInput.purchase.amortizationType = 'principalInterest';
+  piInput.purchase.includePmi = false;
+
+  const ioResult = calculateDeal(ioInput);
+  const piResult = calculateDeal(piInput);
+
+  assert.ok(ioResult.longTerm.monthlyCashFlow > piResult.longTerm.monthlyCashFlow);
+});
 
 test('long-term timeline covers Year 0..N and produces irr from cashflows', () => {
   const result = calculateDeal(defaultDealInput);

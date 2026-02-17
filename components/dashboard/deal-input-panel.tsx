@@ -1,6 +1,6 @@
 'use client';
 
-import type { DealInputModel, FinancingType } from '@/lib/models/deal';
+import type { AmortizationType, DealInputModel, FinancingType } from '@/lib/models/deal';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -35,12 +35,23 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 { label: 'Cash', value: 'cash' }
               ]}
             />
+            <Select
+              label="Amortization"
+              value={value.purchase.amortizationType}
+              onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+              options={[
+                { label: 'P&I', value: 'principalInterest' },
+                { label: 'Interest-only', value: 'interestOnly' }
+              ]}
+            />
             <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
             <Input label="ARV" type="number" value={value.purchase.arv} onChange={(v) => update('purchase', 'arv', Number(v))} />
             <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
             <Input label="Down payment (decimal)" type="number" step="0.01" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', Number(v))} />
             <Input label="Interest rate" type="number" step="0.001" value={value.purchase.interestRate} onChange={(v) => update('purchase', 'interestRate', Number(v))} />
             <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
+            <Input label="HOA / mo" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
+            <Toggle label="Include PMI (0.55% annualized)" checked={value.purchase.includePmi} onChange={(checked) => update('purchase', 'includePmi', checked)} />
           </div>
         </Section>
 
@@ -49,6 +60,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <Input label="Gross rent / mo" type="number" value={value.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
             <Input label="Other income / mo" type="number" value={value.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
             <Input label="Vacancy % (decimal)" type="number" step="0.01" value={value.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', Number(v))} />
+            <Input label="Management fee %" type="number" step="0.01" value={value.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', Number(v))} />
             <Input label="Expenses / mo" type="number" value={value.longTerm.ownerExpensesMonthly} onChange={(v) => update('longTerm', 'ownerExpensesMonthly', Number(v))} />
           </div>
         </Section>
@@ -58,6 +70,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <Input label="ADR" type="number" value={value.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
             <Input label="Occupancy % (decimal)" type="number" step="0.01" value={value.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', Number(v))} />
             <Input label="Platform fee %" type="number" step="0.01" value={value.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', Number(v))} />
+            <Input label="Management fee %" type="number" step="0.01" value={value.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', Number(v))} />
             <Input label="Expenses / mo" type="number" value={value.airbnb.ownerExpensesMonthly} onChange={(v) => update('airbnb', 'ownerExpensesMonthly', Number(v))} />
           </div>
         </Section>
@@ -67,6 +80,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <Input label="Rentable rooms" type="number" value={value.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
             <Input label="Weekly rate / room" type="number" value={value.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
             <Input label="Occupancy %" type="number" step="0.01" value={value.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', Number(v))} />
+            <Input label="Management fee %" type="number" step="0.01" value={value.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', Number(v))} />
             <Input label="Furnishing (one-time)" type="number" value={value.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
           </div>
         </Section>
@@ -79,7 +93,6 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <Input label="Agent commission %" type="number" step="0.01" value={value.flip.agentCommissionPercent} onChange={(v) => update('flip', 'agentCommissionPercent', Number(v))} />
           </div>
         </Section>
-
 
         <Section title="Master Assumptions">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -145,6 +158,15 @@ function Select({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+      <span className="text-xs text-muted">{label}</span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 accent-accent" />
     </label>
   );
 }

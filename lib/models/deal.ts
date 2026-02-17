@@ -1,4 +1,5 @@
 export type FinancingType = 'cash' | 'loan';
+export type AmortizationType = 'principalInterest' | 'interestOnly';
 
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
@@ -13,6 +14,9 @@ export interface PurchaseInputs {
   loanTermYears: number;
   pointsPercent: number;
   financingType: FinancingType;
+  amortizationType: AmortizationType;
+  includePmi: boolean;
+  hoaMonthly: number;
 }
 
 export interface LongTermInputs {
@@ -21,6 +25,7 @@ export interface LongTermInputs {
   vacancyPercent: number;
   maintenancePercent: number;
   capexPercent: number;
+  managementFeePercent: number;
   ownerExpensesMonthly: number;
 }
 
@@ -29,6 +34,7 @@ export interface AirbnbInputs {
   occupancyPercent: number;
   nightsPerMonth: number;
   platformFeePercent: number;
+  managementFeePercent: number;
   cleaningFeeCharged: number;
   cleanerCostPerTurn: number;
   averageNightsPerBooking: number;
@@ -41,6 +47,7 @@ export interface PadSplitInputs {
   occupancyPercent: number;
   weeksPerMonth: number;
   platformFeePercent: number;
+  managementFeePercent: number;
   turnoverCostMonthly: number;
   ownerExpensesMonthly: number;
   furnishingOneTime: number;
@@ -87,6 +94,7 @@ export interface StrategyOutput {
   cashOnCashReturn: number;
   roi: number;
   irr: number;
+  dscr: number;
   totalCashNeeded: number;
   notes: string;
   noiMonthly?: number;
@@ -135,7 +143,10 @@ export const defaultDealInput: DealInputModel = {
     interestRate: 0.068,
     loanTermYears: 30,
     pointsPercent: 0.01,
-    financingType: 'loan'
+    financingType: 'loan',
+    amortizationType: 'principalInterest',
+    includePmi: false,
+    hoaMonthly: 0
   },
   longTerm: {
     grossRentMonthly: 2950,
@@ -143,6 +154,7 @@ export const defaultDealInput: DealInputModel = {
     vacancyPercent: 0.06,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
+    managementFeePercent: 0.08,
     ownerExpensesMonthly: 550
   },
   airbnb: {
@@ -150,6 +162,7 @@ export const defaultDealInput: DealInputModel = {
     occupancyPercent: 0.68,
     nightsPerMonth: 30.4,
     platformFeePercent: 0.14,
+    managementFeePercent: 0.18,
     cleaningFeeCharged: 125,
     cleanerCostPerTurn: 110,
     averageNightsPerBooking: 3,
@@ -161,6 +174,7 @@ export const defaultDealInput: DealInputModel = {
     occupancyPercent: 0.9,
     weeksPerMonth: 4.33,
     platformFeePercent: 0.08,
+    managementFeePercent: 0.1,
     turnoverCostMonthly: 140,
     ownerExpensesMonthly: 820,
     furnishingOneTime: 16200

@@ -1,6 +1,6 @@
 import { buildTimeline, calculateIrr, calculateRemainingBalance, estimateSaleProceeds } from '@/lib/engine/investment-math';
 import type { DealInputModel, StrategyOutput } from '@/lib/models/deal';
-import { calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
+import { calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment, calculateMonthlyPmi } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
   strategy,
@@ -10,6 +10,7 @@ const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): 
   cashOnCashReturn: 0,
   roi: 0,
   irr: 0,
+  dscr: 0,
   totalCashNeeded: 0,
   notes,
   noiMonthly: 0,
@@ -20,10 +21,18 @@ const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): 
 const getPurchaseLoanTerms = (input: DealInputModel) => {
   const { purchase } = input;
   const loanAmount = purchase.financingType === 'loan' ? calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent) : 0;
-  const debtService =
-    purchase.financingType === 'loan' ? calculateMonthlyPayment(loanAmount, purchase.interestRate, purchase.loanTermYears) : 0;
+  const mortgagePayment =
+    purchase.financingType === 'loan'
+      ? calculateMonthlyPayment(loanAmount, purchase.interestRate, purchase.loanTermYears, purchase.amortizationType)
+      : 0;
+  const pmiMonthly = purchase.financingType === 'loan' ? calculateMonthlyPmi(loanAmount, purchase.includePmi) : 0;
 
-  return { loanAmount, debtService };
+  return {
+    loanAmount,
+    mortgagePayment,
+    pmiMonthly,
+    debtService: mortgagePayment + pmiMonthly
+  };
 };
 
 const buildLeveredTimeline = (
@@ -40,7 +49,8 @@ const buildLeveredTimeline = (
     loanAmount,
     loanRate,
     loanTermYears,
-    assumptions.holdYears
+    assumptions.holdYears,
+    purchase.amortizationType
   );
 
   const saleProceeds = estimateSaleProceeds(
@@ -81,19 +91,20 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     purchase.financingType
   );
 
-  const annualCashFlow = -debtService * 12;
+  const monthlyCarry = debtService + purchase.hoaMonthly;
+  const annualCashFlow = -monthlyCarry * 12;
   const timeline = buildTimeline(cashToClose, annualCashFlow, assumptions.holdYears, 0, 0);
 
   return {
     ...base,
-    monthlyCashFlow: -debtService,
+    monthlyCashFlow: -monthlyCarry,
     annualCashFlow,
     totalCashNeeded: cashToClose,
     roi: 0,
     irr: calculateIrr(timeline),
     cashFlowTimeline: timeline,
     saleProceeds: 0,
-    noiMonthly: -debtService,
+    noiMonthly: -monthlyCarry,
     notes: loanAmount > 0 ? base.notes : 'All-cash purchase basis and acquisition capital requirements.'
   };
 };
@@ -106,9 +117,10 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
 
   const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
   const vacancy = gross * longTerm.vacancyPercent;
+  const management = gross * longTerm.managementFeePercent;
   const maintenance = gross * longTerm.maintenancePercent;
   const capex = gross * longTerm.capexPercent;
-  const noi = gross - vacancy - maintenance - capex - longTerm.ownerExpensesMonthly;
+  const noi = gross - vacancy - management - maintenance - capex - longTerm.ownerExpensesMonthly - purchase.hoaMonthly;
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
@@ -128,6 +140,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
     roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
+    dscr: debtService === 0 ? 0 : noi / debtService,
     totalCashNeeded: purchaseCashNeeded,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -147,11 +160,12 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const gross = roomRevenue + cleaningRevenue;
 
   const platformFees = gross * airbnb.platformFeePercent;
+  const management = gross * airbnb.managementFeePercent;
   const cleanerCost = bookings * airbnb.cleanerCostPerTurn;
 
   const { loanAmount, debtService } = getPurchaseLoanTerms(input);
 
-  const noi = gross - platformFees - cleanerCost - airbnb.ownerExpensesMonthly;
+  const noi = gross - platformFees - management - cleanerCost - airbnb.ownerExpensesMonthly - purchase.hoaMonthly;
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
@@ -171,6 +185,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
     roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
+    dscr: debtService === 0 ? 0 : noi / debtService,
     totalCashNeeded: purchaseCashNeeded,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -189,10 +204,11 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     padSplit.weeksPerMonth *
     padSplit.occupancyPercent;
   const platformFees = gross * padSplit.platformFeePercent;
+  const management = gross * padSplit.managementFeePercent;
 
   const { loanAmount, debtService } = getPurchaseLoanTerms(input);
 
-  const noi = gross - platformFees - padSplit.turnoverCostMonthly - padSplit.ownerExpensesMonthly;
+  const noi = gross - platformFees - management - padSplit.turnoverCostMonthly - padSplit.ownerExpensesMonthly - purchase.hoaMonthly;
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
@@ -213,6 +229,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     roi: investedCapital === 0 ? 0 : (annual * input.assumptions.holdYears) / investedCapital,
+    dscr: debtService === 0 ? 0 : noi / debtService,
     totalCashNeeded: investedCapital,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -237,7 +254,7 @@ export const calculateBrrrrStrategy = (
   const cashBackAtRefi = refiLoanAmount - purchase.purchasePrice - purchase.rehabBudget - refiClosingCosts;
   const investedAfterRefi = purchaseCashNeeded - cashBackAtRefi;
 
-  const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
+  const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears, purchase.amortizationType);
   const monthly = longTermNoiMonthly - refinanceDebt;
   const annual = monthly * 12;
 
@@ -257,6 +274,7 @@ export const calculateBrrrrStrategy = (
     capRate: purchase.purchasePrice === 0 ? 0 : (longTermNoiMonthly * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
     roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,
+    dscr: refinanceDebt === 0 ? 0 : longTermNoiMonthly / refinanceDebt,
     totalCashNeeded: purchaseCashNeeded + totalHoldingCosts,
     noiMonthly: longTermNoiMonthly,
     irr: timelineData.irr,
@@ -272,7 +290,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const salePrice = purchase.arv;
   const agentCommission = salePrice * flip.agentCommissionPercent;
   const closingCosts = salePrice * flip.sellClosingCostPercent;
-  const holdingCosts = flip.holdingMonths * flip.holdingExpensesMonthly;
+  const holdingCosts = flip.holdingMonths * (flip.holdingExpensesMonthly + purchase.hoaMonthly);
 
   const netProfit =
     salePrice -

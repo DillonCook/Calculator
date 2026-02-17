@@ -1,12 +1,18 @@
+import type { AmortizationType } from '@/lib/models/deal';
 import { annualToMonthlyRate } from '@/lib/engine/finance';
 
 export const calculateRemainingBalance = (
   principal: number,
   annualRate: number,
   termYears: number,
-  elapsedYears: number
+  elapsedYears: number,
+  amortizationType: AmortizationType = 'principalInterest'
 ): number => {
   if (principal <= 0) return 0;
+
+  if (amortizationType === 'interestOnly') {
+    return principal;
+  }
 
   const monthlyRate = annualToMonthlyRate(annualRate);
   const periods = Math.max(termYears * 12, 1);
