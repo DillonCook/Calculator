@@ -1,4 +1,6 @@
-export type FinancingType = 'cash' | 'loan';
+export type FinancingType = 'cash' | 'loan' | 'heloc';
+
+export type AmortizationType = 'PI' | 'IO';
 
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
@@ -15,6 +17,10 @@ export interface PurchaseInputs {
   loanTermYears: number;
   pointsPercent: number;
   financingType: FinancingType;
+  amortizationType: AmortizationType;
+  helocAmount: number;
+  helocRate: number;
+  helocClosingCosts: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
@@ -151,6 +157,10 @@ export const defaultDealInput: DealInputModel = {
     loanTermYears: 30,
     pointsPercent: 0.01,
     financingType: 'loan',
+    amortizationType: 'PI',
+    helocAmount: 0,
+    helocRate: 0.09,
+    helocClosingCosts: 0,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
     hoaMonthly: 0,

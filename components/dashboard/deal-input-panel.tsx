@@ -1,6 +1,6 @@
 'use client';
 
-import type { DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
+import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -52,7 +52,8 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
               onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
               options={[
                 { label: 'Loan', value: 'loan' },
-                { label: 'Cash', value: 'cash' }
+                { label: 'Cash', value: 'cash' },
+                { label: 'HELOC', value: 'heloc' }
               ]}
             />
             <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
@@ -65,6 +66,46 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
             <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
             <Input label="PMI monthly" type="number" value={value.purchase.pmiMonthly} onChange={(v) => update('purchase', 'pmiMonthly', Number(v))} />
+          </div>
+
+
+          <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Advanced Financing</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {value.purchase.financingType === 'loan' && (
+                <Select
+                  label="Amortization"
+                  value={value.purchase.amortizationType}
+                  onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+                  options={[
+                    { label: 'Principal & Interest (PI)', value: 'PI' },
+                    { label: 'Interest-Only (IO)', value: 'IO' }
+                  ]}
+                />
+              )}
+
+              {value.purchase.financingType === 'heloc' && (
+                <>
+                  <Input
+                    label="HELOC amount"
+                    type="number"
+                    value={value.purchase.helocAmount}
+                    onChange={(v) => update('purchase', 'helocAmount', Number(v))}
+                  />
+                  <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
+                  <Input
+                    label="HELOC closing costs"
+                    type="number"
+                    value={value.purchase.helocClosingCosts}
+                    onChange={(v) => update('purchase', 'helocClosingCosts', Number(v))}
+                  />
+                </>
+              )}
+
+              {value.purchase.financingType === 'cash' && (
+                <p className="text-xs text-muted sm:col-span-2">No debt inputs needed for all-cash purchases.</p>
+              )}
+            </div>
           </div>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
