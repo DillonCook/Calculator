@@ -69,6 +69,21 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           </div>
 
 
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Input
+              label={`Property taxes annual override (auto ${currency.format(autoTaxAnnual)})`}
+              type="number"
+              value={value.purchase.propertyTaxAnnualOverride ?? ''}
+              onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
+            />
+            <Input
+              label={`Insurance annual override (auto ${currency.format(autoInsuranceAnnual)})`}
+              type="number"
+              value={value.purchase.insuranceAnnualOverride ?? ''}
+              onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
+            />
+          </div>
+
           <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
             <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Advanced Financing</p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -99,27 +114,19 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Input
-              label={`Property taxes annual override (auto ${currency.format(autoTaxAnnual)})`}
-              type="number"
-              value={value.purchase.propertyTaxAnnualOverride ?? ''}
-              onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
-            />
-            <Input
-              label={`Insurance annual override (auto ${currency.format(autoInsuranceAnnual)})`}
-              type="number"
-              value={value.purchase.insuranceAnnualOverride ?? ''}
-              onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
-            />
-          </div>
         </Section>
 
         <Section title="Core Inputs · Variable Expense Matrix" defaultOpen>
+          <div className="mb-2 hidden grid-cols-[1.2fr_120px_1fr] gap-2 px-2 text-[11px] uppercase tracking-wider text-muted sm:grid">
+            <span>Expense</span>
+            <span>Amount / mo</span>
+            <span>Applies to strategies</span>
+          </div>
+
           <div className="space-y-2">
             {value.variableExpenses.map((expense, index) => (
-              <div key={expense.key} className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
-                <div className="grid grid-cols-[1fr_88px] gap-2 sm:grid-cols-[1.2fr_120px_1fr] sm:items-center">
+              <div key={expense.key} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                <div className="grid gap-2 sm:grid-cols-[1.2fr_120px_1fr] sm:items-center">
                   <p className="text-sm font-medium">{expense.label}</p>
                   <input
                     aria-label={`${expense.label} amount per month`}
@@ -128,21 +135,32 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                     value={expense.monthlyAmount}
                     onChange={(event) => updateVariableExpense(index, { monthlyAmount: Number(event.target.value) })}
                   />
-                  <div className="col-span-2 grid grid-cols-4 gap-1 sm:col-span-1">
-                    {(Object.keys(strategyLabels) as ExpenseStrategyKey[]).map((strategy) => (
-                      <label key={strategy} className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={expense.appliesTo[strategy]}
-                          onChange={(event) =>
-                            updateVariableExpense(index, {
-                              appliesTo: { ...expense.appliesTo, [strategy]: event.target.checked }
-                            })
-                          }
-                        />
-                        <span>{strategyLabels[strategy]}</span>
-                      </label>
-                    ))}
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    {(Object.keys(strategyLabels) as ExpenseStrategyKey[]).map((strategy) => {
+                      const active = expense.appliesTo[strategy];
+                      return (
+                        <label
+                          key={strategy}
+                          className={`flex cursor-pointer items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                            active
+                              ? 'border-accent/70 bg-accent/20 text-accent'
+                              : 'border-white/10 bg-white/[0.02] text-muted'
+                          }`}
+                        >
+                          <input
+                            className="sr-only"
+                            type="checkbox"
+                            checked={active}
+                            onChange={(event) =>
+                              updateVariableExpense(index, {
+                                appliesTo: { ...expense.appliesTo, [strategy]: event.target.checked }
+                              })
+                            }
+                          />
+                          <span>{strategyLabels[strategy]}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

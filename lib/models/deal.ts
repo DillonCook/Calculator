@@ -4,6 +4,8 @@ export type AmortizationType = 'PI' | 'IO';
 
 export type AmortizationType = 'PI' | 'IO';
 
+export type AmortizationType = 'PI' | 'IO';
+
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
 export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
