@@ -6,9 +6,13 @@ export type AmortizationType = 'PI' | 'IO';
 
 export type AmortizationType = 'PI' | 'IO';
 
+export type AmortizationType = 'PI' | 'IO';
+
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
 
 export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
+
+export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
 export interface PurchaseInputs {
   dealName: string;
@@ -37,6 +41,7 @@ export interface LongTermInputs {
   vacancyPercent: number;
   maintenancePercent: number;
   capexPercent: number;
+  managementFeePercent: number;
   ownerExpensesMonthly: number;
 }
 
@@ -48,7 +53,11 @@ export interface AirbnbInputs {
   cleaningFeeCharged: number;
   cleanerCostPerTurn: number;
   averageNightsPerBooking: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  managementFeePercent: number;
   ownerExpensesMonthly: number;
+  furnishingOneTime: number;
 }
 
 export interface PadSplitInputs {
@@ -56,7 +65,11 @@ export interface PadSplitInputs {
   avgWeeklyRatePerRoom: number;
   occupancyPercent: number;
   weeksPerMonth: number;
+  otherIncomeMonthly: number;
   platformFeePercent: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  managementFeePercent: number;
   turnoverCostMonthly: number;
   ownerExpensesMonthly: number;
   furnishingOneTime: number;
@@ -68,6 +81,7 @@ export interface BrrrrInputs {
   refinanceLtvPercent: number;
   refinanceRate: number;
   refinanceClosingCostPercent: number;
+  operatingStrategy: BrrrrOperatingStrategy;
 }
 
 export interface FlipInputs {
@@ -154,7 +168,7 @@ export const defaultDealInput: DealInputModel = {
     dealName: 'Tampa Duplex - Sample Deal',
     purchasePrice: 285000,
     rehabBudget: 25000,
-    arv: 360000,
+    arv: 285000,
     downPaymentPercent: 0.2,
     closingCostPercent: 0.015,
     interestRate: 0.068,
@@ -176,6 +190,7 @@ export const defaultDealInput: DealInputModel = {
     vacancyPercent: 0.06,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
+    managementFeePercent: 0.08,
     ownerExpensesMonthly: 550
   },
   airbnb: {
@@ -186,14 +201,22 @@ export const defaultDealInput: DealInputModel = {
     cleaningFeeCharged: 125,
     cleanerCostPerTurn: 110,
     averageNightsPerBooking: 3,
-    ownerExpensesMonthly: 675
+    maintenancePercent: 0.04,
+    capexPercent: 0.04,
+    managementFeePercent: 0.18,
+    ownerExpensesMonthly: 675,
+    furnishingOneTime: 18000
   },
   padSplit: {
     rentableRooms: 5,
     avgWeeklyRatePerRoom: 195,
     occupancyPercent: 0.9,
     weeksPerMonth: 4.33,
+    otherIncomeMonthly: 150,
     platformFeePercent: 0.08,
+    maintenancePercent: 0.04,
+    capexPercent: 0.04,
+    managementFeePercent: 0.12,
     turnoverCostMonthly: 140,
     ownerExpensesMonthly: 820,
     furnishingOneTime: 16200
@@ -203,7 +226,8 @@ export const defaultDealInput: DealInputModel = {
     holdingExpensesMonthly: 480,
     refinanceLtvPercent: 0.75,
     refinanceRate: 0.065,
-    refinanceClosingCostPercent: 0.03
+    refinanceClosingCostPercent: 0.03,
+    operatingStrategy: 'longTerm'
   },
   flip: {
     holdingMonths: 6,

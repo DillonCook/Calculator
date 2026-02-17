@@ -13,7 +13,7 @@ const inputClass =
 const strategyLabels: Record<ExpenseStrategyKey, string> = {
   longTerm: 'LT',
   airbnb: 'STR',
-  padSplit: 'PadSplit',
+  padSplit: 'PS',
   flip: 'Flip'
 };
 
@@ -21,6 +21,20 @@ const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 
 export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
+    if (section === 'purchase' && field === 'purchasePrice') {
+      const nextPurchasePrice = Number(nextValue) || 0;
+      const shouldSyncArv = value.purchase.arv === value.purchase.purchasePrice;
+      onChange({
+        ...value,
+        purchase: {
+          ...value.purchase,
+          purchasePrice: nextPurchasePrice,
+          arv: shouldSyncArv ? nextPurchasePrice : value.purchase.arv
+        }
+      });
+      return;
+    }
+
     onChange({ ...value, [section]: { ...value[section], [field]: nextValue } });
   };
 
@@ -71,13 +85,13 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Input
-              label={`Property taxes annual override (auto ${currency.format(autoTaxAnnual)})`}
+              label={`Property tax override (auto ${currency.format(autoTaxAnnual)})`}
               type="number"
               value={value.purchase.propertyTaxAnnualOverride ?? ''}
               onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
             />
             <Input
-              label={`Insurance annual override (auto ${currency.format(autoInsuranceAnnual)})`}
+              label={`Insurance override (auto ${currency.format(autoInsuranceAnnual)})`}
               type="number"
               value={value.purchase.insuranceAnnualOverride ?? ''}
               onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
@@ -139,26 +153,23 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                     {(Object.keys(strategyLabels) as ExpenseStrategyKey[]).map((strategy) => {
                       const active = expense.appliesTo[strategy];
                       return (
-                        <label
+                        <button
                           key={strategy}
-                          className={`flex cursor-pointer items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() =>
+                            updateVariableExpense(index, {
+                              appliesTo: { ...expense.appliesTo, [strategy]: !active }
+                            })
+                          }
+                          className={`flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition ${
                             active
                               ? 'border-accent/70 bg-accent/20 text-accent'
                               : 'border-white/10 bg-white/[0.02] text-muted'
                           }`}
                         >
-                          <input
-                            className="sr-only"
-                            type="checkbox"
-                            checked={active}
-                            onChange={(event) =>
-                              updateVariableExpense(index, {
-                                appliesTo: { ...expense.appliesTo, [strategy]: event.target.checked }
-                              })
-                            }
-                          />
-                          <span>{strategyLabels[strategy]}</span>
-                        </label>
+                          {strategyLabels[strategy]}
+                        </button>
                       );
                     })}
                   </div>
@@ -177,6 +188,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 <PercentInput label="Vacancy %" value={value.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
                 <PercentInput label="Maintenance %" value={value.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
                 <PercentInput label="CapEx %" value={value.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
+                <PercentInput label="Mgmt fee %" value={value.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
                 <Input label="Other LT expenses / mo" type="number" value={value.longTerm.ownerExpensesMonthly} onChange={(v) => update('longTerm', 'ownerExpensesMonthly', Number(v))} />
               </div>
             </StrategyCard>
@@ -190,6 +202,10 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 <PercentInput label="Platform fee %" value={value.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', v)} />
                 <Input label="Nights per month" type="number" value={value.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
                 <Input label="Cleaner cost / turn" type="number" value={value.airbnb.cleanerCostPerTurn} onChange={(v) => update('airbnb', 'cleanerCostPerTurn', Number(v))} />
+                <PercentInput label="Maintenance reserve %" value={value.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
+                <PercentInput label="CapEx reserve %" value={value.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
+                <PercentInput label="Mgmt fee %" value={value.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
+                <Input label="STR furnishing (one-time)" type="number" value={value.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
                 <Input label="Other STR expenses / mo" type="number" value={value.airbnb.ownerExpensesMonthly} onChange={(v) => update('airbnb', 'ownerExpensesMonthly', Number(v))} />
               </div>
             </StrategyCard>
@@ -199,7 +215,11 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 <Input label="Rentable rooms" type="number" value={value.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
                 <Input label="Weekly rate / room" type="number" value={value.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
                 <PercentInput label="Occupancy %" value={value.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
+                <Input label="Other income / mo" type="number" value={value.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
                 <PercentInput label="Platform fee %" value={value.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
+                <PercentInput label="Maintenance reserve %" value={value.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
+                <PercentInput label="CapEx reserve %" value={value.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
+                <PercentInput label="Mgmt fee %" value={value.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', v)} />
                 <Input label="Turnover cost / mo" type="number" value={value.padSplit.turnoverCostMonthly} onChange={(v) => update('padSplit', 'turnoverCostMonthly', Number(v))} />
                 <Input label="Furnishing (one-time)" type="number" value={value.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
               </div>
@@ -211,6 +231,16 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 <PercentInput label="Refi target LTV %" value={value.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
                 <PercentInput label="Refi rate %" value={value.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
                 <PercentInput label="Refi closing %" value={value.brrrr.refinanceClosingCostPercent} onChange={(v) => update('brrrr', 'refinanceClosingCostPercent', v)} />
+                <Select
+                  label="Post-refi ops model"
+                  value={value.brrrr.operatingStrategy}
+                  onChange={(v) => update('brrrr', 'operatingStrategy', v as DealInputModel['brrrr']['operatingStrategy'])}
+                  options={[
+                    { label: 'Long-Term', value: 'longTerm' },
+                    { label: 'Airbnb / STR', value: 'airbnb' },
+                    { label: 'PadSplit', value: 'padSplit' }
+                  ]}
+                />
               </div>
             </StrategyCard>
 

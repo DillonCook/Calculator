@@ -44,6 +44,7 @@ test('long-term module includes base fixed and variable expenses', () => {
     gross * lt.vacancyPercent -
     gross * lt.maintenancePercent -
     gross * lt.capexPercent -
+    gross * lt.managementFeePercent -
     lt.ownerExpensesMonthly -
     fixedCostsMonthly() -
     variableCostMonthly('longTerm');
@@ -160,6 +161,7 @@ test('long-term CoC, ROI, and DSCR align with underwriting formulas', () => {
     gross * lt.vacancyPercent -
     gross * lt.maintenancePercent -
     gross * lt.capexPercent -
+    gross * lt.managementFeePercent -
     lt.ownerExpensesMonthly -
     fixedCostsMonthly() -
     variableCostMonthly('longTerm');
@@ -204,6 +206,7 @@ test('HELOC debt service is included in operating monthly cash flow', () => {
     gross * model.longTerm.vacancyPercent -
     gross * model.longTerm.maintenancePercent -
     gross * model.longTerm.capexPercent -
+    gross * model.longTerm.managementFeePercent -
     model.longTerm.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('longTerm', model);
@@ -281,4 +284,86 @@ test('HELOC supplemental amount reduces out-of-pocket cash-to-close', () => {
   const adjusted = calculateDeal(model).purchase.totalCashNeeded;
 
   near(adjusted, Math.max(baseline - 20000, 0) + 1200);
+});
+
+
+test('STR includes management fee, reserves, and furnishing in invested capital', () => {
+  const model = {
+    ...defaultDealInput,
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      maintenancePercent: 0.05,
+      capexPercent: 0.05,
+      managementFeePercent: 0.2,
+      furnishingOneTime: 25000
+    }
+  };
+
+  const result = calculateDeal(model);
+  const airbnb = model.airbnb;
+  const occupiedNights = airbnb.nightsPerMonth * airbnb.occupancyPercent;
+  const bookings = occupiedNights / Math.max(airbnb.averageNightsPerBooking, 1);
+  const gross = occupiedNights * airbnb.adr + bookings * airbnb.cleaningFeeCharged;
+  const noi =
+    gross -
+    gross * airbnb.platformFeePercent -
+    bookings * airbnb.cleanerCostPerTurn -
+    gross * airbnb.maintenancePercent -
+    gross * airbnb.capexPercent -
+    gross * airbnb.managementFeePercent -
+    airbnb.ownerExpensesMonthly -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('airbnb', model);
+
+  near(result.airbnb.noiMonthly ?? 0, noi, 0.01);
+  near(result.airbnb.totalCashNeeded, result.purchase.totalCashNeeded + airbnb.furnishingOneTime, 0.01);
+});
+
+test('PadSplit includes other income plus reserve and management fee percentages', () => {
+  const model = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      otherIncomeMonthly: 300,
+      maintenancePercent: 0.03,
+      capexPercent: 0.04,
+      managementFeePercent: 0.1
+    }
+  };
+
+  const result = calculateDeal(model);
+  const ps = model.padSplit;
+  const gross = ps.rentableRooms * ps.avgWeeklyRatePerRoom * ps.weeksPerMonth * ps.occupancyPercent + ps.otherIncomeMonthly;
+  const noi =
+    gross -
+    gross * ps.platformFeePercent -
+    gross * ps.maintenancePercent -
+    gross * ps.capexPercent -
+    gross * ps.managementFeePercent -
+    ps.turnoverCostMonthly -
+    ps.ownerExpensesMonthly -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('padSplit', model);
+
+  near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
+});
+
+test('BRRRR uses selected operating strategy NOI for post-refi operations', () => {
+  const model = {
+    ...defaultDealInput,
+    brrrr: {
+      ...defaultDealInput.brrrr,
+      operatingStrategy: 'airbnb' as const
+    }
+  };
+
+  const result = calculateDeal(model);
+  const refiDebt = calculateMonthlyPayment(
+    model.purchase.arv * model.brrrr.refinanceLtvPercent,
+    model.brrrr.refinanceRate,
+    model.purchase.loanTermYears
+  );
+
+  near(result.brrrr.noiMonthly ?? 0, result.airbnb.noiMonthly ?? 0, 0.01);
+  near(result.brrrr.monthlyCashFlow, (result.airbnb.noiMonthly ?? 0) - refiDebt, 0.01);
 });
