@@ -1,20 +1,51 @@
-import type { StrategyOutput } from '@/lib/models/deal';
+import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 interface TimelineCardProps {
   output: StrategyOutput;
+  assumptions: MasterAssumptions;
+  onAssumptionsChange: (updates: Partial<MasterAssumptions>) => void;
 }
 
-export function TimelineCard({ output }: TimelineCardProps) {
+export function TimelineCard({ output, assumptions, onAssumptionsChange }: TimelineCardProps) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">IRR Cashflow Timeline (Year 0..N)</h3>
+    <details className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft" open>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold">IRR Stream & Exit Assumptions</h3>
         <p className="text-xs text-muted">IRR-ready stream</p>
+      </summary>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="space-y-1">
+          <span className="text-xs text-muted">Hold years</span>
+          <input
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
+            type="number"
+            min={1}
+            value={assumptions.holdYears}
+            onChange={(event) => onAssumptionsChange({ holdYears: Math.max(Number(event.target.value) || 1, 1) })}
+          />
+        </label>
+
+        <PercentField
+          label="NOI growth %"
+          value={assumptions.noiGrowthPercent}
+          onChange={(value) => onAssumptionsChange({ noiGrowthPercent: value })}
+        />
+        <PercentField
+          label="Appreciation %"
+          value={assumptions.annualAppreciationPercent}
+          onChange={(value) => onAssumptionsChange({ annualAppreciationPercent: value })}
+        />
+        <PercentField
+          label="Selling cost %"
+          value={assumptions.sellingCostPercent}
+          onChange={(value) => onAssumptionsChange({ sellingCostPercent: value })}
+        />
       </div>
 
-      <div className="grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+      <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
         {output.cashFlowTimeline.map((flow, index) => (
           <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
             <p className="text-xs text-muted">Year {index}</p>
@@ -22,6 +53,22 @@ export function TimelineCard({ output }: TimelineCardProps) {
           </div>
         ))}
       </div>
-    </section>
+    </details>
+  );
+}
+
+function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
+  const displayValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
+
+  return (
+    <label className="space-y-1">
+      <span className="text-xs text-muted">{label}</span>
+      <input
+        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
+        type="number"
+        value={displayValue}
+        onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
+      />
+    </label>
   );
 }
