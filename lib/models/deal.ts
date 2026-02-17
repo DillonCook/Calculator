@@ -1,4 +1,6 @@
-export type FinancingType = 'cash' | 'loan';
+export type FinancingType = 'cash' | 'loan' | 'heloc';
+
+export type AmortizationType = 'PI' | 'IO';
 
 export type AmortizationType = 'PI' | 'IO';
 

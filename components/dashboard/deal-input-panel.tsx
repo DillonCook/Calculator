@@ -52,7 +52,8 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
               onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
               options={[
                 { label: 'Loan', value: 'loan' },
-                { label: 'Cash', value: 'cash' }
+                { label: 'Cash', value: 'cash' },
+                { label: 'HELOC', value: 'heloc' }
               ]}
             />
             <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
