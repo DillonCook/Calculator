@@ -1,4 +1,4 @@
-import type { DealInputModel, DealResult } from '@/lib/models/deal';
+import { normalizeDealInput, type DealInputModel, type DealResult } from '@/lib/models/deal';
 import {
   calculateAirbnbStrategy,
   calculateBrrrrStrategy,
@@ -9,12 +9,14 @@ import {
 } from '@/lib/engine/strategy-modules';
 
 export const calculateDeal = (input: DealInputModel): DealResult => {
-  const purchase = calculatePurchaseStrategy(input);
-  const longTerm = calculateLongTermStrategy(input, purchase.totalCashNeeded);
-  const airbnb = calculateAirbnbStrategy(input, purchase.totalCashNeeded);
-  const padSplit = calculatePadSplitStrategy(input, purchase.totalCashNeeded);
-  const brrrr = calculateBrrrrStrategy(input, purchase.totalCashNeeded, longTerm.noiMonthly ?? 0);
-  const flip = calculateFlipStrategy(input, purchase.totalCashNeeded);
+  const normalizedInput = normalizeDealInput(input);
+
+  const purchase = calculatePurchaseStrategy(normalizedInput);
+  const longTerm = calculateLongTermStrategy(normalizedInput, purchase.totalCashNeeded);
+  const airbnb = calculateAirbnbStrategy(normalizedInput, purchase.totalCashNeeded);
+  const padSplit = calculatePadSplitStrategy(normalizedInput, purchase.totalCashNeeded);
+  const brrrr = calculateBrrrrStrategy(normalizedInput, purchase.totalCashNeeded, longTerm.noiMonthly ?? 0);
+  const flip = calculateFlipStrategy(normalizedInput, purchase.totalCashNeeded);
 
   const strategyCashFlows = [
     longTerm.monthlyCashFlow,

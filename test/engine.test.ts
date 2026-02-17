@@ -113,3 +113,24 @@ test('long-term timeline covers Year 0..N and produces irr from cashflows', () =
   assert.ok(result.longTerm.cashFlowTimeline[0] < 0);
   assert.ok(result.longTerm.irr !== 0);
 });
+
+
+test('legacy payloads without new fee fields are normalized before strategy math', () => {
+  const legacyInput = structuredClone(defaultDealInput) as Record<string, unknown>;
+
+  delete (legacyInput.purchase as Record<string, unknown>).hoaMonthly;
+  delete (legacyInput.purchase as Record<string, unknown>).includePmi;
+  delete (legacyInput.purchase as Record<string, unknown>).amortizationType;
+  delete (legacyInput.longTerm as Record<string, unknown>).managementFeePercent;
+  delete (legacyInput.airbnb as Record<string, unknown>).managementFeePercent;
+  delete (legacyInput.padSplit as Record<string, unknown>).managementFeePercent;
+
+  const result = calculateDeal(legacyInput as unknown as typeof defaultDealInput);
+
+  assert.ok(Number.isFinite(result.longTerm.noiMonthly));
+  assert.ok(Number.isFinite(result.longTerm.monthlyCashFlow));
+  assert.ok(Number.isFinite(result.longTerm.capRate));
+  assert.ok(Number.isFinite(result.longTerm.dscr));
+  assert.ok(Number.isFinite(result.airbnb.noiMonthly));
+  assert.ok(Number.isFinite(result.padSplit.noiMonthly));
+});
