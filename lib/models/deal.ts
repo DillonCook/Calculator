@@ -200,3 +200,29 @@ export const defaultDealInput: DealInputModel = {
     noiGrowthPercent: 0.025
   }
 };
+
+export const normalizeDealInput = (input: DealInputModel): DealInputModel => {
+  return {
+    ...input,
+    purchase: {
+      ...input.purchase,
+      amortizationType: input.purchase.amortizationType ?? defaultDealInput.purchase.amortizationType,
+      includePmi: input.purchase.includePmi ?? defaultDealInput.purchase.includePmi,
+      hoaMonthly: input.purchase.hoaMonthly ?? defaultDealInput.purchase.hoaMonthly
+    },
+    longTerm: {
+      ...input.longTerm,
+      managementFeePercent:
+        input.longTerm.managementFeePercent ?? defaultDealInput.longTerm.managementFeePercent
+    },
+    airbnb: {
+      ...input.airbnb,
+      managementFeePercent: input.airbnb.managementFeePercent ?? defaultDealInput.airbnb.managementFeePercent
+    },
+    padSplit: {
+      ...input.padSplit,
+      managementFeePercent:
+        input.padSplit.managementFeePercent ?? defaultDealInput.padSplit.managementFeePercent
+    }
+  };
+};
