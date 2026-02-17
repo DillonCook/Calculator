@@ -8,6 +8,7 @@ const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): 
   annualCashFlow: 0,
   capRate: 0,
   cashOnCashReturn: 0,
+  dscr: 0,
   roi: 0,
   irr: 0,
   totalCashNeeded: 0,
@@ -38,6 +39,11 @@ const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrateg
   return input.variableExpenses.reduce((sum, expense) => {
     return expense.appliesTo[strategy] ? sum + expense.monthlyAmount : sum;
   }, 0);
+};
+
+const calculateDscr = (noiMonthly: number, debtServiceMonthly: number): number => {
+  if (debtServiceMonthly <= 0) return 0;
+  return noiMonthly / debtServiceMonthly;
 };
 
 const buildLeveredTimeline = (
@@ -103,6 +109,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     monthlyCashFlow: -debtService,
     annualCashFlow,
     totalCashNeeded: cashToClose,
+    dscr: 0,
     roi: 0,
     irr: calculateIrr(timeline),
     cashFlowTimeline: timeline,
@@ -143,6 +150,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
+    dscr: calculateDscr(noi, debtService),
     roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
     totalCashNeeded: purchaseCashNeeded,
     noiMonthly: noi,
@@ -188,6 +196,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
+    dscr: calculateDscr(noi, debtService),
     roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
     totalCashNeeded: purchaseCashNeeded,
     noiMonthly: noi,
@@ -232,6 +241,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
+    dscr: calculateDscr(noi, debtService),
     roi: investedCapital === 0 ? 0 : (annual * input.assumptions.holdYears) / investedCapital,
     totalCashNeeded: investedCapital,
     noiMonthly: noi,
@@ -287,6 +297,7 @@ export const calculateBrrrrStrategy = (
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (longTermNoiMonthly * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
+    dscr: calculateDscr(longTermNoiMonthly, refinanceDebt),
     roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,
     totalCashNeeded: purchaseCashNeeded + totalHoldingCosts,
     noiMonthly: longTermNoiMonthly,
@@ -326,6 +337,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     monthlyCashFlow: monthly,
     annualCashFlow: monthly * 12,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : netProfit / purchaseCashNeeded,
+    dscr: 0,
     roi: purchaseCashNeeded === 0 ? 0 : netProfit / purchaseCashNeeded,
     totalCashNeeded: purchaseCashNeeded + holdingCosts,
     irr: calculateIrr(timeline),

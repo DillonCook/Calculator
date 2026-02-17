@@ -49,10 +49,11 @@ export default function HomePage() {
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard label="Cash to Close" value={currency.format(result.masterSummary.cashToClose)} helper="Down payment + closing + points + rehab" />
           <KpiCard label="Best Monthly Cash Flow" value={currency.format(result.masterSummary.monthlyCashFlow)} tone="success" />
           <KpiCard label="Best Cash on Cash" value={percent.format(result.masterSummary.cashOnCashReturn)} />
+          <KpiCard label="Best DSCR" value={Math.max(result.longTerm.dscr, result.airbnb.dscr, result.padSplit.dscr, result.brrrr.dscr).toFixed(2)} />
           <KpiCard label="Best ROI" value={percent.format(result.masterSummary.roi)} />
           <KpiCard label="Best IRR" value={percent.format(result.masterSummary.irr)} helper="Calculated from yearly cashflow timeline" />
         </section>
@@ -63,7 +64,13 @@ export default function HomePage() {
           <div className="space-y-4">
             <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
             <StrategyBreakdown data={result} active={activeStrategy} />
-            <TimelineCard output={result[activeStrategy]} />
+            <TimelineCard
+              output={result[activeStrategy]}
+              holdYears={model.assumptions.holdYears}
+              onHoldYearsChange={(years) =>
+                setModel((current) => ({ ...current, assumptions: { ...current.assumptions, holdYears: years } }))
+              }
+            />
             <StrategyComparison data={result} />
           </div>
 

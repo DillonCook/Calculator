@@ -144,3 +144,31 @@ test('brrrr IRR timeline includes refinance cash event in year one', () => {
   const yearOneSale = assumptions.holdYears === 1 ? result.brrrr.saleProceeds : 0;
   near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + cashBackAtRefi);
 });
+
+
+test('long-term CoC, ROI, and DSCR align with underwriting formulas', () => {
+  const result = calculateDeal(defaultDealInput);
+  const p = defaultDealInput.purchase;
+  const lt = defaultDealInput.longTerm;
+
+  const gross = lt.grossRentMonthly + lt.otherIncomeMonthly;
+  const noi =
+    gross -
+    gross * lt.vacancyPercent -
+    gross * lt.maintenancePercent -
+    gross * lt.capexPercent -
+    lt.ownerExpensesMonthly -
+    fixedCostsMonthly() -
+    variableCostMonthly('longTerm');
+
+  const debt = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+  const monthly = noi - debt;
+  const annual = monthly * 12;
+  const expectedCoc = annual / result.purchase.totalCashNeeded;
+  const expectedRoi = (annual * defaultDealInput.assumptions.holdYears) / result.purchase.totalCashNeeded;
+  const expectedDscr = noi / debt;
+
+  near(result.longTerm.cashOnCashReturn, expectedCoc, 0.0001);
+  near(result.longTerm.roi, expectedRoi, 0.0001);
+  near(result.longTerm.dscr, expectedDscr, 0.0001);
+});
