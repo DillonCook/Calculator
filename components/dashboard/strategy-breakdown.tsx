@@ -39,6 +39,7 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
         <Metric label="Cash on Cash" value={pct.format(output.cashOnCashReturn)} />
         <Metric label="ROI" value={pct.format(output.roi)} />
         <Metric label="IRR" value={pct.format(output.irr)} />
+        <Metric label="DSCR" value={output.dscr > 0 ? output.dscr.toFixed(2) : 'n/a'} />
       </div>
     </section>
   );

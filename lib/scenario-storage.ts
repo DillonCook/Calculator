@@ -17,7 +17,9 @@ const encodeBase64Url = (value: string): string => {
     return Buffer.from(value, 'utf-8').toString('base64url');
   }
 
-  const base64 = window.btoa(encodeURIComponent(value));
+  const bytes = new TextEncoder().encode(value);
+  const binary = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('');
+  const base64 = window.btoa(binary);
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 };
 
@@ -28,7 +30,9 @@ const decodeBase64Url = (value: string): string => {
 
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = base64 + '==='.slice((base64.length + 3) % 4);
-  return decodeURIComponent(window.atob(padded));
+  const binary = window.atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0);
+  return new TextDecoder().decode(bytes);
 };
 
 export const createScenarioRecord = (payload: DealInputModel, overrides?: Partial<ScenarioRecord>): ScenarioRecord => {
