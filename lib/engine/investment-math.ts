@@ -35,7 +35,10 @@ export const getAcquisitionDebtPayoffAtMonth = ({
   termYears,
   monthsElapsed,
   amortizationType,
-  helocAmount
+  helocAmount,
+  helocRate,
+  helocTermYears,
+  helocAmortizationType
 }: {
   financingType: 'cash' | 'loan';
   initialLoanAmount: number;
@@ -44,11 +47,25 @@ export const getAcquisitionDebtPayoffAtMonth = ({
   monthsElapsed: number;
   amortizationType: AmortizationType;
   helocAmount: number;
+  helocRate: number;
+  helocTermYears: number;
+  helocAmortizationType: AmortizationType;
 }): number => {
-  if (financingType === 'cash') return Math.max(helocAmount, 0);
-  if (amortizationType === 'IO') return Math.max(initialLoanAmount, 0) + Math.max(helocAmount, 0);
+  const elapsedYears = monthsElapsed / 12;
 
-  return calculateRemainingBalance(initialLoanAmount, annualRate, termYears, monthsElapsed / 12, 'PI') + Math.max(helocAmount, 0);
+  const primaryBalance =
+    financingType === 'loan'
+      ? amortizationType === 'IO'
+        ? Math.max(initialLoanAmount, 0)
+        : calculateRemainingBalance(initialLoanAmount, annualRate, termYears, elapsedYears, 'PI')
+      : 0;
+
+  const helocBalance =
+    helocAmortizationType === 'IO'
+      ? Math.max(helocAmount, 0)
+      : calculateRemainingBalance(Math.max(helocAmount, 0), helocRate, helocTermYears, elapsedYears, 'PI');
+
+  return primaryBalance + helocBalance;
 };
 
 export const estimateSaleProceeds = (

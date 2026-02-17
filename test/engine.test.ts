@@ -195,7 +195,8 @@ test('HELOC debt service is included in operating monthly cash flow', () => {
       ...defaultDealInput.purchase,
       financingType: 'cash' as const,
       helocAmount: 180000,
-      helocRate: 0.1
+      helocRate: 0.1,
+      helocAmortizationType: 'IO' as const
     }
   };
 
@@ -366,4 +367,33 @@ test('BRRRR uses selected operating strategy NOI for post-refi operations', () =
 
   near(result.brrrr.noiMonthly ?? 0, result.airbnb.noiMonthly ?? 0, 0.01);
   near(result.brrrr.monthlyCashFlow, (result.airbnb.noiMonthly ?? 0) - refiDebt, 0.01);
+});
+
+test('HELOC PI amortization uses term-based monthly payment', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash' as const,
+      helocAmount: 120000,
+      helocRate: 0.0725,
+      helocTermYears: 15,
+      helocAmortizationType: 'PI' as const
+    }
+  };
+
+  const result = calculateDeal(model);
+  const gross = model.longTerm.grossRentMonthly + model.longTerm.otherIncomeMonthly;
+  const noi =
+    gross -
+    gross * model.longTerm.vacancyPercent -
+    gross * model.longTerm.maintenancePercent -
+    gross * model.longTerm.capexPercent -
+    gross * model.longTerm.managementFeePercent -
+    model.longTerm.ownerExpensesMonthly -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('longTerm', model);
+  const helocDebt = calculateMonthlyPayment(model.purchase.helocAmount, model.purchase.helocRate, model.purchase.helocTermYears);
+
+  near(result.longTerm.monthlyCashFlow, noi - helocDebt, 0.01);
 });

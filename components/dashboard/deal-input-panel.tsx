@@ -48,7 +48,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
 
   return (
-    <section className="scrollbar-premium rounded-2xl border border-white/10 bg-panel p-5 shadow-soft xl:max-h-[calc(100vh-2.5rem)] xl:overflow-y-auto">
+    <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Core Deal Inputs</h2>
         <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Whole number % inputs</span>
@@ -64,8 +64,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
               onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
               options={[
                 { label: 'Loan', value: 'loan' },
-                { label: 'Cash', value: 'cash' },
-                { label: 'HELOC', value: 'heloc' }
+                { label: 'Cash', value: 'cash' }
               ]}
             />
             <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
@@ -117,6 +116,16 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 onChange={(v) => update('purchase', 'helocAmount', Number(v))}
               />
               <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
+              <Input label="HELOC term (years)" type="number" value={value.purchase.helocTermYears} onChange={(v) => update('purchase', 'helocTermYears', Number(v))} />
+              <Select
+                label="HELOC amortization"
+                value={value.purchase.helocAmortizationType}
+                onChange={(v) => update('purchase', 'helocAmortizationType', v as AmortizationType)}
+                options={[
+                  { label: 'Principal & Interest (PI)', value: 'PI' },
+                  { label: 'Interest-Only (IO)', value: 'IO' }
+                ]}
+              />
               <Input
                 label="HELOC closing costs"
                 type="number"

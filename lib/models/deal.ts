@@ -1,10 +1,4 @@
-export type FinancingType = 'cash' | 'loan' | 'heloc';
-
-export type AmortizationType = 'PI' | 'IO';
-
-export type AmortizationType = 'PI' | 'IO';
-
-export type AmortizationType = 'PI' | 'IO';
+export type FinancingType = 'cash' | 'loan';
 
 export type AmortizationType = 'PI' | 'IO';
 
@@ -28,6 +22,8 @@ export interface PurchaseInputs {
   amortizationType: AmortizationType;
   helocAmount: number;
   helocRate: number;
+  helocTermYears: number;
+  helocAmortizationType: AmortizationType;
   helocClosingCosts: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
@@ -178,6 +174,8 @@ export const defaultDealInput: DealInputModel = {
     amortizationType: 'PI',
     helocAmount: 0,
     helocRate: 0.09,
+    helocTermYears: 15,
+    helocAmortizationType: 'PI',
     helocClosingCosts: 0,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
