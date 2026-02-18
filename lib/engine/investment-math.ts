@@ -1,5 +1,5 @@
 import type { AmortizationType } from '@/lib/models/deal';
-import { annualToMonthlyRate } from '@/lib/engine/finance';
+import { annualToMonthlyRate, calculateInterestOnlyPayment, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 export const calculateRemainingBalance = (
   principal: number,
@@ -125,6 +125,108 @@ export const buildSpreadsheetStyleTimeline = ({
   }
 
   return timeline;
+};
+
+export interface ExcelParityDebtDetails {
+  principal: number;
+  annualRate: number;
+  termMonths: number;
+  amortizationType: AmortizationType;
+}
+
+export interface ExcelParityAnnualTimelineInput {
+  initialCashInvested: number;
+  annualNoiYear1: number;
+  holdYears: number;
+  noiGrowthRate: number;
+  appreciationRate: number;
+  sellingCostRate: number;
+  purchasePrice: number;
+  arv: number;
+  debts?: ExcelParityDebtDetails[];
+}
+
+export interface ExcelParityAnnualTimelineResult {
+  flows: number[];
+  noiByYear: number[];
+  propertyValueByYear: number[];
+  annualDebtService: number;
+  remainingLoanBalance: number;
+  netSaleProceeds: number;
+  totalRoi: number;
+  irr: number;
+}
+
+const getDebtMonthlyPayment = (debt: ExcelParityDebtDetails): number => {
+  if (debt.principal <= 0) return 0;
+
+  if (debt.amortizationType === 'IO') {
+    return calculateInterestOnlyPayment(debt.principal, debt.annualRate);
+  }
+
+  const termYears = debt.termMonths / 12;
+  return calculateMonthlyPayment(debt.principal, debt.annualRate, termYears);
+};
+
+const getDebtRemainingBalanceAtMonth = (debt: ExcelParityDebtDetails, monthsElapsed: number): number => {
+  if (debt.principal <= 0) return 0;
+  if (debt.amortizationType === 'IO') return debt.principal;
+
+  const termYears = debt.termMonths / 12;
+  const elapsedYears = monthsElapsed / 12;
+  return calculateRemainingBalance(debt.principal, debt.annualRate, termYears, elapsedYears, 'PI');
+};
+
+export const buildExcelParityAnnualTimeline = ({
+  initialCashInvested,
+  annualNoiYear1,
+  holdYears,
+  noiGrowthRate,
+  appreciationRate,
+  sellingCostRate,
+  purchasePrice,
+  arv,
+  debts = []
+}: ExcelParityAnnualTimelineInput): ExcelParityAnnualTimelineResult => {
+  const roundedHoldYears = Math.max(Math.round(holdYears), 0);
+  const monthsElapsed = roundedHoldYears * 12;
+  const baseValue = arv > 0 ? arv : purchasePrice;
+
+  const annualDebtService = debts.reduce((sum, debt) => sum + getDebtMonthlyPayment(debt) * 12, 0);
+  const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtMonth(debt, monthsElapsed), 0);
+
+  const noiByYear: number[] = [];
+  const propertyValueByYear: number[] = [];
+  const flows = [-Math.abs(initialCashInvested)];
+
+  for (let year = 1; year <= roundedHoldYears; year += 1) {
+    const noiForYear = annualNoiYear1 * Math.pow(1 + noiGrowthRate, year - 1);
+    const propertyValueForYear = baseValue * Math.pow(1 + appreciationRate, year);
+    const annualCashFlow = noiForYear - annualDebtService;
+
+    noiByYear.push(noiForYear);
+    propertyValueByYear.push(propertyValueForYear);
+
+    flows.push(annualCashFlow);
+  }
+
+  const terminalPropertyValue = propertyValueByYear[roundedHoldYears - 1] ?? baseValue;
+  const netSaleProceeds = terminalPropertyValue * (1 - sellingCostRate) - remainingLoanBalance;
+
+  if (roundedHoldYears > 0) {
+    flows[roundedHoldYears] += netSaleProceeds;
+  }
+
+  return {
+    flows,
+    noiByYear,
+    propertyValueByYear,
+    annualDebtService,
+    remainingLoanBalance,
+    netSaleProceeds,
+    totalRoi: calcTotalRoiFromTimeline(flows),
+    irr: calculateIrr(flows)
+  };
 };
 
 export const calcTotalRoiFromTimeline = (timeline: number[]): number => {

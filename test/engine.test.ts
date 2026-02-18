@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '../lib/engine/finance';
-import { calcTotalRoiFromTimeline, calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
+import { buildExcelParityAnnualTimeline, calcTotalRoiFromTimeline, calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
 import { defaultDealInput } from '../lib/models/deal';
 
 const near = (actual: number, expected: number, epsilon = 0.01) => {
@@ -18,6 +18,72 @@ const fixedCostsMonthly = (input = defaultDealInput) => {
 
 const variableCostMonthly = (strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'flip', input = defaultDealInput) =>
   input.variableExpenses.reduce((sum, entry) => (entry.appliesTo[strategy] ? sum + entry.monthlyAmount : sum), 0);
+
+
+test('excel parity timeline indexes property value, NOI, flows, and ROI exactly like Master Summary', () => {
+  const holdYears = 5;
+  const noiYear1 = 24000;
+  const noiGrowth = 0.03;
+  const appreciation = 0.04;
+  const purchasePrice = 200000;
+  const arv = 260000;
+  const initialCash = 70000;
+  const sellingCostRate = 0.08;
+
+  const timeline = buildExcelParityAnnualTimeline({
+    initialCashInvested: initialCash,
+    annualNoiYear1: noiYear1,
+    holdYears,
+    noiGrowthRate: noiGrowth,
+    appreciationRate: appreciation,
+    sellingCostRate,
+    purchasePrice,
+    arv,
+    debts: [
+      {
+        principal: 150000,
+        annualRate: 0.07,
+        termMonths: 360,
+        amortizationType: 'PI'
+      }
+    ]
+  });
+
+  const expectedPropertyValueN = arv * Math.pow(1 + appreciation, holdYears);
+  const expectedNoiN = noiYear1 * Math.pow(1 + noiGrowth, holdYears - 1);
+  const finalYearNoSale = expectedNoiN - timeline.annualDebtService;
+
+  near(timeline.propertyValueByYear[holdYears - 1], expectedPropertyValueN, 1e-6);
+  near(timeline.noiByYear[holdYears - 1], expectedNoiN, 1e-6);
+  assert.equal(timeline.flows.length, holdYears + 1);
+  near(timeline.flows[holdYears], finalYearNoSale + timeline.netSaleProceeds, 1e-6);
+  near(timeline.totalRoi, timeline.flows.reduce((sum, flow) => sum + flow, 0) / Math.abs(timeline.flows[0]), 1e-6);
+});
+
+test('excel parity timeline keeps sale proceeds in year N (no extra year)', () => {
+  const holdYears = 7;
+  const timeline = buildExcelParityAnnualTimeline({
+    initialCashInvested: 50000,
+    annualNoiYear1: 18000,
+    holdYears,
+    noiGrowthRate: 0.025,
+    appreciationRate: 0.035,
+    sellingCostRate: 0.07,
+    purchasePrice: 180000,
+    arv: 0,
+    debts: [
+      {
+        principal: 120000,
+        annualRate: 0.065,
+        termMonths: 360,
+        amortizationType: 'PI'
+      }
+    ]
+  });
+
+  assert.equal(timeline.flows.length, holdYears + 1);
+  assert.ok(Number.isFinite(timeline.flows[holdYears]));
+});
 
 test('purchase cash-to-close uses loan points on loan amount (not purchase price)', () => {
   const result = calculateDeal(defaultDealInput);
@@ -139,6 +205,7 @@ test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-bac
   const investedAtPurchase = result.purchase.totalCashNeeded + holdingCosts;
 
   const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
+  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
   const initialLoan = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
   const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoan;
   const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
@@ -149,6 +216,15 @@ test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-bac
   near(result.brrrr.cashFlowTimeline[1], result.brrrr.annualCashFlow, 0.01);
 });
 
+
+
+test('hold strategy ROI/IRR summary metrics come from the Excel parity timeline output', () => {
+  const result = calculateDeal(defaultDealInput);
+
+  for (const strategy of [result.longTerm, result.airbnb, result.padSplit, result.brrrr]) {
+    near(strategy.roi, calcTotalRoiFromTimeline(strategy.cashFlowTimeline), 1e-6);
+  }
+});
 
 test('long-term CoC, ROI, and DSCR align with underwriting formulas', () => {
   const result = calculateDeal(defaultDealInput);
