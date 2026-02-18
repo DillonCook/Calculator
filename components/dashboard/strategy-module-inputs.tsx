@@ -18,7 +18,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
     if (active === 'purchase') {
       return (
         <p className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted">
-          Purchase and financing inputs live in <span className="font-medium text-white">Core Deal Inputs</span> to keep shared assumptions centralized.
+          Shared purchase assumptions live in Core Deal Inputs. Each strategy tab now has its own ARV so you can underwrite different exit plans quickly.
         </p>
       );
     }
@@ -26,6 +26,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
     if (active === 'longTerm') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
           <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
           <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
           <PercentInput label="Vacancy %" value={model.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
@@ -40,6 +41,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
     if (active === 'airbnb') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
           <Input label="ADR" type="number" value={model.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
           <PercentInput label="Occupancy %" value={model.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
           <Input label="Nights per month" type="number" value={model.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
@@ -59,6 +61,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
     if (active === 'padSplit') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
           <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
           <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
           <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
@@ -78,6 +81,8 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
     if (active === 'brrrr') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="BRRRR ARV" type="number" value={model.brrrr.arvOverride ?? ''} onChange={(v) => update('brrrr', 'arvOverride', v === '' ? null : Number(v))} />
+          <Input label="BRRRR rehab override" type="number" value={model.brrrr.rehabOverride ?? ''} onChange={(v) => update('brrrr', 'rehabOverride', v === '' ? null : Number(v))} />
           <Input label="Hold months" type="number" value={model.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
           <Input
             label="Holding expenses / mo"
@@ -108,6 +113,8 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
 
     return (
       <div className="grid gap-3 sm:grid-cols-2">
+        <Input label="Flip ARV" type="number" value={model.flip.arvOverride ?? ''} onChange={(v) => update('flip', 'arvOverride', v === '' ? null : Number(v))} />
+        <Input label="Flip rehab override" type="number" value={model.flip.rehabOverride ?? ''} onChange={(v) => update('flip', 'rehabOverride', v === '' ? null : Number(v))} />
         <Input label="Flip hold months" type="number" value={model.flip.holdingMonths} onChange={(v) => update('flip', 'holdingMonths', Number(v))} />
         <Input
           label="Holding expenses / mo"

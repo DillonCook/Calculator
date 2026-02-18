@@ -60,11 +60,29 @@ const calculateDscr = (noiMonthly: number, debtServiceMonthly: number): number =
   return noiMonthly / debtServiceMonthly;
 };
 
+
+const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
+  const baseArv = input.purchase.arv;
+
+  if (strategy === 'longTerm') return input.longTerm.arvOverride ?? baseArv;
+  if (strategy === 'airbnb') return input.airbnb.arvOverride ?? baseArv;
+  if (strategy === 'padSplit') return input.padSplit.arvOverride ?? baseArv;
+  if (strategy === 'brrrr') return input.brrrr.arvOverride ?? baseArv;
+
+  return input.flip.arvOverride ?? baseArv;
+};
+
+const resolveRehabBudget = (input: DealInputModel, strategy: 'brrrr' | 'flip'): number => {
+  if (strategy === 'brrrr') return input.brrrr.rehabOverride ?? input.purchase.rehabBudget;
+  return input.flip.rehabOverride ?? input.purchase.rehabBudget;
+};
+
 const buildLeveredTimeline = (
   input: DealInputModel,
   totalCashNeeded: number,
   annualCashFlow: number,
-  primaryLoanAmount: number
+  primaryLoanAmount: number,
+  arv: number
 ) => {
   const { purchase, assumptions } = input;
 
@@ -83,7 +101,7 @@ const buildLeveredTimeline = (
 
   const saleProceeds = estimateSaleProceeds(
     purchase.purchasePrice,
-    purchase.arv,
+    arv,
     assumptions.annualAppreciationPercent,
     assumptions.sellingCostPercent,
     remainingBalance,
@@ -158,7 +176,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
-  const timelineData = buildLeveredTimeline(input, purchaseCashNeeded, annual, getPurchaseLoanTerms(input).primaryPrincipal);
+  const timelineData = buildLeveredTimeline(input, purchaseCashNeeded, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'longTerm'));
 
   return {
     ...base,
@@ -201,7 +219,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + airbnb.furnishingOneTime;
 
-  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal);
+  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'airbnb'));
 
   return {
     ...base,
@@ -252,7 +270,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
 
-  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal);
+  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'padSplit'));
 
   return {
     ...base,
@@ -276,13 +294,15 @@ export const calculateBrrrrStrategy = (
   operatingNoiByStrategy: Record<'longTerm' | 'airbnb' | 'padSplit', number>
 ): StrategyOutput => {
   const { brrrr, purchase } = input;
+  const brrrrArv = resolveStrategyArv(input, 'brrrr');
+  const brrrrRehabBudget = resolveRehabBudget(input, 'brrrr');
   const selectedOperatingNoi = operatingNoiByStrategy[brrrr.operatingStrategy] ?? operatingNoiByStrategy.longTerm;
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
   const fixedCosts = getMonthlyFixedCosts(input);
   const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts);
-  const refiLoanAmount = purchase.arv * brrrr.refinanceLtvPercent;
+  const refiLoanAmount = brrrrArv * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
 
   const initialAcquisitionDebt = getPurchaseLoanTerms(input).primaryPrincipal;
@@ -299,8 +319,8 @@ export const calculateBrrrrStrategy = (
     helocAmortizationType: purchase.helocAmortizationType
   });
 
-  const equityAfterRefi = purchase.arv - refiLoanAmount;
-  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan - purchase.rehabBudget - refiClosingCosts;
+  const equityAfterRefi = brrrrArv - refiLoanAmount;
+  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan - brrrrRehabBudget - refiClosingCosts;
   const investedAfterRefi = purchaseCashNeeded - cashBackAtRefi;
 
   const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
@@ -316,7 +336,7 @@ export const calculateBrrrrStrategy = (
   );
   const saleProceeds = estimateSaleProceeds(
     purchase.purchasePrice,
-    purchase.arv,
+    brrrrArv,
     input.assumptions.annualAppreciationPercent,
     input.assumptions.sellingCostPercent,
     remainingRefiBalance,
@@ -356,9 +376,11 @@ export const calculateBrrrrStrategy = (
 
 export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
   const { flip, purchase } = input;
+  const flipArv = resolveStrategyArv(input, 'flip');
+  const flipRehabBudget = resolveRehabBudget(input, 'flip');
   const base = createBaseOutput('flip', 'Renovate and sell analysis including carry and transaction friction.');
 
-  const salePrice = purchase.arv;
+  const salePrice = flipArv;
   const agentCommission = salePrice * flip.agentCommissionPercent;
   const closingCosts = salePrice * flip.sellClosingCostPercent;
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
@@ -368,7 +390,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const netProfit =
     salePrice -
     purchase.purchasePrice -
-    purchase.rehabBudget -
+    flipRehabBudget -
     purchase.purchasePrice * purchase.closingCostPercent -
     agentCommission -
     closingCosts -

@@ -397,3 +397,67 @@ test('HELOC PI amortization uses term-based monthly payment', () => {
 
   near(result.longTerm.monthlyCashFlow, noi - helocDebt, 0.01);
 });
+
+test('strategy-level ARV override affects sale proceeds for hold strategies', () => {
+  const baseline = calculateDeal(defaultDealInput);
+  const model = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      arvOverride: 420000
+    }
+  };
+
+  const overridden = calculateDeal(model);
+  assert.ok((overridden.longTerm.saleProceeds ?? 0) > (baseline.longTerm.saleProceeds ?? 0));
+});
+
+test('BRRRR rehab override changes year-one refinance cash event', () => {
+  const baseModel = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 300000,
+      arv: 420000
+    }
+  };
+
+  const highRehab = calculateDeal({
+    ...baseModel,
+    brrrr: {
+      ...baseModel.brrrr,
+      rehabOverride: 90000
+    }
+  });
+
+  const lowRehab = calculateDeal({
+    ...baseModel,
+    brrrr: {
+      ...baseModel.brrrr,
+      rehabOverride: 30000
+    }
+  });
+
+  assert.ok(highRehab.brrrr.cashFlowTimeline[1] < lowRehab.brrrr.cashFlowTimeline[1]);
+});
+
+test('Flip rehab override directly impacts net profit', () => {
+  const baseModel = {
+    ...defaultDealInput,
+    flip: {
+      ...defaultDealInput.flip,
+      rehabOverride: 25000
+    }
+  };
+
+  const expensiveRehab = calculateDeal({
+    ...baseModel,
+    flip: {
+      ...baseModel.flip,
+      rehabOverride: 60000
+    }
+  });
+
+  const cheapRehab = calculateDeal(baseModel);
+  assert.ok((expensiveRehab.flip.saleProceeds ?? 0) < (cheapRehab.flip.saleProceeds ?? 0));
+});

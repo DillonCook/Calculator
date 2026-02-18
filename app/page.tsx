@@ -12,11 +12,30 @@ import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { calculateDeal } from '@/lib/engine/deal-engine';
-import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
+import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey, type StrategyOutput } from '@/lib/models/deal';
 import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
+
+
+const strategyDisplayLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
+  longTerm: 'Long-Term',
+  airbnb: 'Airbnb',
+  padSplit: 'PadSplit',
+  brrrr: 'BRRRR',
+  flip: 'Flip'
+};
+
+const pickBestStrategy = (
+  outputs: Record<Exclude<StrategyKey, 'purchase'>, StrategyOutput>,
+  selector: (output: StrategyOutput) => number
+) => {
+  const entries = Object.entries(outputs) as [Exclude<StrategyKey, 'purchase'>, StrategyOutput][];
+  const [bestKey] = entries.reduce((best, current) => (selector(current[1]) > selector(best[1]) ? current : best));
+  return strategyDisplayLabels[bestKey];
+};
+
 
 export default function HomePage() {
   const [model, setModel] = useState(defaultDealInput);
@@ -26,6 +45,28 @@ export default function HomePage() {
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
+
+  const strategyOutputs = useMemo(
+    () => ({
+      longTerm: result.longTerm,
+      airbnb: result.airbnb,
+      padSplit: result.padSplit,
+      brrrr: result.brrrr,
+      flip: result.flip
+    }),
+    [result]
+  );
+
+  const bestByMetric = useMemo(
+    () => ({
+      monthlyCashFlow: pickBestStrategy(strategyOutputs, (output) => output.monthlyCashFlow),
+      cashOnCashReturn: pickBestStrategy(strategyOutputs, (output) => output.cashOnCashReturn),
+      dscr: pickBestStrategy(strategyOutputs, (output) => output.dscr),
+      roi: pickBestStrategy(strategyOutputs, (output) => output.roi),
+      irr: pickBestStrategy(strategyOutputs, (output) => output.irr)
+    }),
+    [strategyOutputs]
+  );
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
@@ -134,11 +175,11 @@ export default function HomePage() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard label="Cash to Close" value={currency.format(result.masterSummary.cashToClose)} helper="Down payment + closing + points + rehab" />
-          <KpiCard label="Best Monthly Cash Flow" value={currency.format(result.masterSummary.monthlyCashFlow)} tone="success" />
-          <KpiCard label="Best Cash on Cash" value={percent.format(result.masterSummary.cashOnCashReturn)} />
-          <KpiCard label="Best DSCR" value={Math.max(result.longTerm.dscr, result.airbnb.dscr, result.padSplit.dscr, result.brrrr.dscr).toFixed(2)} />
-          <KpiCard label="Best ROI" value={percent.format(result.masterSummary.roi)} />
-          <KpiCard label="Best IRR" value={percent.format(result.masterSummary.irr)} helper="Calculated from yearly cashflow timeline" />
+          <KpiCard label="Best Monthly Cash Flow" value={currency.format(result.masterSummary.monthlyCashFlow)} tone="success" winner={bestByMetric.monthlyCashFlow} />
+          <KpiCard label="Best Cash on Cash" value={percent.format(result.masterSummary.cashOnCashReturn)} winner={bestByMetric.cashOnCashReturn} />
+          <KpiCard label="Best DSCR" value={Math.max(result.longTerm.dscr, result.airbnb.dscr, result.padSplit.dscr, result.brrrr.dscr).toFixed(2)} winner={bestByMetric.dscr} />
+          <KpiCard label="Best ROI" value={percent.format(result.masterSummary.roi)} winner={bestByMetric.roi} />
+          <KpiCard label="Best IRR" value={percent.format(result.masterSummary.irr)} helper="Calculated from yearly cashflow timeline" winner={bestByMetric.irr} />
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">

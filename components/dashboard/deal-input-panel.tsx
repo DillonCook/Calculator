@@ -67,8 +67,18 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                 { label: 'Cash', value: 'cash' }
               ]}
             />
+            {value.purchase.financingType === 'loan' && (
+              <Select
+                label="Amortization"
+                value={value.purchase.amortizationType}
+                onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+                options={[
+                  { label: 'Principal & Interest (PI)', value: 'PI' },
+                  { label: 'Interest-Only (IO)', value: 'IO' }
+                ]}
+              />
+            )}
             <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
-            <Input label="ARV" type="number" value={value.purchase.arv} onChange={(v) => update('purchase', 'arv', Number(v))} />
             <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
             <PercentInput label="Down payment %" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', v)} />
             <PercentInput label="Closing costs %" value={value.purchase.closingCostPercent} onChange={(v) => update('purchase', 'closingCostPercent', v)} />
@@ -98,19 +108,8 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
             <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Advanced Financing</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {value.purchase.financingType === 'loan' && (
-                <Select
-                  label="Amortization"
-                  value={value.purchase.amortizationType}
-                  onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
-                  options={[
-                    { label: 'Principal & Interest (PI)', value: 'PI' },
-                    { label: 'Interest-Only (IO)', value: 'IO' }
-                  ]}
-                />
-              )}
               <Input
-                label="HELOC amount (supplemental)"
+                label="HELOC amount"
                 type="number"
                 value={value.purchase.helocAmount}
                 onChange={(v) => update('purchase', 'helocAmount', Number(v))}

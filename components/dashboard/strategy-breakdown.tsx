@@ -21,16 +21,16 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
   const output = data[active];
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
-      <div className="flex items-end justify-between gap-3">
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wider text-muted">Module Details</p>
           <h2 className="text-xl font-semibold">{labelMap[active]}</h2>
         </div>
-        <p className="max-w-xs text-right text-sm text-muted">{output.notes}</p>
+        <p className="max-w-md text-sm text-muted">{output.notes}</p>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Metric label="Monthly Cash Flow" value={money.format(output.monthlyCashFlow)} />
         <Metric label="Annual Cash Flow" value={money.format(output.annualCashFlow)} />
         <Metric label="Cash Needed" value={money.format(output.totalCashNeeded)} />
@@ -47,9 +47,9 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3">
       <p className="text-xs text-muted">{label}</p>
-      <p className="mt-2 text-lg font-semibold">{value}</p>
+      <p className="mt-2 truncate text-2xl font-semibold">{value}</p>
     </div>
   );
 }
