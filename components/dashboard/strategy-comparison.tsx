@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { DealResult } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -247,33 +247,60 @@ function ModelBar({ label, value, max, tone }: { label: string; value: number; m
 }
 
 function CashFlowGraph({ points, maxAbs }: { points: { year: number; value: number }[]; maxAbs: number }) {
-  const baselinePercent = 50;
+  const gradientId = useId();
+  const width = 560;
+  const height = 220;
+  const padding = 24;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+
+  const normalizedPoints = points.map((point, index) => {
+    const x = points.length <= 1 ? width / 2 : padding + (index / (points.length - 1)) * chartWidth;
+    const normalizedValue = maxAbs === 0 ? 0 : point.value / maxAbs;
+    const y = padding + ((1 - normalizedValue) / 2) * chartHeight;
+
+    return {
+      ...point,
+      x,
+      y
+    };
+  });
+
+  const linePath = normalizedPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const zeroY = padding + chartHeight / 2;
 
   return (
     <div className="space-y-2">
-      <div className="h-40 space-y-1 overflow-y-auto rounded-lg border border-white/10 bg-[#0A1326] p-2">
-        {points.map((point) => {
-          const height = Math.max((Math.abs(point.value) / Math.max(maxAbs, 1)) * 48, 2);
-          const isPositive = point.value >= 0;
+      <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#0A1326] p-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-44 min-w-[460px] w-full" role="img" aria-label="Cash flow line graph by year">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="100%" stopColor="#34d399" />
+            </linearGradient>
+          </defs>
 
-          return (
-            <div key={`${point.year}-${point.value}`} className="grid grid-cols-[56px_1fr_auto] items-center gap-2 text-[11px]">
-              <span className="text-muted">{point.year === 0 ? 'Initial' : `Year ${point.year}`}</span>
-              <div className="relative h-12 overflow-hidden rounded bg-white/5">
-                <div className="absolute left-0 right-0 border-t border-dashed border-white/15" style={{ top: `${baselinePercent}%` }} />
-                <div
-                  className={`absolute left-2 right-2 rounded ${isPositive ? 'bg-emerald-400/70' : 'bg-rose-400/70'}`}
-                  style={
-                    isPositive
-                      ? { bottom: `${baselinePercent}%`, height: `${height}%` }
-                      : { top: `${baselinePercent}%`, height: `${height}%` }
-                  }
-                />
-              </div>
-              <span className={isPositive ? 'text-emerald-300' : 'text-rose-300'}>{currencyFormatter.format(point.value)}</span>
-            </div>
-          );
-        })}
+          <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="#94a3b833" strokeDasharray="4 4" strokeWidth="1" />
+
+          <path d={linePath} fill="none" stroke={`url(#${gradientId})`} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+          {normalizedPoints.map((point) => {
+            const isPositive = point.value >= 0;
+            return (
+              <g key={`${point.year}-${point.value}`}>
+                <circle cx={point.x} cy={point.y} r="4" fill={isPositive ? '#34d399' : '#fb7185'} />
+                <text x={point.x} y={point.y - 10} textAnchor="middle" className="fill-slate-200 text-[9px]">
+                  {point.year === 0 ? 'I' : point.year}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-muted">
+        <span>Initial</span>
+        <span>Year {Math.max(points.length - 1, 1)}</span>
       </div>
       <p className="text-[11px] text-muted">Dashed line is break-even zero cash flow.</p>
     </div>
