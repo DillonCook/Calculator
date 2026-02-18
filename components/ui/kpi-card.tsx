@@ -3,16 +3,22 @@ interface KpiCardProps {
   value: string;
   tone?: 'default' | 'success';
   helper?: string;
+  winner?: string;
 }
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-export function KpiCard({ label, value, helper, tone = 'default' }: KpiCardProps) {
+export function KpiCard({ label, value, helper, winner, tone = 'default' }: KpiCardProps) {
   return (
     <div className="rounded-2xl border border-white/10 bg-panel p-4 shadow-soft">
       <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
+      {winner ? (
+        <p className="mt-1 text-xs italic tracking-wide text-accent/90" aria-label={`${label} best strategy`}>
+          {winner}
+        </p>
+      ) : null}
       <p
-        className={`mt-2 text-3xl font-semibold md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
+        className={`mt-1 text-3xl font-semibold md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
         data-testid={`kpi-${slugify(label)}`}
       >
         {value}

@@ -12,7 +12,10 @@ const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
     purchase: {
       ...defaultDealInput.purchase,
       ...payload.purchase,
-      financingType: payload.purchase?.financingType === 'heloc' ? 'loan' : (payload.purchase?.financingType ?? defaultDealInput.purchase.financingType)
+      financingType:
+        (payload.purchase as { financingType?: string } | undefined)?.financingType === 'heloc'
+          ? 'loan'
+          : (payload.purchase?.financingType ?? defaultDealInput.purchase.financingType)
     },
     longTerm: { ...defaultDealInput.longTerm, ...payload.longTerm },
     airbnb: { ...defaultDealInput.airbnb, ...payload.airbnb },
