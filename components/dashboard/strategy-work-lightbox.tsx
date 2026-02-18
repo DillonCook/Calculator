@@ -135,29 +135,6 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
           <p className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
         ) : (
           <div className="space-y-3">
-            <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 lg:grid-cols-5">
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Revenue / mo</p>
-                <p className="text-lg font-semibold text-emerald-300">{currencyFormatter.format(breakdown.revenueMonthly)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Seller-paid / mo</p>
-                <p className="text-lg font-semibold text-rose-300">{currencyFormatter.format(-Math.abs(breakdown.sellerPaidExpensesMonthly))}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Debt service / mo</p>
-                <p className="text-lg font-semibold text-rose-300">{currencyFormatter.format(-Math.abs(breakdown.debtServiceMonthly))}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">NOI / mo</p>
-                <p className={`text-lg font-semibold ${breakdown.noiMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(breakdown.noiMonthly)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Cash flow / mo</p>
-                <p className={`text-lg font-semibold ${breakdown.cashFlowMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(breakdown.cashFlowMonthly)}</p>
-              </div>
-            </div>
-
             {activeStrategy === 'flip' && breakdown.flipMeta ? (
               <FlipFinancials breakdown={breakdown} />
             ) : (
