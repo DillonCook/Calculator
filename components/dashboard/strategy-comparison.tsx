@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { DealResult } from '@/lib/models/deal';
-
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 const rows: { key: keyof Omit<DealResult, 'masterSummary'>; label: string }[] = [
   { key: 'longTerm', label: 'Long-Term Rental' },
@@ -73,7 +71,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{row.label}</p>
                   <p className={`text-base font-semibold ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
-                    {currency.format(output.monthlyCashFlow)}
+                    {currencyFormatter.format(output.monthlyCashFlow)}
                     <span className="ml-1 text-xs text-muted">/mo</span>
                   </p>
                 </div>
@@ -84,11 +82,11 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
-                  <span className="text-center">CoC {percent.format(output.cashOnCashReturn)}</span>
-                  <span className="text-center">ROI {percent.format(output.roi)}</span>
+                  <span className="text-center">CoC {percentFormatter.format(output.cashOnCashReturn)}</span>
+                  <span className="text-center">ROI {percentFormatter.format(output.roi)}</span>
                   <span className="text-center">DSCR {output.dscr.toFixed(2)}</span>
-                  <span className="text-center">IRR {percent.format(output.irr)}</span>
-                  <span className="text-center">Cap {percent.format(output.capRate)}</span>
+                  <span className="text-center">IRR {percentFormatter.format(output.irr)}</span>
+                  <span className="text-center">Cap {percentFormatter.format(output.capRate)}</span>
                 </div>
               </div>
             );
@@ -124,7 +122,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{row.label}</p>
                     <p className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                      {row.profit >= 0 ? '+' : ''}{currency.format(row.profit)} modeled profit
+                      {row.profit >= 0 ? '+' : ''}{currencyFormatter.format(row.profit)} modeled profit
                     </p>
                   </div>
 
@@ -144,7 +142,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-                    <p>Sale proceeds <span className="ml-1 text-white">{currency.format(row.saleProceeds)}</span></p>
+                    <p>Sale proceeds <span className="ml-1 text-white">{currencyFormatter.format(row.saleProceeds)}</span></p>
                     <p>Equity multiple <span className="ml-1 text-white">{row.multiple.toFixed(2)}x</span></p>
                   </div>
                 </div>
@@ -165,7 +163,7 @@ function ModelBar({ label, value, max, tone }: { label: string; value: number; m
     <div>
       <div className="mb-1 flex items-center justify-between text-xs text-muted">
         <span>{label}</span>
-        <span className="text-white">{currency.format(value)}</span>
+        <span className="text-white">{currencyFormatter.format(value)}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
         <div className={`h-full rounded-full ${toneClass}`} style={{ width: `${width}%` }} />

@@ -2,6 +2,7 @@
 
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
+import { currencyFormatter } from '@/lib/formatters';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -14,8 +15,6 @@ const strategyLabels: Record<ExpenseStrategyKey, string> = {
   padSplit: 'PS',
   flip: 'Flip'
 };
-
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
@@ -92,13 +91,13 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Input
-              label={`Property tax override (auto ${currency.format(autoTaxAnnual)})`}
+              label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
               type="number"
               value={value.purchase.propertyTaxAnnualOverride ?? ''}
               onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
             />
             <Input
-              label={`Insurance override (auto ${currency.format(autoInsuranceAnnual)})`}
+              label={`Insurance override (auto ${currencyFormatter.format(autoInsuranceAnnual)})`}
               type="number"
               value={value.purchase.insuranceAnnualOverride ?? ''}
               onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}

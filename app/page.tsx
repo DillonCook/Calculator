@@ -15,8 +15,7 @@ import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const percent = new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -178,10 +177,10 @@ export default function HomePage() {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
-            value={currency.format(result.purchase.totalCashNeeded)}
+            value={currencyFormatter.format(result.purchase.totalCashNeeded)}
             winner={activeStrategyLabel}
             secondaryLabel="Total cash invested"
-            secondaryValue={currency.format(activeOutput.totalCashNeeded)}
+            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
             definitions={[
               {
                 term: 'Cash to Close',
@@ -195,13 +194,13 @@ export default function HomePage() {
           />
           <KpiCard
             label="Cap Rate"
-            value={percent.format(activeOutput.capRate)}
+            value={percentFormatter.format(activeOutput.capRate)}
             helper="Annual NOI ÷ current property value"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="Cash on Cash"
-            value={percent.format(activeOutput.cashOnCashReturn)}
+            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
             helper="Annual cash flow ÷ total cash invested"
             winner={activeStrategyLabel}
           />
@@ -213,13 +212,13 @@ export default function HomePage() {
           />
           <KpiCard
             label="ROI"
-            value={percent.format(activeOutput.roi)}
+            value={percentFormatter.format(activeOutput.roi)}
             helper="Total profit ÷ total cash invested"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="IRR"
-            value={percent.format(activeOutput.irr)}
+            value={percentFormatter.format(activeOutput.irr)}
             helper="Discounted return from yearly cashflow timeline"
             winner={activeStrategyLabel}
           />
@@ -238,7 +237,7 @@ export default function HomePage() {
                 className={`mt-2 text-4xl font-semibold sm:text-5xl ${activeOutput.monthlyCashFlow >= 0 ? 'text-emerald-300' : 'text-white'}`}
                 data-testid="kpi-monthly-cash-flow"
               >
-                {currency.format(activeOutput.monthlyCashFlow)}
+                {currencyFormatter.format(activeOutput.monthlyCashFlow)}
               </p>
             </div>
 

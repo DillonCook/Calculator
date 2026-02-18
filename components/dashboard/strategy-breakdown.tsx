@@ -1,4 +1,5 @@
 import type { DealResult, StrategyKey } from '@/lib/models/deal';
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 const labelMap: Record<StrategyKey, string> = {
   purchase: 'Purchase Analysis',
@@ -8,9 +9,6 @@ const labelMap: Record<StrategyKey, string> = {
   brrrr: 'BRRRR',
   flip: 'Flip'
 };
-
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const pct = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 
 interface StrategyBreakdownProps {
   data: DealResult;
@@ -68,9 +66,9 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
       </ul>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Monthly cash flow" value={money.format(output.monthlyCashFlow)} />
-        <Metric label="Cash needed" value={money.format(output.totalCashNeeded)} />
-        <Metric label="Cash on cash" value={pct.format(output.cashOnCashReturn)} />
+        <Metric label="Monthly cash flow" value={currencyFormatter.format(output.monthlyCashFlow)} />
+        <Metric label="Cash needed" value={currencyFormatter.format(output.totalCashNeeded)} />
+        <Metric label="Cash on cash" value={percentFormatter.format(output.cashOnCashReturn)} />
         <Metric label="DSCR" value={output.dscr.toFixed(2)} />
       </div>
     </section>

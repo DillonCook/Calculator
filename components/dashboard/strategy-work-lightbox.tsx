@@ -1,6 +1,7 @@
 'use client';
 
 import type { StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
+import { currencyFormatter } from '@/lib/formatters';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Purchase',
@@ -10,8 +11,6 @@ const strategyLabels: Record<StrategyKey, string> = {
   brrrr: 'BRRRR',
   flip: 'Flip'
 };
-
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 interface StrategyWorkLightboxProps {
   open: boolean;
@@ -23,8 +22,8 @@ interface StrategyWorkLightboxProps {
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
   <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:text-sm">
     <p className="text-slate-100">{line.label}</p>
-    <p className={`text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currency.format(line.monthly)}</p>
-    <p className={`text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currency.format(line.annual)}</p>
+    <p className={`text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(line.monthly)}</p>
+    <p className={`text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(line.annual)}</p>
   </div>
 );
 
@@ -54,23 +53,23 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
             <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 lg:grid-cols-5">
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted">Revenue / mo</p>
-                <p className="text-lg font-semibold text-emerald-300">{currency.format(breakdown.revenueMonthly)}</p>
+                <p className="text-lg font-semibold text-emerald-300">{currencyFormatter.format(breakdown.revenueMonthly)}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted">Seller-paid / mo</p>
-                <p className="text-lg font-semibold text-rose-300">{currency.format(-Math.abs(breakdown.sellerPaidExpensesMonthly))}</p>
+                <p className="text-lg font-semibold text-rose-300">{currencyFormatter.format(-Math.abs(breakdown.sellerPaidExpensesMonthly))}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted">Debt service / mo</p>
-                <p className="text-lg font-semibold text-rose-300">{currency.format(-Math.abs(breakdown.debtServiceMonthly))}</p>
+                <p className="text-lg font-semibold text-rose-300">{currencyFormatter.format(-Math.abs(breakdown.debtServiceMonthly))}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted">NOI / mo</p>
-                <p className={`text-lg font-semibold ${breakdown.noiMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currency.format(breakdown.noiMonthly)}</p>
+                <p className={`text-lg font-semibold ${breakdown.noiMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(breakdown.noiMonthly)}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-muted">Cash flow / mo</p>
-                <p className={`text-lg font-semibold ${breakdown.cashFlowMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currency.format(breakdown.cashFlowMonthly)}</p>
+                <p className={`text-lg font-semibold ${breakdown.cashFlowMonthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(breakdown.cashFlowMonthly)}</p>
               </div>
             </div>
 
