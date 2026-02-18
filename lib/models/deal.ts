@@ -69,9 +69,26 @@ export interface PadSplitInputs {
   maintenancePercent: number;
   capexPercent: number;
   managementFeePercent: number;
-  turnoverCostMonthly: number;
+  turnoverCostPerMoveOut: number;
+  moveOutsPerYear: number;
   ownerExpensesMonthly: number;
   furnishingOneTime: number;
+}
+
+export interface StrategyCalculationLineItem {
+  key: string;
+  label: string;
+  monthly: number;
+  annual: number;
+}
+
+export interface StrategyCalculationBreakdown {
+  lines: StrategyCalculationLineItem[];
+  revenueMonthly: number;
+  sellerPaidExpensesMonthly: number;
+  debtServiceMonthly: number;
+  noiMonthly: number;
+  cashFlowMonthly: number;
 }
 
 export interface BrrrrInputs {
@@ -134,6 +151,7 @@ export interface StrategyOutput {
   noiMonthly?: number;
   saleProceeds?: number;
   cashFlowTimeline: number[];
+  calculationBreakdown?: StrategyCalculationBreakdown;
 }
 
 export interface MasterSummary {
@@ -190,17 +208,17 @@ export const defaultDealInput: DealInputModel = {
     pmiMonthly: 0
   },
   longTerm: {
-    grossRentMonthly: 2950,
-    otherIncomeMonthly: 150,
+    grossRentMonthly: 0,
+    otherIncomeMonthly: 0,
     arvOverride: null,
-    vacancyPercent: 0.06,
+    vacancyPercent: 0.05,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
     managementFeePercent: 0.08,
-    ownerExpensesMonthly: 550
+    ownerExpensesMonthly: 0
   },
   airbnb: {
-    adr: 180,
+    adr: 0,
     arvOverride: null,
     occupancyPercent: 0.68,
     nightsPerMonth: 30.4,
@@ -208,25 +226,26 @@ export const defaultDealInput: DealInputModel = {
     cleaningFeeCharged: 125,
     cleanerCostPerTurn: 110,
     averageNightsPerBooking: 3,
-    maintenancePercent: 0.04,
-    capexPercent: 0.04,
+    maintenancePercent: 0.05,
+    capexPercent: 0.05,
     managementFeePercent: 0.18,
-    ownerExpensesMonthly: 675,
+    ownerExpensesMonthly: 0,
     furnishingOneTime: 18000
   },
   padSplit: {
-    rentableRooms: 5,
+    rentableRooms: 0,
     arvOverride: null,
-    avgWeeklyRatePerRoom: 195,
+    avgWeeklyRatePerRoom: 0,
     occupancyPercent: 0.9,
     weeksPerMonth: 4.33,
-    otherIncomeMonthly: 150,
+    otherIncomeMonthly: 0,
     platformFeePercent: 0.08,
-    maintenancePercent: 0.04,
-    capexPercent: 0.04,
+    maintenancePercent: 0.05,
+    capexPercent: 0.05,
     managementFeePercent: 0.12,
-    turnoverCostMonthly: 140,
-    ownerExpensesMonthly: 820,
+    turnoverCostPerMoveOut: 40,
+    moveOutsPerYear: 10,
+    ownerExpensesMonthly: 0,
     furnishingOneTime: 16200
   },
   brrrr: {
