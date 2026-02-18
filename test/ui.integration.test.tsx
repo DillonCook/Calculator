@@ -21,9 +21,41 @@ describe('dashboard integration', () => {
       ...defaultDealInput,
       purchase: { ...defaultDealInput.purchase, purchasePrice: 300000 }
     };
-    const expected = currency.format(calculateDeal(updatedModel).masterSummary.cashToClose);
+    const expected = currency.format(calculateDeal(updatedModel).purchase.totalCashNeeded);
 
     expect(screen.getByTestId('kpi-cash-to-close')).toHaveTextContent(expected);
+  });
+
+  it('top KPI cards follow the active strategy tab', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
+
+    const airbnbResult = calculateDeal(defaultDealInput).airbnb;
+
+    expect(screen.getByTestId('kpi-monthly-cash-flow')).toHaveTextContent(currency.format(airbnbResult.monthlyCashFlow));
+    expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
+      new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(airbnbResult.cashOnCashReturn)
+    );
+    expect(screen.getByTestId('kpi-cap-rate')).toHaveTextContent(
+      new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(airbnbResult.capRate)
+    );
+
+    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currency.format(airbnbResult.totalCashNeeded));
+    expect(screen.getByLabelText('Cash to Close strategy context')).toHaveTextContent('Airbnb');
+    expect(screen.getByRole('button', { name: 'Cash to Close definitions' })).toBeInTheDocument();
+  });
+
+
+  it('equity modeling lightbox opens from strategy board', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Equity modeling' }));
+
+    expect(screen.getByRole('dialog', { name: 'Equity Modeling Lightbox' })).toBeInTheDocument();
+    expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
   });
 
   it('scenario save and load flow persists data to local storage', async () => {

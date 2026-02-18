@@ -169,10 +169,11 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
 
   const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
   const vacancy = gross * longTerm.vacancyPercent;
-  const maintenance = gross * longTerm.maintenancePercent;
-  const capex = gross * longTerm.capexPercent;
-  const managementFee = gross * longTerm.managementFeePercent;
-  const noi = gross - vacancy - maintenance - capex - managementFee - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
+  const effectiveGrossIncome = gross - vacancy;
+  const maintenance = effectiveGrossIncome * longTerm.maintenancePercent;
+  const capex = effectiveGrossIncome * longTerm.capexPercent;
+  const managementFee = effectiveGrossIncome * longTerm.managementFeePercent;
+  const noi = effectiveGrossIncome - maintenance - capex - managementFee - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
 
@@ -277,10 +278,10 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     monthlyCashFlow: monthly,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
-    cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
+    cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     dscr: calculateDscr(noi, debtService),
-    roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
-    totalCashNeeded: purchaseCashNeeded,
+    roi: investedCapital === 0 ? 0 : (annual * input.assumptions.holdYears) / investedCapital,
+    totalCashNeeded: investedCapital,
     noiMonthly: noi,
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
@@ -299,9 +300,10 @@ export const calculateBrrrrStrategy = (
   const selectedOperatingNoi = operatingNoiByStrategy[brrrr.operatingStrategy] ?? operatingNoiByStrategy.longTerm;
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
-  const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
+  const strategyVariableCosts = getVariableExpenseTotal(input, brrrr.operatingStrategy);
   const fixedCosts = getMonthlyFixedCosts(input);
-  const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts);
+  const acquisitionDebtService = getPurchaseLoanTerms(input).debtService;
+  const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + acquisitionDebtService);
   const refiLoanAmount = brrrrArv * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
 
@@ -362,7 +364,7 @@ export const calculateBrrrrStrategy = (
     ...base,
     monthlyCashFlow: monthly,
     annualCashFlow: annual,
-    capRate: purchase.purchasePrice === 0 ? 0 : (selectedOperatingNoi * 12) / purchase.purchasePrice,
+    capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
     dscr: calculateDscr(selectedOperatingNoi, refinanceDebt),
     roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,

@@ -5,21 +5,21 @@ import { useMemo, useState, type ChangeEvent } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { ScenarioCorner } from '@/components/dashboard/scenario-corner';
-import { StrategyBreakdown } from '@/components/dashboard/strategy-breakdown';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { calculateDeal } from '@/lib/engine/deal-engine';
-import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey, type StrategyOutput } from '@/lib/models/deal';
+import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 
 
-const strategyDisplayLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
+const activeStrategyLabels: Record<StrategyKey, string> = {
+  purchase: 'Purchase',
   longTerm: 'Long-Term',
   airbnb: 'Airbnb',
   padSplit: 'PadSplit',
@@ -27,13 +27,31 @@ const strategyDisplayLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = 
   flip: 'Flip'
 };
 
-const pickBestStrategy = (
-  outputs: Record<Exclude<StrategyKey, 'purchase'>, StrategyOutput>,
-  selector: (output: StrategyOutput) => number
-) => {
-  const entries = Object.entries(outputs) as [Exclude<StrategyKey, 'purchase'>, StrategyOutput][];
-  const [bestKey] = entries.reduce((best, current) => (selector(current[1]) > selector(best[1]) ? current : best));
-  return strategyDisplayLabels[bestKey];
+const quickScanDetails: Record<StrategyKey, string[]> = {
+  purchase: [
+    'Baseline acquisition assumptions and financing setup for all strategy models.',
+    'Use this as your foundation before choosing a strategy-specific operating plan.'
+  ],
+  longTerm: [
+    'Stable buy-and-hold model with lower operational churn.',
+    'Prioritizes predictable occupancy and durable cashflow over peak upside.'
+  ],
+  airbnb: [
+    'Higher upside from nightly rates with more active management.',
+    'Performance is most sensitive to occupancy, turns, and platform fee control.'
+  ],
+  padSplit: [
+    'Room-by-room strategy to maximize revenue per property footprint.',
+    'Execution quality on occupancy and turnover cadence heavily drives returns.'
+  ],
+  brrrr: [
+    'Refi-driven strategy focused on capital recycling after stabilization.',
+    'Best outcomes depend on renovation execution and refinance terms.'
+  ],
+  flip: [
+    'Value-add renovation and resale model focused on execution speed.',
+    'Timeline discipline and exit pricing accuracy are the core profit levers.'
+  ]
 };
 
 
@@ -46,27 +64,9 @@ export default function HomePage() {
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
 
-  const strategyOutputs = useMemo(
-    () => ({
-      longTerm: result.longTerm,
-      airbnb: result.airbnb,
-      padSplit: result.padSplit,
-      brrrr: result.brrrr,
-      flip: result.flip
-    }),
-    [result]
-  );
-
-  const bestByMetric = useMemo(
-    () => ({
-      monthlyCashFlow: pickBestStrategy(strategyOutputs, (output) => output.monthlyCashFlow),
-      cashOnCashReturn: pickBestStrategy(strategyOutputs, (output) => output.cashOnCashReturn),
-      dscr: pickBestStrategy(strategyOutputs, (output) => output.dscr),
-      roi: pickBestStrategy(strategyOutputs, (output) => output.roi),
-      irr: pickBestStrategy(strategyOutputs, (output) => output.irr)
-    }),
-    [strategyOutputs]
-  );
+  const activeOutput = result[activeStrategy];
+  const activeStrategyLabel = activeStrategyLabels[activeStrategy];
+  const quickScanPoints = quickScanDetails[activeStrategy];
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
@@ -174,20 +174,98 @@ export default function HomePage() {
         <RecentScenariosCarousel scenarios={scenarios} activeDealName={model.purchase.dealName} onOpen={openRecentScenario} />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <KpiCard label="Cash to Close" value={currency.format(result.masterSummary.cashToClose)} helper="Down payment + closing + points + rehab" />
-          <KpiCard label="Best Monthly Cash Flow" value={currency.format(result.masterSummary.monthlyCashFlow)} tone="success" winner={bestByMetric.monthlyCashFlow} />
-          <KpiCard label="Best Cash on Cash" value={percent.format(result.masterSummary.cashOnCashReturn)} winner={bestByMetric.cashOnCashReturn} />
-          <KpiCard label="Best DSCR" value={Math.max(result.longTerm.dscr, result.airbnb.dscr, result.padSplit.dscr, result.brrrr.dscr).toFixed(2)} winner={bestByMetric.dscr} />
-          <KpiCard label="Best ROI" value={percent.format(result.masterSummary.roi)} winner={bestByMetric.roi} />
-          <KpiCard label="Best IRR" value={percent.format(result.masterSummary.irr)} helper="Calculated from yearly cashflow timeline" winner={bestByMetric.irr} />
+          <KpiCard
+            label="Cash to Close"
+            value={currency.format(result.purchase.totalCashNeeded)}
+            winner={activeStrategyLabel}
+            secondaryLabel="Total cash invested"
+            secondaryValue={currency.format(activeOutput.totalCashNeeded)}
+            definitions={[
+              {
+                term: 'Cash to Close',
+                description: 'Cash required at the closing table before post-close improvements.'
+              },
+              {
+                term: 'Total cash invested',
+                description: 'Full out-of-pocket capital including rehab and one-time strategy setup costs.'
+              }
+            ]}
+          />
+          <KpiCard
+            label="Cap Rate"
+            value={percent.format(activeOutput.capRate)}
+            helper="Annual NOI ÷ current property value"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="Cash on Cash"
+            value={percent.format(activeOutput.cashOnCashReturn)}
+            helper="Annual cash flow ÷ total cash invested"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="DSCR"
+            value={activeOutput.dscr.toFixed(2)}
+            helper="NOI ÷ annual debt service"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="ROI"
+            value={percent.format(activeOutput.roi)}
+            helper="Total profit ÷ total cash invested"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="IRR"
+            value={percent.format(activeOutput.irr)}
+            helper="Discounted return from yearly cashflow timeline"
+            winner={activeStrategyLabel}
+          />
         </section>
+        <section className="rounded-2xl border border-accent/35 bg-gradient-to-r from-accent/10 via-accent/5 to-transparent p-4 shadow-soft">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Priority Metric</p>
+                  <p className="mt-1 text-sm text-muted">Monthly cash flow for the selected strategy</p>
+                </div>
+                <p className="text-xs italic tracking-wide text-accent/90" aria-label="Monthly Cash Flow strategy context">{activeStrategyLabel}</p>
+              </div>
+              <p
+                className={`mt-2 text-4xl font-semibold sm:text-5xl ${activeOutput.monthlyCashFlow >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                data-testid="kpi-monthly-cash-flow"
+              >
+                {currency.format(activeOutput.monthlyCashFlow)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
+                  <p className="text-xl font-semibold">{activeStrategyLabel}</p>
+                </div>
+                <p className="max-w-xl text-sm text-muted">{activeOutput.notes}</p>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm text-slate-200">
+                {quickScanPoints.map((point) => (
+                  <li key={point} className="flex items-start gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
             <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
-            <section className="grid gap-3 xl:grid-cols-2">
+            <section className="grid gap-3">
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={setModel} />
-              <StrategyBreakdown data={result} active={activeStrategy} />
             </section>
             <TimelineCard
               output={result[activeStrategy]}
