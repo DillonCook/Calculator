@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '../lib/engine/finance';
-import { calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
+import { calcTotalRoiFromTimeline, calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
 import { defaultDealInput } from '../lib/models/deal';
 
 const near = (actual: number, expected: number, epsilon = 0.01) => {
@@ -76,9 +76,10 @@ test('purchase taxes and insurance are auto calculated but can be overridden', (
 test('flip includes variable and fixed expense carry by months', () => {
   const result = calculateDeal(defaultDealInput);
   const { purchase: p, flip: f } = defaultDealInput;
+  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
 
   const salePrice = p.arv;
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixedCostsMonthly() + variableCostMonthly('flip'));
+  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixedCostsMonthly() + variableCostMonthly('flip') + debtService);
 
   const netProfit =
     salePrice -
@@ -99,7 +100,7 @@ test('long-term timeline covers Year 0..N and produces irr from cashflows', () =
 
   assert.equal(result.longTerm.cashFlowTimeline.length, holdYears + 1);
   assert.ok(result.longTerm.cashFlowTimeline[0] < 0);
-  assert.ok(result.longTerm.irr !== 0);
+  assert.ok(Number.isFinite(result.longTerm.irr));
 });
 
 
@@ -109,7 +110,8 @@ test('flip IRR timeline exits at full terminal cash flow, not net profit only', 
 
   const fixed = fixedCostsMonthly();
   const variable = variableCostMonthly('flip');
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable);
+  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable + debtService);
   const totalCashInvested = result.purchase.totalCashNeeded + holdingCosts;
 
   const netProfit =
@@ -127,27 +129,25 @@ test('flip IRR timeline exits at full terminal cash flow, not net profit only', 
   assert.notEqual(result.flip.cashFlowTimeline[1], netProfit);
 });
 
-test('brrrr IRR timeline includes refinance cash event in year one', () => {
+test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-back bump', () => {
   const result = calculateDeal(defaultDealInput);
-  const { purchase: p, brrrr, assumptions } = defaultDealInput;
+  const { purchase: p, brrrr } = defaultDealInput;
 
   const strategyVariableCosts = variableCostMonthly('longTerm');
   const acquisitionDebtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
   const holdingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCostsMonthly() + strategyVariableCosts + acquisitionDebtService);
-  const initialOutflow = result.purchase.totalCashNeeded + holdingCosts;
+  const investedAtPurchase = result.purchase.totalCashNeeded + holdingCosts;
 
   const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
   const initialLoan = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
-  const payoffInitialLoan = calculateRemainingBalance(initialLoan, p.interestRate, p.loanTermYears, brrrr.holdingMonths / 12, 'PI');
-  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan - p.rehabBudget - refiClosingCosts;
+  const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoan;
+  const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
 
-  near(result.brrrr.cashFlowTimeline[0], -Math.abs(initialOutflow));
+  near(result.brrrr.cashFlowTimeline[0], -Math.abs(investedAfterRefi));
   assert.ok(result.brrrr.cashFlowTimeline.length >= 2);
 
-  const baseYearOneFlow = result.brrrr.annualCashFlow * Math.pow(1 + assumptions.noiGrowthPercent, 0);
-  const yearOneSale = assumptions.holdYears === 1 ? result.brrrr.saleProceeds : 0;
-  near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + cashBackAtRefi);
+  near(result.brrrr.cashFlowTimeline[1], result.brrrr.annualCashFlow, 0.01);
 });
 
 
@@ -171,7 +171,7 @@ test('long-term CoC, ROI, and DSCR align with underwriting formulas', () => {
   const monthly = noi - debt;
   const annual = monthly * 12;
   const expectedCoc = annual / result.purchase.totalCashNeeded;
-  const expectedRoi = (annual * defaultDealInput.assumptions.holdYears) / result.purchase.totalCashNeeded;
+  const expectedRoi = calcTotalRoiFromTimeline(result.longTerm.cashFlowTimeline);
   const expectedDscr = noi / debt;
 
   near(result.longTerm.cashOnCashReturn, expectedCoc, 0.0001);
@@ -259,15 +259,15 @@ test('BRRRR cash back uses payoff of initial acquisition debt', () => {
 
   const result = calculateDeal(model);
   const initialLoan = calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent);
-  const payoffInitialLoan = calculateRemainingBalance(initialLoan, model.purchase.interestRate, model.purchase.loanTermYears, model.brrrr.holdingMonths / 12, 'PI');
   const refiLoanAmount = model.purchase.arv * model.brrrr.refinanceLtvPercent;
-  const refiCosts = refiLoanAmount * model.brrrr.refinanceClosingCostPercent;
+  const expectedCashBack = refiLoanAmount - refiLoanAmount * model.brrrr.refinanceClosingCostPercent - initialLoan;
 
-  const expectedCashBack = refiLoanAmount - payoffInitialLoan - model.purchase.rehabBudget - refiCosts;
-  const baseYearOneFlow = result.brrrr.annualCashFlow;
-  const yearOneSale = model.assumptions.holdYears === 1 ? result.brrrr.saleProceeds ?? 0 : 0;
+  const strategyVariableCosts = variableCostMonthly('longTerm', model);
+  const fixed = fixedCostsMonthly(model);
+  const acquisitionDebtService = calculateMonthlyPayment(initialLoan, model.purchase.interestRate, model.purchase.loanTermYears);
+  const investedAtPurchase = result.purchase.totalCashNeeded + model.brrrr.holdingMonths * (model.brrrr.holdingExpensesMonthly + fixed + strategyVariableCosts + acquisitionDebtService);
 
-  near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + expectedCashBack, 0.01);
+  near(result.brrrr.cashFlowTimeline[0], -Math.abs(investedAtPurchase - expectedCashBack), 0.01);
 });
 
 
@@ -342,12 +342,44 @@ test('PadSplit includes other income plus reserve and management fee percentages
     gross * ps.maintenancePercent -
     gross * ps.capexPercent -
     gross * ps.managementFeePercent -
-    ps.turnoverCostMonthly -
+    (ps.turnoverCostPerMoveOut * ps.moveOutsPerYear * ps.rentableRooms) / 12 -
+    (ps.moveOutsPerYear * ((ps.avgWeeklyRatePerRoom * 10) / 7)) / 12 -
     ps.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('padSplit', model);
 
   near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
+});
+
+test('PadSplit turnover and placement fees match spreadsheet formulas and are separate line items', () => {
+  const model = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      rentableRooms: 7,
+      avgWeeklyRatePerRoom: 195,
+      moveOutsPerYear: 10,
+      turnoverCostPerMoveOut: 40
+    }
+  };
+
+  const result = calculateDeal(model);
+  const lines = result.padSplit.calculationBreakdown?.lines ?? [];
+
+  const turnoverLine = lines.find((line) => line.key === 'ps-turnover-cleaning');
+  const placementLine = lines.find((line) => line.key === 'ps-tenant-placement');
+
+  assert.ok(turnoverLine);
+  assert.ok(placementLine);
+
+  const expectedTurnoverMonthly = (40 * 10 * 7) / 12;
+  const expectedPlacementMonthly = (10 * ((195 * 10) / 7)) / 12;
+
+  near(Math.abs(turnoverLine?.monthly ?? 0), expectedTurnoverMonthly, 0.0001);
+  near(Math.abs(turnoverLine?.annual ?? 0), expectedTurnoverMonthly * 12, 0.0001);
+  near(Math.abs(placementLine?.monthly ?? 0), expectedPlacementMonthly, 0.0001);
+  near(Math.abs(placementLine?.annual ?? 0), expectedPlacementMonthly * 12, 0.0001);
+  near(Math.abs((turnoverLine?.monthly ?? 0) + (placementLine?.monthly ?? 0)), expectedTurnoverMonthly + expectedPlacementMonthly, 0.0001);
 });
 
 
@@ -359,7 +391,7 @@ test('PadSplit furnishing costs are included in invested capital for CoC/ROI', (
 
   near(result.padSplit.totalCashNeeded, investedCapital, 0.01);
   near(result.padSplit.cashOnCashReturn, result.padSplit.annualCashFlow / investedCapital, 0.0001);
-  near(result.padSplit.roi, (result.padSplit.annualCashFlow * defaultDealInput.assumptions.holdYears) / investedCapital, 0.0001);
+  near(result.padSplit.roi, calcTotalRoiFromTimeline(result.padSplit.cashFlowTimeline), 0.0001);
 });
 
 test('BRRRR uses selected operating strategy NOI for post-refi operations', () => {
@@ -425,7 +457,7 @@ test('strategy-level ARV override affects sale proceeds for hold strategies', ()
   assert.ok((overridden.longTerm.saleProceeds ?? 0) > (baseline.longTerm.saleProceeds ?? 0));
 });
 
-test('BRRRR rehab override changes year-one refinance cash event', () => {
+test('BRRRR rehab override does not change refinance netting in year-0 cash flow', () => {
   const baseModel = {
     ...defaultDealInput,
     purchase: {
@@ -451,7 +483,78 @@ test('BRRRR rehab override changes year-one refinance cash event', () => {
     }
   });
 
-  assert.ok(highRehab.brrrr.cashFlowTimeline[1] < lowRehab.brrrr.cashFlowTimeline[1]);
+  near(highRehab.brrrr.cashFlowTimeline[0], lowRehab.brrrr.cashFlowTimeline[0], 0.01);
+});
+
+test('REI Calculator v2.15 parity fixture', () => {
+  const fixture = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 405000,
+      rehabBudget: 50000,
+      arv: 445000,
+      downPaymentPercent: 0.05,
+      closingCostPercent: 0.01,
+      pointsPercent: 0,
+      interestRate: 0.0637,
+      loanTermYears: 30
+    },
+    assumptions: {
+      ...defaultDealInput.assumptions,
+      holdYears: 10,
+      noiGrowthPercent: 0.025,
+      annualAppreciationPercent: 0.04,
+      sellingCostPercent: 0.08
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 0,
+      otherIncomeMonthly: 0,
+      vacancyPercent: 0,
+      maintenancePercent: 0,
+      capexPercent: 0,
+      managementFeePercent: 0,
+      ownerExpensesMonthly: 0
+    },
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      adr: 180,
+      maintenancePercent: 0.04,
+      capexPercent: 0.04,
+      ownerExpensesMonthly: 675
+    },
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      rentableRooms: 5,
+      avgWeeklyRatePerRoom: 195,
+      maintenancePercent: 0.04,
+      capexPercent: 0.04,
+      ownerExpensesMonthly: 820
+    },
+    variableExpenses: [
+      { key: 'lt', label: 'LT', monthlyAmount: 300, appliesTo: { longTerm: true, airbnb: false, padSplit: false, flip: false } },
+      { key: 'str', label: 'STR', monthlyAmount: 675, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
+      { key: 'ps', label: 'PS', monthlyAmount: 820, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } }
+    ]
+  };
+
+  const result = calculateDeal(fixture);
+
+  near(result.longTerm.capRate, -0.03588888889, 1e-9);
+  near(result.longTerm.cashOnCashReturn, -0.5830952405, 1e-9);
+  near(result.longTerm.dscr, -0.5048807507, 1e-9);
+  near(result.longTerm.irr, -0.1306043926, 1e-9);
+  near(result.longTerm.roi, -3.285657625, 1e-9);
+
+  near(result.airbnb.irr, -0.0721259459, 1e-9);
+  near(result.airbnb.roi, -1.4687068242, 1e-9);
+
+  near(result.padSplit.irr, -0.0677210758, 1e-9);
+  near(result.padSplit.roi, -1.3956092061, 1e-9);
+
+  near(result.brrrr.irr, -0.103474976, 1e-9);
+  near(result.brrrr.roi, -1.5812330323, 1e-9);
 });
 
 test('Flip rehab override directly impacts net profit', () => {

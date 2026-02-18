@@ -67,7 +67,13 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
           <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
           <Input label="Weeks per month" type="number" value={model.padSplit.weeksPerMonth} onChange={(v) => update('padSplit', 'weeksPerMonth', Number(v))} />
           <Input label="Other income / mo" type="number" value={model.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
-          <Input label="Turnover cost / mo" type="number" value={model.padSplit.turnoverCostMonthly} onChange={(v) => update('padSplit', 'turnoverCostMonthly', Number(v))} />
+          <Input
+            label="Turnover / cleaning per move-out"
+            type="number"
+            value={model.padSplit.turnoverCostPerMoveOut}
+            onChange={(v) => update('padSplit', 'turnoverCostPerMoveOut', Number(v))}
+          />
+          <Input label="Move-outs per year" type="number" value={model.padSplit.moveOutsPerYear} onChange={(v) => update('padSplit', 'moveOutsPerYear', Number(v))} />
           <PercentInput label="Platform fee %" value={model.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
           <PercentInput label="Management fee %" value={model.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', v)} />
           <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />

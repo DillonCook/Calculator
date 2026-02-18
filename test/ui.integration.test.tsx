@@ -58,6 +58,20 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
   });
 
+  it('strategy work lightbox opens for active strategy and shows key rows', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'PadSplit' }));
+    await user.click(screen.getByRole('button', { name: 'Show work' }));
+
+    expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
+    expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
+    expect(screen.getByText('NOI / mo')).toBeInTheDocument();
+    expect(screen.getByText('Turnover / cleaning')).toBeInTheDocument();
+    expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
+  });
+
   it('scenario save and load flow persists data to local storage', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -82,6 +96,21 @@ describe('dashboard integration', () => {
     await user.type(strategyArv, '365000');
 
     expect(strategyArv).toHaveValue(365000);
+  });
+
+  it('allows decimal precision for percent and numeric text fields without rounding', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const downPayment = screen.getByLabelText('Down payment %');
+    await user.clear(downPayment);
+    await user.type(downPayment, '5.55');
+    expect(downPayment).toHaveValue(5.55);
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '300000.37');
+    expect(purchasePrice).toHaveValue(300000.37);
   });
 
   it('print view link includes encoded scenario payload', () => {
