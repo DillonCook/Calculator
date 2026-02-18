@@ -51,13 +51,16 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
     return rows.map((row) => {
       const output = data[row.key];
       const points = output.cashFlowTimeline.map((value, index) => ({ year: index, value }));
-      const maxAbs = Math.max(...points.map((point) => Math.abs(point.value)), 1);
+      const operatingPoints = points.length > 2 ? points.slice(1, -1) : points.slice(1);
+      const chartPoints = operatingPoints.length > 0 ? operatingPoints : points.slice(0, 1);
+      const operatingMaxAbs = Math.max(...chartPoints.map((point) => Math.abs(point.value)), 1);
 
       return {
         key: row.key,
         label: row.label,
         points,
-        maxAbs
+        chartPoints,
+        operatingMaxAbs
       };
     });
   }, [data]);
@@ -95,7 +98,10 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
             const isPositive = output.monthlyCashFlow >= 0;
 
             return (
-              <div key={row.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div
+                key={row.key}
+                className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-rose-500/40 bg-rose-500/10'}`}
+              >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{row.label}</p>
                   <p className={`text-base font-semibold ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
@@ -112,7 +118,15 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
                   <span className="text-center">CoC {percentFormatter.format(output.cashOnCashReturn)}</span>
                   <span className="text-center">ROI {percentFormatter.format(output.roi)}</span>
-                  <span className="text-center">DSCR {output.dscr.toFixed(2)}</span>
+                  <span className="text-center">
+                    DSCR
+                    <span
+                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${output.dscr < 1 ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40' : 'text-white'}`}
+                    >
+                      {output.dscr.toFixed(2)}
+                      {output.dscr < 1 ? ' \u26a0' : ''}
+                    </span>
+                  </span>
                   <span className="text-center">IRR {percentFormatter.format(output.irr)}</span>
                   <span className="text-center">Cap {percentFormatter.format(output.capRate)}</span>
                 </div>
@@ -200,7 +214,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               <div>
                 <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
-                <p className="text-xs text-muted">Annual timeline including initial cash outlay and terminal sale event.</p>
+                <p className="text-xs text-muted">Operating years view (terminal sale year hidden) for realistic annual cash flow scale.</p>
               </div>
               <button
                 type="button"
@@ -216,9 +230,9 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{row.label}</p>
-                    <p className="text-xs text-muted">Peak scale: {currencyFormatter.format(row.maxAbs)}</p>
+                    <p className="text-xs text-muted">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
                   </div>
-                  <CashFlowGraph points={row.points} maxAbs={row.maxAbs} />
+                  <CashFlowGraph points={row.chartPoints} />
                 </div>
               ))}
             </div>
@@ -246,63 +260,121 @@ function ModelBar({ label, value, max, tone }: { label: string; value: number; m
   );
 }
 
-function CashFlowGraph({ points, maxAbs }: { points: { year: number; value: number }[]; maxAbs: number }) {
-  const gradientId = useId();
+function CashFlowGraph({ points }: { points: { year: number; value: number }[] }) {
+  const yAxisLabelId = useId();
   const width = 560;
   const height = 220;
   const padding = 24;
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
-  const normalizedPoints = points.map((point, index) => {
-    const x = points.length <= 1 ? width / 2 : padding + (index / (points.length - 1)) * chartWidth;
-    const normalizedValue = maxAbs === 0 ? 0 : point.value / maxAbs;
-    const y = padding + ((1 - normalizedValue) / 2) * chartHeight;
+  const minValue = Math.min(...points.map((point) => point.value), 0);
+  const maxValue = Math.max(...points.map((point) => point.value), 0);
+  const range = Math.max(maxValue - minValue, 1);
+  const paddedMin = minValue - range * 0.12;
+  const paddedMax = maxValue + range * 0.12;
+  const domainRange = Math.max(paddedMax - paddedMin, 1);
+
+  const toY = (value: number): number => padding + ((paddedMax - value) / domainRange) * chartHeight;
+  const zeroY = toY(0);
+
+  const tickCount = 5;
+  const yTicks = Array.from({ length: tickCount }, (_, index) => {
+    const ratio = index / (tickCount - 1);
+    const value = paddedMax - ratio * domainRange;
 
     return {
-      ...point,
-      x,
-      y
+      ratio,
+      y: toY(value),
+      label: currencyFormatter.format(value)
     };
   });
 
-  const linePath = normalizedPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  const zeroY = padding + chartHeight / 2;
+  const barGap = Math.max(points.length - 1, 1);
+  const stepX = chartWidth / barGap;
+  const barWidth = Math.max(Math.min(stepX * 0.62, 34), 10);
+
+  const bars = points.map((point, index) => {
+    const xCenter = points.length <= 1 ? width / 2 : padding + index * stepX;
+    const valueY = toY(point.value);
+    const barTop = Math.min(valueY, zeroY);
+    const barHeight = Math.max(Math.abs(zeroY - valueY), 1);
+
+    return {
+      ...point,
+      x: xCenter,
+      barTop,
+      barHeight,
+      isPositive: point.value >= 0
+    };
+  });
 
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#0A1326] p-2">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-44 min-w-[460px] w-full" role="img" aria-label="Cash flow line graph by year">
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#22d3ee" />
-              <stop offset="100%" stopColor="#34d399" />
-            </linearGradient>
-          </defs>
+        <div className="min-w-[460px]">
+          <div className="mb-1 grid grid-cols-[78px_1fr] items-center text-[10px] text-muted">
+            <p className="pl-1">Annual cash flow</p>
+            <p className="pr-2 text-right">Operating timeline (years)</p>
+          </div>
 
-          <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="#94a3b833" strokeDasharray="4 4" strokeWidth="1" />
+          <div className="grid grid-cols-[78px_1fr] gap-2">
+            <div className="flex flex-col justify-between py-2 text-right text-[10px] text-muted" aria-hidden="true">
+              {yTicks.map((tick) => (
+                <span key={tick.ratio}>{tick.label}</span>
+              ))}
+            </div>
 
-          <path d={linePath} fill="none" stroke={`url(#${gradientId})`} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              viewBox={`0 0 ${width} ${height}`}
+              className="h-44 w-full"
+              role="img"
+              aria-labelledby={yAxisLabelId}
+            >
+              <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
 
-          {normalizedPoints.map((point) => {
-            const isPositive = point.value >= 0;
-            return (
-              <g key={`${point.year}-${point.value}`}>
-                <circle cx={point.x} cy={point.y} r="4" fill={isPositive ? '#34d399' : '#fb7185'} />
-                <text x={point.x} y={point.y - 10} textAnchor="middle" className="fill-slate-200 text-[9px]">
-                  {point.year === 0 ? 'I' : point.year}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+              {yTicks.map((tick) => (
+                <line
+                  key={`grid-${tick.ratio}`}
+                  x1={padding}
+                  x2={width - padding}
+                  y1={tick.y}
+                  y2={tick.y}
+                  stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
+                  strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
+                  strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
+                />
+              ))}
+
+              {bars.map((bar, index) => (
+                <g key={`${bar.year}-${bar.value}-${index}`}>
+                  <rect
+                    x={bar.x - barWidth / 2}
+                    y={bar.barTop}
+                    width={barWidth}
+                    height={bar.barHeight}
+                    rx="4"
+                    fill={bar.isPositive ? '#34d399' : '#fb7185'}
+                    opacity={bar.year === 0 ? 0.85 : 1}
+                  />
+                  <text
+                    x={bar.x}
+                    y={height - 4}
+                    textAnchor="middle"
+                    className="fill-slate-400 text-[9px]"
+                  >
+                    {bar.year}
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-muted">
-        <span>Initial</span>
-        <span>Year {Math.max(points.length - 1, 1)}</span>
+      <div className="flex items-center justify-end text-[11px] text-muted">
+        <span>Year {Math.max(points.at(-1)?.year ?? 1, 1)}</span>
       </div>
-      <p className="text-[11px] text-muted">Dashed line is break-even zero cash flow.</p>
     </div>
   );
 }
