@@ -195,7 +195,8 @@ test('HELOC debt service is included in operating monthly cash flow', () => {
       ...defaultDealInput.purchase,
       financingType: 'cash' as const,
       helocAmount: 180000,
-      helocRate: 0.1
+      helocRate: 0.1,
+      helocAmortizationType: 'IO' as const
     }
   };
 
@@ -366,4 +367,97 @@ test('BRRRR uses selected operating strategy NOI for post-refi operations', () =
 
   near(result.brrrr.noiMonthly ?? 0, result.airbnb.noiMonthly ?? 0, 0.01);
   near(result.brrrr.monthlyCashFlow, (result.airbnb.noiMonthly ?? 0) - refiDebt, 0.01);
+});
+
+test('HELOC PI amortization uses term-based monthly payment', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash' as const,
+      helocAmount: 120000,
+      helocRate: 0.0725,
+      helocTermYears: 15,
+      helocAmortizationType: 'PI' as const
+    }
+  };
+
+  const result = calculateDeal(model);
+  const gross = model.longTerm.grossRentMonthly + model.longTerm.otherIncomeMonthly;
+  const noi =
+    gross -
+    gross * model.longTerm.vacancyPercent -
+    gross * model.longTerm.maintenancePercent -
+    gross * model.longTerm.capexPercent -
+    gross * model.longTerm.managementFeePercent -
+    model.longTerm.ownerExpensesMonthly -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('longTerm', model);
+  const helocDebt = calculateMonthlyPayment(model.purchase.helocAmount, model.purchase.helocRate, model.purchase.helocTermYears);
+
+  near(result.longTerm.monthlyCashFlow, noi - helocDebt, 0.01);
+});
+
+test('strategy-level ARV override affects sale proceeds for hold strategies', () => {
+  const baseline = calculateDeal(defaultDealInput);
+  const model = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      arvOverride: 420000
+    }
+  };
+
+  const overridden = calculateDeal(model);
+  assert.ok((overridden.longTerm.saleProceeds ?? 0) > (baseline.longTerm.saleProceeds ?? 0));
+});
+
+test('BRRRR rehab override changes year-one refinance cash event', () => {
+  const baseModel = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 300000,
+      arv: 420000
+    }
+  };
+
+  const highRehab = calculateDeal({
+    ...baseModel,
+    brrrr: {
+      ...baseModel.brrrr,
+      rehabOverride: 90000
+    }
+  });
+
+  const lowRehab = calculateDeal({
+    ...baseModel,
+    brrrr: {
+      ...baseModel.brrrr,
+      rehabOverride: 30000
+    }
+  });
+
+  assert.ok(highRehab.brrrr.cashFlowTimeline[1] < lowRehab.brrrr.cashFlowTimeline[1]);
+});
+
+test('Flip rehab override directly impacts net profit', () => {
+  const baseModel = {
+    ...defaultDealInput,
+    flip: {
+      ...defaultDealInput.flip,
+      rehabOverride: 25000
+    }
+  };
+
+  const expensiveRehab = calculateDeal({
+    ...baseModel,
+    flip: {
+      ...baseModel.flip,
+      rehabOverride: 60000
+    }
+  });
+
+  const cheapRehab = calculateDeal(baseModel);
+  assert.ok((expensiveRehab.flip.saleProceeds ?? 0) < (cheapRehab.flip.saleProceeds ?? 0));
 });

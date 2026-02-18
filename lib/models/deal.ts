@@ -1,10 +1,4 @@
-export type FinancingType = 'cash' | 'loan' | 'heloc';
-
-export type AmortizationType = 'PI' | 'IO';
-
-export type AmortizationType = 'PI' | 'IO';
-
-export type AmortizationType = 'PI' | 'IO';
+export type FinancingType = 'cash' | 'loan';
 
 export type AmortizationType = 'PI' | 'IO';
 
@@ -28,6 +22,8 @@ export interface PurchaseInputs {
   amortizationType: AmortizationType;
   helocAmount: number;
   helocRate: number;
+  helocTermYears: number;
+  helocAmortizationType: AmortizationType;
   helocClosingCosts: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
@@ -38,6 +34,7 @@ export interface PurchaseInputs {
 export interface LongTermInputs {
   grossRentMonthly: number;
   otherIncomeMonthly: number;
+  arvOverride: number | null;
   vacancyPercent: number;
   maintenancePercent: number;
   capexPercent: number;
@@ -47,6 +44,7 @@ export interface LongTermInputs {
 
 export interface AirbnbInputs {
   adr: number;
+  arvOverride: number | null;
   occupancyPercent: number;
   nightsPerMonth: number;
   platformFeePercent: number;
@@ -62,6 +60,7 @@ export interface AirbnbInputs {
 
 export interface PadSplitInputs {
   rentableRooms: number;
+  arvOverride: number | null;
   avgWeeklyRatePerRoom: number;
   occupancyPercent: number;
   weeksPerMonth: number;
@@ -78,6 +77,8 @@ export interface PadSplitInputs {
 export interface BrrrrInputs {
   holdingMonths: number;
   holdingExpensesMonthly: number;
+  arvOverride: number | null;
+  rehabOverride: number | null;
   refinanceLtvPercent: number;
   refinanceRate: number;
   refinanceClosingCostPercent: number;
@@ -87,6 +88,8 @@ export interface BrrrrInputs {
 export interface FlipInputs {
   holdingMonths: number;
   holdingExpensesMonthly: number;
+  arvOverride: number | null;
+  rehabOverride: number | null;
   agentCommissionPercent: number;
   sellClosingCostPercent: number;
   sellerConcessions: number;
@@ -178,6 +181,8 @@ export const defaultDealInput: DealInputModel = {
     amortizationType: 'PI',
     helocAmount: 0,
     helocRate: 0.09,
+    helocTermYears: 15,
+    helocAmortizationType: 'PI',
     helocClosingCosts: 0,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
@@ -187,6 +192,7 @@ export const defaultDealInput: DealInputModel = {
   longTerm: {
     grossRentMonthly: 2950,
     otherIncomeMonthly: 150,
+    arvOverride: null,
     vacancyPercent: 0.06,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
@@ -195,6 +201,7 @@ export const defaultDealInput: DealInputModel = {
   },
   airbnb: {
     adr: 180,
+    arvOverride: null,
     occupancyPercent: 0.68,
     nightsPerMonth: 30.4,
     platformFeePercent: 0.14,
@@ -209,6 +216,7 @@ export const defaultDealInput: DealInputModel = {
   },
   padSplit: {
     rentableRooms: 5,
+    arvOverride: null,
     avgWeeklyRatePerRoom: 195,
     occupancyPercent: 0.9,
     weeksPerMonth: 4.33,
@@ -224,6 +232,8 @@ export const defaultDealInput: DealInputModel = {
   brrrr: {
     holdingMonths: 6,
     holdingExpensesMonthly: 480,
+    arvOverride: null,
+    rehabOverride: null,
     refinanceLtvPercent: 0.75,
     refinanceRate: 0.065,
     refinanceClosingCostPercent: 0.03,
@@ -232,6 +242,8 @@ export const defaultDealInput: DealInputModel = {
   flip: {
     holdingMonths: 6,
     holdingExpensesMonthly: 480,
+    arvOverride: null,
+    rehabOverride: null,
     agentCommissionPercent: 0.06,
     sellClosingCostPercent: 0.02,
     sellerConcessions: 3000

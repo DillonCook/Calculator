@@ -39,23 +39,17 @@ describe('dashboard integration', () => {
   });
 
 
-  it('purchase price auto-updates ARV until ARV is manually overridden', async () => {
+  it('strategy-specific ARV input is available in the strategy workbench', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const purchasePrice = screen.getByLabelText('Purchase price');
-    const arv = screen.getByLabelText('ARV');
+    await user.click(screen.getByRole('button', { name: 'Long-Term' }));
+    const strategyArv = screen.getByLabelText('Long-Term ARV');
 
-    await user.clear(purchasePrice);
-    await user.type(purchasePrice, '300000');
-    expect(arv).toHaveValue(300000);
+    await user.clear(strategyArv);
+    await user.type(strategyArv, '365000');
 
-    await user.clear(arv);
-    await user.type(arv, '350000');
-
-    await user.clear(purchasePrice);
-    await user.type(purchasePrice, '320000');
-    expect(arv).toHaveValue(350000);
+    expect(strategyArv).toHaveValue(365000);
   });
 
   it('print view link includes encoded scenario payload', () => {
