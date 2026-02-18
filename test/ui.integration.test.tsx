@@ -47,6 +47,29 @@ describe('dashboard integration', () => {
   });
 
 
+
+  it('priority monthly cash flow toggle switches reserve mode for hold strategies', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
+
+    const airbnbResult = calculateDeal(defaultDealInput).airbnb;
+    const includeValue = currencyFormatter.format(airbnbResult.monthlyCashFlow);
+    const excludeValue = currencyFormatter.format(airbnbResult.monthlyCashFlowExcludingReserves ?? airbnbResult.monthlyCashFlow);
+
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(includeValue);
+
+    await user.click(screen.getByRole('button', { name: 'Exclude reserves' }));
+
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(excludeValue);
+    expect(
+      screen.getByLabelText(
+        'Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately.'
+      )
+    ).toBeInTheDocument();
+  });
+
   it('flip priority metric switches to net profit', async () => {
     render(<HomePage />);
     const user = userEvent.setup();

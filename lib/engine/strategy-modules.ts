@@ -68,6 +68,34 @@ const toLine = (key: string, label: string, monthly: number): StrategyCalculatio
   annual: toAnnual(monthly)
 });
 
+const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit'): number => {
+  if (strategy === 'longTerm') {
+    const gross = input.longTerm.grossRentMonthly + input.longTerm.otherIncomeMonthly;
+    const effectiveGrossIncome = gross - gross * input.longTerm.vacancyPercent;
+    return effectiveGrossIncome * (input.longTerm.maintenancePercent + input.longTerm.capexPercent);
+  }
+
+  if (strategy === 'airbnb') {
+    const occupiedNights = input.airbnb.nightsPerMonth * input.airbnb.occupancyPercent;
+    const roomRevenue = occupiedNights * input.airbnb.adr;
+    const bookings = occupiedNights / Math.max(input.airbnb.averageNightsPerBooking, 1);
+    const cleaningRevenue = bookings * input.airbnb.cleaningFeeCharged;
+    const gross = roomRevenue + cleaningRevenue;
+
+    return gross * (input.airbnb.maintenancePercent + input.airbnb.capexPercent);
+  }
+
+  const rentableRooms = Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0;
+  const avgWeeklyRatePerRoom = Number.isFinite(input.padSplit.avgWeeklyRatePerRoom) ? input.padSplit.avgWeeklyRatePerRoom : 0;
+  const gross =
+    rentableRooms *
+    avgWeeklyRatePerRoom *
+    input.padSplit.weeksPerMonth *
+    input.padSplit.occupancyPercent +
+    input.padSplit.otherIncomeMonthly;
+
+  return gross * (input.padSplit.maintenancePercent + input.padSplit.capexPercent);
+};
 
 const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
   const baseArv = input.purchase.arv;
@@ -192,6 +220,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
@@ -255,6 +284,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
@@ -340,6 +370,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
@@ -434,6 +465,7 @@ export const calculateBrrrrStrategy = (
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + getMonthlyReserveTotal(input, brrrr.operatingStrategy),
     annualCashFlow: annual,
     capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,

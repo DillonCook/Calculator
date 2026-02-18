@@ -154,6 +154,7 @@ export interface DealInputModel {
 export interface StrategyOutput {
   strategy: StrategyKey;
   monthlyCashFlow: number;
+  monthlyCashFlowExcludingReserves?: number;
   annualCashFlow: number;
   capRate: number;
   cashOnCashReturn: number;
