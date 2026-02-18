@@ -13,7 +13,7 @@ export const calculateRemainingBalance = (
 
   const monthlyRate = annualToMonthlyRate(annualRate);
   const periods = Math.max(termYears * 12, 1);
-  const paidPeriods = Math.min(Math.max(Math.round(elapsedYears * 12), 0), periods);
+  const paidPeriods = Math.min(Math.max(elapsedYears * 12, 0), periods);
 
   if (monthlyRate === 0) {
     const paidPrincipal = (principal / periods) * paidPeriods;
@@ -188,8 +188,10 @@ export const buildExcelParityAnnualTimeline = ({
   arv,
   debts = []
 }: ExcelParityAnnualTimelineInput): ExcelParityAnnualTimelineResult => {
-  const roundedHoldYears = Math.max(Math.round(holdYears), 0);
-  const monthsElapsed = roundedHoldYears * 12;
+  const normalizedHoldYears = Math.max(holdYears, 0);
+  const fullHoldYears = Math.floor(normalizedHoldYears);
+  const partialYearPortion = normalizedHoldYears - fullHoldYears;
+  const monthsElapsed = normalizedHoldYears * 12;
   const baseValue = arv > 0 ? arv : purchasePrice;
 
   const annualDebtService = debts.reduce((sum, debt) => sum + getDebtMonthlyPayment(debt) * 12, 0);
@@ -199,7 +201,7 @@ export const buildExcelParityAnnualTimeline = ({
   const propertyValueByYear: number[] = [];
   const flows = [-Math.abs(initialCashInvested)];
 
-  for (let year = 1; year <= roundedHoldYears; year += 1) {
+  for (let year = 1; year <= fullHoldYears; year += 1) {
     const noiForYear = annualNoiYear1 * Math.pow(1 + noiGrowthRate, year - 1);
     const propertyValueForYear = baseValue * Math.pow(1 + appreciationRate, year);
     const annualCashFlow = noiForYear - annualDebtService;
@@ -210,11 +212,20 @@ export const buildExcelParityAnnualTimeline = ({
     flows.push(annualCashFlow);
   }
 
-  const terminalPropertyValue = propertyValueByYear[roundedHoldYears - 1] ?? baseValue;
+  const terminalPropertyValue =
+    normalizedHoldYears > 0
+      ? baseValue * Math.pow(1 + appreciationRate, normalizedHoldYears)
+      : baseValue;
   const netSaleProceeds = terminalPropertyValue * (1 - sellingCostRate) - remainingLoanBalance;
 
-  if (roundedHoldYears > 0) {
-    flows[roundedHoldYears] += netSaleProceeds;
+  if (partialYearPortion > 0) {
+    const partialNoi = annualNoiYear1 * Math.pow(1 + noiGrowthRate, fullHoldYears) * partialYearPortion;
+    const partialDebtService = annualDebtService * partialYearPortion;
+    flows.push(partialNoi - partialDebtService + netSaleProceeds);
+  } else if (fullHoldYears > 0) {
+    flows[fullHoldYears] += netSaleProceeds;
+  } else {
+    flows.push(netSaleProceeds);
   }
 
   return {

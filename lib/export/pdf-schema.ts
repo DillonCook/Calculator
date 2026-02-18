@@ -1,4 +1,5 @@
 import type { DealInputModel, DealResult, StrategyKey } from '@/lib/models/deal';
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 export interface PdfReportSection {
   title: string;
@@ -13,9 +14,6 @@ export interface PdfReportSchema {
   summary: PdfReportSection;
   strategySections: PdfReportSection[];
 }
-
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 2 });
 
 const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
   longTerm: 'Long-Term Rental',
@@ -32,12 +30,12 @@ export const createPdfReportSchema = (input: DealInputModel, result: DealResult)
     return {
       title: strategyLabels[key],
       rows: [
-        { label: 'Monthly Cash Flow', value: currency.format(row.monthlyCashFlow) },
-        { label: 'Annual Cash Flow', value: currency.format(row.annualCashFlow) },
-        { label: 'Cash-on-Cash Return', value: percent.format(row.cashOnCashReturn) },
-        { label: 'ROI', value: percent.format(row.roi) },
-        { label: 'IRR', value: percent.format(row.irr) },
-        { label: 'Sale Proceeds (Hold End)', value: currency.format(row.saleProceeds ?? 0) }
+        { label: 'Monthly Cash Flow', value: currencyFormatter.format(row.monthlyCashFlow) },
+        { label: 'Annual Cash Flow', value: currencyFormatter.format(row.annualCashFlow) },
+        { label: 'Cash-on-Cash Return', value: percentFormatter.format(row.cashOnCashReturn) },
+        { label: 'ROI', value: percentFormatter.format(row.roi) },
+        { label: 'IRR', value: percentFormatter.format(row.irr) },
+        { label: 'Sale Proceeds (Hold End)', value: currencyFormatter.format(row.saleProceeds ?? 0) }
       ]
     };
   });
@@ -50,19 +48,19 @@ export const createPdfReportSchema = (input: DealInputModel, result: DealResult)
       title: 'Master Assumptions',
       rows: [
         { label: 'Hold Period', value: `${input.assumptions.holdYears} years` },
-        { label: 'NOI Growth', value: percent.format(input.assumptions.noiGrowthPercent) },
-        { label: 'Appreciation', value: percent.format(input.assumptions.annualAppreciationPercent) },
-        { label: 'Selling Cost', value: percent.format(input.assumptions.sellingCostPercent) }
+        { label: 'NOI Growth', value: percentFormatter.format(input.assumptions.noiGrowthPercent) },
+        { label: 'Appreciation', value: percentFormatter.format(input.assumptions.annualAppreciationPercent) },
+        { label: 'Selling Cost', value: percentFormatter.format(input.assumptions.sellingCostPercent) }
       ]
     },
     summary: {
       title: 'Master Summary',
       rows: [
-        { label: 'Cash to Close', value: currency.format(result.masterSummary.cashToClose) },
-        { label: 'Best Monthly Cash Flow', value: currency.format(result.masterSummary.monthlyCashFlow) },
-        { label: 'Best Cash-on-Cash Return', value: percent.format(result.masterSummary.cashOnCashReturn) },
-        { label: 'Best ROI', value: percent.format(result.masterSummary.roi) },
-        { label: 'Best IRR', value: percent.format(result.masterSummary.irr) }
+        { label: 'Cash to Close', value: currencyFormatter.format(result.masterSummary.cashToClose) },
+        { label: 'Best Monthly Cash Flow', value: currencyFormatter.format(result.masterSummary.monthlyCashFlow) },
+        { label: 'Best Cash-on-Cash Return', value: percentFormatter.format(result.masterSummary.cashOnCashReturn) },
+        { label: 'Best ROI', value: percentFormatter.format(result.masterSummary.roi) },
+        { label: 'Best IRR', value: percentFormatter.format(result.masterSummary.irr) }
       ]
     },
     strategySections

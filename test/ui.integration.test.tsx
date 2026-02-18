@@ -5,8 +5,7 @@ import { describe, expect, it } from 'vitest';
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput } from '../lib/models/deal';
-
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
 describe('dashboard integration', () => {
   it('editing purchase price updates master cash-to-close KPI', async () => {
@@ -21,7 +20,7 @@ describe('dashboard integration', () => {
       ...defaultDealInput,
       purchase: { ...defaultDealInput.purchase, purchasePrice: 300000 }
     };
-    const expected = currency.format(calculateDeal(updatedModel).purchase.totalCashNeeded);
+    const expected = currencyFormatter.format(calculateDeal(updatedModel).purchase.totalCashNeeded);
 
     expect(screen.getByTestId('kpi-cash-to-close')).toHaveTextContent(expected);
   });
@@ -34,15 +33,15 @@ describe('dashboard integration', () => {
 
     const airbnbResult = calculateDeal(defaultDealInput).airbnb;
 
-    expect(screen.getByTestId('kpi-monthly-cash-flow')).toHaveTextContent(currency.format(airbnbResult.monthlyCashFlow));
+    expect(screen.getByTestId('kpi-monthly-cash-flow')).toHaveTextContent(currencyFormatter.format(airbnbResult.monthlyCashFlow));
     expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
-      new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(airbnbResult.cashOnCashReturn)
+      percentFormatter.format(airbnbResult.cashOnCashReturn)
     );
     expect(screen.getByTestId('kpi-cap-rate')).toHaveTextContent(
-      new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(airbnbResult.capRate)
+      percentFormatter.format(airbnbResult.capRate)
     );
 
-    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currency.format(airbnbResult.totalCashNeeded));
+    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currencyFormatter.format(airbnbResult.totalCashNeeded));
     expect(screen.getByLabelText('Cash to Close strategy context')).toHaveTextContent('Airbnb');
     expect(screen.getByRole('button', { name: 'Cash to Close definitions' })).toBeInTheDocument();
   });

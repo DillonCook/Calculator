@@ -1,6 +1,5 @@
 import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
-
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+import { currencyFormatter } from '@/lib/formatters';
 
 interface TimelineCardProps {
   output: StrategyOutput;
@@ -49,7 +48,7 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange }: Timel
         {output.cashFlowTimeline.map((flow, index) => (
           <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
             <p className="text-xs text-muted">Year {index}</p>
-            <p className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{money.format(flow)}</p>
+            <p className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(flow)}</p>
           </div>
         ))}
       </div>
@@ -58,7 +57,7 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange }: Timel
 }
 
 function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
-  const displayValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
+  const displayValue = Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0;
 
   return (
     <label className="space-y-1">
