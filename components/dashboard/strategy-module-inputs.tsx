@@ -135,6 +135,8 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
         <h3 className="text-base font-semibold">Strategy Inputs</h3>
         <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Updates results instantly</span>
       </div>
+
+
       {renderContent()}
     </section>
   );
