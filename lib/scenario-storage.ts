@@ -43,7 +43,7 @@ const createId = () => {
 
 const encodeBase64Url = (value: string): string => {
   if (typeof window === 'undefined') {
-    return Buffer.from(value, 'utf-8').toString('base64url');
+    return Buffer.from(encodeURIComponent(value), 'utf-8').toString('base64url');
   }
 
   const base64 = window.btoa(encodeURIComponent(value));
@@ -52,7 +52,7 @@ const encodeBase64Url = (value: string): string => {
 
 const decodeBase64Url = (value: string): string => {
   if (typeof window === 'undefined') {
-    return Buffer.from(value, 'base64url').toString('utf-8');
+    return decodeURIComponent(Buffer.from(value, 'base64url').toString('utf-8'));
   }
 
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');

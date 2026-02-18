@@ -6,6 +6,8 @@ import { calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPaym
 import { buildExcelParityAnnualTimeline, calcTotalRoiFromTimeline, calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
 import { defaultDealInput } from '../lib/models/deal';
 
+import { createScenarioRecord, decodeScenario, encodeScenario } from '../lib/scenario-storage';
+
 const near = (actual: number, expected: number, epsilon = 0.01) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `Expected ${actual} to be within ${epsilon} of ${expected}`);
 };
@@ -651,4 +653,22 @@ test('Flip rehab override directly impacts net profit', () => {
 
   const cheapRehab = calculateDeal(baseModel);
   assert.ok((expensiveRehab.flip.saleProceeds ?? 0) < (cheapRehab.flip.saleProceeds ?? 0));
+});
+
+
+test('scenario encode/decode preserves unicode payloads in server context', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      dealName: 'São Paulo Duplex 🏠'
+    }
+  };
+  const scenario = createScenarioRecord(model);
+  const encoded = encodeScenario(scenario);
+  const decoded = decodeScenario(encoded);
+
+  assert.ok(decoded);
+  assert.equal(decoded?.dealName, model.purchase.dealName);
+  assert.equal(decoded?.payload.purchase.dealName, model.purchase.dealName);
 });
