@@ -139,7 +139,6 @@ test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-bac
   const investedAtPurchase = result.purchase.totalCashNeeded + holdingCosts;
 
   const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
-  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
   const initialLoan = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
   const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoan;
   const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
