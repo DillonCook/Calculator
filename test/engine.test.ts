@@ -141,25 +141,11 @@ test('purchase taxes and insurance are auto calculated but can be overridden', (
   assert.ok(result.longTerm.monthlyCashFlow < calculateDeal(defaultDealInput).longTerm.monthlyCashFlow);
 });
 
-test('flip includes variable and fixed expense carry by months', () => {
+test('flip monthly cash flow is zero and net proceeds are realized at exit', () => {
   const result = calculateDeal(defaultDealInput);
-  const { purchase: p, flip: f } = defaultDealInput;
-  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
 
-  const salePrice = p.arv;
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixedCostsMonthly() + variableCostMonthly('flip') + debtService);
-
-  const netProfit =
-    salePrice -
-    p.purchasePrice -
-    p.rehabBudget -
-    p.purchasePrice * p.closingCostPercent -
-    salePrice * f.agentCommissionPercent -
-    salePrice * f.sellClosingCostPercent -
-    f.sellerConcessions -
-    holdingCosts;
-
-  near(result.flip.monthlyCashFlow, netProfit / f.holdingMonths);
+  near(result.flip.monthlyCashFlow, 0);
+  assert.ok((result.flip.saleProceeds ?? 0) !== 0);
 });
 
 test('long-term timeline covers Year 0..N and produces irr from cashflows', () => {
@@ -179,7 +165,7 @@ test('flip IRR timeline exits at full terminal cash flow, not net profit only', 
   const fixed = fixedCostsMonthly();
   const variable = variableCostMonthly('flip');
   const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable + debtService);
+  const holdingCosts = f.holdingMonths * (fixed + variable + debtService);
   const totalCashInvested = result.purchase.totalCashNeeded + holdingCosts;
 
   const netProfit =

@@ -68,6 +68,12 @@ export default function HomePage() {
   const activeOutput = result[activeStrategy];
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
+  const isFlipStrategy = activeStrategy === 'flip';
+  const priorityMetricLabel = isFlipStrategy ? 'Net Profit' : 'Monthly Cash Flow';
+  const priorityMetricHelper = isFlipStrategy
+    ? 'Flip strategy realizes profit at resale, so operating cash flow is modeled as $0'
+    : 'Monthly cash flow for the selected strategy';
+  const priorityMetricValue = isFlipStrategy ? activeOutput.saleProceeds ?? 0 : activeOutput.monthlyCashFlow;
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
@@ -228,16 +234,16 @@ export default function HomePage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Priority Metric</p>
-                  <p className="mt-1 text-sm text-muted">Monthly cash flow for the selected strategy</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
+                  <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
                 </div>
-                <p className="text-xs italic tracking-wide text-accent/90" aria-label="Monthly Cash Flow strategy context">{activeStrategyLabel}</p>
+                <p className="text-xs italic tracking-wide text-accent/90" aria-label={`${priorityMetricLabel} strategy context`}>{activeStrategyLabel}</p>
               </div>
               <p
-                className={`mt-2 text-4xl font-semibold sm:text-5xl ${activeOutput.monthlyCashFlow >= 0 ? 'text-emerald-300' : 'text-white'}`}
-                data-testid="kpi-monthly-cash-flow"
+                className={`mt-2 text-4xl font-semibold sm:text-5xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                data-testid="kpi-priority-metric"
               >
-                {currencyFormatter.format(activeOutput.monthlyCashFlow)}
+                {currencyFormatter.format(priorityMetricValue)}
               </p>
             </div>
 

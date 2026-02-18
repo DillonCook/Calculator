@@ -463,7 +463,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const { flip, purchase } = input;
   const flipArv = resolveStrategyArv(input, 'flip');
   const flipRehabBudget = resolveRehabBudget(input, 'flip');
-  const base = createBaseOutput('flip', 'Renovate and sell analysis including carry and transaction friction.');
+  const base = createBaseOutput('flip', 'Renovate-and-resell analysis with one-time net profit at exit and carry costs during hold.');
 
   const salePrice = flipArv;
   const agentCommission = salePrice * flip.agentCommissionPercent;
@@ -471,7 +471,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
   const fixedCosts = getMonthlyFixedCosts(input);
   const debtService = getPurchaseLoanTerms(input).debtService;
-  const holdingCosts = flip.holdingMonths * (flip.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + debtService);
+  const holdingCosts = flip.holdingMonths * (fixedCosts + strategyVariableCosts + debtService);
 
   const netProfit =
     salePrice -
@@ -484,13 +484,12 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     holdingCosts;
 
   const totalCashInvested = purchaseCashNeeded + holdingCosts;
-  const monthly = netProfit / Math.max(flip.holdingMonths, 1);
   const timeline = [-Math.abs(totalCashInvested), totalCashInvested + netProfit];
 
   return {
     ...base,
-    monthlyCashFlow: monthly,
-    annualCashFlow: monthly * 12,
+    monthlyCashFlow: 0,
+    annualCashFlow: 0,
     cashOnCashReturn: totalCashInvested === 0 ? 0 : netProfit / totalCashInvested,
     dscr: 0,
     roi: calcTotalRoiFromTimeline(timeline),
@@ -508,13 +507,13 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
         toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / Math.max(flip.holdingMonths, 1)),
         toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / Math.max(flip.holdingMonths, 1)),
         toLine('flip-holding', 'Holding costs', -holdingCosts / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-net-profit', 'Net profit / month', monthly)
+        toLine('flip-net-profit', 'Net profit (one-time)', netProfit / Math.max(flip.holdingMonths, 1))
       ],
       revenueMonthly: salePrice / Math.max(flip.holdingMonths, 1),
       sellerPaidExpensesMonthly: (purchase.purchasePrice + flipRehabBudget + purchase.purchasePrice * purchase.closingCostPercent + agentCommission + closingCosts + flip.sellerConcessions + holdingCosts) / Math.max(flip.holdingMonths, 1),
       debtServiceMonthly: debtService,
-      noiMonthly: monthly,
-      cashFlowMonthly: monthly
+      noiMonthly: 0,
+      cashFlowMonthly: 0
     }
   };
 };

@@ -104,7 +104,6 @@ export interface BrrrrInputs {
 
 export interface FlipInputs {
   holdingMonths: number;
-  holdingExpensesMonthly: number;
   arvOverride: number | null;
   rehabOverride: number | null;
   agentCommissionPercent: number;
@@ -260,7 +259,6 @@ export const defaultDealInput: DealInputModel = {
   },
   flip: {
     holdingMonths: 6,
-    holdingExpensesMonthly: 480,
     arvOverride: null,
     rehabOverride: null,
     agentCommissionPercent: 0.06,

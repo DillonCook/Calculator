@@ -119,12 +119,6 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
         <Input label="Flip ARV" type="number" value={model.flip.arvOverride ?? ''} onChange={(v) => update('flip', 'arvOverride', v === '' ? null : Number(v))} />
         <Input label="Flip rehab override" type="number" value={model.flip.rehabOverride ?? ''} onChange={(v) => update('flip', 'rehabOverride', v === '' ? null : Number(v))} />
         <Input label="Flip hold months" type="number" value={model.flip.holdingMonths} onChange={(v) => update('flip', 'holdingMonths', Number(v))} />
-        <Input
-          label="Holding expenses / mo"
-          type="number"
-          value={model.flip.holdingExpensesMonthly}
-          onChange={(v) => update('flip', 'holdingExpensesMonthly', Number(v))}
-        />
         <PercentInput label="Agent commission %" value={model.flip.agentCommissionPercent} onChange={(v) => update('flip', 'agentCommissionPercent', v)} />
         <PercentInput label="Sell closing %" value={model.flip.sellClosingCostPercent} onChange={(v) => update('flip', 'sellClosingCostPercent', v)} />
         <Input label="Seller concessions" type="number" value={model.flip.sellerConcessions} onChange={(v) => update('flip', 'sellerConcessions', Number(v))} />
