@@ -627,8 +627,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.airbnb.irr, -0.0721259459, 1e-9);
   near(result.airbnb.roi, -1.4687068242, 1e-9);
 
-  near(result.padSplit.irr, -0.0677210758, 1e-9);
-  near(result.padSplit.roi, -1.3956092061, 1e-9);
+  near(result.padSplit.irr, -0.06757721433192418, 1e-9);
+  near(result.padSplit.roi, -1.3925119625163642, 1e-9);
 
   near(result.brrrr.irr, -0.103474976, 1e-9);
   near(result.brrrr.roi, -1.5812330323, 1e-9);

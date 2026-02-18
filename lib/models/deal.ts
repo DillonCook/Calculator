@@ -237,7 +237,7 @@ export const defaultDealInput: DealInputModel = {
     arvOverride: null,
     avgWeeklyRatePerRoom: 0,
     occupancyPercent: 0.9,
-    weeksPerMonth: 4.33,
+    weeksPerMonth: 4.3333,
     otherIncomeMonthly: 0,
     platformFeePercent: 0.08,
     maintenancePercent: 0.05,
