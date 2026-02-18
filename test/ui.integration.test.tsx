@@ -33,7 +33,7 @@ describe('dashboard integration', () => {
 
     const airbnbResult = calculateDeal(defaultDealInput).airbnb;
 
-    expect(screen.getByTestId('kpi-monthly-cash-flow')).toHaveTextContent(currencyFormatter.format(airbnbResult.monthlyCashFlow));
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(airbnbResult.monthlyCashFlow));
     expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
       percentFormatter.format(airbnbResult.cashOnCashReturn)
     );
@@ -44,6 +44,19 @@ describe('dashboard integration', () => {
     expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currencyFormatter.format(airbnbResult.totalCashNeeded));
     expect(screen.getByLabelText('Cash to Close strategy context')).toHaveTextContent('Airbnb');
     expect(screen.getByRole('button', { name: 'Cash to Close definitions' })).toBeInTheDocument();
+  });
+
+
+  it('flip priority metric switches to net profit', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getAllByRole('button', { name: 'Flip' })[0]);
+
+    const flipResult = calculateDeal(defaultDealInput).flip;
+
+    expect(screen.getByText('Net Profit')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(flipResult.saleProceeds ?? 0));
   });
 
 
