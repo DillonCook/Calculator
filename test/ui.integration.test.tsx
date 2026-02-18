@@ -97,6 +97,21 @@ describe('dashboard integration', () => {
     expect(strategyArv).toHaveValue(365000);
   });
 
+  it('allows decimal precision for percent and numeric text fields without rounding', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const downPayment = screen.getByLabelText('Down payment %');
+    await user.clear(downPayment);
+    await user.type(downPayment, '5.55');
+    expect(downPayment).toHaveValue(5.55);
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '300000.37');
+    expect(purchasePrice).toHaveValue(300000.37);
+  });
+
   it('print view link includes encoded scenario payload', () => {
     render(<HomePage />);
 

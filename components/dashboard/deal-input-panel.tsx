@@ -51,7 +51,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
     <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Core Deal Inputs</h2>
-        <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Whole number % inputs</span>
+        <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Supports decimal inputs</span>
       </div>
 
       <div className="space-y-3">
