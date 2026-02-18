@@ -341,7 +341,7 @@ test('PadSplit includes other income plus reserve and management fee percentages
     gross * ps.maintenancePercent -
     gross * ps.capexPercent -
     gross * ps.managementFeePercent -
-    ps.turnoverCostMonthly -
+    (ps.moveOutsPerYear * (ps.turnoverCostPerMoveOut + (ps.avgWeeklyRatePerRoom * 10) / 7)) / 12 -
     ps.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('padSplit', model);
@@ -502,8 +502,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.airbnb.irr, -0.0721259459, 1e-9);
   near(result.airbnb.roi, -1.4687068242, 1e-9);
 
-  near(result.padSplit.irr, -0.041995202, 1e-9);
-  near(result.padSplit.roi, -0.8507021832, 1e-9);
+  near(result.padSplit.irr, -0.0508917611, 1e-9);
+  near(result.padSplit.roi, -1.0371009895, 1e-9);
 
   near(result.brrrr.irr, -0.103474976, 1e-9);
   near(result.brrrr.roi, -1.5812330323, 1e-9);

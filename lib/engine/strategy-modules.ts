@@ -6,7 +6,7 @@ import {
   estimateSaleProceeds,
   getAcquisitionDebtPayoffAtMonth
 } from '@/lib/engine/investment-math';
-import type { DealInputModel, ExpenseStrategyKey, StrategyOutput } from '@/lib/models/deal';
+import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
 import { calculateAcquisitionDebtService, calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
@@ -60,6 +60,15 @@ const calculateDscr = (noiMonthly: number, debtServiceMonthly: number): number =
   if (debtServiceMonthly <= 0) return 0;
   return noiMonthly / debtServiceMonthly;
 };
+
+const toAnnual = (monthly: number): number => monthly * 12;
+
+const toLine = (key: string, label: string, monthly: number): StrategyCalculationLineItem => ({
+  key,
+  label,
+  monthly,
+  annual: toAnnual(monthly)
+});
 
 
 const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
@@ -158,7 +167,17 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     cashFlowTimeline: timeline,
     saleProceeds: 0,
     noiMonthly: -debtService,
-    notes: loanAmount > 0 ? base.notes : 'All-cash purchase basis and acquisition capital requirements.'
+    notes: loanAmount > 0 ? base.notes : 'All-cash purchase basis and acquisition capital requirements.',
+    calculationBreakdown: {
+      lines: [
+        toLine('purchase-debt-service', 'Debt service', -debtService)
+      ],
+      revenueMonthly: 0,
+      sellerPaidExpensesMonthly: 0,
+      debtServiceMonthly: debtService,
+      noiMonthly: -debtService,
+      cashFlowMonthly: -debtService
+    }
   };
 };
 
@@ -203,7 +222,28 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     noiMonthly: noi,
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline
+    cashFlowTimeline: timelineData.timeline,
+    calculationBreakdown: {
+      lines: [
+        toLine('lt-gross-rent', 'Gross rent', longTerm.grossRentMonthly),
+        toLine('lt-other-income', 'Other income', longTerm.otherIncomeMonthly),
+        toLine('lt-vacancy', 'Vacancy loss', -vacancy),
+        toLine('lt-maintenance', 'Maintenance reserve', -maintenance),
+        toLine('lt-capex', 'CapEx reserve', -capex),
+        toLine('lt-management', 'Management fee', -managementFee),
+        toLine('lt-owner-expenses', 'Owner-paid expenses', -longTerm.ownerExpensesMonthly),
+        toLine('lt-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
+        toLine('lt-variable-costs', 'Variable expenses', -strategyVariableCosts),
+        toLine('lt-noi', 'NOI', noi),
+        toLine('lt-debt-service', 'Debt service', -debtService),
+        toLine('lt-cash-flow', 'Cash flow', monthly)
+      ],
+      revenueMonthly: gross,
+      sellerPaidExpensesMonthly: maintenance + capex + managementFee + longTerm.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      debtServiceMonthly: debtService,
+      noiMonthly: noi,
+      cashFlowMonthly: monthly
+    }
   };
 };
 
@@ -255,7 +295,29 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     noiMonthly: noi,
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline
+    cashFlowTimeline: timelineData.timeline,
+    calculationBreakdown: {
+      lines: [
+        toLine('str-room-revenue', 'Room revenue', roomRevenue),
+        toLine('str-cleaning-revenue', 'Cleaning revenue', cleaningRevenue),
+        toLine('str-platform-fees', 'Platform fees', -platformFees),
+        toLine('str-cleaner-cost', 'Cleaner cost', -cleanerCost),
+        toLine('str-maintenance', 'Maintenance reserve', -maintenance),
+        toLine('str-capex', 'CapEx reserve', -capex),
+        toLine('str-management', 'Management fee', -managementFee),
+        toLine('str-owner-expenses', 'Owner-paid expenses', -airbnb.ownerExpensesMonthly),
+        toLine('str-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
+        toLine('str-variable-costs', 'Variable expenses', -strategyVariableCosts),
+        toLine('str-noi', 'NOI', noi),
+        toLine('str-debt-service', 'Debt service', -debtService),
+        toLine('str-cash-flow', 'Cash flow', monthly)
+      ],
+      revenueMonthly: gross,
+      sellerPaidExpensesMonthly: platformFees + cleanerCost + maintenance + capex + managementFee + airbnb.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      debtServiceMonthly: debtService,
+      noiMonthly: noi,
+      cashFlowMonthly: monthly
+    }
   };
 };
 
@@ -273,6 +335,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const maintenance = gross * padSplit.maintenancePercent;
   const capex = gross * padSplit.capexPercent;
   const managementFee = gross * padSplit.managementFeePercent;
+  const turnoverAndPlacementMonthly = (padSplit.moveOutsPerYear * (padSplit.turnoverCostPerMoveOut + (padSplit.avgWeeklyRatePerRoom * 10) / 7)) / 12;
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
@@ -284,7 +347,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     maintenance -
     capex -
     managementFee -
-    padSplit.turnoverCostMonthly -
+    turnoverAndPlacementMonthly -
     padSplit.ownerExpensesMonthly -
     fixedCosts -
     strategyVariableCosts;
@@ -315,7 +378,29 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     noiMonthly: noi,
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline
+    cashFlowTimeline: timelineData.timeline,
+    calculationBreakdown: {
+      lines: [
+        toLine('ps-room-revenue', 'Room revenue', gross - padSplit.otherIncomeMonthly),
+        toLine('ps-other-income', 'Other income', padSplit.otherIncomeMonthly),
+        toLine('ps-platform-fees', 'Platform fees', -platformFees),
+        toLine('ps-turnover-placement', 'Turnover + placement fees', -turnoverAndPlacementMonthly),
+        toLine('ps-maintenance', 'Maintenance reserve', -maintenance),
+        toLine('ps-capex', 'CapEx reserve', -capex),
+        toLine('ps-management', 'Management fee', -managementFee),
+        toLine('ps-owner-expenses', 'Owner-paid expenses', -padSplit.ownerExpensesMonthly),
+        toLine('ps-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
+        toLine('ps-variable-costs', 'Variable expenses', -strategyVariableCosts),
+        toLine('ps-noi', 'NOI', noi),
+        toLine('ps-debt-service', 'Debt service', -debtService),
+        toLine('ps-cash-flow', 'Cash flow', monthly)
+      ],
+      revenueMonthly: gross,
+      sellerPaidExpensesMonthly: platformFees + turnoverAndPlacementMonthly + maintenance + capex + managementFee + padSplit.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      debtServiceMonthly: debtService,
+      noiMonthly: noi,
+      cashFlowMonthly: monthly
+    }
   };
 };
 
@@ -392,7 +477,19 @@ export const calculateBrrrrStrategy = (
     noiMonthly: selectedOperatingNoi,
     irr,
     saleProceeds,
-    cashFlowTimeline: timeline
+    cashFlowTimeline: timeline,
+    calculationBreakdown: {
+      lines: [
+        toLine('brrrr-selected-noi', 'Selected strategy NOI', selectedOperatingNoi),
+        toLine('brrrr-refi-debt-service', 'Refi debt service', -refinanceDebt),
+        toLine('brrrr-cash-flow', 'Cash flow', monthly)
+      ],
+      revenueMonthly: selectedOperatingNoi,
+      sellerPaidExpensesMonthly: 0,
+      debtServiceMonthly: refinanceDebt,
+      noiMonthly: selectedOperatingNoi,
+      cashFlowMonthly: monthly
+    }
   };
 };
 
@@ -434,6 +531,24 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     totalCashNeeded: purchaseCashNeeded + holdingCosts,
     irr: calculateIrr(timeline),
     saleProceeds: netProfit,
-    cashFlowTimeline: timeline
+    cashFlowTimeline: timeline,
+    calculationBreakdown: {
+      lines: [
+        toLine('flip-sale-price', 'Sale price (projected)', salePrice / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-acquisition-cost', 'Purchase price carry', -purchase.purchasePrice / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-rehab', 'Rehab', -flipRehabBudget / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-buy-closing', 'Buy closing costs', -(purchase.purchasePrice * purchase.closingCostPercent) / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-agent', 'Agent commission', -agentCommission / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-holding', 'Holding costs', -holdingCosts / Math.max(flip.holdingMonths, 1)),
+        toLine('flip-net-profit', 'Net profit / month', monthly)
+      ],
+      revenueMonthly: salePrice / Math.max(flip.holdingMonths, 1),
+      sellerPaidExpensesMonthly: (purchase.purchasePrice + flipRehabBudget + purchase.purchasePrice * purchase.closingCostPercent + agentCommission + closingCosts + flip.sellerConcessions + holdingCosts) / Math.max(flip.holdingMonths, 1),
+      debtServiceMonthly: debtService,
+      noiMonthly: monthly,
+      cashFlowMonthly: monthly
+    }
   };
 };
