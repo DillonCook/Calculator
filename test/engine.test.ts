@@ -76,9 +76,10 @@ test('purchase taxes and insurance are auto calculated but can be overridden', (
 test('flip includes variable and fixed expense carry by months', () => {
   const result = calculateDeal(defaultDealInput);
   const { purchase: p, flip: f } = defaultDealInput;
+  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
 
   const salePrice = p.arv;
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixedCostsMonthly() + variableCostMonthly('flip'));
+  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixedCostsMonthly() + variableCostMonthly('flip') + debtService);
 
   const netProfit =
     salePrice -
@@ -109,7 +110,8 @@ test('flip IRR timeline exits at full terminal cash flow, not net profit only', 
 
   const fixed = fixedCostsMonthly();
   const variable = variableCostMonthly('flip');
-  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable);
+  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+  const holdingCosts = f.holdingMonths * (f.holdingExpensesMonthly + fixed + variable + debtService);
   const totalCashInvested = result.purchase.totalCashNeeded + holdingCosts;
 
   const netProfit =
@@ -137,15 +139,16 @@ test('brrrr IRR timeline includes refinance cash event in year one', () => {
   const initialOutflow = result.purchase.totalCashNeeded + holdingCosts;
 
   const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
-  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
   const initialLoan = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
   const payoffInitialLoan = calculateRemainingBalance(initialLoan, p.interestRate, p.loanTermYears, brrrr.holdingMonths / 12, 'PI');
-  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan - p.rehabBudget - refiClosingCosts;
+  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan;
 
   near(result.brrrr.cashFlowTimeline[0], -Math.abs(initialOutflow));
   assert.ok(result.brrrr.cashFlowTimeline.length >= 2);
 
-  const baseYearOneFlow = result.brrrr.annualCashFlow * Math.pow(1 + assumptions.noiGrowthPercent, 0);
+  const baseYearOneNoi = (result.brrrr.noiMonthly ?? 0) * 12 * Math.pow(1 + assumptions.noiGrowthPercent, 0);
+  const annualDebtService = (result.brrrr.noiMonthly ?? 0) * 12 - result.brrrr.annualCashFlow;
+  const baseYearOneFlow = baseYearOneNoi - annualDebtService;
   const yearOneSale = assumptions.holdYears === 1 ? result.brrrr.saleProceeds : 0;
   near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + cashBackAtRefi);
 });
@@ -261,10 +264,10 @@ test('BRRRR cash back uses payoff of initial acquisition debt', () => {
   const initialLoan = calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent);
   const payoffInitialLoan = calculateRemainingBalance(initialLoan, model.purchase.interestRate, model.purchase.loanTermYears, model.brrrr.holdingMonths / 12, 'PI');
   const refiLoanAmount = model.purchase.arv * model.brrrr.refinanceLtvPercent;
-  const refiCosts = refiLoanAmount * model.brrrr.refinanceClosingCostPercent;
-
-  const expectedCashBack = refiLoanAmount - payoffInitialLoan - model.purchase.rehabBudget - refiCosts;
-  const baseYearOneFlow = result.brrrr.annualCashFlow;
+  const expectedCashBack = refiLoanAmount - payoffInitialLoan;
+  const baseYearOneNoi = (result.brrrr.noiMonthly ?? 0) * 12;
+  const annualDebtService = baseYearOneNoi - result.brrrr.annualCashFlow;
+  const baseYearOneFlow = baseYearOneNoi - annualDebtService;
   const yearOneSale = model.assumptions.holdYears === 1 ? result.brrrr.saleProceeds ?? 0 : 0;
 
   near(result.brrrr.cashFlowTimeline[1], baseYearOneFlow + yearOneSale + expectedCashBack, 0.01);
@@ -425,7 +428,7 @@ test('strategy-level ARV override affects sale proceeds for hold strategies', ()
   assert.ok((overridden.longTerm.saleProceeds ?? 0) > (baseline.longTerm.saleProceeds ?? 0));
 });
 
-test('BRRRR rehab override changes year-one refinance cash event', () => {
+test('BRRRR rehab override does not change year-one refinance cash event', () => {
   const baseModel = {
     ...defaultDealInput,
     purchase: {
@@ -451,7 +454,7 @@ test('BRRRR rehab override changes year-one refinance cash event', () => {
     }
   });
 
-  assert.ok(highRehab.brrrr.cashFlowTimeline[1] < lowRehab.brrrr.cashFlowTimeline[1]);
+  near(highRehab.brrrr.cashFlowTimeline[1], lowRehab.brrrr.cashFlowTimeline[1], 0.01);
 });
 
 test('Flip rehab override directly impacts net profit', () => {

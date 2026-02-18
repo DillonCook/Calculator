@@ -100,6 +100,33 @@ export const buildTimeline = (
   return timeline;
 };
 
+export const buildSpreadsheetStyleTimeline = ({
+  initialCashOut,
+  baseAnnualNoi,
+  annualDebtService,
+  holdYears,
+  noiGrowthPercent,
+  saleProceeds
+}: {
+  initialCashOut: number;
+  baseAnnualNoi: number;
+  annualDebtService: number;
+  holdYears: number;
+  noiGrowthPercent: number;
+  saleProceeds: number;
+}): number[] => {
+  const timeline = [-Math.abs(initialCashOut)];
+
+  for (let year = 1; year <= holdYears; year += 1) {
+    const noiForYear = baseAnnualNoi * Math.pow(1 + noiGrowthPercent, year - 1);
+    const annualCashFlow = noiForYear - annualDebtService;
+    const saleEvent = year === holdYears ? saleProceeds : 0;
+    timeline.push(annualCashFlow + saleEvent);
+  }
+
+  return timeline;
+};
+
 export const calculateIrr = (cashFlows: number[]): number => {
   if (cashFlows.length < 2) return 0;
 

@@ -1,5 +1,6 @@
 import {
   buildTimeline,
+  buildSpreadsheetStyleTimeline,
   calculateIrr,
   calculateRemainingBalance,
   estimateSaleProceeds,
@@ -80,7 +81,8 @@ const resolveRehabBudget = (input: DealInputModel, strategy: 'brrrr' | 'flip'): 
 const buildLeveredTimeline = (
   input: DealInputModel,
   totalCashNeeded: number,
-  annualCashFlow: number,
+  annualNoi: number,
+  annualDebtService: number,
   primaryLoanAmount: number,
   arv: number
 ) => {
@@ -108,13 +110,14 @@ const buildLeveredTimeline = (
     assumptions.holdYears
   );
 
-  const timeline = buildTimeline(
-    totalCashNeeded,
-    annualCashFlow,
-    assumptions.holdYears,
-    assumptions.noiGrowthPercent,
+  const timeline = buildSpreadsheetStyleTimeline({
+    initialCashOut: totalCashNeeded,
+    baseAnnualNoi: annualNoi,
+    annualDebtService,
+    holdYears: assumptions.holdYears,
+    noiGrowthPercent: assumptions.noiGrowthPercent,
     saleProceeds
-  );
+  });
 
   return {
     timeline,
@@ -176,8 +179,17 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const noi = effectiveGrossIncome - maintenance - capex - managementFee - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
+  const annualNoi = noi * 12;
+  const annualDebtService = debtService * 12;
 
-  const timelineData = buildLeveredTimeline(input, purchaseCashNeeded, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'longTerm'));
+  const timelineData = buildLeveredTimeline(
+    input,
+    purchaseCashNeeded,
+    annualNoi,
+    annualDebtService,
+    getPurchaseLoanTerms(input).primaryPrincipal,
+    resolveStrategyArv(input, 'longTerm')
+  );
 
   return {
     ...base,
@@ -219,8 +231,17 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + airbnb.furnishingOneTime;
+  const annualNoi = noi * 12;
+  const annualDebtService = debtService * 12;
 
-  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'airbnb'));
+  const timelineData = buildLeveredTimeline(
+    input,
+    investedCapital,
+    annualNoi,
+    annualDebtService,
+    getPurchaseLoanTerms(input).primaryPrincipal,
+    resolveStrategyArv(input, 'airbnb')
+  );
 
   return {
     ...base,
@@ -270,8 +291,17 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
+  const annualNoi = noi * 12;
+  const annualDebtService = debtService * 12;
 
-  const timelineData = buildLeveredTimeline(input, investedCapital, annual, getPurchaseLoanTerms(input).primaryPrincipal, resolveStrategyArv(input, 'padSplit'));
+  const timelineData = buildLeveredTimeline(
+    input,
+    investedCapital,
+    annualNoi,
+    annualDebtService,
+    getPurchaseLoanTerms(input).primaryPrincipal,
+    resolveStrategyArv(input, 'padSplit')
+  );
 
   return {
     ...base,
@@ -296,7 +326,6 @@ export const calculateBrrrrStrategy = (
 ): StrategyOutput => {
   const { brrrr, purchase } = input;
   const brrrrArv = resolveStrategyArv(input, 'brrrr');
-  const brrrrRehabBudget = resolveRehabBudget(input, 'brrrr');
   const selectedOperatingNoi = operatingNoiByStrategy[brrrr.operatingStrategy] ?? operatingNoiByStrategy.longTerm;
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
@@ -304,8 +333,7 @@ export const calculateBrrrrStrategy = (
   const fixedCosts = getMonthlyFixedCosts(input);
   const acquisitionDebtService = getPurchaseLoanTerms(input).debtService;
   const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + acquisitionDebtService);
-  const refiLoanAmount = brrrrArv * brrrr.refinanceLtvPercent;
-  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
+  const refiLoanAmount = (brrrrArv || 0) * brrrr.refinanceLtvPercent;
 
   const initialAcquisitionDebt = getPurchaseLoanTerms(input).primaryPrincipal;
   const payoffInitialLoan = getAcquisitionDebtPayoffAtMonth({
@@ -322,12 +350,14 @@ export const calculateBrrrrStrategy = (
   });
 
   const equityAfterRefi = brrrrArv - refiLoanAmount;
-  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan - brrrrRehabBudget - refiClosingCosts;
+  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan;
   const investedAfterRefi = purchaseCashNeeded - cashBackAtRefi;
 
   const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
   const monthly = selectedOperatingNoi - refinanceDebt;
   const annual = monthly * 12;
+  const annualNoi = selectedOperatingNoi * 12;
+  const annualDebtService = refinanceDebt * 12;
 
   const remainingRefiBalance = calculateRemainingBalance(
     refiLoanAmount,
@@ -344,13 +374,14 @@ export const calculateBrrrrStrategy = (
     remainingRefiBalance,
     input.assumptions.holdYears
   );
-  const timeline = buildTimeline(
-    purchaseCashNeeded + totalHoldingCosts,
-    annual,
-    input.assumptions.holdYears,
-    input.assumptions.noiGrowthPercent,
+  const timeline = buildSpreadsheetStyleTimeline({
+    initialCashOut: purchaseCashNeeded + totalHoldingCosts,
+    baseAnnualNoi: annualNoi,
+    annualDebtService,
+    holdYears: input.assumptions.holdYears,
+    noiGrowthPercent: input.assumptions.noiGrowthPercent,
     saleProceeds
-  );
+  });
 
   if (timeline.length === 1) {
     timeline.push(cashBackAtRefi);
@@ -387,7 +418,8 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const closingCosts = salePrice * flip.sellClosingCostPercent;
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
   const fixedCosts = getMonthlyFixedCosts(input);
-  const holdingCosts = flip.holdingMonths * (flip.holdingExpensesMonthly + fixedCosts + strategyVariableCosts);
+  const debtService = getPurchaseLoanTerms(input).debtService;
+  const holdingCosts = flip.holdingMonths * (flip.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + debtService);
 
   const netProfit =
     salePrice -
