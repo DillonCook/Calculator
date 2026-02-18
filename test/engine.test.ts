@@ -484,6 +484,21 @@ test('REI Calculator v2.15 parity fixture', () => {
       managementFeePercent: 0,
       ownerExpensesMonthly: 0
     },
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      adr: 180,
+      maintenancePercent: 0.04,
+      capexPercent: 0.04,
+      ownerExpensesMonthly: 675
+    },
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      rentableRooms: 5,
+      avgWeeklyRatePerRoom: 195,
+      maintenancePercent: 0.04,
+      capexPercent: 0.04,
+      ownerExpensesMonthly: 820
+    },
     variableExpenses: [
       { key: 'lt', label: 'LT', monthlyAmount: 300, appliesTo: { longTerm: true, airbnb: false, padSplit: false, flip: false } },
       { key: 'str', label: 'STR', monthlyAmount: 675, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
@@ -502,8 +517,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.airbnb.irr, -0.0721259459, 1e-9);
   near(result.airbnb.roi, -1.4687068242, 1e-9);
 
-  near(result.padSplit.irr, -0.0508917611, 1e-9);
-  near(result.padSplit.roi, -1.0371009895, 1e-9);
+  near(result.padSplit.irr, -0.0584678999, 1e-9);
+  near(result.padSplit.roi, -1.1975383682, 1e-9);
 
   near(result.brrrr.irr, -0.103474976, 1e-9);
   near(result.brrrr.roi, -1.5812330323, 1e-9);

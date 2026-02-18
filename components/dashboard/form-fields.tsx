@@ -33,7 +33,7 @@ export function PercentInput({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const displayValue = Number.isFinite(value) ? value * 100 : 0;
+  const displayValue = Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0;
 
   return (
     <label className="space-y-1">
