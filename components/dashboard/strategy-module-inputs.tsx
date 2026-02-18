@@ -63,7 +63,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
           <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
           <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
           <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
-          <Input label="Weeks per month" type="number" value={model.padSplit.weeksPerMonth} onChange={(v) => update('padSplit', 'weeksPerMonth', Number(v))} />
+          <Input label="Weeks per month" type="number" step="0.0001" value={model.padSplit.weeksPerMonth} onChange={(v) => update('padSplit', 'weeksPerMonth', Number(v))} />
           <Input label="Other income / mo" type="number" value={model.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
           <Input
             label="Turnover / cleaning per move-out"
