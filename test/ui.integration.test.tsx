@@ -47,6 +47,17 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Cash to Close definitions' })).toBeInTheDocument();
   });
 
+
+  it('equity modeling lightbox opens from strategy board', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Equity modeling' }));
+
+    expect(screen.getByRole('dialog', { name: 'Equity Modeling Lightbox' })).toBeInTheDocument();
+    expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
+  });
+
   it('scenario save and load flow persists data to local storage', async () => {
     render(<HomePage />);
     const user = userEvent.setup();

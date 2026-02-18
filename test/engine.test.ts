@@ -39,12 +39,12 @@ test('long-term module includes base fixed and variable expenses', () => {
   const lt = defaultDealInput.longTerm;
 
   const gross = lt.grossRentMonthly + lt.otherIncomeMonthly;
+  const effectiveGrossIncome = gross * (1 - lt.vacancyPercent);
   const noi =
-    gross -
-    gross * lt.vacancyPercent -
-    gross * lt.maintenancePercent -
-    gross * lt.capexPercent -
-    gross * lt.managementFeePercent -
+    effectiveGrossIncome -
+    effectiveGrossIncome * lt.maintenancePercent -
+    effectiveGrossIncome * lt.capexPercent -
+    effectiveGrossIncome * lt.managementFeePercent -
     lt.ownerExpensesMonthly -
     fixedCostsMonthly() -
     variableCostMonthly('longTerm');
@@ -131,8 +131,9 @@ test('brrrr IRR timeline includes refinance cash event in year one', () => {
   const result = calculateDeal(defaultDealInput);
   const { purchase: p, brrrr, assumptions } = defaultDealInput;
 
-  const strategyVariableCosts = variableCostMonthly('flip');
-  const holdingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCostsMonthly() + strategyVariableCosts);
+  const strategyVariableCosts = variableCostMonthly('longTerm');
+  const acquisitionDebtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+  const holdingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCostsMonthly() + strategyVariableCosts + acquisitionDebtService);
   const initialOutflow = result.purchase.totalCashNeeded + holdingCosts;
 
   const refiLoanAmount = p.arv * brrrr.refinanceLtvPercent;
@@ -156,12 +157,12 @@ test('long-term CoC, ROI, and DSCR align with underwriting formulas', () => {
   const lt = defaultDealInput.longTerm;
 
   const gross = lt.grossRentMonthly + lt.otherIncomeMonthly;
+  const effectiveGrossIncome = gross * (1 - lt.vacancyPercent);
   const noi =
-    gross -
-    gross * lt.vacancyPercent -
-    gross * lt.maintenancePercent -
-    gross * lt.capexPercent -
-    gross * lt.managementFeePercent -
+    effectiveGrossIncome -
+    effectiveGrossIncome * lt.maintenancePercent -
+    effectiveGrossIncome * lt.capexPercent -
+    effectiveGrossIncome * lt.managementFeePercent -
     lt.ownerExpensesMonthly -
     fixedCostsMonthly() -
     variableCostMonthly('longTerm');
@@ -202,12 +203,12 @@ test('HELOC debt service is included in operating monthly cash flow', () => {
 
   const result = calculateDeal(model);
   const gross = model.longTerm.grossRentMonthly + model.longTerm.otherIncomeMonthly;
+  const effectiveGrossIncome = gross * (1 - model.longTerm.vacancyPercent);
   const noi =
-    gross -
-    gross * model.longTerm.vacancyPercent -
-    gross * model.longTerm.maintenancePercent -
-    gross * model.longTerm.capexPercent -
-    gross * model.longTerm.managementFeePercent -
+    effectiveGrossIncome -
+    effectiveGrossIncome * model.longTerm.maintenancePercent -
+    effectiveGrossIncome * model.longTerm.capexPercent -
+    effectiveGrossIncome * model.longTerm.managementFeePercent -
     model.longTerm.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('longTerm', model);
@@ -349,6 +350,18 @@ test('PadSplit includes other income plus reserve and management fee percentages
   near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
 });
 
+
+
+test('PadSplit furnishing costs are included in invested capital for CoC/ROI', () => {
+  const result = calculateDeal(defaultDealInput);
+  const purchaseCash = result.purchase.totalCashNeeded;
+  const investedCapital = purchaseCash + defaultDealInput.padSplit.furnishingOneTime;
+
+  near(result.padSplit.totalCashNeeded, investedCapital, 0.01);
+  near(result.padSplit.cashOnCashReturn, result.padSplit.annualCashFlow / investedCapital, 0.0001);
+  near(result.padSplit.roi, (result.padSplit.annualCashFlow * defaultDealInput.assumptions.holdYears) / investedCapital, 0.0001);
+});
+
 test('BRRRR uses selected operating strategy NOI for post-refi operations', () => {
   const model = {
     ...defaultDealInput,
@@ -384,12 +397,12 @@ test('HELOC PI amortization uses term-based monthly payment', () => {
 
   const result = calculateDeal(model);
   const gross = model.longTerm.grossRentMonthly + model.longTerm.otherIncomeMonthly;
+  const effectiveGrossIncome = gross * (1 - model.longTerm.vacancyPercent);
   const noi =
-    gross -
-    gross * model.longTerm.vacancyPercent -
-    gross * model.longTerm.maintenancePercent -
-    gross * model.longTerm.capexPercent -
-    gross * model.longTerm.managementFeePercent -
+    effectiveGrossIncome -
+    effectiveGrossIncome * model.longTerm.maintenancePercent -
+    effectiveGrossIncome * model.longTerm.capexPercent -
+    effectiveGrossIncome * model.longTerm.managementFeePercent -
     model.longTerm.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('longTerm', model);
