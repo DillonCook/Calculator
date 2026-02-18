@@ -79,7 +79,7 @@ describe('dashboard integration', () => {
 
     expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
     expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
-    expect(screen.getByText('NOI / mo')).toBeInTheDocument();
+    expect(screen.getByText('Line item')).toBeInTheDocument();
     expect(screen.getByText('Turnover / cleaning')).toBeInTheDocument();
     expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
   });
