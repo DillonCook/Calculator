@@ -127,6 +127,27 @@ export const buildSpreadsheetStyleTimeline = ({
   return timeline;
 };
 
+export const calcTotalRoiFromTimeline = (timeline: number[]): number => {
+  if (timeline.length === 0) return 0;
+
+  const initialOutflowAbs = Math.abs(timeline[0] ?? 0);
+  if (initialOutflowAbs === 0) return 0;
+
+  const totalProfit = timeline.reduce((sum, flow) => sum + flow, 0);
+  return totalProfit / initialOutflowAbs;
+};
+
+const calculateNpv = (cashFlows: number[], rate: number): number => {
+  if (rate < -0.9999) return Number.NaN;
+
+  let npv = 0;
+  for (let t = 0; t < cashFlows.length; t += 1) {
+    npv += cashFlows[t] / Math.pow(1 + rate, t);
+  }
+
+  return npv;
+};
+
 export const calculateIrr = (cashFlows: number[]): number => {
   if (cashFlows.length < 2) return 0;
 
@@ -135,36 +156,53 @@ export const calculateIrr = (cashFlows: number[]): number => {
 
   if (!hasPositive || !hasNegative) return 0;
 
-  let rate = 0.12;
+  const minRate = -0.9999;
+  const maxRate = 10;
+  const scanStep = 0.01;
 
-  for (let i = 0; i < 100; i += 1) {
-    let npv = 0;
-    let derivative = 0;
+  let lowerRate = minRate;
+  let lowerNpv = calculateNpv(cashFlows, lowerRate);
 
-    for (let t = 0; t < cashFlows.length; t += 1) {
-      const discountFactor = Math.pow(1 + rate, t);
-      npv += cashFlows[t] / discountFactor;
-
-      if (t > 0) {
-        derivative -= (t * cashFlows[t]) / Math.pow(1 + rate, t + 1);
-      }
-    }
-
-    if (Math.abs(derivative) < 1e-10) break;
-
-    const nextRate = rate - npv / derivative;
-
-    if (!Number.isFinite(nextRate) || nextRate <= -0.9999 || nextRate > 10) {
-      break;
-    }
-
-    if (Math.abs(nextRate - rate) < 1e-8) {
-      rate = nextRate;
-      break;
-    }
-
-    rate = nextRate;
+  if (!Number.isFinite(lowerNpv)) {
+    return 0;
   }
 
-  return Number.isFinite(rate) ? rate : 0;
+  for (let rate = minRate + scanStep; rate <= maxRate; rate += scanStep) {
+    const upperNpv = calculateNpv(cashFlows, rate);
+    if (!Number.isFinite(upperNpv)) continue;
+
+    if (upperNpv === 0) return rate;
+
+    if (lowerNpv === 0) return lowerRate;
+
+    if (lowerNpv * upperNpv < 0) {
+      let left = lowerRate;
+      let right = rate;
+      let leftNpv = lowerNpv;
+
+      for (let i = 0; i < 200; i += 1) {
+        const mid = (left + right) / 2;
+        const midNpv = calculateNpv(cashFlows, mid);
+
+        if (!Number.isFinite(midNpv)) return 0;
+        if (Math.abs(midNpv) < 1e-10 || Math.abs(right - left) < 1e-10) {
+          return mid;
+        }
+
+        if (leftNpv * midNpv < 0) {
+          right = mid;
+        } else {
+          left = mid;
+          leftNpv = midNpv;
+        }
+      }
+
+      return (left + right) / 2;
+    }
+
+    lowerRate = rate;
+    lowerNpv = upperNpv;
+  }
+
+  return 0;
 };

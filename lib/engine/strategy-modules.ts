@@ -1,13 +1,13 @@
 import {
   buildTimeline,
   buildSpreadsheetStyleTimeline,
+  calcTotalRoiFromTimeline,
   calculateIrr,
-  calculateRemainingBalance,
   estimateSaleProceeds,
   getAcquisitionDebtPayoffAtMonth
 } from '@/lib/engine/investment-math';
 import type { DealInputModel, ExpenseStrategyKey, StrategyOutput } from '@/lib/models/deal';
-import { calculateAcquisitionDebtService, calculateCashToClose, calculateMonthlyPayment } from '@/lib/engine/finance';
+import { calculateAcquisitionDebtService, calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
   strategy,
@@ -153,7 +153,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     annualCashFlow,
     totalCashNeeded: cashToClose,
     dscr: 0,
-    roi: 0,
+    roi: calcTotalRoiFromTimeline(timeline),
     irr: calculateIrr(timeline),
     cashFlowTimeline: timeline,
     saleProceeds: 0,
@@ -198,7 +198,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
     dscr: calculateDscr(noi, debtService),
-    roi: purchaseCashNeeded === 0 ? 0 : (annual * input.assumptions.holdYears) / purchaseCashNeeded,
+    roi: calcTotalRoiFromTimeline(timelineData.timeline),
     totalCashNeeded: purchaseCashNeeded,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -250,7 +250,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     dscr: calculateDscr(noi, debtService),
-    roi: investedCapital === 0 ? 0 : (annual * input.assumptions.holdYears) / investedCapital,
+    roi: calcTotalRoiFromTimeline(timelineData.timeline),
     totalCashNeeded: investedCapital,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -310,7 +310,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     dscr: calculateDscr(noi, debtService),
-    roi: investedCapital === 0 ? 0 : (annual * input.assumptions.holdYears) / investedCapital,
+    roi: calcTotalRoiFromTimeline(timelineData.timeline),
     totalCashNeeded: investedCapital,
     noiMonthly: noi,
     irr: timelineData.irr,
@@ -330,28 +330,18 @@ export const calculateBrrrrStrategy = (
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
   const strategyVariableCosts = getVariableExpenseTotal(input, brrrr.operatingStrategy);
+  const setupCostOneTime = brrrr.operatingStrategy === 'airbnb' ? input.airbnb.furnishingOneTime : brrrr.operatingStrategy === 'padSplit' ? input.padSplit.furnishingOneTime : 0;
   const fixedCosts = getMonthlyFixedCosts(input);
   const acquisitionDebtService = getPurchaseLoanTerms(input).debtService;
   const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + acquisitionDebtService);
+  const investedAtPurchase = purchaseCashNeeded + totalHoldingCosts + setupCostOneTime;
   const refiLoanAmount = (brrrrArv || 0) * brrrr.refinanceLtvPercent;
+  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
 
-  const initialAcquisitionDebt = getPurchaseLoanTerms(input).primaryPrincipal;
-  const payoffInitialLoan = getAcquisitionDebtPayoffAtMonth({
-    financingType: purchase.financingType,
-    initialLoanAmount: initialAcquisitionDebt,
-    annualRate: purchase.interestRate,
-    termYears: purchase.loanTermYears,
-    monthsElapsed: brrrr.holdingMonths,
-    amortizationType: purchase.amortizationType,
-    helocAmount: purchase.helocAmount,
-    helocRate: purchase.helocRate,
-    helocTermYears: purchase.helocTermYears,
-    helocAmortizationType: purchase.helocAmortizationType
-  });
+  const initialLoanAmount = purchase.financingType === 'loan' ? calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent) : 0;
 
-  const equityAfterRefi = brrrrArv - refiLoanAmount;
-  const cashBackAtRefi = refiLoanAmount - payoffInitialLoan;
-  const investedAfterRefi = purchaseCashNeeded - cashBackAtRefi;
+  const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoanAmount;
+  const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
 
   const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
   const monthly = selectedOperatingNoi - refinanceDebt;
@@ -359,13 +349,18 @@ export const calculateBrrrrStrategy = (
   const annualNoi = selectedOperatingNoi * 12;
   const annualDebtService = refinanceDebt * 12;
 
-  const remainingRefiBalance = calculateRemainingBalance(
-    refiLoanAmount,
-    brrrr.refinanceRate,
-    purchase.loanTermYears,
-    input.assumptions.holdYears,
-    'PI'
-  );
+  const remainingRefiBalance = getAcquisitionDebtPayoffAtMonth({
+    financingType: refiLoanAmount > 0 ? 'loan' : 'cash',
+    initialLoanAmount: refiLoanAmount,
+    annualRate: brrrr.refinanceRate,
+    termYears: purchase.loanTermYears,
+    monthsElapsed: input.assumptions.holdYears * 12,
+    amortizationType: 'PI',
+    helocAmount: 0,
+    helocRate: 0,
+    helocTermYears: 1,
+    helocAmortizationType: 'PI'
+  });
   const saleProceeds = estimateSaleProceeds(
     purchase.purchasePrice,
     brrrrArv,
@@ -375,19 +370,13 @@ export const calculateBrrrrStrategy = (
     input.assumptions.holdYears
   );
   const timeline = buildSpreadsheetStyleTimeline({
-    initialCashOut: purchaseCashNeeded + totalHoldingCosts,
+    initialCashOut: investedAfterRefi,
     baseAnnualNoi: annualNoi,
     annualDebtService,
     holdYears: input.assumptions.holdYears,
     noiGrowthPercent: input.assumptions.noiGrowthPercent,
     saleProceeds
   });
-
-  if (timeline.length === 1) {
-    timeline.push(cashBackAtRefi);
-  } else {
-    timeline[1] += cashBackAtRefi;
-  }
 
   const irr = calculateIrr(timeline);
 
@@ -398,8 +387,8 @@ export const calculateBrrrrStrategy = (
     capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
     dscr: calculateDscr(selectedOperatingNoi, refinanceDebt),
-    roi: investedAfterRefi === 0 ? 0 : ((annual * input.assumptions.holdYears) + equityAfterRefi) / investedAfterRefi,
-    totalCashNeeded: purchaseCashNeeded + totalHoldingCosts,
+    roi: calcTotalRoiFromTimeline(timeline),
+    totalCashNeeded: investedAfterRefi,
     noiMonthly: selectedOperatingNoi,
     irr,
     saleProceeds,
@@ -439,9 +428,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     ...base,
     monthlyCashFlow: monthly,
     annualCashFlow: monthly * 12,
-    cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : netProfit / purchaseCashNeeded,
+    cashOnCashReturn: totalCashInvested === 0 ? 0 : netProfit / totalCashInvested,
     dscr: 0,
-    roi: purchaseCashNeeded === 0 ? 0 : netProfit / purchaseCashNeeded,
+    roi: calcTotalRoiFromTimeline(timeline),
     totalCashNeeded: purchaseCashNeeded + holdingCosts,
     irr: calculateIrr(timeline),
     saleProceeds: netProfit,
