@@ -253,7 +253,90 @@ export default function HomePage() {
                   <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
                   <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
                 </div>
-                <p className="text-xs italic tracking-wide text-accent/90" aria-label={`${priorityMetricLabel} strategy context`}>{activeStrategyLabel}</p>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {supportsReserveToggle ? (
+                    <>
+                      <div className="inline-flex rounded-md border border-white/15 bg-black/20 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }))}
+                          aria-pressed={includeReserves}
+                          className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                            includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Include reserves
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }))}
+                          aria-pressed={!includeReserves}
+                          className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                            !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Exclude reserves
+                        </button>
+                      </div>
+                      <span
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 text-[10px] text-muted"
+                        title="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
+                        aria-label="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
+                      >
+                        i
+                      </span>
+                    </>
+                  ) : null}
+                  <p className="text-xs italic tracking-wide text-accent/90" aria-label={`${priorityMetricLabel} strategy context`}>{activeStrategyLabel}</p>
+                </div>
+              </div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p
+                  className={`text-4xl font-semibold sm:text-5xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                  data-testid="kpi-priority-metric"
+                >
+                  {currencyFormatter.format(priorityMetricValue)}
+                </p>
+                {supportsReserveToggle ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="inline-flex rounded-md border border-white/15 bg-black/20 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }))}
+                        aria-pressed={includeReserves}
+                        className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Include reserves
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }))}
+                        aria-pressed={!includeReserves}
+                        className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Exclude reserves
+                      </button>
+                    </div>
+                    <div className="group/tooltip relative">
+                      <button
+                        type="button"
+                        aria-label="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      >
+                        i
+                      </button>
+                      <div className="pointer-events-none absolute right-0 top-6 z-20 w-[260px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 opacity-0 shadow-soft backdrop-blur transition duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100">
+                        <p className="leading-relaxed">
+                          <span className="font-semibold text-white">Exclude reserves:</span> Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <p
