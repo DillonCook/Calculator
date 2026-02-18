@@ -68,6 +68,34 @@ const toLine = (key: string, label: string, monthly: number): StrategyCalculatio
   annual: toAnnual(monthly)
 });
 
+const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit'): number => {
+  if (strategy === 'longTerm') {
+    const gross = input.longTerm.grossRentMonthly + input.longTerm.otherIncomeMonthly;
+    const effectiveGrossIncome = gross - gross * input.longTerm.vacancyPercent;
+    return effectiveGrossIncome * (input.longTerm.maintenancePercent + input.longTerm.capexPercent);
+  }
+
+  if (strategy === 'airbnb') {
+    const occupiedNights = input.airbnb.nightsPerMonth * input.airbnb.occupancyPercent;
+    const roomRevenue = occupiedNights * input.airbnb.adr;
+    const bookings = occupiedNights / Math.max(input.airbnb.averageNightsPerBooking, 1);
+    const cleaningRevenue = bookings * input.airbnb.cleaningFeeCharged;
+    const gross = roomRevenue + cleaningRevenue;
+
+    return gross * (input.airbnb.maintenancePercent + input.airbnb.capexPercent);
+  }
+
+  const rentableRooms = Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0;
+  const avgWeeklyRatePerRoom = Number.isFinite(input.padSplit.avgWeeklyRatePerRoom) ? input.padSplit.avgWeeklyRatePerRoom : 0;
+  const gross =
+    rentableRooms *
+    avgWeeklyRatePerRoom *
+    input.padSplit.weeksPerMonth *
+    input.padSplit.occupancyPercent +
+    input.padSplit.otherIncomeMonthly;
+
+  return gross * (input.padSplit.maintenancePercent + input.padSplit.capexPercent);
+};
 
 const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
   const baseArv = input.purchase.arv;
@@ -192,6 +220,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
@@ -255,6 +284,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
@@ -340,6 +370,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
     capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
@@ -434,6 +465,7 @@ export const calculateBrrrrStrategy = (
   return {
     ...base,
     monthlyCashFlow: monthly,
+    monthlyCashFlowExcludingReserves: monthly + getMonthlyReserveTotal(input, brrrr.operatingStrategy),
     annualCashFlow: annual,
     capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
@@ -471,13 +503,17 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
   const fixedCosts = getMonthlyFixedCosts(input);
   const debtService = getPurchaseLoanTerms(input).debtService;
-  const holdingCosts = flip.holdingMonths * (fixedCosts + strategyVariableCosts + debtService);
+  const holdingMonths = Math.max(flip.holdingMonths, 1);
+
+  const buyClosingCosts = purchase.purchasePrice * purchase.closingCostPercent;
+  const monthlyHoldingCosts = fixedCosts + strategyVariableCosts + debtService;
+  const holdingCosts = monthlyHoldingCosts * holdingMonths;
 
   const netProfit =
     salePrice -
     purchase.purchasePrice -
     flipRehabBudget -
-    purchase.purchasePrice * purchase.closingCostPercent -
+    buyClosingCosts -
     agentCommission -
     closingCosts -
     flip.sellerConcessions -
@@ -499,21 +535,39 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     cashFlowTimeline: timeline,
     calculationBreakdown: {
       lines: [
-        toLine('flip-sale-price', 'Sale price (projected)', salePrice / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-acquisition-cost', 'Purchase price carry', -purchase.purchasePrice / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-rehab', 'Rehab', -flipRehabBudget / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-buy-closing', 'Buy closing costs', -(purchase.purchasePrice * purchase.closingCostPercent) / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-agent', 'Agent commission', -agentCommission / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-holding', 'Holding costs', -holdingCosts / Math.max(flip.holdingMonths, 1)),
-        toLine('flip-net-profit', 'Net profit (one-time)', netProfit / Math.max(flip.holdingMonths, 1))
+        toLine('flip-sale-price', 'Sale price (projected)', salePrice / holdingMonths),
+        toLine('flip-acquisition-cost', 'Purchase price carry', -purchase.purchasePrice / holdingMonths),
+        toLine('flip-rehab', 'Rehab', -flipRehabBudget / holdingMonths),
+        toLine('flip-buy-closing', 'Buy closing costs', -buyClosingCosts / holdingMonths),
+        toLine('flip-agent', 'Agent commission', -agentCommission / holdingMonths),
+        toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / holdingMonths),
+        toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / holdingMonths),
+        toLine('flip-fixed-holding', 'Holding: fixed costs', -fixedCosts),
+        toLine('flip-variable-holding', 'Holding: variable expenses', -strategyVariableCosts),
+        toLine('flip-lender-holding', 'Holding: lender costs', -debtService),
+        toLine('flip-holding-total', 'Holding costs total', -monthlyHoldingCosts),
+        toLine('flip-net-profit', 'Net profit (one-time)', netProfit / holdingMonths)
       ],
-      revenueMonthly: salePrice / Math.max(flip.holdingMonths, 1),
-      sellerPaidExpensesMonthly: (purchase.purchasePrice + flipRehabBudget + purchase.purchasePrice * purchase.closingCostPercent + agentCommission + closingCosts + flip.sellerConcessions + holdingCosts) / Math.max(flip.holdingMonths, 1),
+      revenueMonthly: salePrice / holdingMonths,
+      sellerPaidExpensesMonthly: (purchase.purchasePrice + flipRehabBudget + buyClosingCosts + agentCommission + closingCosts + flip.sellerConcessions + holdingCosts) / holdingMonths,
       debtServiceMonthly: debtService,
       noiMonthly: 0,
-      cashFlowMonthly: 0
+      cashFlowMonthly: 0,
+      flipMeta: {
+        holdingMonths,
+        salePrice,
+        purchasePrice: purchase.purchasePrice,
+        rehabBudget: flipRehabBudget,
+        buyClosingCosts,
+        agentCommission,
+        sellClosingCosts: closingCosts,
+        sellerConcessions: flip.sellerConcessions,
+        fixedHoldingCostsMonthly: fixedCosts,
+        variableHoldingCostsMonthly: strategyVariableCosts,
+        lenderHoldingCostsMonthly: debtService,
+        holdingCostsTotal: holdingCosts,
+        netProfit
+      }
     }
   };
 };
