@@ -61,6 +61,14 @@ export default function HomePage() {
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>(() => readScenarios());
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
+  const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
+    purchase: true,
+    longTerm: true,
+    airbnb: true,
+    padSplit: true,
+    brrrr: true,
+    flip: true
+  });
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -69,11 +77,19 @@ export default function HomePage() {
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
   const isFlipStrategy = activeStrategy === 'flip';
+  const supportsReserveToggle = activeStrategy === 'longTerm' || activeStrategy === 'airbnb' || activeStrategy === 'padSplit' || activeStrategy === 'brrrr';
+  const includeReserves = includeReservesByStrategy[activeStrategy];
   const priorityMetricLabel = isFlipStrategy ? 'Net Profit' : 'Monthly Cash Flow';
   const priorityMetricHelper = isFlipStrategy
     ? 'Flip strategy realizes profit at resale, so operating cash flow is modeled as $0'
-    : 'Monthly cash flow for the selected strategy';
-  const priorityMetricValue = isFlipStrategy ? activeOutput.saleProceeds ?? 0 : activeOutput.monthlyCashFlow;
+    : supportsReserveToggle && !includeReserves
+      ? 'Monthly cash flow excluding maintenance and CapEx reserves'
+      : 'Monthly cash flow for the selected strategy';
+  const priorityMetricValue = isFlipStrategy
+    ? activeOutput.saleProceeds ?? 0
+    : supportsReserveToggle && !includeReserves
+      ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
+      : activeOutput.monthlyCashFlow;
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
@@ -237,7 +253,42 @@ export default function HomePage() {
                   <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
                   <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
                 </div>
-                <p className="text-xs italic tracking-wide text-accent/90" aria-label={`${priorityMetricLabel} strategy context`}>{activeStrategyLabel}</p>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {supportsReserveToggle ? (
+                    <>
+                      <div className="inline-flex rounded-md border border-white/15 bg-black/20 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }))}
+                          aria-pressed={includeReserves}
+                          className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                            includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Include reserves
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }))}
+                          aria-pressed={!includeReserves}
+                          className={`rounded px-2 py-1 text-[10px] font-medium transition ${
+                            !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Exclude reserves
+                        </button>
+                      </div>
+                      <span
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 text-[10px] text-muted"
+                        title="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
+                        aria-label="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
+                      >
+                        i
+                      </span>
+                    </>
+                  ) : null}
+                  <p className="text-xs italic tracking-wide text-accent/90" aria-label={`${priorityMetricLabel} strategy context`}>{activeStrategyLabel}</p>
+                </div>
               </div>
               <p
                 className={`mt-2 text-4xl font-semibold sm:text-5xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}

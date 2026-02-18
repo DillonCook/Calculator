@@ -89,6 +89,21 @@ export interface StrategyCalculationBreakdown {
   debtServiceMonthly: number;
   noiMonthly: number;
   cashFlowMonthly: number;
+  flipMeta?: {
+    holdingMonths: number;
+    salePrice: number;
+    purchasePrice: number;
+    rehabBudget: number;
+    buyClosingCosts: number;
+    agentCommission: number;
+    sellClosingCosts: number;
+    sellerConcessions: number;
+    fixedHoldingCostsMonthly: number;
+    variableHoldingCostsMonthly: number;
+    lenderHoldingCostsMonthly: number;
+    holdingCostsTotal: number;
+    netProfit: number;
+  };
 }
 
 export interface BrrrrInputs {
@@ -139,6 +154,7 @@ export interface DealInputModel {
 export interface StrategyOutput {
   strategy: StrategyKey;
   monthlyCashFlow: number;
+  monthlyCashFlowExcludingReserves?: number;
   annualCashFlow: number;
   capRate: number;
   cashOnCashReturn: number;
