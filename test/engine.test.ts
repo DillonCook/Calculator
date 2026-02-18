@@ -341,12 +341,44 @@ test('PadSplit includes other income plus reserve and management fee percentages
     gross * ps.maintenancePercent -
     gross * ps.capexPercent -
     gross * ps.managementFeePercent -
-    (ps.moveOutsPerYear * (ps.turnoverCostPerMoveOut + (ps.avgWeeklyRatePerRoom * 10) / 7)) / 12 -
+    (ps.turnoverCostPerMoveOut * ps.moveOutsPerYear * ps.rentableRooms) / 12 -
+    (ps.moveOutsPerYear * ((ps.avgWeeklyRatePerRoom * 10) / 7)) / 12 -
     ps.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('padSplit', model);
 
   near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
+});
+
+test('PadSplit turnover and placement fees match spreadsheet formulas and are separate line items', () => {
+  const model = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      rentableRooms: 7,
+      avgWeeklyRatePerRoom: 195,
+      moveOutsPerYear: 10,
+      turnoverCostPerMoveOut: 40
+    }
+  };
+
+  const result = calculateDeal(model);
+  const lines = result.padSplit.calculationBreakdown?.lines ?? [];
+
+  const turnoverLine = lines.find((line) => line.key === 'ps-turnover-cleaning');
+  const placementLine = lines.find((line) => line.key === 'ps-tenant-placement');
+
+  assert.ok(turnoverLine);
+  assert.ok(placementLine);
+
+  const expectedTurnoverMonthly = (40 * 10 * 7) / 12;
+  const expectedPlacementMonthly = (10 * ((195 * 10) / 7)) / 12;
+
+  near(Math.abs(turnoverLine?.monthly ?? 0), expectedTurnoverMonthly, 0.0001);
+  near(Math.abs(turnoverLine?.annual ?? 0), expectedTurnoverMonthly * 12, 0.0001);
+  near(Math.abs(placementLine?.monthly ?? 0), expectedPlacementMonthly, 0.0001);
+  near(Math.abs(placementLine?.annual ?? 0), expectedPlacementMonthly * 12, 0.0001);
+  near(Math.abs((turnoverLine?.monthly ?? 0) + (placementLine?.monthly ?? 0)), expectedTurnoverMonthly + expectedPlacementMonthly, 0.0001);
 });
 
 
@@ -517,8 +549,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.airbnb.irr, -0.0721259459, 1e-9);
   near(result.airbnb.roi, -1.4687068242, 1e-9);
 
-  near(result.padSplit.irr, -0.0584678999, 1e-9);
-  near(result.padSplit.roi, -1.1975383682, 1e-9);
+  near(result.padSplit.irr, -0.0677210758, 1e-9);
+  near(result.padSplit.roi, -1.3956092061, 1e-9);
 
   near(result.brrrr.irr, -0.103474976, 1e-9);
   near(result.brrrr.roi, -1.5812330323, 1e-9);

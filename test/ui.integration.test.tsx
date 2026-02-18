@@ -68,7 +68,8 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
     expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
     expect(screen.getByText('NOI / mo')).toBeInTheDocument();
-    expect(screen.getByText('Turnover + placement fees')).toBeInTheDocument();
+    expect(screen.getByText('Turnover / cleaning')).toBeInTheDocument();
+    expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
   });
 
   it('scenario save and load flow persists data to local storage', async () => {

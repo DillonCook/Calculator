@@ -325,9 +325,19 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const { padSplit, purchase } = input;
   const base = createBaseOutput('padSplit', 'Rent-by-room economics with platform and turn costs.');
 
+  const legacyPadSplit = padSplit as DealInputModel['padSplit'] & { turnoverCostMonthly?: number };
+  const rentableRooms = Number.isFinite(padSplit.rentableRooms) ? padSplit.rentableRooms : 0;
+  const avgWeeklyRatePerRoom = Number.isFinite(padSplit.avgWeeklyRatePerRoom) ? padSplit.avgWeeklyRatePerRoom : 0;
+  const moveOutsPerYear = Number.isFinite(padSplit.moveOutsPerYear) ? padSplit.moveOutsPerYear : 0;
+  const turnoverCostPerMoveOut = Number.isFinite(padSplit.turnoverCostPerMoveOut)
+    ? padSplit.turnoverCostPerMoveOut
+    : Number.isFinite(legacyPadSplit.turnoverCostMonthly)
+      ? legacyPadSplit.turnoverCostMonthly ?? 0
+      : 0;
+
   const gross =
-    padSplit.rentableRooms *
-    padSplit.avgWeeklyRatePerRoom *
+    rentableRooms *
+    avgWeeklyRatePerRoom *
     padSplit.weeksPerMonth *
     padSplit.occupancyPercent +
     padSplit.otherIncomeMonthly;
@@ -335,7 +345,8 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const maintenance = gross * padSplit.maintenancePercent;
   const capex = gross * padSplit.capexPercent;
   const managementFee = gross * padSplit.managementFeePercent;
-  const turnoverAndPlacementMonthly = (padSplit.moveOutsPerYear * (padSplit.turnoverCostPerMoveOut + (padSplit.avgWeeklyRatePerRoom * 10) / 7)) / 12;
+  const turnoverMonthly = (turnoverCostPerMoveOut * moveOutsPerYear * rentableRooms) / 12;
+  const placementMonthly = (moveOutsPerYear * ((avgWeeklyRatePerRoom * 10) / 7)) / 12;
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
@@ -347,7 +358,8 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     maintenance -
     capex -
     managementFee -
-    turnoverAndPlacementMonthly -
+    turnoverMonthly -
+    placementMonthly -
     padSplit.ownerExpensesMonthly -
     fixedCosts -
     strategyVariableCosts;
@@ -384,7 +396,8 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
         toLine('ps-room-revenue', 'Room revenue', gross - padSplit.otherIncomeMonthly),
         toLine('ps-other-income', 'Other income', padSplit.otherIncomeMonthly),
         toLine('ps-platform-fees', 'Platform fees', -platformFees),
-        toLine('ps-turnover-placement', 'Turnover + placement fees', -turnoverAndPlacementMonthly),
+        toLine('ps-turnover-cleaning', 'Turnover / cleaning', -turnoverMonthly),
+        toLine('ps-tenant-placement', 'Tenant placement fees', -placementMonthly),
         toLine('ps-maintenance', 'Maintenance reserve', -maintenance),
         toLine('ps-capex', 'CapEx reserve', -capex),
         toLine('ps-management', 'Management fee', -managementFee),
@@ -396,7 +409,16 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
         toLine('ps-cash-flow', 'Cash flow', monthly)
       ],
       revenueMonthly: gross,
-      sellerPaidExpensesMonthly: platformFees + turnoverAndPlacementMonthly + maintenance + capex + managementFee + padSplit.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      sellerPaidExpensesMonthly:
+        platformFees +
+        turnoverMonthly +
+        placementMonthly +
+        maintenance +
+        capex +
+        managementFee +
+        padSplit.ownerExpensesMonthly +
+        fixedCosts +
+        strategyVariableCosts,
       debtServiceMonthly: debtService,
       noiMonthly: noi,
       cashFlowMonthly: monthly
