@@ -58,6 +58,19 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
   });
 
+  it('strategy work lightbox opens for active strategy and shows key rows', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'PadSplit' }));
+    await user.click(screen.getByRole('button', { name: 'Show work' }));
+
+    expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
+    expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
+    expect(screen.getByText('NOI / mo')).toBeInTheDocument();
+    expect(screen.getByText('Turnover + placement fees')).toBeInTheDocument();
+  });
+
   it('scenario save and load flow persists data to local storage', async () => {
     render(<HomePage />);
     const user = userEvent.setup();

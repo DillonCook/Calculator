@@ -8,6 +8,7 @@ import { ScenarioCorner } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
+import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { calculateDeal } from '@/lib/engine/deal-engine';
@@ -60,6 +61,7 @@ export default function HomePage() {
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('longTerm');
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>(() => readScenarios());
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
+  const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -263,7 +265,18 @@ export default function HomePage() {
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
-            <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStrategyWorkOpen(true)}
+                className="rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-accent/20"
+              >
+                Show work
+              </button>
+            </div>
             <section className="grid gap-3">
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={setModel} />
             </section>
@@ -280,6 +293,12 @@ export default function HomePage() {
           <DealInputPanel value={model} onChange={setModel} />
         </div>
       </div>
+      <StrategyWorkLightbox
+        open={isStrategyWorkOpen}
+        activeStrategy={activeStrategy}
+        output={activeOutput}
+        onClose={() => setIsStrategyWorkOpen(false)}
+      />
     </main>
   );
 }
