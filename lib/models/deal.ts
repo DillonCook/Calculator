@@ -69,9 +69,26 @@ export interface PadSplitInputs {
   maintenancePercent: number;
   capexPercent: number;
   managementFeePercent: number;
-  turnoverCostMonthly: number;
+  turnoverCostPerMoveOut: number;
+  moveOutsPerYear: number;
   ownerExpensesMonthly: number;
   furnishingOneTime: number;
+}
+
+export interface StrategyCalculationLineItem {
+  key: string;
+  label: string;
+  monthly: number;
+  annual: number;
+}
+
+export interface StrategyCalculationBreakdown {
+  lines: StrategyCalculationLineItem[];
+  revenueMonthly: number;
+  sellerPaidExpensesMonthly: number;
+  debtServiceMonthly: number;
+  noiMonthly: number;
+  cashFlowMonthly: number;
 }
 
 export interface BrrrrInputs {
@@ -134,6 +151,7 @@ export interface StrategyOutput {
   noiMonthly?: number;
   saleProceeds?: number;
   cashFlowTimeline: number[];
+  calculationBreakdown?: StrategyCalculationBreakdown;
 }
 
 export interface MasterSummary {
@@ -225,7 +243,8 @@ export const defaultDealInput: DealInputModel = {
     maintenancePercent: 0.04,
     capexPercent: 0.04,
     managementFeePercent: 0.12,
-    turnoverCostMonthly: 140,
+    turnoverCostPerMoveOut: 40,
+    moveOutsPerYear: 10,
     ownerExpensesMonthly: 820,
     furnishingOneTime: 16200
   },

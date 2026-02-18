@@ -7,17 +7,19 @@ export function Input({
   label,
   value,
   onChange,
-  type = 'text'
+  type = 'text',
+  step
 }: {
   label: string;
   value: number | string;
   onChange: (value: string) => void;
   type?: string;
+  step?: string;
 }) {
   return (
     <label className="space-y-1">
       <span className="text-xs text-muted">{label}</span>
-      <input className={inputClass} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className={inputClass} type={type} step={step ?? (type === 'number' ? '0.01' : undefined)} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -31,7 +33,7 @@ export function PercentInput({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const displayValue = Number.isFinite(value) ? Math.round(value * 100) : 0;
+  const displayValue = Number.isFinite(value) ? value * 100 : 0;
 
   return (
     <label className="space-y-1">
@@ -39,7 +41,7 @@ export function PercentInput({
       <input
         className={inputClass}
         type="number"
-        step="1"
+        step="0.01"
         value={displayValue}
         onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
       />
