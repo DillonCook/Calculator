@@ -66,7 +66,25 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
       </ul>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Monthly cash flow" value={currencyFormatter.format(output.monthlyCashFlow)} />
+        <Metric
+          label="Monthly cash flow"
+          value={currencyFormatter.format(output.monthlyCashFlow)}
+          secondaryValue={
+            active === 'longTerm' || active === 'airbnb' || active === 'padSplit' || active === 'brrrr'
+              ? currencyFormatter.format(output.monthlyCashFlowExcludingReserves ?? output.monthlyCashFlow)
+              : undefined
+          }
+          secondaryLabel={
+            active === 'longTerm' || active === 'airbnb' || active === 'padSplit' || active === 'brrrr'
+              ? 'No reserves'
+              : undefined
+          }
+          secondaryTooltip={
+            active === 'longTerm' || active === 'airbnb' || active === 'padSplit' || active === 'brrrr'
+              ? 'Monthly cash flow excluding maintenance and CapEx reserves. Helpful for newer homes that may not need reserve allocations right away.'
+              : undefined
+          }
+        />
         <Metric label="Cash needed" value={currencyFormatter.format(output.totalCashNeeded)} />
         <Metric label="Cash on cash" value={percentFormatter.format(output.cashOnCashReturn)} />
         <Metric label="DSCR" value={output.dscr.toFixed(2)} />
@@ -75,11 +93,41 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  secondaryValue,
+  secondaryLabel,
+  secondaryTooltip
+}: {
+  label: string;
+  value: string;
+  secondaryValue?: string;
+  secondaryLabel?: string;
+  secondaryTooltip?: string;
+}) {
   return (
     <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3">
       <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-2 truncate text-2xl font-semibold">{value}</p>
+      <div className="mt-2 flex items-end justify-between gap-2">
+        <p className="truncate text-2xl font-semibold">{value}</p>
+        {secondaryValue && secondaryLabel ? (
+          <div className="flex shrink-0 items-center gap-1 text-right">
+            <p className="text-[11px] font-medium text-muted">
+              {secondaryLabel}: <span className="text-slate-300">{secondaryValue}</span>
+            </p>
+            {secondaryTooltip ? (
+              <span
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 text-[10px] text-muted"
+                title={secondaryTooltip}
+                aria-label={secondaryTooltip}
+              >
+                i
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
