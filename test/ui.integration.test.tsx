@@ -36,10 +36,10 @@ describe('dashboard integration', () => {
 
     expect(screen.getByTestId('kpi-monthly-cash-flow')).toHaveTextContent(currency.format(airbnbResult.monthlyCashFlow));
     expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
-      new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(airbnbResult.cashOnCashReturn)
+      new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(airbnbResult.cashOnCashReturn)
     );
     expect(screen.getByTestId('kpi-cap-rate')).toHaveTextContent(
-      new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(airbnbResult.capRate)
+      new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(airbnbResult.capRate)
     );
 
     expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currency.format(airbnbResult.totalCashNeeded));

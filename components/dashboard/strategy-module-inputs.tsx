@@ -33,7 +33,6 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
           <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
           <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
           <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
-          <Input label="Other LT expenses / mo" type="number" value={model.longTerm.ownerExpensesMonthly} onChange={(v) => update('longTerm', 'ownerExpensesMonthly', Number(v))} />
         </div>
       );
     }
@@ -52,7 +51,6 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
           <PercentInput label="Management fee %" value={model.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
           <PercentInput label="Maintenance %" value={model.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
           <PercentInput label="CapEx %" value={model.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
-          <Input label="Other STR expenses / mo" type="number" value={model.airbnb.ownerExpensesMonthly} onChange={(v) => update('airbnb', 'ownerExpensesMonthly', Number(v))} />
           <Input label="STR furnishing (one-time)" type="number" value={model.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
         </div>
       );
@@ -78,7 +76,6 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
           <PercentInput label="Management fee %" value={model.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', v)} />
           <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
           <PercentInput label="CapEx reserve %" value={model.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
-          <Input label="Other PadSplit expenses / mo" type="number" value={model.padSplit.ownerExpensesMonthly} onChange={(v) => update('padSplit', 'ownerExpensesMonthly', Number(v))} />
           <Input label="Furnishing (one-time)" type="number" value={model.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
         </div>
       );
