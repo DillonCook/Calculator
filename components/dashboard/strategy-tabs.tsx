@@ -1,4 +1,5 @@
 import type { StrategyKey } from '@/lib/models/deal';
+import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 const strategies: { key: StrategyKey; label: string }[] = [
   { key: 'purchase', label: 'Purchase' },
@@ -20,10 +21,15 @@ export function StrategyTabs({ active, onChange }: StrategyTabsProps) {
       {strategies.map((strategy) => (
         <button
           key={strategy.key}
-          className={`snap-start rounded-xl px-4 py-2 text-sm font-medium transition ${
-            active === strategy.key ? 'bg-accent text-white' : 'bg-white/5 text-muted hover:bg-white/10'
+          className={`tap-feedback snap-start rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out ${
+            active === strategy.key
+              ? 'accent-edge text-white'
+              : 'bg-white/5 text-muted hover:bg-white/12'
           }`}
-          onClick={() => onChange(strategy.key)}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            onChange(strategy.key);
+          }}
           type="button"
         >
           {strategy.label}

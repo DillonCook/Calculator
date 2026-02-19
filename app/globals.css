@@ -7,7 +7,43 @@
 }
 
 body {
-  @apply bg-surface text-white antialiased;
+  @apply text-white antialiased;
+  background: linear-gradient(145deg, #050a12 0%, #081427 55%, #0b1e33 100%);
+}
+
+@layer components {
+  .panel-surface {
+    background: linear-gradient(180deg, rgba(11, 21, 38, 0.94) 0%, rgba(10, 18, 32, 0.94) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .card-surface {
+    background: rgba(14, 26, 45, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #2e6fa8 0%, #3a8fe0 100%);
+    border: 1px solid rgba(122, 191, 255, 0.28);
+    color: #f8fbff;
+    transition: filter 180ms ease, transform 180ms ease;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+
+  .btn-primary:active {
+    transform: translateY(1px);
+  }
+
+  .accent-edge {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(rgba(14, 26, 45, 0.94), rgba(14, 26, 45, 0.94)) padding-box,
+      linear-gradient(120deg, rgba(49, 121, 185, 0.8), rgba(76, 195, 255, 0.6), rgba(49, 121, 185, 0.2)) border-box;
+    box-shadow: 0 0 24px rgba(49, 121, 185, 0.18);
+  }
 }
 
 input::-webkit-outer-spin-button,
@@ -20,9 +56,23 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+.app-shell-fade {
+  animation: app-shell-fade 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tap-feedback {
+  transform: translateZ(0);
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.tap-feedback:active {
+  transform: scale(0.985);
+  filter: brightness(1.04);
+}
+
 .scrollbar-premium {
   scrollbar-width: thin;
-  scrollbar-color: rgba(129, 140, 248, 0.7) rgba(255, 255, 255, 0.08);
+  scrollbar-color: rgba(49, 121, 185, 0.8) rgba(255, 255, 255, 0.08);
 }
 
 .scrollbar-premium::-webkit-scrollbar {
@@ -35,7 +85,7 @@ input[type='number'] {
 }
 
 .scrollbar-premium::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(129, 140, 248, 0.95), rgba(45, 212, 191, 0.9));
+  background: linear-gradient(180deg, rgba(49, 121, 185, 0.95), rgba(70, 150, 220, 0.9));
   border-radius: 999px;
 }
 

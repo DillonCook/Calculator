@@ -8,13 +8,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        surface: '#0B1220',
-        panel: '#111A2B',
-        accent: '#4F8DFD',
+        surface: '#050A12',
+        panel: '#0B1526',
+        card: '#0E1A2D',
+        accent: '#3179B9',
         muted: '#9BA9C2'
       },
       boxShadow: {
-        soft: '0 10px 30px rgba(10, 20, 40, 0.25)'
+        soft: '0 14px 36px rgba(3, 8, 16, 0.45)'
       }
     }
   },

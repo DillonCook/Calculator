@@ -67,7 +67,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
 
   return (
     <>
-      <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+      <section className="rounded-2xl panel-surface p-5 shadow-soft">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
@@ -100,18 +100,18 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
             return (
               <div
                 key={row.key}
-                className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-rose-500/40 bg-rose-500/10'}`}
+                className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-white/10 bg-white/5'}`}
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{row.label}</p>
-                  <p className={`text-base font-semibold ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  <p className={`text-base font-semibold ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}>
                     {currencyFormatter.format(output.monthlyCashFlow)}
                     <span className="ml-1 text-xs text-muted">/mo</span>
                   </p>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-slate-400'}`}
                     style={{ width: `${Math.abs(barWidth)}%` }}
                   />
                 </div>
@@ -121,7 +121,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   <span className="text-center">
                     DSCR
                     <span
-                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${output.dscr < 1 ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40' : 'text-white'}`}
+                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${output.dscr < 1 ? 'bg-red-500/20 text-red-200 ring-1 ring-red-500/40' : 'text-white'}`}
                     >
                       {output.dscr.toFixed(2)}
                       {output.dscr < 1 ? ' \u26a0' : ''}
@@ -143,7 +143,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
           aria-modal="true"
           aria-label="Equity Modeling Lightbox"
         >
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wider text-accent">Master Summary</p>
@@ -164,7 +164,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{row.label}</p>
-                    <p className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    <p className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}>
                       {row.profit >= 0 ? '+' : ''}{currencyFormatter.format(row.profit)} modeled profit
                     </p>
                   </div>
@@ -209,7 +209,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
           aria-modal="true"
           aria-label="Cash Flow Modeling Lightbox"
         >
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
-import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
@@ -18,6 +17,7 @@ import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -236,8 +236,10 @@ export default function HomePage() {
 
     try {
       await navigator.clipboard.writeText(url);
+      triggerHapticFeedback('success');
       setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
     } catch {
+      triggerHapticFeedback('medium');
       setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
     }
   };
@@ -266,64 +268,69 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
+    <main className="app-shell-fade relative min-h-screen overflow-hidden px-4 py-6 md:px-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(49,121,185,0.25)_0%,rgba(49,121,185,0.1)_35%,transparent_70%)]" />
       <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-2xl border border-white/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-accent">Investor Command Center</p>
-              <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
-              <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
-            </div>
-            <div className="w-full max-w-2xl space-y-2">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <p className="text-xs text-muted">Active Deal</p>
-                  <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
-                </div>
-                <Link
-                  href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
-                  target="_blank"
-                >
-                  Print View
-                </Link>
-                <button
-                  type="button"
-                  onClick={shareCurrentDeal}
-                  className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
-                >
-                  Share Link
-                </button>
+        <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="max-w-3xl">
+                <p className="text-xs uppercase tracking-[0.18em] text-accent">Investor Command Center</p>
+                <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
+                <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
               </div>
-              {shareFeedback ? (
-                <div
-                  role="status"
-                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
-                    shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
-                  }`}
-                >
-                  <p>{shareFeedback.message}</p>
-                  {shareFeedback.fallbackUrl ? (
-                    <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
-                  ) : null}
+              <div className="w-full max-w-2xl">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                    <p className="text-xs text-muted">Active Deal</p>
+                    <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                  </div>
+                  <Link
+                    href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
+                    className="btn-primary inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
+                    target="_blank"
+                  >
+                    Print View
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={shareCurrentDeal}
+                    className="btn-primary min-h-11 rounded-xl px-4 py-2 text-sm font-medium"
+                  >
+                    Share Link
+                  </button>
                 </div>
-              ) : null}
-              <DealsVaultPanel
-                deals={deals}
-                activeDealId={activeDealId}
-                saveStatus={saveStatus}
-                onActiveDealChange={openRecentScenario}
-                onSaveAs={saveDealAs}
-                onRename={renameDeal}
-                onCreateNew={createNewDeal}
-                onDelete={removeScenario}
-              />
+              </div>
             </div>
+
+            {shareFeedback ? (
+              <div
+                role="status"
+                className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
+                  shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
+                }`}
+              >
+                <p>{shareFeedback.message}</p>
+                {shareFeedback.fallbackUrl ? (
+                  <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DealsVaultPanel
+              deals={deals}
+              activeDealId={activeDealId}
+              activeDealName={model.purchase.dealName}
+              saveStatus={saveStatus}
+              onActiveDealChange={openRecentScenario}
+              onSaveAs={saveDealAs}
+              onRename={renameDeal}
+              onCreateNew={createNewDeal}
+              onDelete={removeScenario}
+            />
+
           </div>
         </header>
-
-        <RecentScenariosCarousel scenarios={deals} activeDealName={model.purchase.dealName} onOpen={openRecentScenario} />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
@@ -374,7 +381,7 @@ export default function HomePage() {
             winner={activeStrategyLabel}
           />
         </section>
-        <section className="rounded-2xl border border-accent/35 bg-gradient-to-r from-accent/10 via-accent/5 to-transparent p-4 shadow-soft">
+        <section className="accent-edge rounded-2xl p-4 shadow-soft">
           <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -403,9 +410,12 @@ export default function HomePage() {
                     <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
                       <button
                         type="button"
-                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }))}
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                        }}
                         aria-pressed={includeReserves}
-                        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                           includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
                         }`}
                       >
@@ -413,9 +423,12 @@ export default function HomePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }))}
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                        }}
                         aria-pressed={!includeReserves}
-                        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                           !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
                         }`}
                       >
@@ -456,8 +469,11 @@ export default function HomePage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsStrategyWorkOpen(true)}
-                className="rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-accent/20"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  setIsStrategyWorkOpen(true);
+                }}
+                className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
               >
                 Show work
               </button>
@@ -478,6 +494,20 @@ export default function HomePage() {
           <DealInputPanel value={model} onChange={updateModel} />
         </div>
       </div>
+      <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 Investor Command Center. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-3 text-slate-300">
+            <Link href="/legal" className="hover:text-white">Legal Center</Link>
+            <Link href="/legal/terms" className="hover:text-white">Terms</Link>
+            <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted/90">
+          For informational use only. Not financial, legal, tax, or investment advice.
+        </p>
+      </footer>
+
       <StrategyWorkLightbox
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}

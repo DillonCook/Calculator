@@ -79,12 +79,59 @@ const getPayload = (dealRecordOrPayload: DealRecordOrPayload): DealInputModel =>
   return dealRecordOrPayload;
 };
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const areValuesEqual = (left: unknown, right: unknown): boolean => {
+  if (left === right) return true;
+
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false;
+    return left.every((item, index) => areValuesEqual(item, right[index]));
+  }
+
+  if (isPlainObject(left) && isPlainObject(right)) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) return false;
+
+    return leftKeys.every((key) => areValuesEqual(left[key], right[key]));
+  }
+
+  return false;
+};
+
+const stripDefaults = (value: unknown, defaults: unknown): unknown => {
+  if (areValuesEqual(value, defaults)) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isPlainObject(value) || !isPlainObject(defaults)) {
+    return value;
+  }
+
+  const compacted = Object.entries(value).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+    const next = stripDefaults(entry, defaults[key]);
+    if (next !== undefined) {
+      acc[key] = next;
+    }
+    return acc;
+  }, {});
+
+  return Object.keys(compacted).length > 0 ? compacted : undefined;
+};
+
 export const encodeDealToShareParam = (dealRecordOrPayload: DealRecordOrPayload): string => {
   try {
     const payload = normalizeDealInput(getPayload(dealRecordOrPayload));
     if (!payload) return '';
 
-    const serialized = JSON.stringify(payload);
+    const compactPayload = stripDefaults(payload, defaultDealInput) ?? {};
+    const serialized = JSON.stringify(compactPayload);
     if (serialized.length > MAX_SHARE_JSON_LENGTH) return '';
 
     const encoded = compressToEncodedURIComponent(serialized);

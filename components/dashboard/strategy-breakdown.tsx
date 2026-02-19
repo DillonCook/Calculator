@@ -47,7 +47,7 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
   const quickScan = quickScanMap[active];
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+    <section className="overflow-hidden rounded-2xl panel-surface p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wider text-muted">{quickScan.title}</p>
