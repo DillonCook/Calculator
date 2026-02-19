@@ -1,11 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput } from '../lib/models/deal';
-import { createScenarioRecord, encodeScenario } from '../lib/scenario-storage';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
 
