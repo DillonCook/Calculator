@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
-import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
@@ -269,61 +268,65 @@ export default function HomePage() {
     <main className="min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="rounded-2xl border border-white/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-accent">Investor Command Center</p>
-              <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
-              <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
-            </div>
-            <div className="w-full max-w-2xl space-y-2">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <p className="text-xs text-muted">Active Deal</p>
-                  <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
-                </div>
-                <Link
-                  href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
-                  target="_blank"
-                >
-                  Print View
-                </Link>
-                <button
-                  type="button"
-                  onClick={shareCurrentDeal}
-                  className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
-                >
-                  Share Link
-                </button>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="max-w-3xl">
+                <p className="text-xs uppercase tracking-[0.18em] text-accent">Investor Command Center</p>
+                <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
+                <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
               </div>
-              {shareFeedback ? (
-                <div
-                  role="status"
-                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
-                    shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
-                  }`}
-                >
-                  <p>{shareFeedback.message}</p>
-                  {shareFeedback.fallbackUrl ? (
-                    <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
-                  ) : null}
+              <div className="w-full max-w-2xl">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                    <p className="text-xs text-muted">Active Deal</p>
+                    <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                  </div>
+                  <Link
+                    href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
+                    target="_blank"
+                  >
+                    Print View
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={shareCurrentDeal}
+                    className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                  >
+                    Share Link
+                  </button>
                 </div>
-              ) : null}
-              <DealsVaultPanel
-                deals={deals}
-                activeDealId={activeDealId}
-                saveStatus={saveStatus}
-                onActiveDealChange={openRecentScenario}
-                onSaveAs={saveDealAs}
-                onRename={renameDeal}
-                onCreateNew={createNewDeal}
-                onDelete={removeScenario}
-              />
+              </div>
             </div>
+
+            {shareFeedback ? (
+              <div
+                role="status"
+                className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
+                  shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+                }`}
+              >
+                <p>{shareFeedback.message}</p>
+                {shareFeedback.fallbackUrl ? (
+                  <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DealsVaultPanel
+              deals={deals}
+              activeDealId={activeDealId}
+              activeDealName={model.purchase.dealName}
+              saveStatus={saveStatus}
+              onActiveDealChange={openRecentScenario}
+              onSaveAs={saveDealAs}
+              onRename={renameDeal}
+              onCreateNew={createNewDeal}
+              onDelete={removeScenario}
+            />
+
           </div>
         </header>
-
-        <RecentScenariosCarousel scenarios={deals} activeDealName={model.purchase.dealName} onOpen={openRecentScenario} />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
