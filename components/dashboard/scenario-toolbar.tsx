@@ -69,7 +69,7 @@ export function ScenarioToolbar({ model, onLoadScenario }: ScenarioToolbarProps)
   };
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-soft">
+    <section className="rounded-2xl card-surface p-4 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wider text-muted">Scenario Vault</p>
@@ -95,7 +95,7 @@ export function ScenarioToolbar({ model, onLoadScenario }: ScenarioToolbarProps)
           ))}
         </select>
 
-        <button className="rounded-lg bg-accent px-3 py-2 text-sm font-medium" onClick={saveScenario} type="button">
+        <button className="btn-primary rounded-lg px-3 py-2 text-sm font-medium" onClick={saveScenario} type="button">
           Save
         </button>
         <button className="rounded-lg border border-white/10 px-3 py-2 text-sm" onClick={loadScenario} type="button">
@@ -104,7 +104,7 @@ export function ScenarioToolbar({ model, onLoadScenario }: ScenarioToolbarProps)
         <button className="rounded-lg border border-white/10 px-3 py-2 text-sm" onClick={exportScenario} type="button">
           Export
         </button>
-        <button className="rounded-lg border border-rose-500/40 px-3 py-2 text-sm text-rose-200" onClick={removeScenario} type="button">
+        <button className="rounded-lg border border-red-500/50 px-3 py-2 text-sm text-red-200" onClick={removeScenario} type="button">
           Delete
         </button>
       </div>

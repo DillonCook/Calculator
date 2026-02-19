@@ -1,7 +1,7 @@
 'use client';
 
 export const inputClass =
-  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none ring-accent placeholder:text-muted focus:ring-2';
+  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent/60';
 
 export function Input({
   label,
@@ -65,7 +65,7 @@ export function Select({
       <span className="text-xs text-muted">{label}</span>
       <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-panel">
+          <option key={option.value} value={option.value} className="bg-surface">
             {option.label}
           </option>
         ))}

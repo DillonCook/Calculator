@@ -23,7 +23,7 @@ export function StrategyTabs({ active, onChange }: StrategyTabsProps) {
           key={strategy.key}
           className={`tap-feedback snap-start rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out ${
             active === strategy.key
-              ? 'bg-accent text-white shadow-[0_10px_20px_-12px_rgba(45,212,191,0.8)]'
+              ? 'accent-edge text-white'
               : 'bg-white/5 text-muted hover:bg-white/12'
           }`}
           onClick={() => {

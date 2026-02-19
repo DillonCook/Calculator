@@ -47,7 +47,7 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
   }, [value, secondaryValue]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-panel p-4 shadow-soft">
+    <div className="rounded-2xl card-surface p-4 shadow-soft">
       <div className="flex items-center gap-2">
         <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
         {definitions?.length ? (

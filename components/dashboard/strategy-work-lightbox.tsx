@@ -22,8 +22,8 @@ interface StrategyWorkLightboxProps {
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
   <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:text-sm">
     <p className="text-slate-100">{line.label}</p>
-    <p className={`text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(line.monthly)}</p>
-    <p className={`text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(line.annual)}</p>
+    <p className={`text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(line.monthly)}</p>
+    <p className={`text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(line.annual)}</p>
   </div>
 );
 
@@ -61,7 +61,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Total costs</p>
-          <p className="text-lg font-semibold text-rose-300">-{currencyFormatter.format(totalCosts)}</p>
+          <p className="text-lg font-semibold text-slate-200">-{currencyFormatter.format(totalCosts)}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Holding period</p>
@@ -69,7 +69,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Net profit</p>
-          <p className={`text-lg font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(meta.netProfit)}</p>
+          <p className={`text-lg font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(meta.netProfit)}</p>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
           {costItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
               <p className="text-slate-100">{item.label}</p>
-              <p className="text-right text-rose-300">-{currencyFormatter.format(item.total)}</p>
+              <p className="text-right text-slate-200">-{currencyFormatter.format(item.total)}</p>
             </div>
           ))}
         </div>
@@ -90,13 +90,13 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
             <div key={item.key} className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm">
               <p className="text-slate-100">{item.label}</p>
               <p className="text-right text-muted">{currencyFormatter.format(item.monthly)}/mo</p>
-              <p className="text-right text-rose-300">-{currencyFormatter.format(item.total)}</p>
+              <p className="text-right text-slate-200">-{currencyFormatter.format(item.total)}</p>
             </div>
           ))}
           <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-2 border-t border-white/10 pt-2 text-sm">
             <p className="text-slate-100">Holding costs total</p>
             <p className="text-right text-muted">{currencyFormatter.format(meta.holdingCostsTotal / holdingMonths)}/mo</p>
-            <p className="text-right font-semibold text-rose-300">-{currencyFormatter.format(meta.holdingCostsTotal)}</p>
+            <p className="text-right font-semibold text-slate-200">-{currencyFormatter.format(meta.holdingCostsTotal)}</p>
           </div>
         </div>
       </div>
@@ -105,7 +105,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Net profit formula</p>
         <p className="mt-1 text-sm text-slate-200">
           {currencyFormatter.format(meta.salePrice)} - {currencyFormatter.format(totalCosts)} ={' '}
-          <span className={`font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(meta.netProfit)}</span>
+          <span className={`font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(meta.netProfit)}</span>
         </p>
       </div>
     </div>
@@ -119,7 +119,7 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
