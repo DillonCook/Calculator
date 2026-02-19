@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { ScenarioCorner } from '@/components/dashboard/scenario-corner';
@@ -12,8 +12,9 @@ import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-light
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { calculateDeal } from '@/lib/engine/deal-engine';
-import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
+import { defaultDealInput, type DealInputModel, type StrategyKey } from '@/lib/models/deal';
+import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { createDeal, deleteDeal, listDeals, markDealOpened, saveDeal, saveDealAs, type DealRecord } from '@/lib/deals-vault';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -58,7 +59,7 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 export default function HomePage() {
   const [model, setModel] = useState(defaultDealInput);
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('longTerm');
-  const [scenarios, setScenarios] = useState<ScenarioRecord[]>(() => readScenarios());
+  const [scenarios, setScenarios] = useState<DealRecord[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
@@ -94,43 +95,81 @@ export default function HomePage() {
       : activeOutput.monthlyCashFlow;
 
   const selectedScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
+    () => scenarios.find((scenario) => scenario.id === selectedScenarioId),
     [scenarios, selectedScenarioId]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    const initializeVault = async () => {
+      const records = await listDeals();
+      if (!active) return;
+      setScenarios(records);
+    };
+
+    initializeVault().catch(() => {
+      if (!active) return;
+      setScenarios([]);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadScenario = (payload: DealInputModel, scenarioId?: string) => {
     setModel(payload);
     if (scenarioId) setSelectedScenarioId(scenarioId);
   };
 
-  const saveScenario = () => {
-    const existing = scenarios.find((scenario) => scenario.dealName === model.purchase.dealName);
-    const record = createScenarioRecord(model, existing ? { ...existing, payload: model, dealName: model.purchase.dealName } : undefined);
-    const next = upsertScenario(record);
-    setScenarios(next);
-    setSelectedScenarioId(record.scenarioId);
+  const saveScenario = async () => {
+    const existing = scenarios.find((scenario) => scenario.id === selectedScenarioId);
+    if (existing) {
+      const saved = await saveDeal(existing.id, model);
+      if (!saved) return;
+      const refreshed = await listDeals();
+      setScenarios(refreshed);
+      setSelectedScenarioId(saved.id);
+      return;
+    }
+
+    const created = await createDeal(model, model.purchase.dealName);
+    const refreshed = await listDeals();
+    setScenarios(refreshed);
+    setSelectedScenarioId(created.id);
   };
 
-  const openRecentScenario = (scenarioId: string) => {
-    const scenario = scenarios.find((entry) => entry.scenarioId === scenarioId);
+  const openRecentScenario = async (scenarioId: string) => {
+    const scenario = scenarios.find((entry) => entry.id === scenarioId);
     if (!scenario) return;
-    loadScenario(scenario.payload, scenario.scenarioId);
+    await markDealOpened(scenario.id);
+    const refreshed = await listDeals();
+    setScenarios(refreshed);
+    loadScenario(scenario.payload, scenario.id);
   };
 
   const loadSelectedScenario = () => {
     if (!selectedScenario) return;
-    loadScenario(selectedScenario.payload, selectedScenario.scenarioId);
+    loadScenario(selectedScenario.payload, selectedScenario.id);
   };
 
-  const removeScenario = () => {
+  const removeScenario = async () => {
     if (!selectedScenario) return;
-    const next = deleteScenario(selectedScenario.scenarioId);
+    const next = await deleteDeal(selectedScenario.id);
     setScenarios(next);
     setSelectedScenarioId('');
   };
 
   const exportSelectedScenario = () => {
-    const record = selectedScenario ?? createScenarioRecord(model);
+    const record = selectedScenario
+      ? createScenarioRecord(selectedScenario.payload, {
+          dealName: selectedScenario.name,
+          createdAt: selectedScenario.createdAt,
+          updatedAt: selectedScenario.updatedAt,
+          tags: selectedScenario.tags
+        })
+      : createScenarioRecord(model);
     const encoded = encodeScenario(record);
     const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -150,12 +189,12 @@ export default function HomePage() {
     if (!file) return;
 
     const text = await file.text();
-    const parsed = JSON.parse(text) as ScenarioRecord;
-    const next = upsertScenario(parsed);
-    const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
+    const parsed = JSON.parse(text) as { dealName?: string; payload: DealInputModel; tags?: string[] };
+    const imported = await saveDealAs(parsed.payload, parsed.dealName ?? parsed.payload.purchase.dealName, parsed.tags ?? []);
+    const next = await listDeals();
     setScenarios(next);
-    setSelectedScenarioId(parsed.scenarioId);
-    if (imported) loadScenario(imported.payload, imported.scenarioId);
+    setSelectedScenarioId(imported.id);
+    loadScenario(imported.payload, imported.id);
   };
 
   return (
