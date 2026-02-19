@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
+import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
@@ -261,6 +262,18 @@ export default function HomePage() {
     }
   };
 
+  const applyDealWorkoutScenario = (scenario: DealWorkoutScenario) => {
+    triggerHapticFeedback('success');
+    updateModel((current) => ({
+      ...current,
+      purchase: {
+        ...current.purchase,
+        purchasePrice: scenario.adjustments.purchasePrice ?? current.purchase.purchasePrice,
+        downPaymentPercent: scenario.adjustments.downPaymentPercent ?? current.purchase.downPaymentPercent
+      }
+    }));
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedToken = params.get('s');
@@ -504,6 +517,8 @@ export default function HomePage() {
                 ))}
               </ul>
             </div>
+
+            <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
           </div>
         </section>
 
