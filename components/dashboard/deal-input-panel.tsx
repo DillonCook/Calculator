@@ -64,6 +64,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
   const autoTaxAnnual = value.purchase.purchasePrice * 0.017;
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
+  const isOwnedMode = value.purchase.ownershipMode === 'owned';
 
   return (
     <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
@@ -72,6 +73,17 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
         <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-muted sm:py-1 sm:text-xs">Supports decimal inputs</span>
       </div>
 
+      <button
+        type="button"
+        aria-pressed={isOwnedMode}
+        onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
+        className={`mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
+          isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
+        }`}
+      >
+        {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
+      </button>
+
       <div className="space-y-2.5 sm:space-y-3">
         <Section title="Core Inputs · Purchase & Financing" defaultOpen>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
@@ -79,52 +91,82 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <div className="sm:col-span-2">
               <Input label="Listing URL (Zillow, Redfin, etc.)" value={value.purchase.listingUrl} onChange={(v) => update('purchase', 'listingUrl', v)} />
             </div>
-            <Select
-              label="Financing"
-              value={value.purchase.financingType}
-              onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
-              options={[
-                { label: 'Loan', value: 'loan' },
-                { label: 'Cash', value: 'cash' }
-              ]}
-            />
-            {value.purchase.financingType === 'loan' && (
-              <Select
-                label="Amortization"
-                value={value.purchase.amortizationType}
-                onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
-                options={[
-                  { label: 'Principal & Interest (PI)', value: 'PI' },
-                  { label: 'Interest-Only (IO)', value: 'IO' }
-                ]}
-              />
+
+            {!isOwnedMode && (
+              <>
+                <Select
+                  label="Financing"
+                  value={value.purchase.financingType}
+                  onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
+                  options={[
+                    { label: 'Loan', value: 'loan' },
+                    { label: 'Cash', value: 'cash' }
+                  ]}
+                />
+                {value.purchase.financingType === 'loan' && (
+                  <Select
+                    label="Amortization"
+                    value={value.purchase.amortizationType}
+                    onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+                    options={[
+                      { label: 'Principal & Interest (PI)', value: 'PI' },
+                      { label: 'Interest-Only (IO)', value: 'IO' }
+                    ]}
+                  />
+                )}
+                <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
+                <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
+                <PercentInput label="Down payment %" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', v)} />
+                <PercentInput label="Closing costs %" value={value.purchase.closingCostPercent} onChange={(v) => update('purchase', 'closingCostPercent', v)} />
+                <PercentInput label="Interest rate %" value={value.purchase.interestRate} onChange={(v) => update('purchase', 'interestRate', v)} />
+                <PercentInput label="Points on loan %" value={value.purchase.pointsPercent} onChange={(v) => update('purchase', 'pointsPercent', v)} />
+                <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
+              </>
             )}
-            <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
-            <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
-            <PercentInput label="Down payment %" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', v)} />
-            <PercentInput label="Closing costs %" value={value.purchase.closingCostPercent} onChange={(v) => update('purchase', 'closingCostPercent', v)} />
-            <PercentInput label="Interest rate %" value={value.purchase.interestRate} onChange={(v) => update('purchase', 'interestRate', v)} />
-            <PercentInput label="Points on loan %" value={value.purchase.pointsPercent} onChange={(v) => update('purchase', 'pointsPercent', v)} />
-            <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
+
+            {isOwnedMode && (
+              <>
+                <Input
+                  label="Existing mortgage payment / month"
+                  type="number"
+                  value={value.purchase.existingMortgageMonthly}
+                  onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
+                />
+                <Input
+                  label="Property tax / month"
+                  type="number"
+                  value={value.purchase.existingTaxMonthly}
+                  onChange={(v) => update('purchase', 'existingTaxMonthly', Number(v))}
+                />
+                <Input
+                  label="Insurance / month"
+                  type="number"
+                  value={value.purchase.existingInsuranceMonthly}
+                  onChange={(v) => update('purchase', 'existingInsuranceMonthly', Number(v))}
+                />
+              </>
+            )}
+
             <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
             <Input label="PMI monthly" type="number" value={value.purchase.pmiMonthly} onChange={(v) => update('purchase', 'pmiMonthly', Number(v))} />
           </div>
 
-
-          <div className="mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
-            <Input
-              label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
-              type="number"
-              value={value.purchase.propertyTaxAnnualOverride ?? ''}
-              onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
-            />
-            <Input
-              label={`Insurance override (auto ${currencyFormatter.format(autoInsuranceAnnual)})`}
-              type="number"
-              value={value.purchase.insuranceAnnualOverride ?? ''}
-              onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
-            />
-          </div>
+          {!isOwnedMode && (
+            <div className="mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
+              <Input
+                label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
+                type="number"
+                value={value.purchase.propertyTaxAnnualOverride ?? ''}
+                onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
+              />
+              <Input
+                label={`Insurance override (auto ${currencyFormatter.format(autoInsuranceAnnual)})`}
+                type="number"
+                value={value.purchase.insuranceAnnualOverride ?? ''}
+                onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
+              />
+            </div>
+          )}
 
           <div className="mt-2.5 rounded-lg border border-white/10 bg-white/[0.02] p-2.5 sm:mt-3 sm:p-3">
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted sm:mb-2 sm:text-xs">Advanced Financing</p>
@@ -154,7 +196,6 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
               />
             </div>
           </div>
-
         </Section>
 
         <Section title="Core Inputs · Variable Expense Matrix" defaultOpen>
@@ -205,7 +246,6 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             ))}
           </div>
         </Section>
-
       </div>
     </section>
   );

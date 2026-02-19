@@ -9,6 +9,7 @@ export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
 export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
 export interface PurchaseInputs {
+  ownershipMode: 'purchase' | 'owned';
   dealName: string;
   listingUrl: string;
   purchasePrice: number;
@@ -30,6 +31,9 @@ export interface PurchaseInputs {
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
   pmiMonthly: number;
+  existingMortgageMonthly: number;
+  existingTaxMonthly: number;
+  existingInsuranceMonthly: number;
 }
 
 export interface LongTermInputs {
@@ -202,6 +206,7 @@ export interface ScenarioRecord {
 
 export const defaultDealInput: DealInputModel = {
   purchase: {
+    ownershipMode: 'purchase',
     dealName: 'Tampa Duplex - Sample Deal',
     listingUrl: '',
     purchasePrice: 285000,
@@ -222,7 +227,10 @@ export const defaultDealInput: DealInputModel = {
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
     hoaMonthly: 0,
-    pmiMonthly: 0
+    pmiMonthly: 0,
+    existingMortgageMonthly: 0,
+    existingTaxMonthly: 0,
+    existingInsuranceMonthly: 0
   },
   longTerm: {
     grossRentMonthly: 0,
