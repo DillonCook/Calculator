@@ -1,9 +1,9 @@
 'use client';
 
-import type { ScenarioRecord } from '@/lib/models/deal';
+import type { DealRecord } from '@/lib/deals-vault';
 
 interface RecentScenariosCarouselProps {
-  scenarios: ScenarioRecord[];
+  scenarios: DealRecord[];
   activeDealName: string;
   onOpen: (scenarioId: string) => void;
 }
@@ -27,17 +27,17 @@ export function RecentScenariosCarousel({ scenarios, activeDealName, onOpen }: R
       </div>
       <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
         {scenarios.slice(0, 12).map((scenario) => {
-          const isActive = scenario.dealName === activeDealName;
+          const isActive = scenario.name === activeDealName;
           return (
             <button
-              key={scenario.scenarioId}
+              key={scenario.id}
               type="button"
-              onClick={() => onOpen(scenario.scenarioId)}
+              onClick={() => onOpen(scenario.id)}
               className={`snap-start rounded-xl border px-3 py-2 text-left transition ${
                 isActive ? 'border-accent/60 bg-accent/20' : 'border-white/10 bg-white/5 hover:bg-white/10'
               }`}
             >
-              <p className="line-clamp-1 min-w-[180px] text-sm font-medium">{scenario.dealName}</p>
+              <p className="line-clamp-1 min-w-[180px] text-sm font-medium">{scenario.name}</p>
               <p className="text-xs text-muted">Updated {dateFormatter.format(new Date(scenario.updatedAt))}</p>
             </button>
           );
