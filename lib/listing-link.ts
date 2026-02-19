@@ -26,6 +26,8 @@ const STREET_SUFFIXES = new Set([
   'parkway'
 ]);
 
+const ADDRESS_PATTERN = /\b(\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Ln|Lane|Blvd|Boulevard|Ct|Court|Cir|Circle|Way|Trl|Trail|Pl|Place|Ter|Terrace|Pkwy|Parkway))\s*,\s*([A-Za-z][A-Za-z\s.'-]{1,30})\b/i;
+
 const toTitleCase = (value: string) =>
   value
     .toLowerCase()
@@ -74,6 +76,27 @@ const candidateSlugsFromPath = (pathname: string): string[] => {
     .filter((value) => /\d/.test(value) && value.includes('-'));
 };
 
+const extractAddressFromText = (input: string): string | null => {
+  const match = input.match(ADDRESS_PATTERN);
+  if (!match) return null;
+
+  const street = toTitleCase(match[1].replace(/\s+/g, ' ').trim());
+  const city = toTitleCase(match[2].replace(/\s+/g, ' ').trim());
+  return `${street}, ${city}`;
+};
+
+const extractMetaContent = (html: string, property: string): string | null => {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
+  const match = html.match(regex);
+  return match?.[1]?.trim() || null;
+};
+
+const extractTitle = (html: string): string | null => {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return match?.[1]?.trim() || null;
+};
+
 export const normalizeListingUrl = (raw: string): string => {
   const trimmed = raw.trim();
   if (!trimmed) return '';
@@ -103,4 +126,22 @@ export const extractDealNameFromListingUrl = (raw: string): string | null => {
   } catch {
     return null;
   }
+};
+
+export const extractDealNameFromListingHtml = (html: string): string | null => {
+  if (!html.trim()) return null;
+
+  const candidates = [
+    extractMetaContent(html, 'og:title'),
+    extractMetaContent(html, 'twitter:title'),
+    extractMetaContent(html, 'description'),
+    extractTitle(html)
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    const extracted = extractAddressFromText(candidate);
+    if (extracted) return extracted;
+  }
+
+  return extractAddressFromText(html);
 };

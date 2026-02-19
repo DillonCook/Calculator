@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -227,6 +227,21 @@ export default function HomePage() {
     setActiveDealId('');
     setSaveStatus('idle');
   };
+
+
+  const resolveListingDealName = useCallback(async (rawUrl: string) => {
+    const listingUrl = normalizeListingUrl(rawUrl);
+    if (!listingUrl) return null;
+
+    try {
+      const response = await fetch(`/api/listing-preview?url=${encodeURIComponent(listingUrl)}`);
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { dealName?: string | null };
+      return payload.dealName?.trim() || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const shareCurrentDeal = async () => {
     const encoded = encodeDealToShareParam(model);
@@ -539,7 +554,7 @@ export default function HomePage() {
           </div>
 
           <div className="hidden md:block">
-            <DealInputPanel value={model} onChange={updateModel} />
+            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
           </div>
         </div>
       </div>
@@ -563,7 +578,7 @@ export default function HomePage() {
               </button>
             </div>
             {mobileInputSheet === "core" ? (
-              <DealInputPanel value={model} onChange={updateModel} />
+              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
             ) : (
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             )}
