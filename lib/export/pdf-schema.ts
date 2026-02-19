@@ -1,9 +1,16 @@
 import type { DealInputModel, DealResult, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { normalizeListingUrl } from '@/lib/listing-link';
+
+export interface PdfReportRow {
+  label: string;
+  value: string;
+  href?: string;
+}
 
 export interface PdfReportSection {
   title: string;
-  rows: { label: string; value: string }[];
+  rows: PdfReportRow[];
 }
 
 export interface PdfReportSchema {
@@ -20,6 +27,7 @@ export interface PdfReportSchema {
   variableExpenseDetail: PdfReportSection;
   financingSnapshot: PdfReportSection;
   assumptions: PdfReportSection;
+  listingReference: PdfReportSection;
 }
 
 const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
@@ -148,6 +156,17 @@ export const createPdfReportSchema = (
         { label: 'Appreciation', value: percentFormatter.format(input.assumptions.annualAppreciationPercent) },
         { label: 'Selling Cost', value: percentFormatter.format(input.assumptions.sellingCostPercent) }
       ]
-    }
+    },
+
+    listingReference: {
+      title: 'Listing Reference',
+      rows: [
+        {
+          label: 'Source URL',
+          value: input.purchase.listingUrl || 'Not provided',
+          href: input.purchase.listingUrl ? normalizeListingUrl(input.purchase.listingUrl) : undefined
+        }
+      ]
+    },
   };
 };
