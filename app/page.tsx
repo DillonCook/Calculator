@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
-import { ScenarioCorner } from '@/components/dashboard/scenario-corner';
+import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
+import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, decodeScenario, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
@@ -54,12 +55,15 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
   ]
 };
 
+const initialDeals = readDealsFromVault();
+const initialActiveDeal = initialDeals[0];
 
 export default function HomePage() {
-  const [model, setModel] = useState(defaultDealInput);
+  const [model, setModel] = useState(initialActiveDeal?.payload ?? defaultDealInput);
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('longTerm');
-  const [scenarios, setScenarios] = useState<ScenarioRecord[]>(() => readScenarios());
-  const [selectedScenarioId, setSelectedScenarioId] = useState('');
+  const [deals, setDeals] = useState<ScenarioRecord[]>(initialDeals);
+  const [activeDealId, setActiveDealId] = useState(initialActiveDeal?.scenarioId ?? '');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
     purchase: true,
@@ -69,6 +73,7 @@ export default function HomePage() {
     brrrr: true,
     flip: true
   });
+  const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -93,69 +98,116 @@ export default function HomePage() {
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
 
-  const selectedScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId),
-    [scenarios, selectedScenarioId]
+  const activeDeal = useMemo(
+    () => deals.find((deal) => deal.scenarioId === activeDealId),
+    [deals, activeDealId]
   );
 
-  const loadScenario = (payload: DealInputModel, scenarioId?: string) => {
+  const loadScenario = (payload: DealInputModel, dealId?: string) => {
     setModel(payload);
-    if (scenarioId) setSelectedScenarioId(scenarioId);
+    if (dealId) setActiveDealId(dealId);
   };
 
-  const saveScenario = () => {
-    const existing = scenarios.find((scenario) => scenario.dealName === model.purchase.dealName);
-    const record = createScenarioRecord(model, existing ? { ...existing, payload: model, dealName: model.purchase.dealName } : undefined);
-    const next = upsertScenario(record);
-    setScenarios(next);
-    setSelectedScenarioId(record.scenarioId);
+  const updateModel: Dispatch<SetStateAction<DealInputModel>> = (nextModel) => {
+    if (activeDealId) setSaveStatus('saving');
+    setModel(nextModel);
+  };
+
+  useEffect(() => {
+    if (!activeDealId || saveStatus !== 'saving') return;
+
+    const timer = window.setTimeout(() => {
+      const existing = readDealsFromVault().find((deal) => deal.scenarioId === activeDealId);
+      if (!existing) {
+        setSaveStatus('idle');
+        return;
+      }
+
+      const updatedDeal: ScenarioRecord = {
+        ...existing,
+        payload: model,
+        dealName: model.purchase.dealName
+      };
+
+      const nextDeals = saveDealToVault(updatedDeal);
+      setDeals(nextDeals);
+      setSaveStatus('saved');
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [model, activeDealId, saveStatus]);
+
+  useEffect(() => {
+    if (saveStatus !== 'saved') return;
+    const timer = window.setTimeout(() => setSaveStatus('idle'), 1500);
+    return () => window.clearTimeout(timer);
+  }, [saveStatus]);
+
+  const saveDealAs = (dealName: string) => {
+    const record = createDealInVault(model, dealName);
+    const next = saveDealToVault(record);
+    setModel(record.payload);
+    setDeals(next);
+    setActiveDealId(record.scenarioId);
+    setSaveStatus('saved');
+  };
+
+  const renameDeal = (dealName: string) => {
+    if (!activeDeal) return;
+    const payload = {
+      ...model,
+      purchase: {
+        ...model.purchase,
+        dealName
+      }
+    };
+
+    setModel(payload);
+    const next = saveDealToVault({ ...activeDeal, dealName, payload });
+    setDeals(next);
+    setSaveStatus('saved');
+  };
+
+  const duplicateDeal = () => {
+    if (!activeDeal) return;
+    const duplicatedName = `${activeDeal.dealName} Copy`;
+    const duplicate = createDealInVault(activeDeal.payload, duplicatedName);
+    const next = saveDealToVault(duplicate);
+    setDeals(next);
+    setActiveDealId(duplicate.scenarioId);
+    setModel(duplicate.payload);
+    setSaveStatus('saved');
   };
 
   const openRecentScenario = (scenarioId: string) => {
-    const scenario = scenarios.find((entry) => entry.scenarioId === scenarioId);
+    const scenario = deals.find((entry) => entry.scenarioId === scenarioId);
     if (!scenario) return;
     loadScenario(scenario.payload, scenario.scenarioId);
   };
 
-  const loadSelectedScenario = () => {
-    if (!selectedScenario) return;
-    loadScenario(selectedScenario.payload, selectedScenario.scenarioId);
-  };
-
   const removeScenario = () => {
-    if (!selectedScenario) return;
-    const next = deleteScenario(selectedScenario.scenarioId);
-    setScenarios(next);
-    setSelectedScenarioId('');
+    if (!activeDeal) return;
+    const next = removeDealFromVault(activeDeal.scenarioId);
+    setDeals(next);
+    setActiveDealId('');
+    setSaveStatus('idle');
   };
 
-  const exportSelectedScenario = () => {
-    const record = selectedScenario ?? createScenarioRecord(model);
-    const encoded = encodeScenario(record);
-    const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${record.dealName.replace(/\s+/g, '-').toLowerCase()}-scenario.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  const shareCurrentDeal = async () => {
+    const encoded = encodeDealToShareParam(selectedScenario ?? model);
+    if (!encoded) {
+      setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
+      return;
+    }
 
-    navigator.clipboard.writeText(encoded).catch(() => {
-      // noop clipboard fallback
-    });
-  };
+    const url = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
 
-  const importScenario = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const text = await file.text();
-    const parsed = JSON.parse(text) as ScenarioRecord;
-    const next = upsertScenario(parsed);
-    const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
-    setScenarios(next);
-    setSelectedScenarioId(parsed.scenarioId);
-    if (imported) loadScenario(imported.payload, imported.scenarioId);
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
+    } catch {
+      setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
+    }
   };
 
   useEffect(() => {
@@ -201,7 +253,27 @@ export default function HomePage() {
                 >
                   Print View
                 </Link>
+                <button
+                  type="button"
+                  onClick={shareCurrentDeal}
+                  className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                >
+                  Share Link
+                </button>
               </div>
+              {shareFeedback ? (
+                <div
+                  role="status"
+                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
+                    shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+                  }`}
+                >
+                  <p>{shareFeedback.message}</p>
+                  {shareFeedback.fallbackUrl ? (
+                    <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                  ) : null}
+                </div>
+              ) : null}
               <ScenarioCorner
                 scenarios={scenarios}
                 selectedId={selectedScenarioId}
@@ -210,13 +282,12 @@ export default function HomePage() {
                 onLoad={loadSelectedScenario}
                 onExport={exportSelectedScenario}
                 onDelete={removeScenario}
-                onImport={importScenario}
               />
             </div>
           </div>
         </header>
 
-        <RecentScenariosCarousel scenarios={scenarios} activeDealName={model.purchase.dealName} onOpen={openRecentScenario} />
+        <RecentScenariosCarousel scenarios={deals} activeDealName={model.purchase.dealName} onOpen={openRecentScenario} />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
@@ -356,19 +427,19 @@ export default function HomePage() {
               </button>
             </div>
             <section className="grid gap-3">
-              <StrategyModuleInputs active={activeStrategy} model={model} onChange={setModel} />
+              <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             </section>
             <TimelineCard
               output={result[activeStrategy]}
               assumptions={model.assumptions}
               onAssumptionsChange={(updates) =>
-                setModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
+                updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
               }
             />
             <StrategyComparison data={result} />
           </div>
 
-          <DealInputPanel value={model} onChange={setModel} />
+          <DealInputPanel value={model} onChange={updateModel} />
         </div>
       </div>
       <StrategyWorkLightbox
