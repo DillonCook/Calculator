@@ -74,6 +74,13 @@ npm run lint
 npm run build
 ```
 
+## Legal baseline included
+
+- Proprietary `LICENSE` with all-rights-reserved language.
+- In-app Legal Center at `/legal`.
+- Terms of Use at `/legal/terms` (IP ownership, disclaimers, liability limits).
+- Privacy Policy at `/legal/privacy` (local storage + share-link data handling disclosures).
+
 ## Next recommended steps
 
 1. Add backend sync for scenario records (same schema, API-ready).

@@ -493,6 +493,20 @@ export default function HomePage() {
           <DealInputPanel value={model} onChange={updateModel} />
         </div>
       </div>
+      <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 Investor Command Center. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-3 text-slate-300">
+            <Link href="/legal" className="hover:text-white">Legal Center</Link>
+            <Link href="/legal/terms" className="hover:text-white">Terms</Link>
+            <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted/90">
+          For informational use only. Not financial, legal, tax, or investment advice.
+        </p>
+      </footer>
+
       <StrategyWorkLightbox
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}
