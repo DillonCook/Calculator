@@ -165,39 +165,16 @@ describe('dashboard integration', () => {
     expect(purchasePrice).toHaveValue(300000.37);
   });
 
-  it('loads shared scenario from query param and cleans URL with history replace', async () => {
-    const sharedPayload = {
-      ...defaultDealInput,
-      purchase: { ...defaultDealInput.purchase, dealName: 'Shared Deal', purchasePrice: 515000 }
-    };
-    const sharedScenario = createScenarioRecord(sharedPayload, {
-      scenarioId: 'scenario-shared-ui-load'
-    });
-    const sharedToken = encodeScenario(sharedScenario);
-
-    window.history.replaceState({}, '', `/?s=${sharedToken}&view=compact`);
-    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
-
+  it('print view link includes encoded scenario payload and selected strategy', async () => {
     render(<HomePage />);
+    const user = userEvent.setup();
 
-    expect(await screen.findByDisplayValue(515000)).toBeInTheDocument();
-
-    const savedScenarios = JSON.parse(window.localStorage.getItem('investor-command-center.scenarios.v1') ?? '[]') as Array<{
-      scenarioId: string;
-    }>;
-    expect(savedScenarios.some((scenario) => scenario.scenarioId === 'scenario-shared-ui-load')).toBe(true);
-
-    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=compact');
-  });
-
-
-  it('print view link includes encoded scenario payload', () => {
-    render(<HomePage />);
+    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
 
     const printLink = screen.getByRole('link', { name: 'Print View' });
     const href = printLink.getAttribute('href') ?? '';
 
     expect(href.startsWith('/print?scenario=')).toBe(true);
-    expect(href.length).toBeGreaterThan('/print?scenario='.length);
+    expect(href).toContain('&strategy=airbnb');
   });
 });

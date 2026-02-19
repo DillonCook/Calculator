@@ -1,4 +1,4 @@
-import type { DealInputModel, DealResult, StrategyKey } from '@/lib/models/deal';
+import type { DealInputModel, DealResult, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 export interface PdfReportSection {
@@ -8,11 +8,18 @@ export interface PdfReportSection {
 
 export interface PdfReportSchema {
   title: string;
+  subtitle: string;
   generatedAt: string;
   dealName: string;
-  assumptions: PdfReportSection;
+  selectedStrategy: StrategyKey;
+  selectedStrategyLabel: string;
   summary: PdfReportSection;
-  strategySections: PdfReportSection[];
+  strategyHighlights: PdfReportSection;
+  underwritingWork: PdfReportSection;
+  taxAndInsuranceDetail: PdfReportSection;
+  variableExpenseDetail: PdfReportSection;
+  financingSnapshot: PdfReportSection;
+  assumptions: PdfReportSection;
 }
 
 const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
@@ -23,46 +30,124 @@ const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
   flip: 'Flip'
 };
 
-export const createPdfReportSchema = (input: DealInputModel, result: DealResult): PdfReportSchema => {
-  const strategySections = (Object.keys(strategyLabels) as (keyof typeof strategyLabels)[]).map((key) => {
-    const row = result[key];
+const strategyBadgeCopy: Record<Exclude<StrategyKey, 'purchase'>, string> = {
+  longTerm: 'Stable recurring rent profile with conservative underwriting.',
+  airbnb: 'Revenue-optimized short-term rental profile with active operations.',
+  padSplit: 'Room-by-room yield profile focused on max revenue per square foot.',
+  brrrr: 'Capital recycling profile optimized for refinance velocity.',
+  flip: 'Speed-to-profit profile focused on renovation and resale execution.'
+};
 
-    return {
-      title: strategyLabels[key],
-      rows: [
-        { label: 'Monthly Cash Flow', value: currencyFormatter.format(row.monthlyCashFlow) },
-        { label: 'Annual Cash Flow', value: currencyFormatter.format(row.annualCashFlow) },
-        { label: 'Cash-on-Cash Return', value: percentFormatter.format(row.cashOnCashReturn) },
-        { label: 'ROI', value: percentFormatter.format(row.roi) },
-        { label: 'IRR', value: percentFormatter.format(row.irr) },
-        { label: 'Sale Proceeds (Hold End)', value: currencyFormatter.format(row.saleProceeds ?? 0) }
-      ]
-    };
-  });
+const formatDscr = (value: number) => value.toFixed(2);
+const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+const getSelectedOutput = (result: DealResult, strategy: Exclude<StrategyKey, 'purchase'>): StrategyOutput => result[strategy];
+
+const getVariableExpenseStrategy = (input: DealInputModel, selectedStrategy: Exclude<StrategyKey, 'purchase'>): ExpenseStrategyKey => {
+  if (selectedStrategy === 'brrrr') return input.brrrr.operatingStrategy;
+  return selectedStrategy;
+};
+
+const toWorkRows = (lines: StrategyCalculationLineItem[]) => {
+  return lines.map((line) => ({
+    label: line.label,
+    value: `${formatCurrency(line.monthly)} /mo (${formatCurrency(line.annual)} /yr)`
+  }));
+};
+
+export const createPdfReportSchema = (
+  input: DealInputModel,
+  result: DealResult,
+  selectedStrategy: Exclude<StrategyKey, 'purchase'> = 'longTerm'
+): PdfReportSchema => {
+  const strategyOutput = getSelectedOutput(result, selectedStrategy);
+  const effectiveValue = selectedStrategy === 'flip' ? strategyOutput.saleProceeds ?? 0 : strategyOutput.monthlyCashFlow;
+  const annualTax = input.purchase.propertyTaxAnnualOverride ?? input.purchase.purchasePrice * 0.017;
+  const annualInsurance = input.purchase.insuranceAnnualOverride ?? input.purchase.purchasePrice * 0.01;
+  const variableExpenseStrategy = getVariableExpenseStrategy(input, selectedStrategy);
+  const variableExpenses = input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy]);
 
   return {
-    title: 'Investor Command Center - Deal Report',
+    title: 'Investor Command Center',
+    subtitle: strategyBadgeCopy[selectedStrategy],
     generatedAt: new Date().toISOString(),
     dealName: input.purchase.dealName,
+    selectedStrategy,
+    selectedStrategyLabel: strategyLabels[selectedStrategy],
+    summary: {
+      title: 'Executive Summary',
+      rows: [
+        { label: 'Selected Strategy', value: strategyLabels[selectedStrategy] },
+        { label: 'Cash to Close', value: formatCurrency(result.purchase.totalCashNeeded) },
+        { label: 'Total Cash Invested', value: formatCurrency(strategyOutput.totalCashNeeded) },
+        { label: 'Cap Rate', value: percentFormatter.format(strategyOutput.capRate) },
+        { label: 'Cash-on-Cash Return', value: percentFormatter.format(strategyOutput.cashOnCashReturn) },
+        { label: 'DSCR', value: formatDscr(strategyOutput.dscr) }
+      ]
+    },
+    strategyHighlights: {
+      title: 'Performance Highlights',
+      rows: [
+        { label: selectedStrategy === 'flip' ? 'Net Sale Proceeds' : 'Monthly Cash Flow', value: formatCurrency(effectiveValue) },
+        { label: 'Annual Cash Flow', value: formatCurrency(strategyOutput.annualCashFlow) },
+        { label: 'NOI (Monthly)', value: formatCurrency(strategyOutput.noiMonthly ?? 0) },
+        { label: 'ROI', value: percentFormatter.format(strategyOutput.roi) },
+        { label: 'IRR', value: percentFormatter.format(strategyOutput.irr) },
+        { label: 'Projected Sale Proceeds (Hold End)', value: formatCurrency(strategyOutput.saleProceeds ?? 0) }
+      ]
+    },
+    underwritingWork: {
+      title: 'How These Numbers Were Calculated',
+      rows: strategyOutput.calculationBreakdown ? toWorkRows(strategyOutput.calculationBreakdown.lines) : [{ label: 'Calculation lines', value: 'Not available' }]
+    },
+    taxAndInsuranceDetail: {
+      title: 'Taxes, Insurance & Fixed Carry Costs',
+      rows: [
+        { label: 'Property Tax', value: `${formatCurrency(annualTax / 12)} /mo (${formatCurrency(annualTax)} /yr)` },
+        { label: 'Insurance', value: `${formatCurrency(annualInsurance / 12)} /mo (${formatCurrency(annualInsurance)} /yr)` },
+        { label: 'HOA', value: `${formatCurrency(input.purchase.hoaMonthly)} /mo (${formatCurrency(input.purchase.hoaMonthly * 12)} /yr)` },
+        { label: 'PMI', value: `${formatCurrency(input.purchase.pmiMonthly)} /mo (${formatCurrency(input.purchase.pmiMonthly * 12)} /yr)` },
+        {
+          label: 'Total Fixed Carry',
+          value: `${formatCurrency(annualTax / 12 + annualInsurance / 12 + input.purchase.hoaMonthly + input.purchase.pmiMonthly)} /mo`
+        }
+      ]
+    },
+    variableExpenseDetail: {
+      title: `Variable Expenses (${strategyLabels[selectedStrategy]})`,
+      rows:
+        variableExpenses.length > 0
+          ? [
+              ...variableExpenses.map((expense) => ({
+                label: expense.label,
+                value: `${formatCurrency(expense.monthlyAmount)} /mo (${formatCurrency(expense.monthlyAmount * 12)} /yr)`
+              })),
+              {
+                label: 'Total Variable Expenses',
+                value: `${formatCurrency(variableExpenses.reduce((sum, expense) => sum + expense.monthlyAmount, 0))} /mo`
+              }
+            ]
+          : [{ label: 'Variable expenses', value: 'None configured for this strategy' }]
+    },
+    financingSnapshot: {
+      title: 'Financing Snapshot',
+      rows: [
+        { label: 'Purchase Price', value: formatCurrency(input.purchase.purchasePrice) },
+        { label: 'Rehab Budget', value: formatCurrency(input.purchase.rehabBudget) },
+        { label: 'Loan Type', value: input.purchase.financingType === 'cash' ? 'Cash Purchase' : 'Financed' },
+        { label: 'Interest Rate', value: percentFormatter.format(input.purchase.interestRate) },
+        { label: 'Loan Term', value: `${input.purchase.loanTermYears} years` },
+        { label: 'Points', value: percentFormatter.format(input.purchase.pointsPercent) }
+      ]
+    },
     assumptions: {
-      title: 'Master Assumptions',
+      title: 'Market Assumptions',
       rows: [
         { label: 'Hold Period', value: `${input.assumptions.holdYears} years` },
         { label: 'NOI Growth', value: percentFormatter.format(input.assumptions.noiGrowthPercent) },
         { label: 'Appreciation', value: percentFormatter.format(input.assumptions.annualAppreciationPercent) },
         { label: 'Selling Cost', value: percentFormatter.format(input.assumptions.sellingCostPercent) }
       ]
-    },
-    summary: {
-      title: 'Master Summary',
-      rows: [
-        { label: 'Cash to Close', value: currencyFormatter.format(result.masterSummary.cashToClose) },
-        { label: 'Best Monthly Cash Flow', value: currencyFormatter.format(result.masterSummary.monthlyCashFlow) },
-        { label: 'Best Cash-on-Cash Return', value: percentFormatter.format(result.masterSummary.cashOnCashReturn) },
-        { label: 'Best ROI', value: percentFormatter.format(result.masterSummary.roi) },
-        { label: 'Best IRR', value: percentFormatter.format(result.masterSummary.irr) }
-      ]
-    },
-    strategySections
+    }
   };
 };
