@@ -286,19 +286,15 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="tap-feedback inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/25"
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
                     target="_blank"
-                    onClick={() => triggerHapticFeedback('light')}
                   >
                     Print View
                   </Link>
                   <button
                     type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      void shareCurrentDeal();
-                    }}
-                    className="tap-feedback min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition-all duration-200 hover:bg-white/15"
+                    onClick={shareCurrentDeal}
+                    className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
                   >
                     Share Link
                   </button>
