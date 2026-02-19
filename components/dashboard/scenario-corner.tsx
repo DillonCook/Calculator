@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import type { ScenarioRecord } from '@/lib/models/deal';
 
@@ -16,6 +16,8 @@ interface DealsVaultPanelProps {
   onDelete: () => void;
 }
 
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+
 export function DealsVaultPanel({
   deals,
   activeDealId,
@@ -28,16 +30,24 @@ export function DealsVaultPanel({
   onDelete
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
 
   const activeDeal = useMemo(() => deals.find((deal) => deal.scenarioId === activeDealId), [deals, activeDealId]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 120);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const hasSearchQuery = normalizedSearch.length > 0;
+
   const filteredDeals = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return [];
     return deals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
-  }, [deals, search]);
+  }, [deals, normalizedSearch]);
 
   const hasSearchQuery = search.trim().length > 0;
 
@@ -84,23 +94,27 @@ export function DealsVaultPanel({
           <RecentScenariosCarousel scenarios={deals} activeDealName={activeDealName} onOpen={onActiveDealChange} />
 
           {hasSearchQuery ? (
-            <div className="max-h-44 space-y-1.5 overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-1.5 sm:max-h-48 sm:p-2">
+            <div className="rounded-xl border border-white/10 bg-black/10 p-2">
               {filteredDeals.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-muted">No deals match this search.</p>
+                <p className="px-1 py-1.5 text-xs text-muted">No deals match this search.</p>
               ) : (
-                filteredDeals.map((deal) => (
-                  <button
-                    key={deal.scenarioId}
-                    type="button"
-                    onClick={() => onActiveDealChange(deal.scenarioId)}
-                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                      deal.scenarioId === activeDealId ? 'border-accent bg-accent/15' : 'border-white/10 bg-white/5'
-                    }`}
-                  >
-                    <p className="font-medium">{deal.dealName}</p>
-                    <p className="text-xs text-muted">Updated {new Date(deal.updatedAt).toLocaleDateString()}</p>
-                  </button>
-                ))
+                <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+                  {filteredDeals.map((deal) => (
+                    <button
+                      key={deal.scenarioId}
+                      type="button"
+                      onClick={() => onActiveDealChange(deal.scenarioId)}
+                      className={`min-w-[190px] snap-start rounded-lg border px-3 py-2 text-left text-sm transition sm:min-w-[220px] ${
+                        deal.scenarioId === activeDealId
+                          ? 'border-accent bg-accent/15'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <p className="line-clamp-1 font-medium">{deal.dealName}</p>
+                      <p className="text-xs text-muted">Updated {dateFormatter.format(new Date(deal.updatedAt))}</p>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           ) : null}
