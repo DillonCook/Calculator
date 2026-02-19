@@ -10,7 +10,7 @@ interface DealsVaultPanelProps {
   onActiveDealChange: (id: string) => void;
   onSaveAs: (dealName: string) => void;
   onRename: (dealName: string) => void;
-  onDuplicate: () => void;
+  onCreateNew: () => void;
   onDelete: () => void;
 }
 
@@ -21,7 +21,7 @@ export function DealsVaultPanel({
   onActiveDealChange,
   onSaveAs,
   onRename,
-  onDuplicate,
+  onCreateNew,
   onDelete
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
@@ -108,11 +108,10 @@ export function DealsVaultPanel({
           </button>
           <button
             className="min-h-11 rounded-xl border border-white/10 px-3 text-sm"
-            onClick={onDuplicate}
+            onClick={onCreateNew}
             type="button"
-            disabled={!activeDeal}
           >
-            Duplicate
+            New
           </button>
           <button
             className="min-h-11 rounded-xl border border-rose-500/40 px-3 text-sm text-rose-200"
