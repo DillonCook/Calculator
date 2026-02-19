@@ -229,6 +229,9 @@ export default function HomePage() {
   };
 
 
+
+  const resolveListingDealName = useCallback(async () => null, []);
+
   const shareCurrentDeal = async () => {
     const encoded = encodeDealToShareParam(model);
     if (!encoded) {
