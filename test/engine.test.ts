@@ -648,7 +648,8 @@ test('scenario encode/decode preserves unicode payloads in server context', () =
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
-      dealName: 'São Paulo Duplex 🏠'
+      dealName: 'São Paulo Duplex 🏠',
+      listingUrl: 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
     }
   };
   const scenario = createScenarioRecord(model);
@@ -681,4 +682,22 @@ test('pdf schema includes underwriting work, taxes/insurance, and variable expen
   assert.ok(report.taxAndInsuranceDetail.rows.some((row) => row.label === 'Property Tax'));
   assert.ok(report.taxAndInsuranceDetail.rows.some((row) => row.label === 'Insurance'));
   assert.ok(report.variableExpenseDetail.rows.some((row) => row.label === 'Total Variable Expenses'));
+
+  assert.equal(report.listingReference.rows[0]?.label, 'Source URL');
+  assert.equal(report.listingReference.rows[0]?.value, 'Not provided');
+});
+
+
+test('pdf schema emits clickable listing reference when listing URL exists', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      listingUrl: 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
+    }
+  };
+  const result = calculateDeal(model);
+  const report = createPdfReportSchema(model, result, 'longTerm');
+
+  assert.equal(report.listingReference.rows[0]?.href, model.purchase.listingUrl);
 });

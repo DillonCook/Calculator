@@ -3,6 +3,7 @@
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
+import { extractDealNameFromListingUrl } from '@/lib/listing-link';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -27,6 +28,20 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           ...value.purchase,
           purchasePrice: nextPurchasePrice,
           arv: shouldSyncArv ? nextPurchasePrice : value.purchase.arv
+        }
+      });
+      return;
+    }
+
+    if (section === 'purchase' && field === 'listingUrl') {
+      const listingUrl = String(nextValue).trim();
+      const extractedDealName = extractDealNameFromListingUrl(listingUrl);
+      onChange({
+        ...value,
+        purchase: {
+          ...value.purchase,
+          listingUrl,
+          dealName: extractedDealName ?? value.purchase.dealName
         }
       });
       return;
@@ -57,6 +72,9 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
         <Section title="Core Inputs · Purchase & Financing" defaultOpen>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <Input label="Deal name" value={value.purchase.dealName} onChange={(v) => update('purchase', 'dealName', v)} />
+            <div className="sm:col-span-2">
+              <Input label="Listing URL (Zillow, Redfin, etc.)" value={value.purchase.listingUrl} onChange={(v) => update('purchase', 'listingUrl', v)} />
+            </div>
             <Select
               label="Financing"
               value={value.purchase.financingType}
