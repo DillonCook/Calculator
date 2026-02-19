@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
@@ -164,6 +164,43 @@ describe('dashboard integration', () => {
     expect(purchasePrice).toHaveValue(300000.37);
   });
 
+
+
+  it('auto-fills deal name from listing link and renders a clickable source URL', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
+    expect(screen.getByRole('link', { name: 'View listing link' })).toHaveAttribute(
+      'href',
+      'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
+    );
+  });
+
+
+  it('falls back to listing-page metadata parsing for opaque share links', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ dealName: '247 Harbor Dr, Miami' })
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://portal.onehome.com/en-US/share/2478045G14539');
+
+    await screen.findByDisplayValue('247 Harbor Dr, Miami');
+
+    expect(fetchMock).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 
   it('new deal action resets common underwriting fields to defaults', async () => {
     render(<HomePage />);
