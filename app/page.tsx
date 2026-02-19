@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
@@ -18,6 +18,7 @@ import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-li
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
+import { normalizeListingUrl } from '@/lib/listing-link';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -226,6 +227,10 @@ export default function HomePage() {
     setSaveStatus('idle');
   };
 
+
+
+  const resolveListingDealName = useCallback(async () => null, []);
+
   const shareCurrentDeal = async () => {
     const encoded = encodeDealToShareParam(model);
     if (!encoded) {
@@ -285,6 +290,16 @@ export default function HomePage() {
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                     <p className="text-xs text-muted">Active Deal</p>
                     <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                    {model.purchase.listingUrl ? (
+                      <a
+                        className="mt-1 line-clamp-1 inline-flex max-w-full text-xs text-accent underline decoration-accent/70 underline-offset-2"
+                        href={normalizeListingUrl(model.purchase.listingUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View listing link
+                      </a>
+                    ) : null}
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
@@ -513,7 +528,7 @@ export default function HomePage() {
           </div>
 
           <div className="hidden md:block">
-            <DealInputPanel value={model} onChange={updateModel} />
+            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
           </div>
         </div>
       </div>
@@ -537,7 +552,7 @@ export default function HomePage() {
               </button>
             </div>
             {mobileInputSheet === "core" ? (
-              <DealInputPanel value={model} onChange={updateModel} />
+              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
             ) : (
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             )}

@@ -3,10 +3,12 @@
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
+import { extractDealNameFromListingUrl, isOneHomeUrl } from '@/lib/listing-link';
 
 interface DealInputPanelProps {
   value: DealInputModel;
   onChange: (next: DealInputModel) => void;
+  resolveListingDealName?: (url: string) => Promise<string | null>;
 }
 
 const strategyLabels: Record<ExpenseStrategyKey, string> = {
@@ -17,6 +19,7 @@ const strategyLabels: Record<ExpenseStrategyKey, string> = {
 };
 
 export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
+
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     if (section === 'purchase' && field === 'purchasePrice') {
       const nextPurchasePrice = Number(nextValue) || 0;
@@ -27,6 +30,21 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           ...value.purchase,
           purchasePrice: nextPurchasePrice,
           arv: shouldSyncArv ? nextPurchasePrice : value.purchase.arv
+        }
+      });
+      return;
+    }
+
+    if (section === 'purchase' && field === 'listingUrl') {
+      const listingUrl = String(nextValue).trim();
+      const extractedDealName = extractDealNameFromListingUrl(listingUrl);
+      const shouldRename = !isOneHomeUrl(listingUrl) && Boolean(extractedDealName);
+      onChange({
+        ...value,
+        purchase: {
+          ...value.purchase,
+          listingUrl,
+          dealName: shouldRename ? extractedDealName ?? value.purchase.dealName : value.purchase.dealName
         }
       });
       return;
@@ -57,6 +75,9 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
         <Section title="Core Inputs · Purchase & Financing" defaultOpen>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <Input label="Deal name" value={value.purchase.dealName} onChange={(v) => update('purchase', 'dealName', v)} />
+            <div className="sm:col-span-2">
+              <Input label="Listing URL (Zillow, Redfin, etc.)" value={value.purchase.listingUrl} onChange={(v) => update('purchase', 'listingUrl', v)} />
+            </div>
             <Select
               label="Financing"
               value={value.purchase.financingType}

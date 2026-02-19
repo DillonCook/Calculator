@@ -165,6 +165,59 @@ describe('dashboard integration', () => {
   });
 
 
+
+  it('auto-fills deal name from listing link and renders a clickable source URL', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
+    expect(screen.getByRole('link', { name: 'View listing link' })).toHaveAttribute(
+      'href',
+      'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
+    );
+  });
+
+
+  it('does not auto-rename for onehome links', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const nameInput = screen.getByLabelText('Deal name');
+    const originalName = (nameInput as HTMLInputElement).value;
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://portal.onehome.com/en-US/share/2478045G14539');
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 700);
+    });
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
+  });
+
+  it('does not auto-rename when listing url lacks an address slug', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const nameInput = screen.getByLabelText('Deal name');
+    const originalName = (nameInput as HTMLInputElement).value;
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://www.redfin.com/FL/Tampa/overview');
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 700);
+    });
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
+  });
+
   it('new deal action resets common underwriting fields to defaults', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
