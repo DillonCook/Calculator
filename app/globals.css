@@ -38,3 +38,18 @@ input[type='number'] {
   background: linear-gradient(180deg, rgba(129, 140, 248, 0.95), rgba(45, 212, 191, 0.9));
   border-radius: 999px;
 }
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 0.5in;
+  }
+}
