@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractDealNameFromListingHtml, extractDealNameFromListingUrl, normalizeListingUrl } from '../lib/listing-link';
+import {
+  extractDealNameFromListingHtml,
+  extractDealNameFromListingUrl,
+  extractDealNameFromOneHomeEmailToken,
+  extractOneHomeShareCode,
+  normalizeListingUrl
+} from '../lib/listing-link';
 
 describe('listing link parsing', () => {
   it('extracts a friendly deal name from a zillow-style URL slug', () => {
@@ -14,6 +20,19 @@ describe('listing link parsing', () => {
     );
   });
 
+
+
+
+  it('extracts OneHome share code from portal links', () => {
+    expect(extractOneHomeShareCode('https://portal.onehome.com/en-US/share/2478045G14539')).toBe('2478045G14539');
+  });
+
+  it('derives a deterministic deal name from OneHome email token payload', () => {
+    const token =
+      'eyJPU04iOiJTVEVMTEFSIiwiYWdlbnRpZCI6IjUyNjU3Iiwic2V0aWQiOiAiMjQ3ODA0NSIsInNldFR5cGUiOiAiUFJPUEVSVFkiLCJzYXZlZFNlYXJjaElkIjogIjViYjU0MmVmLTdmZDUtM2I3My1iNGYzLWJjMDkwMjA4ZWEwMyIsImVtYWlsIjogIiIsICJWaWV3TW9kZSI6ICIzIn0=';
+
+    expect(extractDealNameFromOneHomeEmailToken(token)).toBe('OneHome Listing 2478045');
+  });
 
   it('extracts address from listing page html metadata', () => {
     const html = `

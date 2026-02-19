@@ -145,3 +145,61 @@ export const extractDealNameFromListingHtml = (html: string): string | null => {
 
   return extractAddressFromText(html);
 };
+
+
+export const extractOneHomeShareCode = (raw: string): string | null => {
+  const normalized = normalizeListingUrl(raw);
+
+  try {
+    const parsed = new URL(normalized);
+    if (!parsed.hostname.endsWith('onehome.com')) return null;
+
+    const match = parsed.pathname.match(/\/share\/([^/?#]+)/i);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const decodeBase64Url = (input: string): string | null => {
+  try {
+    const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = `${normalized}${normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))}`;
+
+    if (typeof atob === 'function') {
+      const binary = atob(padded);
+      return decodeURIComponent(
+        Array.from(binary)
+          .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+          .join('')
+      );
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const extractDealNameFromOneHomeEmailToken = (emailToken: string): string | null => {
+  const decoded = decodeBase64Url(emailToken);
+  if (!decoded) return null;
+
+  try {
+    const payload = JSON.parse(decoded) as Record<string, unknown>;
+    for (const value of Object.values(payload)) {
+      if (typeof value !== 'string') continue;
+      const extracted = extractAddressFromText(value);
+      if (extracted) return extracted;
+    }
+
+    const setIdRaw = payload.setid;
+    if (typeof setIdRaw === 'string' && setIdRaw.trim()) {
+      return `OneHome Listing ${setIdRaw.trim()}`;
+    }
+
+    return null;
+  } catch {
+    return extractAddressFromText(decoded);
+  }
+};
