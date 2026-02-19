@@ -13,6 +13,7 @@ import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
+import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
