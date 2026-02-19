@@ -10,6 +10,7 @@ export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
 export interface PurchaseInputs {
   dealName: string;
+  listingUrl: string;
   purchasePrice: number;
   rehabBudget: number;
   arv: number;
@@ -202,6 +203,7 @@ export interface ScenarioRecord {
 export const defaultDealInput: DealInputModel = {
   purchase: {
     dealName: 'Tampa Duplex - Sample Deal',
+    listingUrl: '',
     purchasePrice: 285000,
     rehabBudget: 25000,
     arv: 285000,

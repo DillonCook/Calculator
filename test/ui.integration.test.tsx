@@ -165,6 +165,22 @@ describe('dashboard integration', () => {
   });
 
 
+
+  it('auto-fills deal name from listing link and renders a clickable source URL', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
+    expect(screen.getByRole('link', { name: 'View listing link' })).toHaveAttribute(
+      'href',
+      'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
+    );
+  });
+
   it('new deal action resets common underwriting fields to defaults', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
