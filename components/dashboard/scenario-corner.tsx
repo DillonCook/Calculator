@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
+import { triggerHapticFeedback } from '@/lib/use-haptics';
 import type { ScenarioRecord } from '@/lib/models/deal';
 
 interface DealsVaultPanelProps {
@@ -42,6 +43,7 @@ export function DealsVaultPanel({
   const hasSearchQuery = search.trim().length > 0;
 
   const openDialog = (mode: 'saveAs' | 'rename') => {
+    triggerHapticFeedback('light');
     setDialogMode(mode);
     setDialogValue(activeDeal?.dealName ?? '');
   };
@@ -56,6 +58,7 @@ export function DealsVaultPanel({
     if (!name) return;
     if (dialogMode === 'rename') onRename(name);
     if (dialogMode === 'saveAs') onSaveAs(name);
+    triggerHapticFeedback('success');
     closeDialog();
   };
 
@@ -75,7 +78,7 @@ export function DealsVaultPanel({
           </label>
           <input
             id="deal-search"
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors duration-150 focus-visible:border-accent/60 focus-visible:outline-none"
             placeholder="Search deal name"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -92,9 +95,14 @@ export function DealsVaultPanel({
                   <button
                     key={deal.scenarioId}
                     type="button"
-                    onClick={() => onActiveDealChange(deal.scenarioId)}
-                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                      deal.scenarioId === activeDealId ? 'border-accent bg-accent/15' : 'border-white/10 bg-white/5'
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      onActiveDealChange(deal.scenarioId);
+                    }}
+                    className={`tap-feedback w-full rounded-lg border px-3 py-2 text-left text-sm transition-all duration-200 ease-out ${
+                      deal.scenarioId === activeDealId
+                        ? 'border-accent bg-accent/15 shadow-[0_12px_28px_-20px_rgba(45,212,191,0.8)]'
+                        : 'border-white/10 bg-white/5 hover:bg-white/10'
                     }`}
                   >
                     <p className="font-medium">{deal.dealName}</p>
@@ -107,11 +115,11 @@ export function DealsVaultPanel({
         </div>
 
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-          <button className="min-h-10 rounded-xl bg-accent px-3 text-sm font-medium text-black" onClick={() => openDialog('saveAs')} type="button">
+          <button className="tap-feedback min-h-10 rounded-xl bg-accent px-3 text-sm font-medium text-black transition-all duration-200 hover:brightness-105" onClick={() => openDialog('saveAs')} type="button">
             Save As
           </button>
           <button
-            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
+            className="tap-feedback min-h-10 rounded-xl border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10"
             onClick={() => openDialog('rename')}
             type="button"
             disabled={!activeDeal}
@@ -119,15 +127,21 @@ export function DealsVaultPanel({
             Rename
           </button>
           <button
-            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
-            onClick={onCreateNew}
+            className="tap-feedback min-h-10 rounded-xl border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10"
+            onClick={() => {
+              triggerHapticFeedback('medium');
+              onCreateNew();
+            }}
             type="button"
           >
             New
           </button>
           <button
-            className="min-h-10 rounded-xl border border-rose-500/40 px-3 text-sm text-rose-200"
-            onClick={onDelete}
+            className="tap-feedback min-h-10 rounded-xl border border-rose-500/40 px-3 text-sm text-rose-200 transition-colors duration-150 hover:bg-rose-500/10"
+            onClick={() => {
+              triggerHapticFeedback('medium');
+              onDelete();
+            }}
             type="button"
             disabled={!activeDeal}
           >
@@ -139,16 +153,16 @@ export function DealsVaultPanel({
           <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5 lg:col-span-2">
             <p className="text-xs uppercase tracking-wider text-muted">{dialogMode === 'saveAs' ? 'Save as new deal' : 'Rename deal'}</p>
             <input
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors duration-150 focus-visible:border-accent/60 focus-visible:outline-none"
               value={dialogValue}
               onChange={(event) => setDialogValue(event.target.value)}
               placeholder="Deal name"
             />
             <div className="flex gap-2">
-              <button className="min-h-10 flex-1 rounded-lg bg-accent px-3 text-sm font-medium text-black" type="button" onClick={submitDialog}>
+              <button className="tap-feedback min-h-10 flex-1 rounded-lg bg-accent px-3 text-sm font-medium text-black transition-all duration-200 hover:brightness-105" type="button" onClick={submitDialog}>
                 Confirm
               </button>
-              <button className="min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm" type="button" onClick={closeDialog}>
+              <button className="tap-feedback min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10" type="button" onClick={() => { triggerHapticFeedback('light'); closeDialog(); }}>
                 Cancel
               </button>
             </div>

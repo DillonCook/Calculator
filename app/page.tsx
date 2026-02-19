@@ -17,6 +17,7 @@ import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -235,8 +236,10 @@ export default function HomePage() {
 
     try {
       await navigator.clipboard.writeText(url);
+      triggerHapticFeedback('success');
       setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
     } catch {
+      triggerHapticFeedback('medium');
       setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
     }
   };
@@ -265,7 +268,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
+    <main className="app-shell-fade min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="rounded-2xl border border-white/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
@@ -283,15 +286,19 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
+                    className="tap-feedback inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/25"
                     target="_blank"
+                    onClick={() => triggerHapticFeedback('light')}
                   >
                     Print View
                   </Link>
                   <button
                     type="button"
-                    onClick={shareCurrentDeal}
-                    className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      void shareCurrentDeal();
+                    }}
+                    className="tap-feedback min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition-all duration-200 hover:bg-white/15"
                   >
                     Share Link
                   </button>
@@ -406,9 +413,12 @@ export default function HomePage() {
                     <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
                       <button
                         type="button"
-                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }))}
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                        }}
                         aria-pressed={includeReserves}
-                        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                           includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
                         }`}
                       >
@@ -416,9 +426,12 @@ export default function HomePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }))}
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                        }}
                         aria-pressed={!includeReserves}
-                        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                           !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
                         }`}
                       >
@@ -459,8 +472,11 @@ export default function HomePage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsStrategyWorkOpen(true)}
-                className="rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-accent/20"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  setIsStrategyWorkOpen(true);
+                }}
+                className="tap-feedback rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/20"
               >
                 Show work
               </button>
