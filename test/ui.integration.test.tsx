@@ -164,6 +164,48 @@ describe('dashboard integration', () => {
     expect(purchasePrice).toHaveValue(300000.37);
   });
 
+
+  it('new deal action resets common underwriting fields to defaults', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    const rehabBudget = screen.getByLabelText('Rehab budget');
+
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '415000');
+    await user.clear(rehabBudget);
+    await user.type(rehabBudget, '95000');
+
+    await user.click(screen.getByRole('button', { name: 'New' }));
+
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(defaultDealInput.purchase.purchasePrice);
+    expect(screen.getByLabelText('Rehab budget')).toHaveValue(defaultDealInput.purchase.rehabBudget);
+    expect(screen.getAllByText('New Deal').length).toBeGreaterThan(0);
+  });
+
+  it('share link feedback auto-dismisses after a few seconds', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => undefined
+      }
+    });
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Share Link' }));
+
+    expect(screen.getByText('Share link copied to clipboard.')).toBeInTheDocument();
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 3400);
+    });
+
+    expect(screen.queryByText('Share link copied to clipboard.')).not.toBeInTheDocument();
+  });
+
   it('print view link includes encoded scenario payload and selected strategy', async () => {
     render(<HomePage />);
     const user = userEvent.setup();

@@ -144,6 +144,12 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
 
+  useEffect(() => {
+    if (!shareFeedback) return;
+    const timer = window.setTimeout(() => setShareFeedback(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [shareFeedback]);
+
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
     const next = saveDealToVault(record);
@@ -169,14 +175,39 @@ export default function HomePage() {
     setSaveStatus('saved');
   };
 
-  const duplicateDeal = () => {
-    if (!activeDeal) return;
-    const duplicatedName = `${activeDeal.dealName} Copy`;
-    const duplicate = createDealInVault(activeDeal.payload, duplicatedName);
-    const next = saveDealToVault(duplicate);
+  const createNewDeal = () => {
+    const normalizedNames = new Set(deals.map((deal) => deal.dealName.toLowerCase()));
+    let index = 1;
+    let candidateName = 'New Deal';
+
+    while (normalizedNames.has(candidateName.toLowerCase())) {
+      index += 1;
+      candidateName = `New Deal ${index}`;
+    }
+
+    const payload: DealInputModel = {
+      ...defaultDealInput,
+      purchase: {
+        ...defaultDealInput.purchase,
+        dealName: candidateName
+      },
+      longTerm: { ...defaultDealInput.longTerm },
+      airbnb: { ...defaultDealInput.airbnb },
+      padSplit: { ...defaultDealInput.padSplit },
+      brrrr: { ...defaultDealInput.brrrr },
+      flip: { ...defaultDealInput.flip },
+      variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
+        ...expense,
+        appliesTo: { ...expense.appliesTo }
+      })),
+      assumptions: { ...defaultDealInput.assumptions }
+    };
+
+    const nextDeal = createDealInVault(payload, candidateName);
+    const next = saveDealToVault(nextDeal);
     setDeals(next);
-    setActiveDealId(duplicate.scenarioId);
-    setModel(duplicate.payload);
+    setActiveDealId(nextDeal.scenarioId);
+    setModel(nextDeal.payload);
     setSaveStatus('saved');
   };
 
@@ -244,15 +275,15 @@ export default function HomePage() {
               <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
               <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
             </div>
-            <div className="w-full space-y-2 sm:w-auto sm:min-w-[320px]">
-              <div className="flex items-center justify-end gap-2">
-                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right">
+            <div className="w-full max-w-2xl space-y-2">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                   <p className="text-xs text-muted">Active Deal</p>
-                  <p className="text-sm font-medium">{model.purchase.dealName}</p>
+                  <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
                 </div>
                 <Link
                   href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                  className="rounded-xl border border-accent/60 bg-accent/20 px-3 py-2 text-sm font-medium text-accent"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
                   target="_blank"
                 >
                   Print View
@@ -260,7 +291,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={shareCurrentDeal}
-                  className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                  className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
                 >
                   Share Link
                 </button>
@@ -285,7 +316,7 @@ export default function HomePage() {
                 onActiveDealChange={openRecentScenario}
                 onSaveAs={saveDealAs}
                 onRename={renameDeal}
-                onDuplicate={duplicateDeal}
+                onCreateNew={createNewDeal}
                 onDelete={removeScenario}
               />
             </div>
