@@ -24,7 +24,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
   const report = createPdfReportSchema(model, result, strategy);
 
   return (
-    <main className="min-h-screen bg-slate-950 px-3 py-4 sm:px-6 print:bg-white print:p-0">
+    <main className="min-h-screen bg-white px-3 py-4 sm:px-6 print:p-0">
       <PrintActions />
 
       <article className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none print:shadow-transparent">
