@@ -7,6 +7,7 @@ import { buildExcelParityAnnualTimeline, calcTotalRoiFromTimeline, calculateRema
 import { defaultDealInput } from '../lib/models/deal';
 
 import { createScenarioRecord, decodeScenario, encodeScenario } from '../lib/scenario-storage';
+import { createPdfReportSchema } from '../lib/export/pdf-schema';
 
 const near = (actual: number, expected: number, epsilon = 0.01) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `Expected ${actual} to be within ${epsilon} of ${expected}`);
@@ -657,4 +658,27 @@ test('scenario encode/decode preserves unicode payloads in server context', () =
   assert.ok(decoded);
   assert.equal(decoded?.dealName, model.purchase.dealName);
   assert.equal(decoded?.payload.purchase.dealName, model.purchase.dealName);
+});
+
+
+test('pdf schema includes underwriting work, taxes/insurance, and variable expense detail', () => {
+  const model = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2400
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) =>
+      expense.key === 'power'
+        ? { ...expense, appliesTo: { ...expense.appliesTo, longTerm: true }, monthlyAmount: 85 }
+        : expense
+    )
+  };
+  const result = calculateDeal(model);
+  const report = createPdfReportSchema(model, result, 'longTerm');
+
+  assert.ok(report.underwritingWork.rows.length > 0);
+  assert.ok(report.taxAndInsuranceDetail.rows.some((row) => row.label === 'Property Tax'));
+  assert.ok(report.taxAndInsuranceDetail.rows.some((row) => row.label === 'Insurance'));
+  assert.ok(report.variableExpenseDetail.rows.some((row) => row.label === 'Total Variable Expenses'));
 });

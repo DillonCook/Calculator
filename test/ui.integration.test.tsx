@@ -149,13 +149,16 @@ describe('dashboard integration', () => {
     expect(purchasePrice).toHaveValue(300000.37);
   });
 
-  it('print view link includes encoded scenario payload', () => {
+  it('print view link includes encoded scenario payload and selected strategy', async () => {
     render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
 
     const printLink = screen.getByRole('link', { name: 'Print View' });
     const href = printLink.getAttribute('href') ?? '';
 
     expect(href.startsWith('/print?scenario=')).toBe(true);
-    expect(href.length).toBeGreaterThan('/print?scenario='.length);
+    expect(href).toContain('&strategy=airbnb');
   });
 });
