@@ -110,6 +110,17 @@ export const normalizeListingUrl = (raw: string): string => {
   }
 };
 
+export const isOneHomeUrl = (raw: string): boolean => {
+  const normalized = normalizeListingUrl(raw);
+
+  try {
+    const parsed = new URL(normalized);
+    return parsed.hostname.endsWith('onehome.com');
+  } catch {
+    return false;
+  }
+};
+
 export const extractDealNameFromListingUrl = (raw: string): string | null => {
   const normalized = normalizeListingUrl(raw);
 
@@ -144,86 +155,4 @@ export const extractDealNameFromListingHtml = (html: string): string | null => {
   }
 
   return extractAddressFromText(html);
-};
-
-
-export const extractOneHomeShareCode = (raw: string): string | null => {
-  const normalized = normalizeListingUrl(raw);
-
-  try {
-    const parsed = new URL(normalized);
-    if (!parsed.hostname.endsWith('onehome.com')) return null;
-
-    const match = parsed.pathname.match(/\/share\/([^/?#]+)/i);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-};
-
-const decodeBase64Url = (input: string): string | null => {
-  try {
-    const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = `${normalized}${normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))}`;
-
-    if (typeof atob === 'function') {
-      const binary = atob(padded);
-      return decodeURIComponent(
-        Array.from(binary)
-          .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
-          .join('')
-      );
-    }
-
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(padded, 'base64').toString('utf8');
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-
-
-export const decodeOneHomeEmailTokenPayload = (emailToken: string): Record<string, unknown> | null => {
-  const decoded = decodeBase64Url(emailToken);
-  if (!decoded) return null;
-
-  try {
-    return JSON.parse(decoded) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-};
-
-export const extractOneHomeSetIdFromEmailToken = (emailToken: string): string | null => {
-  const payload = decodeOneHomeEmailTokenPayload(emailToken);
-  const setIdRaw = payload?.setid;
-  return typeof setIdRaw === 'string' && setIdRaw.trim() ? setIdRaw.trim() : null;
-};
-
-export const extractDealNameFromOneHomeEmailToken = (emailToken: string): string | null => {
-  const payload = decodeOneHomeEmailTokenPayload(emailToken);
-  if (!payload) return null;
-
-  for (const value of Object.values(payload)) {
-    if (typeof value !== 'string') continue;
-    const extracted = extractAddressFromText(value);
-    if (extracted) return extracted;
-  }
-
-  const setIdRaw = payload.setid;
-  if (typeof setIdRaw === 'string' && setIdRaw.trim()) {
-    return `OneHome Listing ${setIdRaw.trim()}`;
-  }
-
-  return null;
-};
-
-
-export const extractOneHomeSetIdFromShareCode = (shareCode: string): string | null => {
-  const match = shareCode.match(/^(\d+)G/i);
-  return match?.[1] ?? null;
 };

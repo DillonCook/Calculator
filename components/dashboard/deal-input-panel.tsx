@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
-import { extractDealNameFromListingUrl } from '@/lib/listing-link';
+import { extractDealNameFromListingUrl, isOneHomeUrl } from '@/lib/listing-link';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -19,43 +19,7 @@ const strategyLabels: Record<ExpenseStrategyKey, string> = {
   flip: 'Flip'
 };
 
-export function DealInputPanel({ value, onChange, resolveListingDealName }: DealInputPanelProps) {
-  const latestValueRef = useRef(value);
-  const lookupIdRef = useRef(0);
-
-  useEffect(() => {
-    latestValueRef.current = value;
-  }, [value]);
-
-  useEffect(() => {
-    const listingUrl = value.purchase.listingUrl.trim();
-    if (!listingUrl || !resolveListingDealName) return;
-
-    const inlineName = extractDealNameFromListingUrl(listingUrl);
-    if (inlineName) return;
-
-    lookupIdRef.current += 1;
-    const lookupId = lookupIdRef.current;
-    const timer = window.setTimeout(async () => {
-      const resolvedName = await resolveListingDealName(listingUrl);
-      const current = latestValueRef.current;
-      if (lookupIdRef.current !== lookupId || !resolvedName || current.purchase.listingUrl.trim() !== listingUrl) {
-        return;
-      }
-
-      onChange({
-        ...current,
-        purchase: {
-          ...current.purchase,
-          dealName: resolvedName
-        }
-      });
-    }, 420);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [onChange, resolveListingDealName, value.purchase.listingUrl]);
+export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     if (section === 'purchase' && field === 'purchasePrice') {
@@ -75,12 +39,13 @@ export function DealInputPanel({ value, onChange, resolveListingDealName }: Deal
     if (section === 'purchase' && field === 'listingUrl') {
       const listingUrl = String(nextValue).trim();
       const extractedDealName = extractDealNameFromListingUrl(listingUrl);
+      const shouldRename = !isOneHomeUrl(listingUrl) && Boolean(extractedDealName);
       onChange({
         ...value,
         purchase: {
           ...value.purchase,
           listingUrl,
-          dealName: extractedDealName ?? value.purchase.dealName
+          dealName: shouldRename ? extractedDealName ?? value.purchase.dealName : value.purchase.dealName
         }
       });
       return;

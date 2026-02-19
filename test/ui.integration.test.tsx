@@ -182,24 +182,40 @@ describe('dashboard integration', () => {
   });
 
 
-  it('falls back to listing-page metadata parsing for opaque share links', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ dealName: '247 Harbor Dr, Miami' })
-    }));
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('does not auto-rename for onehome links', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
+
+    const nameInput = screen.getByLabelText('Deal name');
+    const originalName = (nameInput as HTMLInputElement).value;
 
     const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
     await user.clear(listingInput);
     await user.type(listingInput, 'https://portal.onehome.com/en-US/share/2478045G14539');
 
-    await screen.findByDisplayValue('247 Harbor Dr, Miami');
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 700);
+    });
 
-    expect(fetchMock).toHaveBeenCalled();
-    vi.unstubAllGlobals();
+    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
+  });
+
+  it('does not auto-rename when listing url lacks an address slug', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const nameInput = screen.getByLabelText('Deal name');
+    const originalName = (nameInput as HTMLInputElement).value;
+
+    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.clear(listingInput);
+    await user.type(listingInput, 'https://www.redfin.com/FL/Tampa/overview');
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 700);
+    });
+
+    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
   });
 
   it('new deal action resets common underwriting fields to defaults', async () => {

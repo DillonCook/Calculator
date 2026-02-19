@@ -229,20 +229,6 @@ export default function HomePage() {
   };
 
 
-  const resolveListingDealName = useCallback(async (rawUrl: string) => {
-    const listingUrl = normalizeListingUrl(rawUrl);
-    if (!listingUrl) return null;
-
-    try {
-      const response = await fetch(`/api/listing-preview?url=${encodeURIComponent(listingUrl)}`);
-      if (!response.ok) return null;
-      const payload = (await response.json()) as { dealName?: string | null };
-      return payload.dealName?.trim() || null;
-    } catch {
-      return null;
-    }
-  }, []);
-
   const shareCurrentDeal = async () => {
     const encoded = encodeDealToShareParam(model);
     if (!encoded) {
