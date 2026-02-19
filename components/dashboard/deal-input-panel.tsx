@@ -47,15 +47,15 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
 
   return (
-    <section className="rounded-2xl panel-surface p-5 shadow-soft">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Core Deal Inputs</h2>
-        <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Supports decimal inputs</span>
+    <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
+        <h2 className="text-base font-semibold sm:text-lg">Core Deal Inputs</h2>
+        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-muted sm:py-1 sm:text-xs">Supports decimal inputs</span>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5 sm:space-y-3">
         <Section title="Core Inputs · Purchase & Financing" defaultOpen>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <Input label="Deal name" value={value.purchase.dealName} onChange={(v) => update('purchase', 'dealName', v)} />
             <Select
               label="Financing"
@@ -89,7 +89,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
           </div>
 
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
             <Input
               label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
               type="number"
@@ -104,9 +104,9 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             />
           </div>
 
-          <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Advanced Financing</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="mt-2.5 rounded-lg border border-white/10 bg-white/[0.02] p-2.5 sm:mt-3 sm:p-3">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted sm:mb-2 sm:text-xs">Advanced Financing</p>
+            <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
               <Input
                 label="HELOC amount"
                 type="number"
@@ -142,19 +142,19 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             <span>Applies to strategies</span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2">
             {value.variableExpenses.map((expense, index) => (
-              <div key={expense.key} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                <div className="grid gap-2 sm:grid-cols-[1.2fr_120px_1fr] sm:items-center">
-                  <p className="text-sm font-medium">{expense.label}</p>
+              <div key={expense.key} className="rounded-lg border border-white/10 bg-white/[0.03] p-2 sm:p-2.5">
+                <div className="grid gap-1.5 sm:grid-cols-[1.2fr_120px_1fr] sm:items-center sm:gap-2">
+                  <p className="text-xs font-medium sm:text-sm">{expense.label}</p>
                   <input
                     aria-label={`${expense.label} amount per month`}
-                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-sm"
+                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs sm:py-1.5 sm:text-sm"
                     type="number"
                     value={expense.monthlyAmount}
                     onChange={(event) => updateVariableExpense(index, { monthlyAmount: Number(event.target.value) })}
                   />
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
                     {(Object.keys(strategyLabels) as ExpenseStrategyKey[]).map((strategy) => {
                       const active = expense.appliesTo[strategy];
                       return (
@@ -167,7 +167,7 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
                               appliesTo: { ...expense.appliesTo, [strategy]: !active }
                             })
                           }
-                          className={`flex items-center justify-center rounded-md border px-2 py-1.5 text-xs transition ${
+                          className={`flex min-h-7 items-center justify-center rounded-md border px-1.5 py-1 text-[11px] transition sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs ${
                             active
                               ? 'border-accent/70 bg-accent/20 text-accent'
                               : 'border-white/10 bg-white/[0.02] text-muted'
@@ -191,9 +191,9 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   return (
-    <details className="rounded-xl border border-white/10 bg-white/[0.03] p-3" open={defaultOpen}>
-      <summary className="cursor-pointer list-none text-sm font-medium text-white">{title}</summary>
-      <div className="mt-3">{children}</div>
+    <details className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3" open={defaultOpen}>
+      <summary className="cursor-pointer list-none text-xs font-medium text-white sm:text-sm">{title}</summary>
+      <div className="mt-2 sm:mt-3">{children}</div>
     </details>
   );
 }

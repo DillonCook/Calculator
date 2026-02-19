@@ -1,7 +1,7 @@
 'use client';
 
 export const inputClass =
-  'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent/60';
+  'w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3 sm:py-2 sm:text-sm';
 
 export function Input({
   label,
@@ -18,7 +18,7 @@ export function Input({
 }) {
   return (
     <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
+      <span className="text-[11px] text-muted sm:text-xs">{label}</span>
       <input className={inputClass} type={type} step={step ?? (type === 'number' ? '0.01' : undefined)} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
@@ -37,7 +37,7 @@ export function PercentInput({
 
   return (
     <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
+      <span className="text-[11px] text-muted sm:text-xs">{label}</span>
       <input
         className={inputClass}
         type="number"
@@ -62,7 +62,7 @@ export function Select({
 }) {
   return (
     <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
+      <span className="text-[11px] text-muted sm:text-xs">{label}</span>
       <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value} className="bg-surface">

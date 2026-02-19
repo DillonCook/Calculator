@@ -47,9 +47,9 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
   }, [value, secondaryValue]);
 
   return (
-    <div className="rounded-2xl card-surface p-4 shadow-soft">
-      <div className="flex items-center gap-2">
-        <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
+    <div className="min-w-0 overflow-hidden rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <p className="min-w-0 truncate text-[11px] uppercase tracking-wide text-muted sm:text-xs">{label}</p>
         {definitions?.length ? (
           <div className="group/tooltip relative">
             <button
@@ -71,29 +71,29 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
       </div>
 
       {winner ? (
-        <p className="mt-1 text-xs italic tracking-wide text-accent/90" aria-label={`${label} strategy context`}>
+        <p className="mt-1 text-[11px] italic tracking-wide text-accent/90 sm:text-xs" aria-label={`${label} strategy context`}>
           {winner}
         </p>
       ) : null}
 
       <p
         ref={primaryValueRef}
-        className={`mt-1 text-3xl font-semibold md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
+        className={`mt-1 text-[clamp(1rem,5.6vw,1.5rem)] font-semibold leading-tight sm:text-3xl md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
         data-testid={`kpi-${slugify(label)}`}
       >
         {value}
       </p>
 
       {secondaryLabel && secondaryValue ? (
-        <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
-          <p className="text-[11px] uppercase tracking-wide text-muted">{secondaryLabel}</p>
-          <p ref={secondaryValueRef} className="text-lg font-semibold text-white" data-testid={`kpi-${slugify(secondaryLabel)}`}>
+        <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 sm:px-2.5 sm:py-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted sm:text-[11px]">{secondaryLabel}</p>
+          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-lg" data-testid={`kpi-${slugify(secondaryLabel)}`}>
             {secondaryValue}
           </p>
         </div>
       ) : null}
 
-      {helper ? <p className="mt-2 text-xs text-muted">{helper}</p> : null}
+      {helper ? <p className="mt-2 text-[11px] text-muted sm:text-xs">{helper}</p> : null}
     </div>
   );
 }

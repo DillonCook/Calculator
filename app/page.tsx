@@ -75,6 +75,7 @@ export default function HomePage() {
     flip: true
   });
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
+  const [mobileInputSheet, setMobileInputSheet] = useState<'core' | 'strategy' | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -332,7 +333,27 @@ export default function HomePage() {
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-2 md:hidden">
+          <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
+            <button
+              type="button"
+              onClick={() => setMobileInputSheet('core')}
+              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+            >
+              Core Deal Inputs
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileInputSheet('strategy')}
+              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+            >
+              Strategy Inputs
+            </button>
+          </div>
+          <p className="text-xs text-muted">Tap to edit assumptions. KPIs stay visible first for faster deal decisions.</p>
+        </section>
+
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(result.purchase.totalCashNeeded)}
@@ -478,7 +499,7 @@ export default function HomePage() {
                 Show work
               </button>
             </div>
-            <section className="grid gap-3">
+            <section className="hidden grid gap-3 md:grid">
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             </section>
             <TimelineCard
@@ -491,9 +512,39 @@ export default function HomePage() {
             <StrategyComparison data={result} />
           </div>
 
-          <DealInputPanel value={model} onChange={updateModel} />
+          <div className="hidden md:block">
+            <DealInputPanel value={model} onChange={updateModel} />
+          </div>
         </div>
       </div>
+      {mobileInputSheet ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close inputs"
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setMobileInputSheet(null)}
+          />
+          <div className="absolute inset-x-0 bottom-0 w-full max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-t-2xl border border-white/10 bg-surface p-3 pb-6 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold">{mobileInputSheet === "core" ? "Core Deal Inputs" : `${activeStrategyLabel} Strategy Inputs`}</p>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted"
+                onClick={() => setMobileInputSheet(null)}
+              >
+                Done
+              </button>
+            </div>
+            {mobileInputSheet === "core" ? (
+              <DealInputPanel value={model} onChange={updateModel} />
+            ) : (
+              <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Investor Command Center. All rights reserved.</p>
