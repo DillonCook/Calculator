@@ -49,7 +49,6 @@ export function DealsVaultPanel({
     return deals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
   }, [deals, normalizedSearch]);
 
-  const hasSearchQuery = search.trim().length > 0;
 
   const openDialog = (mode: 'saveAs' | 'rename') => {
     setDialogMode(mode);
