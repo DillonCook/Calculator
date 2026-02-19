@@ -1,10 +1,10 @@
 'use client';
 
 import type { ChangeEvent } from 'react';
-import type { ScenarioRecord } from '@/lib/models/deal';
+import type { DealRecord } from '@/lib/deals-vault';
 
 interface ScenarioCornerProps {
-  scenarios: ScenarioRecord[];
+  scenarios: DealRecord[];
   selectedId: string;
   onSelectedIdChange: (id: string) => void;
   onSave: () => void;
@@ -39,8 +39,8 @@ export function ScenarioCorner({
         >
           <option value="">Select saved scenario</option>
           {scenarios.map((scenario) => (
-            <option key={scenario.scenarioId} value={scenario.scenarioId}>
-              {scenario.dealName}
+            <option key={scenario.id} value={scenario.id}>
+              {scenario.name}
             </option>
           ))}
         </select>

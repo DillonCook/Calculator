@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -108,16 +108,17 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
   });
 
-  it('scenario save and load flow persists data to local storage', async () => {
+  it('scenario save and load flow persists data to the deals vault', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    const scenarioSelect = screen.getByLabelText('Scenario Select');
-    const options = Array.from(scenarioSelect.querySelectorAll('option')).map((option) => option.textContent);
-
-    expect(options.some((option) => option?.includes('Tampa Duplex - Sample Deal'))).toBe(true);
+    await waitFor(() => {
+      const scenarioSelect = screen.getByLabelText('Scenario Select');
+      const options = Array.from(scenarioSelect.querySelectorAll('option')).map((option) => option.textContent);
+      expect(options.some((option) => option?.includes('Tampa Duplex - Sample Deal'))).toBe(true);
+    });
   });
 
 
