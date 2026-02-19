@@ -24,15 +24,15 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
   const report = createPdfReportSchema(model, result, strategy);
 
   return (
-    <main className="min-h-screen bg-white px-3 py-4 sm:px-6 print:p-0">
+    <main className="print-shell min-h-screen bg-surface px-3 py-4 sm:px-6 print:bg-white print:p-0">
       <PrintActions />
 
-      <article className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none print:shadow-transparent">
-        <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 px-5 py-5 text-white sm:px-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Deal Report</p>
+      <article className="print-report mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
+        <header className="border-b border-white/10 bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-5 py-5 text-white sm:px-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-accent">Deal Report</p>
           <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{report.title}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-200">{report.subtitle}</p>
-          <div className="mt-4 grid gap-2 text-sm text-slate-200 sm:grid-cols-3">
+          <p className="mt-2 max-w-2xl text-sm text-muted">{report.subtitle}</p>
+          <div className="mt-4 grid gap-2 text-sm text-muted sm:grid-cols-3">
             <InfoPill label="Deal" value={report.dealName} />
             <InfoPill label="Strategy" value={report.selectedStrategyLabel} />
             <InfoPill label="Generated" value={new Date(report.generatedAt).toLocaleString()} />
@@ -62,8 +62,8 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
 
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2">
-      <p className="text-xs uppercase tracking-wide text-slate-300">{label}</p>
+    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
       <p className="truncate text-sm font-medium text-white">{value}</p>
     </div>
   );
