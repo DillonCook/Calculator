@@ -54,6 +54,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
           <ReportSection title={report.variableExpenseDetail.title} rows={report.variableExpenseDetail.rows} />
           <ReportSection title={report.financingSnapshot.title} rows={report.financingSnapshot.rows} />
           <ReportSection title={report.assumptions.title} rows={report.assumptions.rows} />
+          <ReportSection title={report.listingReference.title} rows={report.listingReference.rows} />
         </div>
       </article>
     </main>
@@ -78,7 +79,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReportSection({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
+function ReportSection({ title, rows }: { title: string; rows: { label: string; value: string; href?: string }[] }) {
   return (
     <section>
       <h2 className="mb-2 text-base font-semibold text-slate-900 sm:text-lg">{title}</h2>
@@ -86,7 +87,13 @@ function ReportSection({ title, rows }: { title: string; rows: { label: string; 
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0 sm:px-4 sm:py-3">
             <span className="text-slate-600">{row.label}</span>
-            <span className="text-right font-semibold text-slate-900">{row.value}</span>
+            {row.href ? (
+              <a className="max-w-[60%] truncate text-right font-semibold text-blue-700 underline decoration-blue-400 underline-offset-2" href={row.href} target="_blank" rel="noreferrer">
+                {row.value}
+              </a>
+            ) : (
+              <span className="text-right font-semibold text-slate-900">{row.value}</span>
+            )}
           </div>
         ))}
       </div>
