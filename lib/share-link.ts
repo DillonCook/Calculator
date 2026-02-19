@@ -16,14 +16,20 @@ const normalizeVariableExpenses = (value: unknown): DealInputModel['variableExpe
   return value
     .filter((entry): entry is Record<string, unknown> => isRecord(entry))
     .map((entry) => {
-      const defaultApplies = { ...defaultDealInput.variableExpenses[0]?.appliesTo };
-      const appliesTo = isRecord(entry.appliesTo)
+      const defaultApplies: Record<ExpenseStrategyKey, boolean> = {
+        longTerm: true,
+        airbnb: true,
+        padSplit: true,
+        flip: true
+      };
+      const entryAppliesTo = isRecord(entry.appliesTo) ? (entry.appliesTo as Record<string, unknown>) : null;
+      const appliesTo = entryAppliesTo
         ? Object.keys(defaultApplies).reduce<Record<ExpenseStrategyKey, boolean>>((acc, key) => {
             const typedKey = key as ExpenseStrategyKey;
-            acc[typedKey] = Boolean(entry.appliesTo?.[typedKey]);
+            acc[typedKey] = Boolean(entryAppliesTo[typedKey]);
             return acc;
-          }, defaultApplies)
-        : defaultApplies;
+          }, { ...defaultApplies })
+        : { ...defaultApplies };
 
       return {
         key: typeof entry.key === 'string' ? entry.key : '',

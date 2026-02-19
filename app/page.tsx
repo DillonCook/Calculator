@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -14,7 +14,8 @@ import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, decodeScenario, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
+import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -194,7 +195,7 @@ export default function HomePage() {
   };
 
   const shareCurrentDeal = async () => {
-    const encoded = encodeDealToShareParam(selectedScenario ?? model);
+    const encoded = encodeDealToShareParam(model);
     if (!encoded) {
       setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
       return;
@@ -215,19 +216,22 @@ export default function HomePage() {
     const sharedToken = params.get('s');
     if (!sharedToken) return;
 
-    const parsed = decodeScenario(sharedToken);
-    if (parsed) {
-      const next = upsertScenario(parsed);
-      const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
-      setScenarios(next);
-      setSelectedScenarioId(parsed.scenarioId);
-      if (imported) loadScenario(imported.payload, imported.scenarioId);
-    }
+    const parsed = decodeDealFromShareParam(sharedToken);
+    const syncImportTimer = window.setTimeout(() => {
+      if (!parsed) return;
+      const imported = createDealInVault(parsed, parsed.purchase.dealName);
+      const nextDeals = saveDealToVault(imported);
+      setDeals(nextDeals);
+      setModel(imported.payload);
+      setActiveDealId(imported.scenarioId);
+    }, 0);
 
     params.delete('s');
     const nextSearch = params.toString();
     const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
     window.history.replaceState({}, '', nextUrl);
+
+    return () => window.clearTimeout(syncImportTimer);
   }, []);
 
   return (
@@ -274,13 +278,14 @@ export default function HomePage() {
                   ) : null}
                 </div>
               ) : null}
-              <ScenarioCorner
-                scenarios={scenarios}
-                selectedId={selectedScenarioId}
-                onSelectedIdChange={setSelectedScenarioId}
-                onSave={saveScenario}
-                onLoad={loadSelectedScenario}
-                onExport={exportSelectedScenario}
+              <DealsVaultPanel
+                deals={deals}
+                activeDealId={activeDealId}
+                saveStatus={saveStatus}
+                onActiveDealChange={openRecentScenario}
+                onSaveAs={saveDealAs}
+                onRename={renameDeal}
+                onDuplicate={duplicateDeal}
                 onDelete={removeScenario}
               />
             </div>
