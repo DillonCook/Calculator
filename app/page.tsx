@@ -589,7 +589,7 @@ export default function HomePage() {
 
       <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Investor Command Center. All rights reserved.</p>
+          <p>© 2026 DealCook. Created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3 text-slate-300">
             <Link href="/legal" className="hover:text-white">Legal Center</Link>
             <Link href="/legal/terms" className="hover:text-white">Terms</Link>
@@ -597,7 +597,7 @@ export default function HomePage() {
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted/90">
-          For informational use only. Not financial, legal, tax, or investment advice.
+          For educational and informational purposes only. Not financial, legal, tax, or investment advice.
         </p>
       </footer>
 
