@@ -18,6 +18,7 @@ import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-li
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
+import { normalizeListingUrl } from '@/lib/listing-link';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -226,6 +227,7 @@ export default function HomePage() {
     setSaveStatus('idle');
   };
 
+
   const shareCurrentDeal = async () => {
     const encoded = encodeDealToShareParam(model);
     if (!encoded) {
@@ -285,6 +287,16 @@ export default function HomePage() {
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                     <p className="text-xs text-muted">Active Deal</p>
                     <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                    {model.purchase.listingUrl ? (
+                      <a
+                        className="mt-1 line-clamp-1 inline-flex max-w-full text-xs text-accent underline decoration-accent/70 underline-offset-2"
+                        href={normalizeListingUrl(model.purchase.listingUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View listing link
+                      </a>
+                    ) : null}
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
