@@ -50,6 +50,7 @@ export function DealsVaultPanel({
   }, [deals, normalizedSearch]);
 
   const openDialog = (mode: 'saveAs' | 'rename') => {
+    triggerHapticFeedback('light');
     setDialogMode(mode);
     setDialogValue(activeDeal?.dealName ?? '');
   };
@@ -64,6 +65,7 @@ export function DealsVaultPanel({
     if (!name) return;
     if (dialogMode === 'rename') onRename(name);
     if (dialogMode === 'saveAs') onSaveAs(name);
+    triggerHapticFeedback('success');
     closeDialog();
   };
 
@@ -158,10 +160,10 @@ export function DealsVaultPanel({
               placeholder="Deal name"
             />
             <div className="flex gap-2">
-              <button className="min-h-10 flex-1 rounded-lg bg-accent px-3 text-sm font-medium text-black" type="button" onClick={submitDialog}>
+              <button className="tap-feedback min-h-10 flex-1 rounded-lg bg-accent px-3 text-sm font-medium text-black transition-all duration-200 hover:brightness-105" type="button" onClick={submitDialog}>
                 Confirm
               </button>
-              <button className="min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm" type="button" onClick={closeDialog}>
+              <button className="tap-feedback min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10" type="button" onClick={() => { triggerHapticFeedback('light'); closeDialog(); }}>
                 Cancel
               </button>
             </div>
