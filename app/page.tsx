@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
+import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
@@ -245,6 +246,18 @@ export default function HomePage() {
       triggerHapticFeedback('medium');
       setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
     }
+  };
+
+  const applyDealWorkoutScenario = (scenario: DealWorkoutScenario) => {
+    triggerHapticFeedback('success');
+    updateModel((current) => ({
+      ...current,
+      purchase: {
+        ...current.purchase,
+        purchasePrice: scenario.adjustments.purchasePrice ?? current.purchase.purchasePrice,
+        downPaymentPercent: scenario.adjustments.downPaymentPercent ?? current.purchase.downPaymentPercent
+      }
+    }));
   };
 
   useEffect(() => {
@@ -490,6 +503,8 @@ export default function HomePage() {
                 ))}
               </ul>
             </div>
+
+            <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
           </div>
         </section>
 
@@ -525,7 +540,7 @@ export default function HomePage() {
           </div>
 
           <div className="hidden md:block">
-            <DealInputPanel value={model} onChange={updateModel} />
+            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
           </div>
         </div>
       </div>
@@ -549,7 +564,7 @@ export default function HomePage() {
               </button>
             </div>
             {mobileInputSheet === "core" ? (
-              <DealInputPanel value={model} onChange={updateModel} />
+              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
             ) : (
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             )}
