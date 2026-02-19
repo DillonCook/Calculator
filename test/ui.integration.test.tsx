@@ -1,10 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput } from '../lib/models/deal';
+import { createScenarioRecord, encodeScenario } from '../lib/scenario-storage';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
 
@@ -163,6 +164,32 @@ describe('dashboard integration', () => {
     await user.type(purchasePrice, '300000.37');
     expect(purchasePrice).toHaveValue(300000.37);
   });
+
+  it('loads shared scenario from query param and cleans URL with history replace', async () => {
+    const sharedPayload = {
+      ...defaultDealInput,
+      purchase: { ...defaultDealInput.purchase, dealName: 'Shared Deal', purchasePrice: 515000 }
+    };
+    const sharedScenario = createScenarioRecord(sharedPayload, {
+      scenarioId: 'scenario-shared-ui-load'
+    });
+    const sharedToken = encodeScenario(sharedScenario);
+
+    window.history.replaceState({}, '', `/?s=${sharedToken}&view=compact`);
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+
+    render(<HomePage />);
+
+    expect(await screen.findByDisplayValue(515000)).toBeInTheDocument();
+
+    const savedScenarios = JSON.parse(window.localStorage.getItem('investor-command-center.scenarios.v1') ?? '[]') as Array<{
+      scenarioId: string;
+    }>;
+    expect(savedScenarios.some((scenario) => scenario.scenarioId === 'scenario-shared-ui-load')).toBe(true);
+
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=compact');
+  });
+
 
   it('print view link includes encoded scenario payload', () => {
     render(<HomePage />);

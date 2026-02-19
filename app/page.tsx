@@ -14,8 +14,7 @@ import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
-import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
+import { createScenarioRecord, decodeScenario, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -213,34 +212,22 @@ export default function HomePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sharedParam = params.get('s');
+    const sharedToken = params.get('s');
+    if (!sharedToken) return;
 
-    if (!sharedParam) return;
-
-    const decoded = decodeDealFromShareParam(sharedParam);
-
-    const timeoutId = window.setTimeout(() => {
-      if (decoded) {
-        const importedRecord = createScenarioRecord(decoded, {
-          dealName: decoded.purchase.dealName?.trim() ? decoded.purchase.dealName : 'Shared Deal'
-        });
-        const next = upsertScenario(importedRecord);
-
-        setScenarios(next);
-        setSelectedScenarioId(importedRecord.scenarioId);
-        loadScenario(importedRecord.payload, importedRecord.scenarioId);
-        setShareFeedback({ tone: 'success', message: `Imported shared deal: ${importedRecord.dealName}` });
-      } else {
-        setShareFeedback({ tone: 'error', message: 'Shared link was invalid or unsupported.' });
-      }
-    }, 0);
+    const parsed = decodeScenario(sharedToken);
+    if (parsed) {
+      const next = upsertScenario(parsed);
+      const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
+      setScenarios(next);
+      setSelectedScenarioId(parsed.scenarioId);
+      if (imported) loadScenario(imported.payload, imported.scenarioId);
+    }
 
     params.delete('s');
-    const remainingQuery = params.toString();
-    const cleanUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}${window.location.hash}`;
-    window.history.replaceState({}, '', cleanUrl);
-
-    return () => window.clearTimeout(timeoutId);
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', nextUrl);
   }, []);
 
   return (
