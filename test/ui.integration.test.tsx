@@ -59,14 +59,15 @@ describe('dashboard integration', () => {
     const excludeValue = currencyFormatter.format(airbnbResult.monthlyCashFlowExcludingReserves ?? airbnbResult.monthlyCashFlow);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(includeValue);
+    expect(
+      screen.getByText('Includes maintenance and CapEx reserves for a conservative monthly cash flow view')
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Exclude reserves' }));
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(excludeValue);
     expect(
-      screen.getByLabelText(
-        'Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately.'
-      )
+      screen.getByText('Excludes maintenance and CapEx reserves to show cash flow before reserve allocations')
     ).toBeInTheDocument();
   });
 
