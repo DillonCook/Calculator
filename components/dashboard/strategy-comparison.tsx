@@ -67,11 +67,11 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
 
   return (
     <>
-      <section className="rounded-2xl panel-surface p-5 shadow-soft">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
-            <h2 className="text-xl font-semibold">Compare all exits at a glance</h2>
+            <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -102,9 +102,9 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 key={row.key}
                 className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-white/10 bg-white/5'}`}
               >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{row.label}</p>
-                  <p className={`text-base font-semibold ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}>
+                <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="min-w-0 text-sm font-medium">{row.label}</p>
+                  <p className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}>
                     {currencyFormatter.format(output.monthlyCashFlow)}
                     <span className="ml-1 text-xs text-muted">/mo</span>
                   </p>

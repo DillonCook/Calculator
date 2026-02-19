@@ -17,11 +17,11 @@ interface StrategyTabsProps {
 
 export function StrategyTabs({ active, onChange }: StrategyTabsProps) {
   return (
-    <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
       {strategies.map((strategy) => (
         <button
           key={strategy.key}
-          className={`tap-feedback snap-start rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out ${
+          className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
             active === strategy.key
               ? 'accent-edge text-white'
               : 'bg-white/5 text-muted hover:bg-white/12'
