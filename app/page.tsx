@@ -378,8 +378,19 @@ export default function HomePage() {
             >
               Strategy Inputs
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setIsStrategyWorkOpen(true);
+              }}
+              className="btn-primary tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight max-[359px]:col-auto col-span-2"
+            >
+              Show work
+            </button>
           </div>
-          <p className="text-xs text-muted">Tap to edit assumptions. KPIs stay visible first for faster deal decisions.</p>
+          <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
         <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
@@ -515,7 +526,7 @@ export default function HomePage() {
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden items-center gap-2 md:flex">
               <div className="min-w-0 flex-1">
                 <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
               </div>

@@ -9,10 +9,10 @@ interface TimelineCardProps {
 
 export function TimelineCard({ output, assumptions, onAssumptionsChange }: TimelineCardProps) {
   return (
-    <details className="rounded-2xl panel-surface p-5 shadow-soft" open>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold">IRR Stream & Exit Assumptions</h3>
-        <p className="text-xs text-muted">IRR-ready stream</p>
+    <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-4 shadow-soft sm:p-5" open>
+      <summary className="flex cursor-pointer list-none flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <h3 className="min-w-0 text-base font-semibold sm:text-lg">IRR Stream & Exit Assumptions</h3>
+        <p className="text-xs text-muted sm:text-right">IRR-ready stream</p>
       </summary>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

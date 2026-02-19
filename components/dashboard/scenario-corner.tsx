@@ -123,7 +123,7 @@ export function DealsVaultPanel({
 
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
           <button className="btn-primary min-h-10 rounded-xl px-3 text-sm font-medium" onClick={() => openDialog('saveAs')} type="button">
-            Save As
+            Duplicate
           </button>
           <button
             className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
@@ -138,7 +138,7 @@ export function DealsVaultPanel({
             onClick={onCreateNew}
             type="button"
           >
-            New
+            Create
           </button>
           <button
             className="min-h-10 rounded-xl border border-red-500/50 px-3 text-sm text-red-200"
