@@ -1,11 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import type { ScenarioRecord } from '@/lib/models/deal';
 
 interface DealsVaultPanelProps {
   deals: ScenarioRecord[];
   activeDealId: string;
+  activeDealName: string;
   saveStatus: 'idle' | 'saving' | 'saved';
   onActiveDealChange: (id: string) => void;
   onSaveAs: (dealName: string) => void;
@@ -17,6 +19,7 @@ interface DealsVaultPanelProps {
 export function DealsVaultPanel({
   deals,
   activeDealId,
+  activeDealName,
   saveStatus,
   onActiveDealChange,
   onSaveAs,
@@ -32,8 +35,11 @@ export function DealsVaultPanel({
 
   const filteredDeals = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    return deals.filter((deal) => !normalizedSearch || deal.dealName.toLowerCase().includes(normalizedSearch));
+    if (!normalizedSearch) return [];
+    return deals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
   }, [deals, search]);
+
+  const hasSearchQuery = search.trim().length > 0;
 
   const openDialog = (mode: 'saveAs' | 'rename') => {
     setDialogMode(mode);
@@ -54,7 +60,7 @@ export function DealsVaultPanel({
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <section className="rounded-xl border border-white/10 bg-white/5 p-2.5 sm:p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
         <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
@@ -62,44 +68,50 @@ export function DealsVaultPanel({
         </span>
       </div>
 
-      <div className="mt-3 space-y-3">
-        <label className="sr-only" htmlFor="deal-search">
-          Search deals
-        </label>
-        <input
-          id="deal-search"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm"
-          placeholder="Search deal name"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+      <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_208px] lg:items-start">
+        <div className="space-y-2">
+          <label className="sr-only" htmlFor="deal-search">
+            Search deals
+          </label>
+          <input
+            id="deal-search"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            placeholder="Search deal name"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
 
-        <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-2">
-          {filteredDeals.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-muted">No deals match this search.</p>
-          ) : (
-            filteredDeals.map((deal) => (
-              <button
-                key={deal.scenarioId}
-                type="button"
-                onClick={() => onActiveDealChange(deal.scenarioId)}
-                className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm ${
-                  deal.scenarioId === activeDealId ? 'border-accent bg-accent/15' : 'border-white/10 bg-white/5'
-                }`}
-              >
-                <p className="font-medium">{deal.dealName}</p>
-                <p className="text-xs text-muted">Updated {new Date(deal.updatedAt).toLocaleDateString()}</p>
-              </button>
-            ))
-          )}
+          <RecentScenariosCarousel scenarios={deals} activeDealName={activeDealName} onOpen={onActiveDealChange} />
+
+          {hasSearchQuery ? (
+            <div className="max-h-44 space-y-1.5 overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-1.5 sm:max-h-48 sm:p-2">
+              {filteredDeals.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted">No deals match this search.</p>
+              ) : (
+                filteredDeals.map((deal) => (
+                  <button
+                    key={deal.scenarioId}
+                    type="button"
+                    onClick={() => onActiveDealChange(deal.scenarioId)}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
+                      deal.scenarioId === activeDealId ? 'border-accent bg-accent/15' : 'border-white/10 bg-white/5'
+                    }`}
+                  >
+                    <p className="font-medium">{deal.dealName}</p>
+                    <p className="text-xs text-muted">Updated {new Date(deal.updatedAt).toLocaleDateString()}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button className="min-h-11 rounded-xl bg-accent px-3 text-sm font-medium text-black" onClick={() => openDialog('saveAs')} type="button">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+          <button className="min-h-10 rounded-xl bg-accent px-3 text-sm font-medium text-black" onClick={() => openDialog('saveAs')} type="button">
             Save As
           </button>
           <button
-            className="min-h-11 rounded-xl border border-white/10 px-3 text-sm"
+            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
             onClick={() => openDialog('rename')}
             type="button"
             disabled={!activeDeal}
@@ -107,14 +119,14 @@ export function DealsVaultPanel({
             Rename
           </button>
           <button
-            className="min-h-11 rounded-xl border border-white/10 px-3 text-sm"
+            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
             onClick={onCreateNew}
             type="button"
           >
             New
           </button>
           <button
-            className="min-h-11 rounded-xl border border-rose-500/40 px-3 text-sm text-rose-200"
+            className="min-h-10 rounded-xl border border-rose-500/40 px-3 text-sm text-rose-200"
             onClick={onDelete}
             type="button"
             disabled={!activeDeal}
@@ -124,10 +136,10 @@ export function DealsVaultPanel({
         </div>
 
         {dialogMode ? (
-          <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+          <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5 lg:col-span-2">
             <p className="text-xs uppercase tracking-wider text-muted">{dialogMode === 'saveAs' ? 'Save as new deal' : 'Rename deal'}</p>
             <input
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
               value={dialogValue}
               onChange={(event) => setDialogValue(event.target.value)}
               placeholder="Deal name"
