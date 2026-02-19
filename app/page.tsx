@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -14,7 +14,8 @@ import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
+import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -73,6 +74,7 @@ export default function HomePage() {
     brrrr: true,
     flip: true
   });
+  const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -192,6 +194,55 @@ export default function HomePage() {
     setSaveStatus('idle');
   };
 
+  const shareCurrentDeal = async () => {
+    const encoded = encodeDealToShareParam(selectedScenario ?? model);
+    if (!encoded) {
+      setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
+      return;
+    }
+
+    const url = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
+    } catch {
+      setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedParam = params.get('s');
+
+    if (!sharedParam) return;
+
+    const decoded = decodeDealFromShareParam(sharedParam);
+
+    const timeoutId = window.setTimeout(() => {
+      if (decoded) {
+        const importedRecord = createScenarioRecord(decoded, {
+          dealName: decoded.purchase.dealName?.trim() ? decoded.purchase.dealName : 'Shared Deal'
+        });
+        const next = upsertScenario(importedRecord);
+
+        setScenarios(next);
+        setSelectedScenarioId(importedRecord.scenarioId);
+        loadScenario(importedRecord.payload, importedRecord.scenarioId);
+        setShareFeedback({ tone: 'success', message: `Imported shared deal: ${importedRecord.dealName}` });
+      } else {
+        setShareFeedback({ tone: 'error', message: 'Shared link was invalid or unsupported.' });
+      }
+    }, 0);
+
+    params.delete('s');
+    const remainingQuery = params.toString();
+    const cleanUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', cleanUrl);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -215,19 +266,34 @@ export default function HomePage() {
                 >
                   Print View
                 </Link>
+                <button
+                  type="button"
+                  onClick={shareCurrentDeal}
+                  className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                >
+                  Share Link
+                </button>
               </div>
-              <DealsVaultPanel
-                deals={deals}
-                activeDealId={activeDealId}
-                saveStatus={saveStatus}
-                onActiveDealChange={(dealId) => {
-                  const selectedDeal = deals.find((deal) => deal.scenarioId === dealId);
-                  if (!selectedDeal) return;
-                  loadScenario(selectedDeal.payload, selectedDeal.scenarioId);
-                }}
-                onSaveAs={saveDealAs}
-                onRename={renameDeal}
-                onDuplicate={duplicateDeal}
+              {shareFeedback ? (
+                <div
+                  role="status"
+                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
+                    shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+                  }`}
+                >
+                  <p>{shareFeedback.message}</p>
+                  {shareFeedback.fallbackUrl ? (
+                    <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              <ScenarioCorner
+                scenarios={scenarios}
+                selectedId={selectedScenarioId}
+                onSelectedIdChange={setSelectedScenarioId}
+                onSave={saveScenario}
+                onLoad={loadSelectedScenario}
+                onExport={exportSelectedScenario}
                 onDelete={removeScenario}
               />
             </div>
