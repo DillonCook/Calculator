@@ -25,7 +25,9 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
 
   return (
     <main className="min-h-screen bg-slate-950 px-3 py-4 sm:px-6 print:bg-white print:p-0">
-      <article className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
+      <PrintActions />
+
+      <article className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none print:shadow-transparent">
         <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 px-5 py-5 text-white sm:px-8">
           <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Deal Report</p>
           <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{report.title}</h1>
@@ -54,8 +56,6 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
           <ReportSection title={report.assumptions.title} rows={report.assumptions.rows} />
         </div>
       </article>
-
-      <PrintActions />
     </main>
   );
 }
