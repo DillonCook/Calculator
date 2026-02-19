@@ -36,7 +36,8 @@ export const calculateAcquisitionDebtService = ({
   helocAmount,
   helocRate,
   helocTermYears,
-  helocAmortizationType
+  helocAmortizationType,
+  existingMortgageMonthly = 0
 }: {
   financingType: 'cash' | 'loan';
   amortizationType: AmortizationType;
@@ -48,7 +49,25 @@ export const calculateAcquisitionDebtService = ({
   helocRate: number;
   helocTermYears: number;
   helocAmortizationType: AmortizationType;
+  existingMortgageMonthly?: number;
 }) => {
+  if (existingMortgageMonthly > 0) {
+    const helocPrincipal = Math.max(helocAmount, 0);
+    const helocDebtService =
+      helocAmortizationType === 'IO'
+        ? calculateInterestOnlyPayment(helocPrincipal, helocRate)
+        : calculateMonthlyPayment(helocPrincipal, helocRate, helocTermYears);
+
+    return {
+      primaryPrincipal: 0,
+      primaryDebtService: existingMortgageMonthly,
+      helocPrincipal,
+      helocDebtService,
+      principal: helocPrincipal,
+      debtService: existingMortgageMonthly + helocDebtService
+    };
+  }
+
   const primaryPrincipal = financingType === 'loan' ? calculateLoanAmount(purchasePrice, downPaymentPercent) : 0;
   const primaryDebtService =
     financingType === 'loan'

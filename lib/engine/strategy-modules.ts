@@ -36,12 +36,18 @@ const getPurchaseLoanTerms = (input: DealInputModel) => {
     helocAmount: purchase.helocAmount,
     helocRate: purchase.helocRate,
     helocTermYears: purchase.helocTermYears,
-    helocAmortizationType: purchase.helocAmortizationType
+    helocAmortizationType: purchase.helocAmortizationType,
+    existingMortgageMonthly: purchase.ownershipMode === 'owned' ? purchase.existingMortgageMonthly : 0
   });
 };
 
 const getMonthlyFixedCosts = (input: DealInputModel): number => {
   const { purchase } = input;
+
+  if (purchase.ownershipMode === 'owned') {
+    return purchase.existingTaxMonthly + purchase.existingInsuranceMonthly + purchase.hoaMonthly + purchase.pmiMonthly;
+  }
+
   const annualTax = purchase.propertyTaxAnnualOverride ?? purchase.purchasePrice * 0.017;
   const annualInsurance = purchase.insuranceAnnualOverride ?? purchase.purchasePrice * 0.01;
 
@@ -158,16 +164,19 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
 
   const { principal: loanAmount, debtService } = getPurchaseLoanTerms(input);
 
-  const cashToClose = calculateCashToClose(
-    purchase.purchasePrice,
-    purchase.rehabBudget,
-    purchase.downPaymentPercent,
-    purchase.closingCostPercent,
-    purchase.pointsPercent,
-    purchase.financingType,
-    purchase.helocAmount,
-    purchase.helocClosingCosts
-  );
+  const cashToClose =
+    purchase.ownershipMode === 'owned'
+      ? Math.max(purchase.helocClosingCosts, 0)
+      : calculateCashToClose(
+          purchase.purchasePrice,
+          purchase.rehabBudget,
+          purchase.downPaymentPercent,
+          purchase.closingCostPercent,
+          purchase.pointsPercent,
+          purchase.financingType,
+          purchase.helocAmount,
+          purchase.helocClosingCosts
+        );
 
   const annualCashFlow = -debtService * 12;
   const timeline = buildTimeline(cashToClose, annualCashFlow, assumptions.holdYears, 0, 0);
@@ -183,7 +192,12 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     cashFlowTimeline: timeline,
     saleProceeds: 0,
     noiMonthly: -debtService,
-    notes: loanAmount > 0 ? base.notes : 'All-cash purchase basis and acquisition capital requirements.',
+    notes:
+      purchase.ownershipMode === 'owned'
+        ? 'Owned property basis using your existing monthly carrying costs.'
+        : loanAmount > 0
+          ? base.notes
+          : 'All-cash purchase basis and acquisition capital requirements.',
     calculationBreakdown: {
       lines: [
         toLine('purchase-debt-service', 'Debt service', -debtService)

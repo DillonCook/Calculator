@@ -14,6 +14,15 @@ const near = (actual: number, expected: number, epsilon = 0.01) => {
 };
 
 const fixedCostsMonthly = (input = defaultDealInput) => {
+  if (input.purchase.ownershipMode === 'owned') {
+    return (
+      input.purchase.existingTaxMonthly +
+      input.purchase.existingInsuranceMonthly +
+      input.purchase.hoaMonthly +
+      input.purchase.pmiMonthly
+    );
+  }
+
   const annualTax = input.purchase.propertyTaxAnnualOverride ?? input.purchase.purchasePrice * 0.017;
   const annualInsurance = input.purchase.insuranceAnnualOverride ?? input.purchase.purchasePrice * 0.01;
   return annualTax / 12 + annualInsurance / 12 + input.purchase.hoaMonthly + input.purchase.pmiMonthly;
@@ -122,6 +131,39 @@ test('long-term module includes base fixed and variable expenses', () => {
 
   near(result.longTerm.noiMonthly ?? 0, noi);
   near(result.longTerm.monthlyCashFlow, expectedMonthly);
+});
+
+
+test('owned mode uses existing carrying costs instead of purchase underwriting debt inputs', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned' as const,
+      existingMortgageMonthly: 1650,
+      existingTaxMonthly: 420,
+      existingInsuranceMonthly: 180,
+      financingType: 'cash' as const,
+      purchasePrice: 0,
+      downPaymentPercent: 1,
+      interestRate: 0,
+      propertyTaxAnnualOverride: null,
+      insuranceAnnualOverride: null
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 3000
+    }
+  };
+
+  const result = calculateDeal(model);
+  const expectedDebtService = model.purchase.existingMortgageMonthly;
+
+  near(result.purchase.totalCashNeeded, 0);
+  near(result.longTerm.calculationBreakdown?.debtServiceMonthly ?? 0, expectedDebtService);
+  const fixedLine = result.longTerm.calculationBreakdown?.lines.find((line) => line.key === 'lt-fixed-costs');
+
+  near(Math.abs(fixedLine?.monthly ?? 0), fixedCostsMonthly(model), 0.1);
 });
 
 test('purchase taxes and insurance are auto calculated but can be overridden', () => {
