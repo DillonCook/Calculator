@@ -82,9 +82,11 @@ export default function HomePage() {
   const priorityMetricLabel = isFlipStrategy ? 'Net Profit' : 'Monthly Cash Flow';
   const priorityMetricHelper = isFlipStrategy
     ? 'Flip strategy realizes profit at resale, so operating cash flow is modeled as $0'
-    : supportsReserveToggle && !includeReserves
-      ? 'Monthly cash flow excluding maintenance and CapEx reserves'
-      : 'Monthly cash flow for the selected strategy';
+    : supportsReserveToggle
+      ? includeReserves
+        ? 'Includes maintenance and CapEx reserves for a conservative monthly cash flow view'
+        : 'Excludes maintenance and CapEx reserves to show cash flow before reserve allocations'
+      : 'Estimated monthly cash flow based on your current assumptions';
   const priorityMetricValue = isFlipStrategy
     ? activeOutput.saleProceeds ?? 0
     : supportsReserveToggle && !includeReserves
@@ -270,7 +272,7 @@ export default function HomePage() {
                 </p>
 
                 {supportsReserveToggle ? (
-                  <div className="flex shrink-0 items-center gap-2 sm:pb-1">
+                  <div className="flex shrink-0 items-center sm:pb-1">
                     <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
                       <button
                         type="button"
@@ -292,20 +294,6 @@ export default function HomePage() {
                       >
                         Exclude reserves
                       </button>
-                    </div>
-                    <div className="group/tooltip relative">
-                      <button
-                        type="button"
-                        aria-label="Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately."
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-xs font-semibold text-muted transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                      >
-                        i
-                      </button>
-                      <div className="pointer-events-none absolute right-0 top-7 z-20 w-[300px] max-w-[85vw] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 opacity-0 shadow-soft backdrop-blur transition duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100">
-                        <p className="leading-relaxed">
-                          <span className="font-semibold text-white">Exclude reserves:</span> Excludes maintenance and CapEx reserves. Helpful when underwriting newer homes that may not need reserve allocations immediately.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 ) : null}
