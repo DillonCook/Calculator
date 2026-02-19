@@ -175,31 +175,55 @@ const decodeBase64Url = (input: string): string | null => {
       );
     }
 
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(padded, 'base64').toString('utf8');
+    }
+
     return null;
   } catch {
     return null;
   }
 };
 
-export const extractDealNameFromOneHomeEmailToken = (emailToken: string): string | null => {
+
+
+export const decodeOneHomeEmailTokenPayload = (emailToken: string): Record<string, unknown> | null => {
   const decoded = decodeBase64Url(emailToken);
   if (!decoded) return null;
 
   try {
-    const payload = JSON.parse(decoded) as Record<string, unknown>;
-    for (const value of Object.values(payload)) {
-      if (typeof value !== 'string') continue;
-      const extracted = extractAddressFromText(value);
-      if (extracted) return extracted;
-    }
-
-    const setIdRaw = payload.setid;
-    if (typeof setIdRaw === 'string' && setIdRaw.trim()) {
-      return `OneHome Listing ${setIdRaw.trim()}`;
-    }
-
-    return null;
+    return JSON.parse(decoded) as Record<string, unknown>;
   } catch {
-    return extractAddressFromText(decoded);
+    return null;
   }
+};
+
+export const extractOneHomeSetIdFromEmailToken = (emailToken: string): string | null => {
+  const payload = decodeOneHomeEmailTokenPayload(emailToken);
+  const setIdRaw = payload?.setid;
+  return typeof setIdRaw === 'string' && setIdRaw.trim() ? setIdRaw.trim() : null;
+};
+
+export const extractDealNameFromOneHomeEmailToken = (emailToken: string): string | null => {
+  const payload = decodeOneHomeEmailTokenPayload(emailToken);
+  if (!payload) return null;
+
+  for (const value of Object.values(payload)) {
+    if (typeof value !== 'string') continue;
+    const extracted = extractAddressFromText(value);
+    if (extracted) return extracted;
+  }
+
+  const setIdRaw = payload.setid;
+  if (typeof setIdRaw === 'string' && setIdRaw.trim()) {
+    return `OneHome Listing ${setIdRaw.trim()}`;
+  }
+
+  return null;
+};
+
+
+export const extractOneHomeSetIdFromShareCode = (shareCode: string): string | null => {
+  const match = shareCode.match(/^(\d+)G/i);
+  return match?.[1] ?? null;
 };

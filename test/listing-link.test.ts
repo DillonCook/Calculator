@@ -4,6 +4,8 @@ import {
   extractDealNameFromListingHtml,
   extractDealNameFromListingUrl,
   extractDealNameFromOneHomeEmailToken,
+  extractOneHomeSetIdFromEmailToken,
+  extractOneHomeSetIdFromShareCode,
   extractOneHomeShareCode,
   normalizeListingUrl
 } from '../lib/listing-link';
@@ -32,6 +34,21 @@ describe('listing link parsing', () => {
       'eyJPU04iOiJTVEVMTEFSIiwiYWdlbnRpZCI6IjUyNjU3Iiwic2V0aWQiOiAiMjQ3ODA0NSIsInNldFR5cGUiOiAiUFJPUEVSVFkiLCJzYXZlZFNlYXJjaElkIjogIjViYjU0MmVmLTdmZDUtM2I3My1iNGYzLWJjMDkwMjA4ZWEwMyIsImVtYWlsIjogIiIsICJWaWV3TW9kZSI6ICIzIn0=';
 
     expect(extractDealNameFromOneHomeEmailToken(token)).toBe('OneHome Listing 2478045');
+  });
+
+
+
+
+
+  it('extracts OneHome set id from share code format', () => {
+    expect(extractOneHomeSetIdFromShareCode('2478043G11148')).toBe('2478043');
+  });
+
+  it('extracts OneHome set id from email token payload', () => {
+    const token =
+      'eyJPU04iOiJTVEVMTEFSIiwiYWdlbnRpZCI6IjUyNjU3Iiwic2V0aWQiOiAiMjQ3ODA0MyIsInNldFR5cGUiOiAiUFJPUEVSVFkiLCJzYXZlZFNlYXJjaElkIjogIjcyNzI5MzYyLTYzY2UtMzc4MS1iNTRjLTcwZTkyNjNhYTBlZCIsImVtYWlsIjogIiIsICJWaWV3TW9kZSI6ICIzIn0=';
+
+    expect(extractOneHomeSetIdFromEmailToken(token)).toBe('2478043');
   });
 
   it('extracts address from listing page html metadata', () => {
