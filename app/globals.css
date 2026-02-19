@@ -89,35 +89,18 @@ input[type='number'] {
   border-radius: 999px;
 }
 
-@keyframes app-shell-fade {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 @media print {
   :root {
     color-scheme: light;
   }
 
-  * {
+  body,
+  .print-shell {
+    background: #fff !important;
+  }
+
+  .print-report,
+  .print-report * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
