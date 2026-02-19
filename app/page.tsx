@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
 import { ScenarioCorner } from '@/components/dashboard/scenario-corner';
@@ -13,7 +13,7 @@ import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
+import { createScenarioRecord, decodeScenario, deleteScenario, encodeScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
@@ -157,6 +157,26 @@ export default function HomePage() {
     setSelectedScenarioId(parsed.scenarioId);
     if (imported) loadScenario(imported.payload, imported.scenarioId);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedToken = params.get('s');
+    if (!sharedToken) return;
+
+    const parsed = decodeScenario(sharedToken);
+    if (parsed) {
+      const next = upsertScenario(parsed);
+      const imported = next.find((record) => record.scenarioId === parsed.scenarioId);
+      setScenarios(next);
+      setSelectedScenarioId(parsed.scenarioId);
+      if (imported) loadScenario(imported.payload, imported.scenarioId);
+    }
+
+    params.delete('s');
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, []);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
