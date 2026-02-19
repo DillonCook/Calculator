@@ -334,18 +334,18 @@ export default function HomePage() {
         </header>
 
         <section className="grid gap-2 md:hidden">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
             <button
               type="button"
               onClick={() => setMobileInputSheet('core')}
-              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium"
+              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
             >
               Core Deal Inputs
             </button>
             <button
               type="button"
               onClick={() => setMobileInputSheet('strategy')}
-              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium"
+              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
             >
               Strategy Inputs
             </button>
@@ -353,7 +353,7 @@ export default function HomePage() {
           <p className="text-xs text-muted">Tap to edit assumptions. KPIs stay visible first for faster deal decisions.</p>
         </section>
 
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(result.purchase.totalCashNeeded)}
@@ -525,7 +525,7 @@ export default function HomePage() {
             className="absolute inset-0 bg-black/70"
             onClick={() => setMobileInputSheet(null)}
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-surface p-3 pb-6 shadow-soft">
+          <div className="absolute inset-x-0 bottom-0 w-full max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-t-2xl border border-white/10 bg-surface p-3 pb-6 shadow-soft">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold">{mobileInputSheet === "core" ? "Core Deal Inputs" : `${activeStrategyLabel} Strategy Inputs`}</p>
               <button
