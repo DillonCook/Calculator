@@ -9,7 +9,7 @@ interface TimelineCardProps {
 
 export function TimelineCard({ output, assumptions, onAssumptionsChange }: TimelineCardProps) {
   return (
-    <details className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft" open>
+    <details className="rounded-2xl panel-surface p-5 shadow-soft" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <h3 className="text-lg font-semibold">IRR Stream & Exit Assumptions</h3>
         <p className="text-xs text-muted">IRR-ready stream</p>
@@ -19,7 +19,7 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange }: Timel
         <label className="space-y-1">
           <span className="text-xs text-muted">Hold years</span>
           <input
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
             type="number"
             min={1}
             value={assumptions.holdYears}
@@ -48,7 +48,7 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange }: Timel
         {output.cashFlowTimeline.map((flow, index) => (
           <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
             <p className="text-xs text-muted">Year {index}</p>
-            <p className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{currencyFormatter.format(flow)}</p>
+            <p className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(flow)}</p>
           </div>
         ))}
       </div>
@@ -63,7 +63,7 @@ function PercentField({ label, value, onChange }: { label: string; value: number
     <label className="space-y-1">
       <span className="text-xs text-muted">{label}</span>
       <input
-        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none ring-accent focus:ring-2"
+        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
         type="number"
         value={displayValue}
         onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}

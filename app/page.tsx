@@ -268,9 +268,10 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="app-shell-fade min-h-screen bg-gradient-to-br from-[#0B1220] via-[#0F1B33] to-[#101B32] px-4 py-6 md:px-8">
+    <main className="app-shell-fade relative min-h-screen overflow-hidden px-4 py-6 md:px-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(49,121,185,0.25)_0%,rgba(49,121,185,0.1)_35%,transparent_70%)]" />
       <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-2xl border border-white/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
+        <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="max-w-3xl">
@@ -286,7 +287,7 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/60 bg-accent/20 px-4 py-2 text-sm font-medium text-accent"
+                    className="btn-primary inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
                     target="_blank"
                   >
                     Print View
@@ -294,7 +295,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={shareCurrentDeal}
-                    className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15"
+                    className="btn-primary min-h-11 rounded-xl px-4 py-2 text-sm font-medium"
                   >
                     Share Link
                   </button>
@@ -306,12 +307,12 @@ export default function HomePage() {
               <div
                 role="status"
                 className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
-                  shareFeedback.tone === 'success' ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+                  shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
                 }`}
               >
                 <p>{shareFeedback.message}</p>
                 {shareFeedback.fallbackUrl ? (
-                  <p className="mt-1 break-all text-[11px] text-amber-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                  <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
                 ) : null}
               </div>
             ) : null}
@@ -380,7 +381,7 @@ export default function HomePage() {
             winner={activeStrategyLabel}
           />
         </section>
-        <section className="rounded-2xl border border-accent/35 bg-gradient-to-r from-accent/10 via-accent/5 to-transparent p-4 shadow-soft">
+        <section className="accent-edge rounded-2xl p-4 shadow-soft">
           <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -472,7 +473,7 @@ export default function HomePage() {
                   triggerHapticFeedback('light');
                   setIsStrategyWorkOpen(true);
                 }}
-                className="tap-feedback rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/20"
+                className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
               >
                 Show work
               </button>

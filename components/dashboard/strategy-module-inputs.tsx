@@ -127,7 +127,7 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
   };
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-panel p-5 shadow-soft">
+    <section className="rounded-2xl panel-surface p-5 shadow-soft">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-base font-semibold">Strategy Inputs</h3>
         <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Updates results instantly</span>
