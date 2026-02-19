@@ -1,13 +1,23 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
+
+const getStrategyTab = (label: string) =>
+  screen
+    .getAllByRole('button', { name: label })
+    .find((button) => button.className.includes('snap-start'));
+
 describe('dashboard integration', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('editing purchase price updates master cash-to-close KPI', async () => {
     render(<HomePage />);
 
@@ -75,7 +85,9 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getAllByRole('button', { name: 'Flip' })[0]);
+    const flipTab = getStrategyTab('Flip');
+    expect(flipTab).toBeDefined();
+    await user.click(flipTab!);
 
     const flipResult = calculateDeal(defaultDealInput).flip;
 
@@ -98,7 +110,9 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'PadSplit' }));
+    const padSplitTab = getStrategyTab('PadSplit');
+    expect(padSplitTab).toBeDefined();
+    await user.click(padSplitTab!);
     await user.click(screen.getByRole('button', { name: 'Show work' }));
 
     expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
@@ -108,16 +122,17 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
   });
 
-  it('scenario save and load flow persists data to local storage', async () => {
+  it('save as flow persists a deal in the vault list', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save As' }));
+    const dialogInput = screen.getByPlaceholderText('Deal name');
+    await user.clear(dialogInput);
+    await user.type(dialogInput, 'Austin BRRRR');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
-    const scenarioSelect = screen.getByLabelText('Scenario Select');
-    const options = Array.from(scenarioSelect.querySelectorAll('option')).map((option) => option.textContent);
-
-    expect(options.some((option) => option?.includes('Tampa Duplex - Sample Deal'))).toBe(true);
+    expect(screen.getAllByRole('button', { name: /Austin BRRRR/i }).length).toBeGreaterThan(0);
   });
 
 
