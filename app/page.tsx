@@ -60,41 +60,6 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 };
 
 
-const buildLinePath = (points: { x: number; y: number }[]) => {
-  if (!points.length) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length; index += 1) {
-    const current = points[index];
-    path += ` L ${current.x} ${current.y}`;
-  }
-
-  return path;
-};
-
-
-const resolveRibbonPalette = (isNegative: boolean) => {
-  if (isNegative) {
-    return {
-      areaTop: '#fd9f4f',
-      areaBottom: '#8d5a2d',
-      lineStops: ['#ff9a3d', '#ff7a1f', '#ffb86a', '#ffd8ae'],
-      glowStops: ['rgba(255,122,31,0)', 'rgba(255,122,31,0.32)', 'rgba(255,184,106,0.52)', 'rgba(255,216,174,0)'],
-      endpointColor: '#ffd8ae',
-      pointColor: '#ffb86a'
-    };
-  }
-
-  return {
-    areaTop: '#4F8DFD',
-    areaBottom: '#395c98',
-    lineStops: ['#4f8dfd', '#5aa7ff', '#7bb8ff', '#9ecfff'],
-    glowStops: ['rgba(79,141,253,0)', 'rgba(79,141,253,0.32)', 'rgba(123,184,255,0.52)', 'rgba(158,207,255,0)'],
-    endpointColor: '#c2e2ff',
-    pointColor: '#7bb8ff'
-  };
-};
 
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
@@ -137,8 +102,12 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
-    const rawTimeline = operatingTimeline.slice(0, 24);
+    const timelineWithoutAcquisitionYear = activeOutput.cashFlowTimeline.slice(1);
+    const terminalSaleProceeds = activeOutput.saleProceeds ?? 0;
+    const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
+      index === array.length - 1 ? value - terminalSaleProceeds : value
+    );
+    const rawTimeline = cashFlowOnlyTimeline;
 
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
@@ -153,55 +122,43 @@ export default function HomePage() {
     return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
   }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
 
-  const monthlyCashFlowChartPoints = useMemo(() => {
-    const maxValue = Math.max(...monthlyCashFlowChartSeries.map((point) => Math.abs(point)), 1);
-    const step = monthlyCashFlowChartSeries.length > 1 ? 100 / (monthlyCashFlowChartSeries.length - 1) : 100;
+  const monthlyCashFlowBarData = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return [];
+
+    const chartTop = 6;
+    const chartBottom = 34;
+    const chartHeight = chartBottom - chartTop;
+    const barCount = monthlyCashFlowChartSeries.length;
+
+    const maxPositive = Math.max(...monthlyCashFlowChartSeries.filter((value) => value > 0), 0);
+    const maxNegativeAbs = Math.max(...monthlyCashFlowChartSeries.filter((value) => value < 0).map((value) => Math.abs(value)), 0);
+
+    const targetBaseWidth = barCount >= 28 ? 1.4 : barCount > 18 ? 1.85 : barCount > 12 ? 2.35 : 2.8;
+    const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.12);
+    const gap = Math.max(naturalGap * 0.42, 0.1);
+    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 0.95);
 
     return monthlyCashFlowChartSeries.map((value, index) => {
-      const normalized = Math.max(0.16, Math.abs(value) / maxValue);
+      const x = gap + index * (barWidth + gap);
+      const denominator = value < 0 ? Math.max(maxNegativeAbs, 1) : Math.max(maxPositive, 1);
+      const normalized = Math.min(Math.abs(value) / denominator, 1);
+      const emphasized = Math.pow(normalized, 0.72);
+      const height = Math.max(emphasized * chartHeight, 0.7);
+
       return {
-        x: monthlyCashFlowChartSeries.length > 1 ? index * step : 50,
-        y: 40 - normalized * 32
-      };
-    });
-  }, [monthlyCashFlowChartSeries]);
-
-  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
-  const monthlyCashFlowAreaPath = useMemo(
-    () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
-    [monthlyCashFlowLinePath]
-  );
-  const monthlyCashFlowYearMarkers = useMemo(() => {
-    if (monthlyCashFlowChartSeries.length < 12) return [];
-
-    const totalPoints = monthlyCashFlowChartSeries.length;
-    const maxYears = Math.ceil(totalPoints / 12);
-
-    return Array.from({ length: maxYears }, (_, index) => {
-      const monthIndex = Math.min((index + 1) * 12 - 1, totalPoints - 1);
-      const x = totalPoints > 1 ? (monthIndex / (totalPoints - 1)) * 100 : 50;
-      return {
-        key: `Y${index + 1}`,
+        key: `bar-${index}`,
         x,
-        label: `Y${index + 1}`
+        y: chartBottom - height,
+        width: barWidth,
+        height,
+        isNegative: value < 0
       };
     });
   }, [monthlyCashFlowChartSeries]);
-  const cashFlowPathAnimationKey = useMemo(
-    () => monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|'),
-    [monthlyCashFlowChartSeries]
-  );
 
-  const isNegativeCashFlowRibbon = useMemo(() => {
-    if (!monthlyCashFlowChartSeries.length) return false;
-    const average = monthlyCashFlowChartSeries.reduce((sum, value) => sum + value, 0) / monthlyCashFlowChartSeries.length;
-    const lastValue = monthlyCashFlowChartSeries[monthlyCashFlowChartSeries.length - 1];
-    return average < 0 || lastValue < 0;
-  }, [monthlyCashFlowChartSeries]);
-
-  const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(),
-    []
+  const cashFlowBarsAnimationKey = useMemo(
+    () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
+    [activeStrategy, monthlyCashFlowChartSeries]
   );
 
   const activeDeal = useMemo(
@@ -478,6 +435,12 @@ export default function HomePage() {
         </header>
 
         <section className="grid gap-2 md:hidden">
+          <StrategyTabs
+            active={activeStrategy}
+            onChange={setActiveStrategy}
+            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+          />
+          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
           <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
             <button
               type="button"
@@ -504,14 +467,125 @@ export default function HomePage() {
               Show work
             </button>
           </div>
-          <StrategyTabs
-            active={activeStrategy}
-            onChange={setActiveStrategy}
-            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
-          />
-          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
+        <section className="accent-edge rounded-2xl p-4 shadow-soft">
+          <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+              {!isFlipStrategy ? (
+                <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
+                  <div
+                    className="absolute inset-0 opacity-25"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
+                      backgroundSize: '92px 92px, 128px 128px, 146px 146px'
+                    }}
+                  />
+                  <svg
+                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowBarsAnimationKey}`}
+                    viewBox="0 0 100 40"
+                    className="absolute inset-x-0 bottom-0 h-[42%] w-full"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient id="cashflowBarPosGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#5CCBFF" stopOpacity="0.56" />
+                        <stop offset="100%" stopColor="#1E4778" stopOpacity="0.08" />
+                      </linearGradient>
+                      <linearGradient id="cashflowBarNegGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#FF9A55" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#5B2B16" stopOpacity="0.09" />
+                      </linearGradient>
+                    </defs>
+                    {monthlyCashFlowBarData.map((bar, index) => (
+                      <rect
+                        key={`${bar.key}-${cashFlowBarsAnimationKey}`}
+                        x={bar.x}
+                        y={bar.y}
+                        width={bar.width}
+                        height={bar.height}
+                        rx={bar.width / 2}
+                        fill={bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
+                        opacity={0.52}
+                      >
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="height"
+                            from="0"
+                            to={String(bar.height)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="y"
+                            from="34"
+                            to={String(bar.y)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                      </rect>
+                    ))}
+                  </svg>
+                </div>
+              ) : null}
+              <div className="relative z-10 pr-20">
+                <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
+                <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
+                <p className="absolute right-0 top-0 text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              </div>
+
+              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <p
+                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                  data-testid="kpi-priority-metric"
+                >
+                  {currencyFormatter.format(priorityMetricValue)}
+                </p>
+
+                {supportsReserveToggle ? (
+                  <div className="flex shrink-0 items-center sm:pb-1">
+                    <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                        }}
+                        aria-pressed={includeReserves}
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Include reserves
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                        }}
+                        aria-pressed={!includeReserves}
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Exclude reserves
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+          </div>
+        </section>
         <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
@@ -560,169 +634,6 @@ export default function HomePage() {
             helper="Discounted return from yearly cashflow timeline"
             winner={activeStrategyLabel}
           />
-        </section>
-        <section className="accent-edge rounded-2xl p-4 shadow-soft">
-          <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
-              {!isFlipStrategy ? (
-                <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
-                  <div
-                    className="absolute inset-0 opacity-25"
-                    style={{
-                      backgroundImage:
-                        'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
-                      backgroundSize: '92px 92px, 128px 128px, 146px 146px'
-                    }}
-                  />
-                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
-                        <stop offset="65%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.lineStops[3]} />
-                      </linearGradient>
-                      <linearGradient id="cashflowGlowGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.glowStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.glowStops[1]} />
-                        <stop offset="70%" stopColor={monthlyCashFlowRibbonPalette.glowStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.glowStops[3]} />
-                      </linearGradient>
-                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
-                      </linearGradient>
-                      <filter id="cashflowGlow" x="-30%" y="-40%" width="170%" height="220%" colorInterpolationFilters="sRGB">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="3.25" result="blur" />
-                        <feColorMatrix
-                          in="blur"
-                          type="matrix"
-                          values="1 0 0 0 0.31 0 1 0 0 0.55 0 0 1 0 0.99 0 0 0 0.8 0"
-                          result="glow"
-                        />
-                        <feMerge>
-                          <feMergeNode in="glow" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    {[8, 14, 20, 26, 32].map((lineY) => (
-                      <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.09" strokeWidth="0.35" />
-                    ))}
-                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
-                    {monthlyCashFlowLinePath ? (
-                      <>
-                        <path
-                          key={`cashflow-glow-${cashFlowPathAnimationKey}`}
-                          d={monthlyCashFlowLinePath}
-                          fill="none"
-                          stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="7.2"
-                          strokeLinecap="round"
-                          opacity="0.2"
-                          filter="url(#cashflowGlow)"
-                          pathLength={1}
-                          strokeDasharray={prefersReducedMotion ? undefined : 1}
-                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
-                        >
-                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
-                        </path>
-                        <path
-                          key={`cashflow-main-${cashFlowPathAnimationKey}`}
-                          d={monthlyCashFlowLinePath}
-                          fill="none"
-                          stroke="url(#cashflowLineGrad)"
-                          strokeWidth="2.1"
-                          strokeLinecap="round"
-                          opacity="0.95"
-                          pathLength={1}
-                          strokeDasharray={prefersReducedMotion ? undefined : 1}
-                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
-                        >
-                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
-                        </path>
-                      </>
-                    ) : null}
-                    {monthlyCashFlowYearMarkers.map((marker) => (
-                      <text
-                        key={`priority-cashflow-year-${marker.key}`}
-                        x={marker.x}
-                        y="39"
-                        textAnchor="middle"
-                        fill="#BDD0E8"
-                        opacity="0.38"
-                        fontSize="1.8"
-                        letterSpacing="0.08"
-                      >
-                        {marker.label}
-                      </text>
-                    ))}
-                    {monthlyCashFlowChartPoints.map((point, index) => (
-                      <circle
-                        key={`priority-cashflow-point-${index}`}
-                        cx={point.x}
-                        cy={point.y}
-                        r="0.82"
-                        fill={monthlyCashFlowRibbonPalette.pointColor}
-                        opacity="0.45"
-                      />
-                    ))}
-                  </svg>
-                </div>
-              ) : null}
-              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
-                  <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
-                </div>
-                <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
-              </div>
-
-              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <p
-                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
-                  data-testid="kpi-priority-metric"
-                >
-                  {currencyFormatter.format(priorityMetricValue)}
-                </p>
-
-                {supportsReserveToggle ? (
-                  <div className="flex shrink-0 items-center sm:pb-1">
-                    <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
-                        }}
-                        aria-pressed={includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Include reserves
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
-                        }}
-                        aria-pressed={!includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Exclude reserves
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
-          </div>
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">

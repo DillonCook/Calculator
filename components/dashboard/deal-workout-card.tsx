@@ -103,27 +103,31 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
             const shouldShowScenarioDescription = !isCashPriceCutScenario && !isLoanDualFixLayout;
 
             return (
-              <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <p className="text-sm font-medium">{scenario.title}</p>
+              <article
+                key={scenario.key}
+                className={isLoanDualFixLayout ? '' : 'rounded-xl border border-white/10 bg-black/20 p-3'}
+              >
+                {!isLoanDualFixLayout ? <p className="text-sm font-medium">{scenario.title}</p> : null}
                 {shouldShowScenarioDescription ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
 
                 {isLoanDualFixLayout ? (
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1.5 text-center">
+                  <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
+                    <div className="flex min-h-[132px] flex-col items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-center">
+                      <p className="text-xs font-semibold text-slate-100">{scenario.title}</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:mx-auto sm:w-36"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => onApply(scenario)}
                       >
                         Apply this fix
                       </button>
                       <p className="text-[11px] leading-tight text-muted">{scenario.description}</p>
                     </div>
-                    <div className="space-y-1.5 text-center">
-                      <p className="text-xs font-medium text-slate-200">Reduce Purchase Price</p>
+                    <div className="flex min-h-[132px] flex-col items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-center">
+                      <p className="text-xs font-semibold text-slate-100">Reduce Purchase Price</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:mx-auto sm:w-36"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix
