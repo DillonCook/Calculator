@@ -103,7 +103,10 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
             const shouldShowScenarioDescription = !isCashPriceCutScenario && !isLoanDualFixLayout;
 
             return (
-              <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <article
+                key={scenario.key}
+                className={isLoanDualFixLayout ? '' : 'rounded-xl border border-white/10 bg-black/20 p-3'}
+              >
                 {!isLoanDualFixLayout ? <p className="text-sm font-medium">{scenario.title}</p> : null}
                 {shouldShowScenarioDescription ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
 
