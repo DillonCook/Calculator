@@ -12,8 +12,7 @@ interface DealWorkoutCardProps {
 
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
-  const shouldShowDualFixActions = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
-  const downPaymentScenario = recommendation.scenarios.find((scenario) => scenario.key === 'down-payment');
+  const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
 
   return (
@@ -79,13 +78,24 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
             <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-sm font-medium">{scenario.title}</p>
               <p className="mt-1 text-xs text-muted">{scenario.description}</p>
-              <button
-                type="button"
-                className="btn-primary mt-2 min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                onClick={() => onApply(scenario)}
-              >
-                Apply this fix
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                  onClick={() => onApply(scenario)}
+                >
+                  Apply this fix
+                </button>
+                {shouldShowInlinePriceCut && scenario.key === 'down-payment' && priceCutScenario ? (
+                  <button
+                    type="button"
+                    className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    onClick={() => onApply(priceCutScenario)}
+                  >
+                    Cut purchase price
+                  </button>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
