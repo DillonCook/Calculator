@@ -79,6 +79,13 @@ const resolveRibbonPalette = (isNegative: boolean) => {
   };
 };
 
+const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 1
+});
+
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
@@ -125,10 +132,7 @@ export default function HomePage() {
     const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
       index === array.length - 1 ? value - terminalSaleProceeds : value
     );
-    const rawTimeline =
-      cashFlowOnlyTimeline.length > 24
-        ? [...cashFlowOnlyTimeline.slice(0, 23), cashFlowOnlyTimeline[cashFlowOnlyTimeline.length - 1]]
-        : cashFlowOnlyTimeline;
+    const rawTimeline = cashFlowOnlyTimeline;
 
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
@@ -146,51 +150,89 @@ export default function HomePage() {
   const monthlyCashFlowBarData = useMemo(() => {
     if (!monthlyCashFlowChartSeries.length) return [];
 
-    const maxAbsValue = Math.max(...monthlyCashFlowChartSeries.map((value) => Math.abs(value)), 1);
-    const chartTop = 6;
-    const chartBottom = 34;
+    const chartTop = 5.5;
+    const chartBottom = 33.4;
     const chartHeight = chartBottom - chartTop;
     const barCount = monthlyCashFlowChartSeries.length;
-    const targetBaseWidth = barCount > 18 ? 1.9 : barCount > 12 ? 2.35 : 2.8;
-    const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.4);
-    const gap = Math.max(naturalGap * 0.5, 0.22);
-    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 1.6);
+    const minValue = Math.min(...monthlyCashFlowChartSeries, 0);
+    const maxValue = Math.max(...monthlyCashFlowChartSeries, 0);
+    const valueRange = Math.max(maxValue - minValue, 1);
+    const baselineY = chartTop + (maxValue / valueRange) * chartHeight;
+
+    const targetBaseWidth = barCount >= 28 ? 1.35 : barCount > 18 ? 1.8 : barCount > 12 ? 2.3 : 2.8;
+    const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.12);
+    const gap = Math.max(naturalGap * 0.4, 0.09);
+    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 0.9);
 
     const firstPositiveAfterNegativeIndex = monthlyCashFlowChartSeries.findIndex(
       (value, index) => index > 0 && monthlyCashFlowChartSeries[index - 1] < 0 && value >= 0
     );
 
     return monthlyCashFlowChartSeries.map((value, index) => {
-      const height = Math.max((Math.abs(value) / maxAbsValue) * chartHeight, 0.8);
+      const normalizedValue = (value / valueRange) * chartHeight;
+      const height = Math.max(Math.abs(normalizedValue), 0.55);
       const x = gap + index * (barWidth + gap);
+      const y = value >= 0 ? baselineY - height : baselineY;
 
       return {
         key: `bar-${index}`,
         x,
-        y: chartBottom - height,
+        y,
         width: barWidth,
         height,
         centerX: x + barWidth / 2,
         isNegative: value < 0,
-        isRecoveryZone: firstPositiveAfterNegativeIndex >= 0 && index >= firstPositiveAfterNegativeIndex && value >= 0
+        isRecoveryZone: firstPositiveAfterNegativeIndex >= 0 && index >= firstPositiveAfterNegativeIndex && value >= 0,
+        baselineY,
+        chartBottom
       };
     });
   }, [monthlyCashFlowChartSeries]);
 
   const monthlyCashFlowYearMarkers = useMemo(() => {
-    if (monthlyCashFlowBarData.length < 12) return [];
+    if (!monthlyCashFlowBarData.length) return [];
 
-    const maxYears = Math.ceil(monthlyCashFlowBarData.length / 12);
+    const totalYears = monthlyCashFlowBarData.length;
+    const step = totalYears > 20 ? 2 : 1;
+    const markerIndexes: number[] = [];
 
-    return Array.from({ length: maxYears }, (_, index) => {
-      const monthIndex = Math.min((index + 1) * 12 - 1, monthlyCashFlowBarData.length - 1);
-      const markerBar = monthlyCashFlowBarData[monthIndex];
+    for (let yearIndex = 0; yearIndex < totalYears; yearIndex += step) {
+      markerIndexes.push(yearIndex);
+    }
+
+    if (markerIndexes[markerIndexes.length - 1] !== totalYears - 1) {
+      markerIndexes.push(totalYears - 1);
+    }
+
+    return markerIndexes.map((yearIndex) => {
+      const markerBar = monthlyCashFlowBarData[yearIndex];
       return {
-        key: `Y${index + 1}`,
+        key: `Y${yearIndex + 1}`,
+        label: `Y${yearIndex + 1}`,
         x: markerBar?.centerX ?? 50
       };
     });
   }, [monthlyCashFlowBarData]);
+
+  const cashFlowValueMarkers = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return [];
+
+    const minValue = Math.min(...monthlyCashFlowChartSeries);
+    const maxValue = Math.max(...monthlyCashFlowChartSeries);
+    const steps = 4;
+    const valueRange = Math.max(maxValue - minValue, 1);
+
+    return Array.from({ length: steps }, (_, index) => {
+      const ratio = index / (steps - 1);
+      const y = 6.3 + ratio * 27.6;
+      const value = maxValue - valueRange * ratio;
+      return {
+        key: `value-${index}`,
+        y,
+        label: compactCurrencyFormatter.format(value)
+      };
+    });
+  }, [monthlyCashFlowChartSeries]);
 
   const cashFlowBarsAnimationKey = useMemo(
     () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
@@ -608,7 +650,7 @@ export default function HomePage() {
                         height={bar.height}
                         rx={bar.width / 2}
                         fill={bar.isRecoveryZone ? 'url(#cashflowBarRecoveryGrad)' : bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
-                        opacity={0.45}
+                        opacity={0.5}
                       >
                         {!prefersReducedMotion ? (
                           <animate
@@ -623,7 +665,7 @@ export default function HomePage() {
                         {!prefersReducedMotion ? (
                           <animate
                             attributeName="y"
-                            from="34"
+                            from={String(bar.baselineY)}
                             to={String(bar.y)}
                             dur="0.75s"
                             begin={`${Math.min(index * 0.02, 0.32)}s`}
@@ -632,12 +674,29 @@ export default function HomePage() {
                         ) : null}
                       </rect>
                     ))}
-                    <line x1="0" y1="36" x2="100" y2="36" stroke="#9FB6CF" strokeOpacity="0.2" strokeWidth="0.3" />
-                    {monthlyCashFlowYearMarkers.map((marker, markerIndex) => (
+                    <line x1="0" y1="34.4" x2="100" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.3" strokeWidth="0.34" />
+                    <line x1="1.1" y1="5.6" x2="1.1" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.16" strokeWidth="0.25" />
+                    {cashFlowValueMarkers.map((marker) => (
+                      <g key={`priority-cashflow-value-${marker.key}`}>
+                        <line
+                          x1="1.1"
+                          y1={marker.y}
+                          x2="100"
+                          y2={marker.y}
+                          stroke="#9FB6CF"
+                          strokeOpacity="0.08"
+                          strokeWidth="0.2"
+                        />
+                        <text x="1.7" y={marker.y - 0.4} textAnchor="start" fill="#BDD0E8" opacity="0.22" fontSize="1.15" letterSpacing="0.02">
+                          {marker.label}
+                        </text>
+                      </g>
+                    ))}
+                    {monthlyCashFlowYearMarkers.map((marker) => (
                       <g key={`priority-cashflow-year-${marker.key}`}>
-                        <line x1={marker.x} y1="35.4" x2={marker.x} y2="37.1" stroke="#BBD0EA" strokeOpacity="0.24" strokeWidth="0.24" />
-                        <text x={marker.x} y="38.8" textAnchor="middle" fill="#BDD0E8" opacity="0.32" fontSize="1.55" letterSpacing="0.03">
-                          Y{markerIndex + 1}
+                        <line x1={marker.x} y1="34" x2={marker.x} y2="35.5" stroke="#BBD0EA" strokeOpacity="0.34" strokeWidth="0.26" />
+                        <text x={marker.x} y="37.2" textAnchor="middle" fill="#BDD0E8" opacity="0.54" fontSize="1.9" letterSpacing="0.03">
+                          {marker.label}
                         </text>
                       </g>
                     ))}
