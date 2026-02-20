@@ -61,6 +61,13 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 
 
 
+const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 1
+});
+
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
