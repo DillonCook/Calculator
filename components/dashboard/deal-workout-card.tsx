@@ -12,6 +12,9 @@ interface DealWorkoutCardProps {
 
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
+  const shouldShowDualFixActions = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
+  const downPaymentScenario = recommendation.scenarios.find((scenario) => scenario.key === 'down-payment');
+  const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
@@ -48,6 +51,30 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
 
       {!recommendation.canWorkAlready && !recommendation.constrainedByOperations ? (
         <div className="grid gap-2">
+          {shouldShowDualFixActions ? (
+            <article className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-sm font-medium">Quick apply fix</p>
+              <p className="mt-1 text-xs text-muted">Pick the lever to auto-calculate and apply instantly.</p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => downPaymentScenario && onApply(downPaymentScenario)}
+                  disabled={!downPaymentScenario}
+                >
+                  Raise down payment
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => priceCutScenario && onApply(priceCutScenario)}
+                  disabled={!priceCutScenario}
+                >
+                  Cut purchase price
+                </button>
+              </div>
+            </article>
+          ) : null}
           {recommendation.scenarios.map((scenario) => (
             <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-sm font-medium">{scenario.title}</p>
