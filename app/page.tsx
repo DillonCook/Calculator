@@ -356,7 +356,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="app-shell-fade relative min-h-screen overflow-hidden px-4 py-6 md:px-8">
+    <main className="app-shell-fade relative min-h-screen overflow-x-hidden px-4 py-6 md:px-8">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(49,121,185,0.25)_0%,rgba(49,121,185,0.1)_35%,transparent_70%)]" />
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
