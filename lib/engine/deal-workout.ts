@@ -23,6 +23,7 @@ export interface DealWorkoutRecommendation {
   constrainedByOperations: boolean;
   currentMonthlyCashFlow: number;
   currentDscr: number;
+  currentSaleProceeds: number;
   scenarios: DealWorkoutScenario[];
 }
 
@@ -38,6 +39,10 @@ const roundPercent = (value: number) => Math.round(value * 1000) / 1000;
 
 const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: ConstraintTargets = defaultTargets) => {
   const output = calculateDeal(model)[strategy];
+  if (strategy === 'flip') {
+    return (output.saleProceeds ?? 0) >= 0;
+  }
+
   const hasNoDebt = model.purchase.financingType === 'cash' || model.purchase.downPaymentPercent >= 0.999;
   const meetsDscr = hasNoDebt ? true : output.dscr >= targets.minDscr;
   return output.monthlyCashFlow >= targets.minMonthlyCashFlow && meetsDscr;
@@ -83,6 +88,70 @@ const findBoundary = (
 export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: StrategyKey): DealWorkoutRecommendation {
   const current = calculateDeal(model)[strategy];
 
+  if (strategy === 'flip') {
+    const canWorkAlready = (current.saleProceeds ?? 0) >= 0;
+
+    if (canWorkAlready) {
+      return {
+        canWorkAlready: true,
+        constrainedByOperations: false,
+        currentMonthlyCashFlow: current.monthlyCashFlow,
+        currentDscr: current.dscr,
+        currentSaleProceeds: current.saleProceeds ?? 0,
+        scenarios: []
+      };
+    }
+
+    const minPrice = 1;
+    const maxPrice = Math.max(model.purchase.purchasePrice, minPrice);
+    const workableAtMinPrice = isDealWorkable(withPurchaseAdjustments(model, { purchasePrice: minPrice }), strategy);
+
+    if (!workableAtMinPrice) {
+      return {
+        canWorkAlready: false,
+        constrainedByOperations: true,
+        currentMonthlyCashFlow: current.monthlyCashFlow,
+        currentDscr: current.dscr,
+        currentSaleProceeds: current.saleProceeds ?? 0,
+        scenarios: []
+      };
+    }
+
+    let low = minPrice;
+    let high = maxPrice;
+    for (let i = 0; i < 28; i += 1) {
+      const mid = (low + high) / 2;
+      const workable = isDealWorkable(withPurchaseAdjustments(model, { purchasePrice: mid }), strategy);
+      if (workable) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    const rounded = roundCurrency(low);
+    const discount = model.purchase.purchasePrice - rounded;
+
+    return {
+      canWorkAlready: false,
+      constrainedByOperations: false,
+      currentMonthlyCashFlow: current.monthlyCashFlow,
+      currentDscr: current.dscr,
+      currentSaleProceeds: current.saleProceeds ?? 0,
+      scenarios:
+        discount > 0
+          ? [
+              {
+                key: 'price-cut',
+                title: 'Lower purchase price',
+                description: `Cut purchase price by about $${roundCurrency(discount).toLocaleString()} to get this flip back to break-even net proceeds.`,
+                adjustments: { purchasePrice: rounded }
+              }
+            ]
+          : []
+    };
+  }
+
   const canWorkAlready = current.monthlyCashFlow >= 0 && current.dscr >= 1;
   const opNoDebtModel = {
     ...model,
@@ -102,6 +171,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       constrainedByOperations,
       currentMonthlyCashFlow: current.monthlyCashFlow,
       currentDscr: current.dscr,
+      currentSaleProceeds: current.saleProceeds ?? 0,
       scenarios: []
     };
   }
@@ -174,6 +244,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     constrainedByOperations: false,
     currentMonthlyCashFlow: current.monthlyCashFlow,
     currentDscr: current.dscr,
+    currentSaleProceeds: current.saleProceeds ?? 0,
     scenarios
   };
 }

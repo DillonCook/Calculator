@@ -48,3 +48,31 @@ test('recommends price and/or down payment scenarios for constrained debt deal',
     assert.ok(rec.scenarios.length >= 1);
   assert.ok(rec.scenarios.some((s) => s.key === 'price-cut' || s.key === 'down-payment'));
 });
+
+
+test('flip workout only proposes purchase price fix based on net sale proceeds', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 250000,
+      downPaymentPercent: 0.2,
+      interestRate: 0.068,
+      financingType: 'loan'
+    },
+    flip: {
+      ...defaultDealInput.flip,
+      arvOverride: 250000,
+      holdingMonths: 6,
+      sellerConcessions: 0
+    }
+  };
+
+  const rec = buildDealWorkoutRecommendation(model, 'flip');
+
+  assert.equal(rec.canWorkAlready, false);
+  assert.ok(rec.currentSaleProceeds < 0);
+  assert.equal(rec.scenarios.length, 1);
+  assert.equal(rec.scenarios[0]?.key, 'price-cut');
+  assert.equal(rec.scenarios[0]?.adjustments.downPaymentPercent, undefined);
+});
