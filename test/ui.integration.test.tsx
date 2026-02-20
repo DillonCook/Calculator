@@ -8,10 +8,7 @@ import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
 
-const getStrategyTab = (label: string) =>
-  screen
-    .getAllByRole('button', { name: label })
-    .find((button) => button.className.includes('snap-start'));
+const getStrategyButton = (label: string) => screen.getAllByRole('button', { name: label })[0];
 
 describe('dashboard integration', () => {
   beforeEach(() => {
@@ -39,7 +36,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
+    await user.click(getStrategyButton('Airbnb'));
 
     const airbnbResult = calculateDeal(defaultDealInput).airbnb;
 
@@ -62,7 +59,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
+    await user.click(getStrategyButton('Airbnb'));
 
     const airbnbResult = calculateDeal(defaultDealInput).airbnb;
     const includeValue = currencyFormatter.format(airbnbResult.monthlyCashFlow);
@@ -73,7 +70,7 @@ describe('dashboard integration', () => {
       screen.getByText('Includes maintenance and CapEx reserves for a conservative monthly cash flow view')
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Exclude reserves' }));
+    await user.click(screen.getAllByRole('button', { name: 'Exclude reserves' })[0]);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(excludeValue);
     expect(
@@ -85,9 +82,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const flipTab = getStrategyTab('Flip');
-    expect(flipTab).toBeDefined();
-    await user.click(flipTab!);
+    await user.click(getStrategyButton('Flip'));
 
     const flipResult = calculateDeal(defaultDealInput).flip;
 
@@ -100,7 +95,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Equity modeling' }));
+    await user.click(screen.getAllByRole('button', { name: 'Equity modeling' })[0]);
 
     expect(screen.getByRole('dialog', { name: 'Equity Modeling Lightbox' })).toBeInTheDocument();
     expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
@@ -110,10 +105,8 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const padSplitTab = getStrategyTab('PadSplit');
-    expect(padSplitTab).toBeDefined();
-    await user.click(padSplitTab!);
-    await user.click(screen.getByRole('button', { name: 'Show work' }));
+    await user.click(getStrategyButton('PadSplit'));
+    await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
 
     expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
     expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
@@ -126,11 +119,11 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Save As' }));
+    await user.click(screen.getAllByRole('button', { name: 'Duplicate' })[0]);
     const dialogInput = screen.getByPlaceholderText('Deal name');
     await user.clear(dialogInput);
     await user.type(dialogInput, 'Austin BRRRR');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await user.click(screen.getAllByRole('button', { name: 'Confirm' })[0]);
 
     expect(screen.getAllByRole('button', { name: /Austin BRRRR/i }).length).toBeGreaterThan(0);
   });
@@ -140,7 +133,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Long-Term' }));
+    await user.click(getStrategyButton('Long-Term'));
     const strategyArv = screen.getByLabelText('Long-Term ARV');
 
     await user.clear(strategyArv);
@@ -230,7 +223,7 @@ describe('dashboard integration', () => {
     await user.clear(rehabBudget);
     await user.type(rehabBudget, '95000');
 
-    await user.click(screen.getByRole('button', { name: 'New' }));
+    await user.click(screen.getAllByRole('button', { name: 'Create' })[0]);
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(defaultDealInput.purchase.purchasePrice);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(defaultDealInput.purchase.rehabBudget);
@@ -248,7 +241,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Share Link' }));
+    await user.click(screen.getAllByRole('button', { name: 'Share Link' })[0]);
 
     expect(screen.getByText('Share link copied to clipboard.')).toBeInTheDocument();
 
@@ -263,7 +256,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Airbnb' }));
+    await user.click(getStrategyButton('Airbnb'));
 
     const printLink = screen.getByRole('link', { name: 'Print View' });
     const href = printLink.getAttribute('href') ?? '';

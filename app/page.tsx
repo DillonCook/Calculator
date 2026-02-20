@@ -302,11 +302,14 @@ export default function HomePage() {
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs text-muted">Active Deal</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted">Active Deal</p>
+                        <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                      </div>
                       {model.purchase.listingUrl ? (
                         <a
-                          className="inline-flex shrink-0 text-xs text-accent underline decoration-accent/70 underline-offset-2"
+                          className="inline-flex shrink-0 items-center self-center text-xs text-accent underline decoration-accent/70 underline-offset-2"
                           href={normalizeListingUrl(model.purchase.listingUrl)}
                           target="_blank"
                           rel="noreferrer"
@@ -315,7 +318,6 @@ export default function HomePage() {
                         </a>
                       ) : null}
                     </div>
-                    <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
