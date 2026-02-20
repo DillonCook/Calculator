@@ -200,8 +200,8 @@ export default function HomePage() {
   }, [monthlyCashFlowChartSeries]);
 
   const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
-    [isNegativeCashFlowRibbon]
+    () => resolveRibbonPalette(),
+    []
   );
 
   const activeDeal = useMemo(
