@@ -118,12 +118,12 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                   <button
                     type="button"
                     className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={() => onApply(scenario)}
+                    onClick={() => onApply(priceCutScenario)}
                   >
-                    Apply this fix
+                    Cut purchase price
                   </button>
-                </div>
-              )}
+                ) : null}
+              </div>
             </article>
           ))}
         </div>

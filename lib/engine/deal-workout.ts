@@ -36,6 +36,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 
 const roundCurrency = (value: number) => Math.round(value / 100) * 100;
 const roundPercent = (value: number) => Math.round(value * 1000) / 1000;
+const roundPurchasePrice = (value: number) => Math.max(roundCurrency(value), 100);
 
 const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: ConstraintTargets = defaultTargets) => {
   const output = calculateDeal(model)[strategy];
@@ -129,8 +130,8 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       }
     }
 
-    const rounded = roundCurrency(low);
-    const discount = model.purchase.purchasePrice - rounded;
+    const rounded = roundPurchasePrice(low);
+    const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
 
     return {
       canWorkAlready: false,
@@ -187,8 +188,8 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
   );
 
   if (typeof minWorkablePrice === 'number' && minWorkablePrice < model.purchase.purchasePrice) {
-    const rounded = roundCurrency(minWorkablePrice);
-    const discount = model.purchase.purchasePrice - rounded;
+    const rounded = roundPurchasePrice(minWorkablePrice);
+    const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
     scenarios.push({
       key: 'price-cut',
       title: 'Renegotiate purchase price',
@@ -227,8 +228,8 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       );
 
       if (typeof comboPrice === 'number' && comboPrice < model.purchase.purchasePrice) {
-        const roundedComboPrice = roundCurrency(comboPrice);
-        const priceDrop = model.purchase.purchasePrice - roundedComboPrice;
+        const roundedComboPrice = roundPurchasePrice(comboPrice);
+        const priceDrop = Math.max(model.purchase.purchasePrice - roundedComboPrice, 0);
         scenarios.push({
           key: 'combo',
           title: 'Split the fix (price + down)',
