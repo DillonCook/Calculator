@@ -295,9 +295,9 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="max-w-3xl">
-                <p className="text-xs uppercase tracking-[0.18em] text-accent">Investor Command Center</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-accent">DealCook</p>
                 <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
-                <p className="text-sm text-muted">Instant underwriting across Purchase, LT, STR, PadSplit, BRRRR, and Flip.</p>
+                <p className="text-sm text-muted">Analyze rental, Airbnb, PadSplit, BRRRR, and flip deals in seconds with instant cash flow, DSCR, ROI, and IRR projections.</p>
               </div>
               <div className="w-full max-w-2xl">
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
