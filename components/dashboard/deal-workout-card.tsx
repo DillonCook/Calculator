@@ -50,6 +50,30 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
 
       {!recommendation.canWorkAlready && !recommendation.constrainedByOperations ? (
         <div className="grid gap-2">
+          {shouldShowDualFixActions ? (
+            <article className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-sm font-medium">Quick apply fix</p>
+              <p className="mt-1 text-xs text-muted">Pick the lever to auto-calculate and apply instantly.</p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => downPaymentScenario && onApply(downPaymentScenario)}
+                  disabled={!downPaymentScenario}
+                >
+                  Raise down payment
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => priceCutScenario && onApply(priceCutScenario)}
+                  disabled={!priceCutScenario}
+                >
+                  Cut purchase price
+                </button>
+              </div>
+            </article>
+          ) : null}
           {recommendation.scenarios.map((scenario) => (
             <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-sm font-medium">{scenario.title}</p>
