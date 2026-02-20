@@ -61,24 +61,6 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 
 
 
-const resolveRibbonPalette = (isNegative: boolean) => {
-  if (isNegative) {
-    return {
-      areaTop: '#ff8a3c',
-      areaBottom: '#5b2f1a',
-      lineStops: ['#ff8a3c', '#ff6a22', '#ff9e57', '#ffb67b'],
-      glowStops: ['rgba(255,138,60,0)', 'rgba(255,106,34,0.22)', 'rgba(255,158,87,0.32)', 'rgba(255,182,123,0)']
-    };
-  }
-
-  return {
-    areaTop: '#4a7dff',
-    areaBottom: '#1a315f',
-    lineStops: ['#4a7dff', '#2f9bff', '#42bbff', '#5bc7ff'],
-    glowStops: ['rgba(74,125,255,0)', 'rgba(47,155,255,0.22)', 'rgba(66,187,255,0.32)', 'rgba(91,199,255,0)']
-  };
-};
-
 const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -150,86 +132,33 @@ export default function HomePage() {
   const monthlyCashFlowBarData = useMemo(() => {
     if (!monthlyCashFlowChartSeries.length) return [];
 
-    const chartTop = 5.5;
-    const chartBottom = 33.4;
+    const chartTop = 6;
+    const chartBottom = 34;
     const chartHeight = chartBottom - chartTop;
     const barCount = monthlyCashFlowChartSeries.length;
-    const minValue = Math.min(...monthlyCashFlowChartSeries, 0);
-    const maxValue = Math.max(...monthlyCashFlowChartSeries, 0);
-    const valueRange = Math.max(maxValue - minValue, 1);
-    const baselineY = chartTop + (maxValue / valueRange) * chartHeight;
 
-    const targetBaseWidth = barCount >= 28 ? 1.35 : barCount > 18 ? 1.8 : barCount > 12 ? 2.3 : 2.8;
+    const maxPositive = Math.max(...monthlyCashFlowChartSeries.filter((value) => value > 0), 0);
+    const maxNegativeAbs = Math.max(...monthlyCashFlowChartSeries.filter((value) => value < 0).map((value) => Math.abs(value)), 0);
+
+    const targetBaseWidth = barCount >= 28 ? 1.4 : barCount > 18 ? 1.85 : barCount > 12 ? 2.35 : 2.8;
     const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.12);
-    const gap = Math.max(naturalGap * 0.4, 0.09);
-    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 0.9);
-
-    const firstPositiveAfterNegativeIndex = monthlyCashFlowChartSeries.findIndex(
-      (value, index) => index > 0 && monthlyCashFlowChartSeries[index - 1] < 0 && value >= 0
-    );
+    const gap = Math.max(naturalGap * 0.42, 0.1);
+    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 0.95);
 
     return monthlyCashFlowChartSeries.map((value, index) => {
-      const normalizedValue = (value / valueRange) * chartHeight;
-      const height = Math.max(Math.abs(normalizedValue), 0.55);
       const x = gap + index * (barWidth + gap);
-      const y = value >= 0 ? baselineY - height : baselineY;
+      const denominator = value < 0 ? Math.max(maxNegativeAbs, 1) : Math.max(maxPositive, 1);
+      const normalized = Math.min(Math.abs(value) / denominator, 1);
+      const emphasized = Math.pow(normalized, 0.72);
+      const height = Math.max(emphasized * chartHeight, 0.7);
 
       return {
         key: `bar-${index}`,
         x,
-        y,
+        y: chartBottom - height,
         width: barWidth,
         height,
-        centerX: x + barWidth / 2,
-        isNegative: value < 0,
-        isRecoveryZone: firstPositiveAfterNegativeIndex >= 0 && index >= firstPositiveAfterNegativeIndex && value >= 0,
-        baselineY,
-        chartBottom
-      };
-    });
-  }, [monthlyCashFlowChartSeries]);
-
-  const monthlyCashFlowYearMarkers = useMemo(() => {
-    if (!monthlyCashFlowBarData.length) return [];
-
-    const totalYears = monthlyCashFlowBarData.length;
-    const step = totalYears > 20 ? 2 : 1;
-    const markerIndexes: number[] = [];
-
-    for (let yearIndex = 0; yearIndex < totalYears; yearIndex += step) {
-      markerIndexes.push(yearIndex);
-    }
-
-    if (markerIndexes[markerIndexes.length - 1] !== totalYears - 1) {
-      markerIndexes.push(totalYears - 1);
-    }
-
-    return markerIndexes.map((yearIndex) => {
-      const markerBar = monthlyCashFlowBarData[yearIndex];
-      return {
-        key: `Y${yearIndex + 1}`,
-        label: `Y${yearIndex + 1}`,
-        x: markerBar?.centerX ?? 50
-      };
-    });
-  }, [monthlyCashFlowBarData]);
-
-  const cashFlowValueMarkers = useMemo(() => {
-    if (!monthlyCashFlowChartSeries.length) return [];
-
-    const minValue = Math.min(...monthlyCashFlowChartSeries);
-    const maxValue = Math.max(...monthlyCashFlowChartSeries);
-    const steps = 4;
-    const valueRange = Math.max(maxValue - minValue, 1);
-
-    return Array.from({ length: steps }, (_, index) => {
-      const ratio = index / (steps - 1);
-      const y = 6.3 + ratio * 27.6;
-      const value = maxValue - valueRange * ratio;
-      return {
-        key: `value-${index}`,
-        y,
-        label: compactCurrencyFormatter.format(value)
+        isNegative: value < 0
       };
     });
   }, [monthlyCashFlowChartSeries]);
@@ -237,18 +166,6 @@ export default function HomePage() {
   const cashFlowBarsAnimationKey = useMemo(
     () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
     [activeStrategy, monthlyCashFlowChartSeries]
-  );
-
-  const isNegativeCashFlowRibbon = useMemo(() => {
-    if (!monthlyCashFlowChartSeries.length) return false;
-    const average = monthlyCashFlowChartSeries.reduce((sum, value) => sum + value, 0) / monthlyCashFlowChartSeries.length;
-    const lastValue = monthlyCashFlowChartSeries[monthlyCashFlowChartSeries.length - 1];
-    return average < 0 || lastValue < 0;
-  }, [monthlyCashFlowChartSeries]);
-
-  const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
-    [isNegativeCashFlowRibbon]
   );
 
   const activeDeal = useMemo(
@@ -629,16 +546,12 @@ export default function HomePage() {
                   >
                     <defs>
                       <linearGradient id="cashflowBarPosGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} stopOpacity="0.42" />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
+                        <stop offset="0%" stopColor="#5CCBFF" stopOpacity="0.56" />
+                        <stop offset="100%" stopColor="#1E4778" stopOpacity="0.08" />
                       </linearGradient>
                       <linearGradient id="cashflowBarNegGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} stopOpacity="0.38" />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.06" />
-                      </linearGradient>
-                      <linearGradient id="cashflowBarRecoveryGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#66C6FF" stopOpacity="0.54" />
-                        <stop offset="100%" stopColor="#1D5FB6" stopOpacity="0.08" />
+                        <stop offset="0%" stopColor="#FF9A55" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#5B2B16" stopOpacity="0.09" />
                       </linearGradient>
                     </defs>
                     {monthlyCashFlowBarData.map((bar, index) => (
@@ -649,8 +562,8 @@ export default function HomePage() {
                         width={bar.width}
                         height={bar.height}
                         rx={bar.width / 2}
-                        fill={bar.isRecoveryZone ? 'url(#cashflowBarRecoveryGrad)' : bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
-                        opacity={0.5}
+                        fill={bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
+                        opacity={0.52}
                       >
                         {!prefersReducedMotion ? (
                           <animate
@@ -665,7 +578,7 @@ export default function HomePage() {
                         {!prefersReducedMotion ? (
                           <animate
                             attributeName="y"
-                            from={String(bar.baselineY)}
+                            from="34"
                             to={String(bar.y)}
                             dur="0.75s"
                             begin={`${Math.min(index * 0.02, 0.32)}s`}
@@ -673,32 +586,6 @@ export default function HomePage() {
                           />
                         ) : null}
                       </rect>
-                    ))}
-                    <line x1="0" y1="34.4" x2="100" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.3" strokeWidth="0.34" />
-                    <line x1="1.1" y1="5.6" x2="1.1" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.16" strokeWidth="0.25" />
-                    {cashFlowValueMarkers.map((marker) => (
-                      <g key={`priority-cashflow-value-${marker.key}`}>
-                        <line
-                          x1="1.1"
-                          y1={marker.y}
-                          x2="100"
-                          y2={marker.y}
-                          stroke="#9FB6CF"
-                          strokeOpacity="0.08"
-                          strokeWidth="0.2"
-                        />
-                        <text x="1.7" y={marker.y - 0.4} textAnchor="start" fill="#BDD0E8" opacity="0.22" fontSize="1.15" letterSpacing="0.02">
-                          {marker.label}
-                        </text>
-                      </g>
-                    ))}
-                    {monthlyCashFlowYearMarkers.map((marker) => (
-                      <g key={`priority-cashflow-year-${marker.key}`}>
-                        <line x1={marker.x} y1="34" x2={marker.x} y2="35.5" stroke="#BBD0EA" strokeOpacity="0.34" strokeWidth="0.26" />
-                        <text x={marker.x} y="37.2" textAnchor="middle" fill="#BDD0E8" opacity="0.54" fontSize="1.9" letterSpacing="0.03">
-                          {marker.label}
-                        </text>
-                      </g>
                     ))}
                   </svg>
                 </div>
