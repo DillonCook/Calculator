@@ -123,7 +123,9 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const rawTimeline = activeOutput.cashFlowTimeline.slice(1, 25);
+    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
+    const rawTimeline = operatingTimeline.slice(0, 24);
+
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
         if (supportsReserveToggle && !includeReserves) {
