@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface KpiDefinition {
   term: string;
@@ -92,6 +92,7 @@ export function KpiCard({
   chartSeries,
   valueTestId
 }: KpiCardProps) {
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const chartPoints = useMemo(() => buildChartPoints(chartSeries), [chartSeries]);
@@ -131,7 +132,7 @@ export function KpiCard({
   }, [value, secondaryValue]);
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
+    <div className="relative min-w-0 overflow-visible rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
       {backgroundChart === 'cashflowBars' ? (
         <div className="pointer-events-none absolute inset-0 z-0 select-none">
           <div
@@ -182,11 +183,18 @@ export function KpiCard({
             <button
               type="button"
               aria-label={`${label} definitions`}
+              aria-expanded={isTooltipOpen}
               className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+              onClick={() => setIsTooltipOpen((prev) => !prev)}
+              onBlur={() => setIsTooltipOpen(false)}
             >
               i
             </button>
-            <div className="pointer-events-none absolute left-0 top-6 z-20 w-[260px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 opacity-0 shadow-soft backdrop-blur transition duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100">
+            <div
+              className={`absolute left-0 top-6 z-30 w-[260px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 shadow-soft backdrop-blur transition duration-150 ${
+                isTooltipOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100'
+              }`}
+            >
               {definitions.map((definition) => (
                 <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
                   <span className="font-semibold text-white">{definition.term}:</span> {definition.description}

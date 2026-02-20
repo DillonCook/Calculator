@@ -441,32 +441,34 @@ export default function HomePage() {
             quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
           />
           <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
-          <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
-            <button
-              type="button"
-              onClick={() => setMobileInputSheet('core')}
-              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
-            >
-              Core Deal Inputs
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileInputSheet('strategy')}
-              className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
-            >
-              Strategy Inputs
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                triggerHapticFeedback('light');
-                setIsStrategyWorkOpen(true);
-              }}
-              className="btn-primary tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight max-[359px]:col-auto col-span-2"
-            >
-              Show work
-            </button>
+          <div className="sticky top-2 z-30 -mx-1 rounded-xl border border-white/10 bg-surface/90 px-1 py-1 backdrop-blur">
+            <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
+              <button
+                type="button"
+                onClick={() => setMobileInputSheet('core')}
+                className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+              >
+                Core Deal Inputs
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileInputSheet('strategy')}
+                className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+              >
+                Strategy Inputs
+              </button>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              setIsStrategyWorkOpen(true);
+            }}
+            className="btn-primary tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+          >
+            Show work
+          </button>
         </section>
 
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
@@ -633,6 +635,16 @@ export default function HomePage() {
             value={percentFormatter.format(activeOutput.irr)}
             helper="Discounted return from yearly cashflow timeline"
             winner={activeStrategyLabel}
+            definitions={[
+              {
+                term: 'IRR (Internal Rate of Return)',
+                description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
+              },
+              {
+                term: 'Why it matters',
+                description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
+              }
+            ]}
           />
         </section>
 
