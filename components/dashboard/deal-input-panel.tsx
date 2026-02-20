@@ -68,9 +68,8 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
 
   return (
     <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
-      <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
+      <div className="mb-3 sm:mb-4">
         <h2 className="text-base font-semibold sm:text-lg">Core Deal Inputs</h2>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-muted sm:py-1 sm:text-xs">Supports decimal inputs</span>
       </div>
 
       <button

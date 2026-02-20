@@ -293,27 +293,31 @@ export default function HomePage() {
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="max-w-3xl">
-                <p className="text-xs uppercase tracking-[0.18em] text-accent">DealCook</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-accent">DealCook</p>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+              <div className="min-w-0 max-w-3xl">
                 <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
                 <p className="text-sm text-muted">Analyze rental, Airbnb, PadSplit, BRRRR, and flip deals in seconds with instant cash flow, DSCR, ROI, and IRR projections.</p>
               </div>
-              <div className="w-full max-w-2xl">
+              <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                    <p className="text-xs text-muted">Active Deal</p>
-                    <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
-                    {model.purchase.listingUrl ? (
-                      <a
-                        className="mt-1 line-clamp-1 inline-flex max-w-full text-xs text-accent underline decoration-accent/70 underline-offset-2"
-                        href={normalizeListingUrl(model.purchase.listingUrl)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View listing link
-                      </a>
-                    ) : null}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted">Active Deal</p>
+                        <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
+                      </div>
+                      {model.purchase.listingUrl ? (
+                        <a
+                          className="inline-flex shrink-0 items-center self-center text-xs text-accent underline decoration-accent/70 underline-offset-2"
+                          href={normalizeListingUrl(model.purchase.listingUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View listing link
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
