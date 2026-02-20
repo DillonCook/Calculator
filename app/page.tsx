@@ -60,19 +60,6 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 };
 
 
-const buildLinePath = (points: { x: number; y: number }[]) => {
-  if (!points.length) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length; index += 1) {
-    const current = points[index];
-    path += ` L ${current.x} ${current.y}`;
-  }
-
-  return path;
-};
-
 
 const resolveRibbonPalette = (isNegative: boolean) => {
   if (isNegative) {
@@ -149,54 +136,56 @@ export default function HomePage() {
     return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
   }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
 
-  const monthlyCashFlowChartMetrics = useMemo(() => {
-    const minValue = Math.min(...monthlyCashFlowChartSeries, 0);
-    const maxValue = Math.max(...monthlyCashFlowChartSeries, 0);
-    const valueRange = Math.max(maxValue - minValue, 1);
+  const monthlyCashFlowBarData = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return [];
 
-    const chartTop = 5;
-    const chartBottom = 35;
+    const maxAbsValue = Math.max(...monthlyCashFlowChartSeries.map((value) => Math.abs(value)), 1);
+    const chartTop = 6;
+    const chartBottom = 34;
     const chartHeight = chartBottom - chartTop;
+    const barCount = monthlyCashFlowChartSeries.length;
+    const targetBaseWidth = barCount > 18 ? 1.9 : barCount > 12 ? 2.35 : 2.8;
+    const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.4);
+    const gap = Math.max(naturalGap * 0.5, 0.22);
+    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 1.6);
 
-    const mapValueToY = (value: number) => chartBottom - ((value - minValue) / valueRange) * chartHeight;
+    const firstPositiveAfterNegativeIndex = monthlyCashFlowChartSeries.findIndex(
+      (value, index) => index > 0 && monthlyCashFlowChartSeries[index - 1] < 0 && value >= 0
+    );
 
-    return {
-      baselineY: mapValueToY(0),
-      chartBottom,
-      points: monthlyCashFlowChartSeries.map((value, index) => ({
-        x: monthlyCashFlowChartSeries.length > 1 ? (index / (monthlyCashFlowChartSeries.length - 1)) * 100 : 50,
-        y: mapValueToY(value)
-      }))
-    };
-  }, [monthlyCashFlowChartSeries]);
+    return monthlyCashFlowChartSeries.map((value, index) => {
+      const height = Math.max((Math.abs(value) / maxAbsValue) * chartHeight, 0.8);
+      const x = gap + index * (barWidth + gap);
 
-  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartMetrics.points), [monthlyCashFlowChartMetrics.points]);
-  const monthlyCashFlowAreaPath = useMemo(() => {
-    if (!monthlyCashFlowLinePath) return '';
-
-    const shouldAnchorAreaToChartFloor = monthlyCashFlowChartSeries.every((value) => value <= 0);
-    const fillBaseY = shouldAnchorAreaToChartFloor
-      ? monthlyCashFlowChartMetrics.chartBottom
-      : monthlyCashFlowChartMetrics.baselineY;
-
-    return `${monthlyCashFlowLinePath} L 100 ${fillBaseY} L 0 ${fillBaseY} Z`;
-  }, [monthlyCashFlowChartMetrics.baselineY, monthlyCashFlowChartMetrics.chartBottom, monthlyCashFlowChartSeries, monthlyCashFlowLinePath]);
-  const monthlyCashFlowYearMarkers = useMemo(() => {
-    if (monthlyCashFlowChartSeries.length < 12) return [];
-
-    const totalPoints = monthlyCashFlowChartSeries.length;
-    const maxYears = Math.ceil(totalPoints / 12);
-
-    return Array.from({ length: maxYears }, (_, index) => {
-      const monthIndex = Math.min((index + 1) * 12 - 1, totalPoints - 1);
-      const x = totalPoints > 1 ? (monthIndex / (totalPoints - 1)) * 100 : 50;
       return {
-        key: `Y${index + 1}`,
-        x
+        key: `bar-${index}`,
+        x,
+        y: chartBottom - height,
+        width: barWidth,
+        height,
+        centerX: x + barWidth / 2,
+        isNegative: value < 0,
+        isRecoveryZone: firstPositiveAfterNegativeIndex >= 0 && index >= firstPositiveAfterNegativeIndex && value >= 0
       };
     });
   }, [monthlyCashFlowChartSeries]);
-  const cashFlowPathAnimationKey = useMemo(
+
+  const monthlyCashFlowYearMarkers = useMemo(() => {
+    if (monthlyCashFlowBarData.length < 12) return [];
+
+    const maxYears = Math.ceil(monthlyCashFlowBarData.length / 12);
+
+    return Array.from({ length: maxYears }, (_, index) => {
+      const monthIndex = Math.min((index + 1) * 12 - 1, monthlyCashFlowBarData.length - 1);
+      const markerBar = monthlyCashFlowBarData[monthIndex];
+      return {
+        key: `Y${index + 1}`,
+        x: markerBar?.centerX ?? 50
+      };
+    });
+  }, [monthlyCashFlowBarData]);
+
+  const cashFlowBarsAnimationKey = useMemo(
     () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
     [activeStrategy, monthlyCashFlowChartSeries]
   );
@@ -584,53 +573,58 @@ export default function HomePage() {
                     }}
                   />
                   <svg
-                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowPathAnimationKey}`}
+                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowBarsAnimationKey}`}
                     viewBox="0 0 100 40"
                     className="absolute inset-x-0 bottom-0 h-[42%] w-full"
                     preserveAspectRatio="none"
                   >
                     <defs>
-                      <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
-                        <stop offset="34%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
-                        <stop offset="68%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.lineStops[3]} />
+                      <linearGradient id="cashflowBarPosGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} stopOpacity="0.42" />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
                       </linearGradient>
-                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.34" />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.08" />
+                      <linearGradient id="cashflowBarNegGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} stopOpacity="0.38" />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.06" />
+                      </linearGradient>
+                      <linearGradient id="cashflowBarRecoveryGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#66C6FF" stopOpacity="0.54" />
+                        <stop offset="100%" stopColor="#1D5FB6" stopOpacity="0.08" />
                       </linearGradient>
                     </defs>
-                    <line
-                      x1="0"
-                      y1={monthlyCashFlowChartMetrics.baselineY}
-                      x2="100"
-                      y2={monthlyCashFlowChartMetrics.baselineY}
-                      stroke={isNegativeCashFlowRibbon ? '#ff9e57' : '#6ea8ff'}
-                      strokeOpacity="0.28"
-                      strokeWidth="0.35"
-                    />
-                    {monthlyCashFlowAreaPath ? (
-                      <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" opacity={prefersReducedMotion ? 1 : 0.9}>
-                        {!prefersReducedMotion ? <animate attributeName="opacity" values="0.25;0.9" dur="0.8s" fill="freeze" /> : null}
-                      </path>
-                    ) : null}
-                    {monthlyCashFlowLinePath ? (
-                      <path
-                        key={`cashflow-main-${cashFlowPathAnimationKey}`}
-                        d={monthlyCashFlowLinePath}
-                        fill="none"
-                        stroke="url(#cashflowLineGrad)"
-                        strokeWidth="1.1"
-                        strokeLinecap="round"
-                        opacity="0.68"
-                        pathLength={1}
-                        strokeDasharray={prefersReducedMotion ? undefined : 1}
-                        strokeDashoffset={prefersReducedMotion ? undefined : 1}
+                    {monthlyCashFlowBarData.map((bar, index) => (
+                      <rect
+                        key={`${bar.key}-${cashFlowBarsAnimationKey}`}
+                        x={bar.x}
+                        y={bar.y}
+                        width={bar.width}
+                        height={bar.height}
+                        rx={bar.width / 2}
+                        fill={bar.isRecoveryZone ? 'url(#cashflowBarRecoveryGrad)' : bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
+                        opacity={0.45}
                       >
-                        {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
-                      </path>
-                    ) : null}
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="height"
+                            from="0"
+                            to={String(bar.height)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="y"
+                            from="34"
+                            to={String(bar.y)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                      </rect>
+                    ))}
                     {monthlyCashFlowYearMarkers.map((marker, markerIndex) => (
                       <g key={`priority-cashflow-year-${marker.key}`}>
                         <line x1={marker.x} y1="35.4" x2={marker.x} y2="37.1" stroke="#BBD0EA" strokeOpacity="0.24" strokeWidth="0.24" />
