@@ -76,23 +76,10 @@ const buildSmoothPath = (points: { x: number; y: number }[]) => {
 };
 
 
-const resolveRibbonPalette = (isNegative: boolean) => {
-  if (isNegative) {
-    return {
-      strokeStops: ['#8B9BFF', '#B7A8FF', '#E8D9FF', '#FFF1F9'],
-      areaTop: '#8B9BFF',
-      areaBottom: '#7E6EAA',
-      glow: 'rgba(180,150,255,0.34)'
-    };
-  }
-
-  return {
-    strokeStops: ['#6EA8FF', '#9ED0FF', '#E0F2FF', '#FFFFFF'],
-    areaTop: '#4F8DFD',
-    areaBottom: '#6E7E9C',
-    glow: 'rgba(120,180,255,0.35)'
-  };
-};
+const resolveRibbonPalette = () => ({
+  areaTop: '#4F8DFD',
+  areaBottom: '#6E7E9C'
+});
 
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
@@ -114,6 +101,7 @@ export default function HomePage() {
   });
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [mobileInputSheet, setMobileInputSheet] = useState<'core' | 'strategy' | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -168,15 +156,11 @@ export default function HomePage() {
     () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
     [monthlyCashFlowLinePath]
   );
+  const monthlyCashFlowLastPoint = monthlyCashFlowChartPoints[monthlyCashFlowChartPoints.length - 1];
 
-  const isNegativeCashFlowRibbon = useMemo(() => {
-    if (!monthlyCashFlowChartSeries.length) return false;
-    const average = monthlyCashFlowChartSeries.reduce((sum, value) => sum + value, 0) / monthlyCashFlowChartSeries.length;
-    return average < 0 || monthlyCashFlowChartSeries[monthlyCashFlowChartSeries.length - 1] < 0;
-  }, [monthlyCashFlowChartSeries]);
   const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
-    [isNegativeCashFlowRibbon]
+    () => resolveRibbonPalette(),
+    []
   );
 
   const activeDeal = useMemo(
@@ -229,6 +213,16 @@ export default function HomePage() {
     const timer = window.setTimeout(() => setShareFeedback(null), 3200);
     return () => window.clearTimeout(timer);
   }, [shareFeedback]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updateMotionPreference();
+    mediaQuery.addEventListener('change', updateMotionPreference);
+
+    return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+  }, []);
 
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
@@ -541,18 +535,54 @@ export default function HomePage() {
                   />
                   <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
                     <defs>
-                      <linearGradient id="priority-cashflow-line" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[0]} />
-                        <stop offset="40%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[1]} />
-                        <stop offset="75%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[3]} />
+                      <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#5aa7ff" />
+                        <stop offset="35%" stopColor="#4f8dfd" />
+                        <stop offset="65%" stopColor="#7bb8ff" />
+                        <stop offset="100%" stopColor="#c2e2ff" />
+                        {!prefersReducedMotion ? (
+                          <animateTransform
+                            attributeName="gradientTransform"
+                            type="translate"
+                            values="-50 0; 50 0; -50 0"
+                            dur="14s"
+                            repeatCount="indefinite"
+                            calcMode="linear"
+                          />
+                        ) : null}
+                      </linearGradient>
+                      <linearGradient id="cashflowGlowGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="rgba(79,141,253,0.0)" />
+                        <stop offset="35%" stopColor="rgba(79,141,253,0.35)" />
+                        <stop offset="70%" stopColor="rgba(120,180,255,0.6)" />
+                        <stop offset="100%" stopColor="rgba(194,226,255,0.0)" />
+                        {!prefersReducedMotion ? (
+                          <animateTransform
+                            attributeName="gradientTransform"
+                            type="translate"
+                            values="-45 0; 45 0; -45 0"
+                            dur="16s"
+                            repeatCount="indefinite"
+                            calcMode="linear"
+                          />
+                        ) : null}
                       </linearGradient>
                       <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
                       </linearGradient>
-                      <filter id="priority-cashflow-glow" x="-20%" y="-20%" width="140%" height="160%">
-                        <feDropShadow dx="0" dy="0" stdDeviation="1.15" floodColor={monthlyCashFlowRibbonPalette.glow} />
+                      <filter id="cashflowGlow" x="-30%" y="-40%" width="170%" height="220%" colorInterpolationFilters="sRGB">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="3.25" result="blur" />
+                        <feColorMatrix
+                          in="blur"
+                          type="matrix"
+                          values="1 0 0 0 0.31 0 1 0 0 0.55 0 0 1 0 0.99 0 0 0 0.8 0"
+                          result="glow"
+                        />
+                        <feMerge>
+                          <feMergeNode in="glow" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
                       </filter>
                     </defs>
                     {[8, 14, 20, 26, 32].map((lineY) => (
@@ -564,21 +594,26 @@ export default function HomePage() {
                         <path
                           d={monthlyCashFlowLinePath}
                           fill="none"
-                          stroke="url(#priority-cashflow-line)"
-                          strokeWidth="2.1"
+                          stroke="url(#cashflowGlowGrad)"
+                          strokeWidth="12"
                           strokeLinecap="round"
-                          filter="url(#priority-cashflow-glow)"
-                          className="sm:hidden"
+                          opacity="0.24"
+                          filter="url(#cashflowGlow)"
                         />
                         <path
                           d={monthlyCashFlowLinePath}
                           fill="none"
-                          stroke="url(#priority-cashflow-line)"
+                          stroke="url(#cashflowLineGrad)"
                           strokeWidth="2.8"
                           strokeLinecap="round"
-                          filter="url(#priority-cashflow-glow)"
-                          className="hidden sm:block"
+                          opacity="0.95"
                         />
+                      </>
+                    ) : null}
+                    {monthlyCashFlowLastPoint ? (
+                      <>
+                        <circle cx={monthlyCashFlowLastPoint.x} cy={monthlyCashFlowLastPoint.y} r="6" fill="#c2e2ff" opacity="0.3" filter="url(#cashflowGlow)" />
+                        <circle cx={monthlyCashFlowLastPoint.x} cy={monthlyCashFlowLastPoint.y} r="4.8" fill="#c2e2ff" opacity="0.95" />
                       </>
                     ) : null}
                     {monthlyCashFlowChartPoints.map((point, index) => (
@@ -587,7 +622,7 @@ export default function HomePage() {
                         cx={point.x}
                         cy={point.y}
                         r="0.82"
-                        fill={monthlyCashFlowRibbonPalette.strokeStops[1]}
+                        fill="#7bb8ff"
                         opacity="0.45"
                       />
                     ))}
