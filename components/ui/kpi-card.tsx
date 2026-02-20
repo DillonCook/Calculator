@@ -16,11 +16,12 @@ interface KpiCardProps {
   secondaryLabel?: string;
   secondaryValue?: string;
   definitions?: KpiDefinition[];
+  valueTestId?: string;
 }
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-export function KpiCard({ label, value, helper, winner, tone = 'default', secondaryLabel, secondaryValue, definitions }: KpiCardProps) {
+export function KpiCard({ label, value, helper, winner, tone = 'default', secondaryLabel, secondaryValue, definitions, valueTestId }: KpiCardProps) {
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
 
@@ -47,7 +48,7 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
   }, [value, secondaryValue]);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
+    <div className="min-w-0 overflow-hidden rounded-2xl card-surface p-2.5 shadow-soft sm:p-3">
       <div className="flex min-w-0 items-center gap-2">
         <p className="min-w-0 truncate text-[11px] uppercase tracking-wide text-muted sm:text-xs">{label}</p>
         {definitions?.length ? (
@@ -78,22 +79,22 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
 
       <p
         ref={primaryValueRef}
-        className={`mt-1 text-[clamp(1rem,5.6vw,1.5rem)] font-semibold leading-tight sm:text-3xl md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
-        data-testid={`kpi-${slugify(label)}`}
+        className={`mt-1 text-[clamp(1rem,5vw,1.35rem)] font-semibold leading-tight sm:text-[1.65rem] md:text-[2rem] ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
+        data-testid={valueTestId ?? `kpi-${slugify(label)}`}
       >
         {value}
       </p>
 
       {secondaryLabel && secondaryValue ? (
-        <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 sm:px-2.5 sm:py-2">
+        <div className="mt-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 sm:px-2.5 sm:py-1.5">
           <p className="text-[10px] uppercase tracking-wide text-muted sm:text-[11px]">{secondaryLabel}</p>
-          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-lg" data-testid={`kpi-${slugify(secondaryLabel)}`}>
+          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-base" data-testid={`kpi-${slugify(secondaryLabel)}`}>
             {secondaryValue}
           </p>
         </div>
       ) : null}
 
-      {helper ? <p className="mt-2 text-[11px] text-muted sm:text-xs">{helper}</p> : null}
+      {helper ? <p className="mt-1.5 text-[11px] text-muted sm:text-xs">{helper}</p> : null}
     </div>
   );
 }
