@@ -61,13 +61,6 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 
 
 
-const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  maximumFractionDigits: 1
-});
-
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
@@ -442,6 +435,12 @@ export default function HomePage() {
         </header>
 
         <section className="grid gap-2 md:hidden">
+          <StrategyTabs
+            active={activeStrategy}
+            onChange={setActiveStrategy}
+            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+          />
+          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
           <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
             <button
               type="button"
@@ -468,63 +467,8 @@ export default function HomePage() {
               Show work
             </button>
           </div>
-          <StrategyTabs
-            active={activeStrategy}
-            onChange={setActiveStrategy}
-            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
-          />
-          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
-        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
-          <KpiCard
-            label="Cash to Close"
-            value={currencyFormatter.format(result.purchase.totalCashNeeded)}
-            winner={activeStrategyLabel}
-            secondaryLabel="Total cash invested"
-            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
-            definitions={[
-              {
-                term: 'Cash to Close',
-                description: 'Cash required at the closing table before post-close improvements.'
-              },
-              {
-                term: 'Total cash invested',
-                description: 'Full out-of-pocket capital including rehab and one-time strategy setup costs.'
-              }
-            ]}
-          />
-          <KpiCard
-            label="Cap Rate"
-            value={percentFormatter.format(activeOutput.capRate)}
-            helper="Annual NOI ÷ current property value"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="Cash on Cash"
-            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
-            helper="Annual cash flow ÷ total cash invested"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="DSCR"
-            value={activeOutput.dscr.toFixed(2)}
-            helper="NOI ÷ annual debt service"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="ROI"
-            value={percentFormatter.format(activeOutput.roi)}
-            helper="Total profit ÷ total cash invested"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="IRR"
-            value={percentFormatter.format(activeOutput.irr)}
-            helper="Discounted return from yearly cashflow timeline"
-            winner={activeStrategyLabel}
-          />
-        </section>
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
           <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
             <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
@@ -641,6 +585,55 @@ export default function HomePage() {
 
             <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
           </div>
+        </section>
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
+          <KpiCard
+            label="Cash to Close"
+            value={currencyFormatter.format(result.purchase.totalCashNeeded)}
+            winner={activeStrategyLabel}
+            secondaryLabel="Total cash invested"
+            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
+            definitions={[
+              {
+                term: 'Cash to Close',
+                description: 'Cash required at the closing table before post-close improvements.'
+              },
+              {
+                term: 'Total cash invested',
+                description: 'Full out-of-pocket capital including rehab and one-time strategy setup costs.'
+              }
+            ]}
+          />
+          <KpiCard
+            label="Cap Rate"
+            value={percentFormatter.format(activeOutput.capRate)}
+            helper="Annual NOI ÷ current property value"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="Cash on Cash"
+            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
+            helper="Annual cash flow ÷ total cash invested"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="DSCR"
+            value={activeOutput.dscr.toFixed(2)}
+            helper="NOI ÷ annual debt service"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="ROI"
+            value={percentFormatter.format(activeOutput.roi)}
+            helper="Total profit ÷ total cash invested"
+            winner={activeStrategyLabel}
+          />
+          <KpiCard
+            label="IRR"
+            value={percentFormatter.format(activeOutput.irr)}
+            helper="Discounted return from yearly cashflow timeline"
+            winner={activeStrategyLabel}
+          />
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
