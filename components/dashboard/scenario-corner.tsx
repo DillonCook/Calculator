@@ -79,7 +79,7 @@ export function DealsVaultPanel({
         </span>
       </div>
 
-      <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_208px] lg:items-start">
+      <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_160px] lg:items-start">
         <div className="space-y-2">
           <label className="sr-only" htmlFor="deal-search">
             Search deals
@@ -121,32 +121,44 @@ export function DealsVaultPanel({
           <RecentScenariosCarousel scenarios={deals} activeDealName={activeDealName} onOpen={onActiveDealChange} />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-          <button className="btn-primary min-h-10 rounded-xl px-3 text-sm font-medium" onClick={() => openDialog('saveAs')} type="button">
-            Duplicate
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            className="btn-primary min-h-8 rounded-md px-2 text-sm font-semibold"
+            onClick={() => openDialog('saveAs')}
+            type="button"
+            aria-label="Duplicate"
+            title="Duplicate"
+          >
+            ⧉
           </button>
           <button
-            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
+            className="min-h-8 rounded-md border border-white/10 px-2 text-sm font-medium"
             onClick={() => openDialog('rename')}
             type="button"
             disabled={!activeDeal}
+            aria-label="Rename"
+            title="Rename"
           >
-            Rename
+            ✎
           </button>
           <button
-            className="min-h-10 rounded-xl border border-white/10 px-3 text-sm"
+            className="min-h-8 rounded-md border border-white/10 px-2 text-sm font-medium"
             onClick={onCreateNew}
             type="button"
+            aria-label="Create"
+            title="Create"
           >
-            Create
+            +
           </button>
           <button
-            className="min-h-10 rounded-xl border border-red-500/50 px-3 text-sm text-red-200"
+            className="min-h-8 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
             onClick={onDelete}
             type="button"
             disabled={!activeDeal}
+            aria-label="Delete"
+            title="Delete"
           >
-            Delete
+            ×
           </button>
         </div>
 

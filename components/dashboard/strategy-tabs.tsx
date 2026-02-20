@@ -13,28 +13,55 @@ const strategies: { key: StrategyKey; label: string }[] = [
 interface StrategyTabsProps {
   active: StrategyKey;
   onChange: (key: StrategyKey) => void;
+  quickScan?: {
+    title: string;
+    notes: string;
+    points: string[];
+  };
 }
 
-export function StrategyTabs({ active, onChange }: StrategyTabsProps) {
+export function StrategyTabs({ active, onChange, quickScan }: StrategyTabsProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-      {strategies.map((strategy) => (
-        <button
-          key={strategy.key}
-          className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
-            active === strategy.key
-              ? 'accent-edge text-white'
-              : 'bg-white/5 text-muted hover:bg-white/12'
-          }`}
-          onClick={() => {
-            triggerHapticFeedback('light');
-            onChange(strategy.key);
-          }}
-          type="button"
-        >
-          {strategy.label}
-        </button>
-      ))}
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        {strategies.map((strategy) => (
+          <button
+            key={strategy.key}
+            className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
+              active === strategy.key
+                ? 'accent-edge text-white'
+                : 'bg-white/5 text-muted hover:bg-white/12'
+            }`}
+            onClick={() => {
+              triggerHapticFeedback('light');
+              onChange(strategy.key);
+            }}
+            type="button"
+          >
+            {strategy.label}
+          </button>
+        ))}
+      </div>
+
+      {quickScan ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted">Quick scan</p>
+              <p className="text-base font-semibold sm:text-lg">{quickScan.title}</p>
+            </div>
+            <p className="max-w-xl text-xs text-muted sm:text-sm">{quickScan.notes}</p>
+          </div>
+          <ul className="mt-2.5 space-y-1 text-xs text-slate-200 sm:text-sm">
+            {quickScan.points.map((point) => (
+              <li key={point} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

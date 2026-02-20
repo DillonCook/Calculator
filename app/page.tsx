@@ -448,11 +448,23 @@ export default function HomePage() {
               Show work
             </button>
           </div>
-          <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+          <StrategyTabs
+            active={activeStrategy}
+            onChange={setActiveStrategy}
+            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+          />
           <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
-        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-7">
+          <KpiCard
+            label={priorityMetricLabel}
+            value={currencyFormatter.format(priorityMetricValue)}
+            helper={priorityMetricHelper}
+            winner={activeStrategyLabel}
+            tone={priorityMetricValue >= 0 ? 'success' : 'default'}
+            valueTestId="kpi-priority-metric"
+          />
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(result.purchase.totalCashNeeded)}
@@ -502,137 +514,63 @@ export default function HomePage() {
           />
         </section>
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
-          <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
-              {!isFlipStrategy ? (
-                <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
-                  <div
-                    className="absolute inset-0 opacity-25"
-                    style={{
-                      backgroundImage:
-                        'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
-                      backgroundSize: '92px 92px, 128px 128px, 146px 146px'
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly cash flow mode</p>
+                  <p className="mt-1 text-sm text-muted">Toggle reserve handling to stress test hold strategies faster.</p>
+                </div>
+                <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              </div>
+
+              {supportsReserveToggle ? (
+                <div className="mt-3 inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
                     }}
-                  />
-                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="priority-cashflow-line" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#7BA7FF" stopOpacity="0.8" />
-                        <stop offset="50%" stopColor="#4F8DFD" stopOpacity="0.95" />
-                        <stop offset="100%" stopColor="#6E7E9C" stopOpacity="0.78" />
-                      </linearGradient>
-                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#4F8DFD" stopOpacity="0.34" />
-                        <stop offset="100%" stopColor="#6E7E9C" stopOpacity="0.05" />
-                      </linearGradient>
-                      <filter id="priority-cashflow-glow" x="-20%" y="-20%" width="140%" height="160%">
-                        <feGaussianBlur stdDeviation="0.6" result="blur" />
-                        <feMerge>
-                          <feMergeNode in="blur" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
-                    {monthlyCashFlowLinePath ? (
-                      <path
-                        d={monthlyCashFlowLinePath}
-                        fill="none"
-                        stroke="url(#priority-cashflow-line)"
-                        strokeWidth="1.8"
-                        filter="url(#priority-cashflow-glow)"
-                      />
-                    ) : null}
-                    {monthlyCashFlowChartPoints.map((point, index) => (
-                      <circle key={`priority-cashflow-point-${index}`} cx={point.x} cy={point.y} r="0.95" fill="#4F8DFD" opacity="0.58" />
-                    ))}
-                  </svg>
+                    aria-pressed={includeReserves}
+                    className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                      includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                    }`}
+                  >
+                    Include reserves
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                    }}
+                    aria-pressed={!includeReserves}
+                    className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                      !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                    }`}
+                  >
+                    Exclude reserves
+                  </button>
                 </div>
-              ) : null}
-              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
-                  <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
-                </div>
-                <p
-                  className="text-xs italic tracking-wide text-accent/90"
-                  aria-label={`${priorityMetricLabel} strategy context`}
-                >
-                  {activeStrategyLabel}
-                </p>
-              </div>
-
-              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <p
-                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
-                  data-testid="kpi-priority-metric"
-                >
-                  {currencyFormatter.format(priorityMetricValue)}
-                </p>
-
-                {supportsReserveToggle ? (
-                  <div className="flex shrink-0 items-center sm:pb-1">
-                    <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
-                        }}
-                        aria-pressed={includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Include reserves
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
-                        }}
-                        aria-pressed={!includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Exclude reserves
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
-                  <p className="text-xl font-semibold">{activeStrategyLabel}</p>
-                </div>
-                <p className="max-w-xl text-sm text-muted">{activeOutput.notes}</p>
-              </div>
-              <ul className="mt-3 space-y-1.5 text-sm text-slate-200">
-                {quickScanPoints.map((point) => (
-                  <li key={point} className="flex items-start gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted">Reserve toggles apply to long-term hold strategies. Flip focuses on resale profit.</p>
+              )}
             </div>
 
             <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
           </div>
         </section>
 
-
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
             <div className="hidden items-center gap-2 md:flex">
               <div className="min-w-0 flex-1">
-                <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+                <StrategyTabs
+                  active={activeStrategy}
+                  onChange={setActiveStrategy}
+                  quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+                />
               </div>
               <button
                 type="button"
