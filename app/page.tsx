@@ -120,8 +120,15 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
-    const rawTimeline = operatingTimeline.slice(0, 24);
+    const timelineWithoutAcquisitionYear = activeOutput.cashFlowTimeline.slice(1);
+    const terminalSaleProceeds = activeOutput.saleProceeds ?? 0;
+    const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
+      index === array.length - 1 ? value - terminalSaleProceeds : value
+    );
+    const rawTimeline =
+      cashFlowOnlyTimeline.length > 24
+        ? [...cashFlowOnlyTimeline.slice(0, 23), cashFlowOnlyTimeline[cashFlowOnlyTimeline.length - 1]]
+        : cashFlowOnlyTimeline;
 
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
@@ -625,11 +632,12 @@ export default function HomePage() {
                         ) : null}
                       </rect>
                     ))}
+                    <line x1="0" y1="36" x2="100" y2="36" stroke="#9FB6CF" strokeOpacity="0.2" strokeWidth="0.3" />
                     {monthlyCashFlowYearMarkers.map((marker, markerIndex) => (
                       <g key={`priority-cashflow-year-${marker.key}`}>
                         <line x1={marker.x} y1="35.4" x2={marker.x} y2="37.1" stroke="#BBD0EA" strokeOpacity="0.24" strokeWidth="0.24" />
                         <text x={marker.x} y="38.8" textAnchor="middle" fill="#BDD0E8" opacity="0.32" fontSize="1.55" letterSpacing="0.03">
-                          {markerIndex + 1}
+                          Y{markerIndex + 1}
                         </text>
                       </g>
                     ))}
