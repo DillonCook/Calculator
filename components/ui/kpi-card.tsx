@@ -18,6 +18,7 @@ interface KpiCardProps {
   definitions?: KpiDefinition[];
   backgroundChart?: 'none' | 'cashflowBars';
   chartSeries?: number[];
+  valueTestId?: string;
 }
 
 interface ChartPoint {
@@ -88,7 +89,8 @@ export function KpiCard({
   secondaryValue,
   definitions,
   backgroundChart = 'none',
-  chartSeries
+  chartSeries,
+  valueTestId
 }: KpiCardProps) {
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
@@ -204,7 +206,7 @@ export function KpiCard({
       <p
         ref={primaryValueRef}
         className={`relative z-10 mt-1 text-[clamp(1rem,5.6vw,1.5rem)] font-semibold leading-tight sm:text-3xl md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
-        data-testid={`kpi-${slugify(label)}`}
+        data-testid={valueTestId ?? `kpi-${slugify(label)}`}
       >
         {value}
       </p>
