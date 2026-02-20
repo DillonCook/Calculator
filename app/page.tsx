@@ -579,7 +579,12 @@ export default function HomePage() {
                       backgroundSize: '92px 92px, 128px 128px, 146px 146px'
                     }}
                   />
-                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
+                  <svg
+                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowPathAnimationKey}`}
+                    viewBox="0 0 100 40"
+                    className="absolute inset-x-0 bottom-0 h-[42%] w-full"
+                    preserveAspectRatio="none"
+                  >
                     <defs>
                       <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
@@ -597,12 +602,19 @@ export default function HomePage() {
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.34" />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.08" />
                       </linearGradient>
-                      <filter id="cashflowGlowBlur" x="-8%" y="-30%" width="116%" height="160%">
-                        <feGaussianBlur stdDeviation="0.42" />
+                      <filter id="cashflowGlowBlur" x="-8%" y="-30%" width="116%" height="180%">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="0.42" result="softGlow" />
+                        <feOffset in="softGlow" dy="0.34" result="underGlow" />
+                        <feMerge>
+                          <feMergeNode in="underGlow" />
+                        </feMerge>
                       </filter>
                     </defs>
                     {[7, 13, 19, 25, 31].map((lineY) => (
                       <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.08" strokeWidth="0.3" />
+                    ))}
+                    {[12.5, 25, 37.5, 50, 62.5, 75, 87.5].map((lineX) => (
+                      <line key={`priority-cashflow-grid-v-${lineX}`} x1={lineX} y1="5" x2={lineX} y2="33" stroke="#9FB6CF" strokeOpacity="0.06" strokeWidth="0.24" />
                     ))}
                     <line
                       x1="0"
@@ -625,9 +637,9 @@ export default function HomePage() {
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="1.8"
+                          strokeWidth="1.7"
                           strokeLinecap="butt"
-                          opacity="0.46"
+                          opacity="0.42"
                           filter="url(#cashflowGlowBlur)"
                           pathLength={1}
                           strokeDasharray={prefersReducedMotion ? undefined : 1}
