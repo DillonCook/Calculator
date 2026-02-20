@@ -86,7 +86,7 @@ export function DealsVaultPanel({
           </label>
           <input
             id="deal-search"
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
             placeholder="Search deal name"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -123,7 +123,7 @@ export function DealsVaultPanel({
 
         <div className="grid grid-cols-2 gap-1.5">
           <button
-            className="btn-primary min-h-8 rounded-md px-2 text-sm font-semibold"
+            className="btn-primary h-10 rounded-md px-2 text-sm font-semibold"
             onClick={() => openDialog('saveAs')}
             type="button"
             aria-label="Duplicate"
@@ -132,7 +132,7 @@ export function DealsVaultPanel({
             ⧉
           </button>
           <button
-            className="min-h-8 rounded-md border border-white/10 px-2 text-sm font-medium"
+            className="h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
             onClick={() => openDialog('rename')}
             type="button"
             disabled={!activeDeal}
@@ -142,7 +142,7 @@ export function DealsVaultPanel({
             ✎
           </button>
           <button
-            className="min-h-8 rounded-md border border-white/10 px-2 text-sm font-medium"
+            className="h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
             onClick={onCreateNew}
             type="button"
             aria-label="Create"
@@ -151,7 +151,7 @@ export function DealsVaultPanel({
             +
           </button>
           <button
-            className="min-h-8 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
+            className="h-10 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
             onClick={onDelete}
             type="button"
             disabled={!activeDeal}
