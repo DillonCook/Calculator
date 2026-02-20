@@ -17,13 +17,19 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
   const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const isCashDeal = model.purchase.financingType === 'cash';
   const [targetIrrInput, setTargetIrrInput] = useState('12');
+
   const dualFixScenarios = {
     downPayment: recommendation.scenarios.find((scenario) => scenario.key === 'down-payment'),
     priceCut: recommendation.scenarios.find((scenario) => scenario.key === 'price-cut')
   };
-  const shouldShowDualFixActions = Boolean(
-    shouldShowInlinePriceCut && dualFixScenarios.downPayment && dualFixScenarios.priceCut
+
+  const shouldCollapseLoanDuplicates = Boolean(
+    shouldShowInlinePriceCut && !isCashDeal && dualFixScenarios.downPayment && dualFixScenarios.priceCut
   );
+
+  const scenariosToRender = shouldCollapseLoanDuplicates
+    ? recommendation.scenarios.filter((scenario) => scenario.key !== 'price-cut')
+    : recommendation.scenarios;
 
   const targetIrrDecimal = useMemo(() => {
     const parsed = Number(targetIrrInput);
@@ -54,7 +60,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
   const priceCutSubtext =
     targetIrrPriceCutAmount > 0
       ? `Cut purchase price by ${currencyFormatter.format(targetIrrPriceCutAmount)} to target ${targetIrrInput || '0'}% IRR.`
-      : `Set your target IRR to calculate the needed purchase price cut.`;
+      : 'Set your target IRR to calculate the needed purchase price cut.';
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
@@ -91,89 +97,68 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
 
       {!recommendation.canWorkAlready && !recommendation.constrainedByOperations ? (
         <div className="grid gap-2">
-          {shouldShowDualFixActions ? (
-            <article className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-sm font-medium">Quick apply fix</p>
-              <p className="mt-1 text-xs text-muted">Pick the lever to auto-calculate and apply instantly.</p>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => dualFixScenarios.downPayment && onApply(dualFixScenarios.downPayment)}
-                  disabled={!dualFixScenarios.downPayment}
-                >
-                  Raise down payment
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
-                  disabled={!dualFixScenarios.priceCut}
-                >
-                  Cut purchase price
-                </button>
-              </div>
-            </article>
-          ) : null}
-          {recommendation.scenarios.map((scenario) => (
-            <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-sm font-medium">{scenario.title}</p>
-              <p className="mt-1 text-xs text-muted">{scenario.description}</p>
+          {scenariosToRender.map((scenario) => {
+            const isCashPriceCutScenario = isCashDeal && shouldShowInlinePriceCut && scenario.key === 'price-cut';
+            return (
+              <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-sm font-medium">{scenario.title}</p>
+                {!isCashPriceCutScenario ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
 
-              {shouldShowInlinePriceCut && scenario.key === 'down-payment' && dualFixScenarios.priceCut ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={() => onApply(scenario)}
-                  >
-                    Apply this fix
-                  </button>
-                  <div className="space-y-1">
+                {shouldShowInlinePriceCut && scenario.key === 'down-payment' && dualFixScenarios.priceCut ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <button
                       type="button"
-                      className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
-                      onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
+                      className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={() => onApply(scenario)}
                     >
                       Apply this fix
                     </button>
-                    <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut.description}</p>
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
+                        onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
+                      >
+                        Apply this fix
+                      </button>
+                      <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut.description}</p>
+                    </div>
                   </div>
-                </div>
-              ) : isCashDeal && scenario.key === 'price-cut' && shouldShowInlinePriceCut ? (
-                <div className="mt-2 grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      aria-label="Target IRR %"
-                      type="number"
-                      step="0.1"
-                      value={targetIrrInput}
-                      onChange={(event) => setTargetIrrInput(event.target.value)}
-                      className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                    />
+                ) : isCashPriceCutScenario ? (
+                  <div className="mt-2 grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        aria-label="Target IRR %"
+                        type="number"
+                        step="0.1"
+                        value={targetIrrInput}
+                        onChange={(event) => setTargetIrrInput(event.target.value)}
+                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      />
+                      <button
+                        type="button"
+                        className="btn-primary min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
+                        onClick={applyTargetIrrPriceFix}
+                      >
+                        Apply this fix
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="btn-primary min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
-                      onClick={applyTargetIrrPriceFix}
+                      className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={() => onApply(scenario)}
                     >
                       Apply this fix
                     </button>
                   </div>
-                  <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
-                </div>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={() => onApply(scenario)}
-                  >
-                    Apply this fix
-                  </button>
-                </div>
-              )}
-            </article>
-          ))}
+                )}
+              </article>
+            );
+          })}
         </div>
       ) : null}
     </section>
