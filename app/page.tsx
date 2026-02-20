@@ -193,8 +193,8 @@ export default function HomePage() {
     });
   }, [monthlyCashFlowChartSeries]);
   const cashFlowPathAnimationKey = useMemo(
-    () => monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|'),
-    [monthlyCashFlowChartSeries]
+    () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
+    [activeStrategy, monthlyCashFlowChartSeries]
   );
 
   const isNegativeCashFlowRibbon = useMemo(() => {
@@ -597,6 +597,9 @@ export default function HomePage() {
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.34" />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.08" />
                       </linearGradient>
+                      <filter id="cashflowGlowBlur" x="-8%" y="-30%" width="116%" height="160%">
+                        <feGaussianBlur stdDeviation="0.42" />
+                      </filter>
                     </defs>
                     {[7, 13, 19, 25, 31].map((lineY) => (
                       <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.08" strokeWidth="0.3" />
@@ -622,9 +625,10 @@ export default function HomePage() {
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="2.2"
+                          strokeWidth="1.8"
                           strokeLinecap="butt"
-                          opacity="0.62"
+                          opacity="0.46"
+                          filter="url(#cashflowGlowBlur)"
                           pathLength={1}
                           strokeDasharray={prefersReducedMotion ? undefined : 1}
                           strokeDashoffset={prefersReducedMotion ? undefined : 1}
