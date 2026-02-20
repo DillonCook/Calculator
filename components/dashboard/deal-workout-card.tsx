@@ -21,8 +21,14 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
           <h3 className="text-base font-semibold">Auto-adjust terms for this strategy</h3>
         </div>
         <div className="text-right text-[11px] text-muted">
-          <p>Cash flow: {currencyFormatter.format(recommendation.currentMonthlyCashFlow)}/mo</p>
-          <p>DSCR: {recommendation.currentDscr.toFixed(2)}</p>
+          {strategy === 'flip' ? (
+            <p>Net proceeds: {currencyFormatter.format(recommendation.currentSaleProceeds)}</p>
+          ) : (
+            <>
+              <p>Cash flow: {currencyFormatter.format(recommendation.currentMonthlyCashFlow)}/mo</p>
+              <p>DSCR: {recommendation.currentDscr.toFixed(2)}</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -34,7 +40,9 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
 
       {recommendation.constrainedByOperations ? (
         <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
-          Debt terms are not the blocker. Operating income is negative even with no debt, so you would need higher income or lower non-debt expenses.
+          {strategy === 'flip'
+            ? 'This flip cannot be solved through financing tweaks. Improve resale value, reduce rehab/sell costs, or shorten hold costs to recover net proceeds.'
+            : 'Debt terms are not the blocker. Operating income is negative even with no debt, so you would need higher income or lower non-debt expenses.'}
         </p>
       ) : null}
 
