@@ -14,6 +14,14 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
+  const priceCutAmount =
+    typeof priceCutScenario?.adjustments.purchasePrice === 'number'
+      ? Math.max(model.purchase.purchasePrice - priceCutScenario.adjustments.purchasePrice, 0)
+      : 0;
+  const priceCutSubtext =
+    priceCutAmount > 0
+      ? `Cut purchase price by ${currencyFormatter.format(priceCutAmount)} so cash flow + DSCR clear constraints.`
+      : 'Cut purchase price so cash flow + DSCR clear constraints.';
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
@@ -78,24 +86,38 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
             <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <p className="text-sm font-medium">{scenario.title}</p>
               <p className="mt-1 text-xs text-muted">{scenario.description}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                  onClick={() => onApply(scenario)}
-                >
-                  Apply this fix
-                </button>
-                {shouldShowInlinePriceCut && scenario.key === 'down-payment' && priceCutScenario ? (
+
+              {shouldShowInlinePriceCut && scenario.key === 'down-payment' && priceCutScenario ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
                     className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                    onClick={() => onApply(priceCutScenario)}
+                    onClick={() => onApply(scenario)}
                   >
-                    Cut purchase price
+                    Apply this fix
                   </button>
-                ) : null}
-              </div>
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={() => onApply(priceCutScenario)}
+                    >
+                      Apply this fix
+                    </button>
+                    <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    onClick={() => onApply(scenario)}
+                  >
+                    Apply this fix
+                  </button>
+                </div>
+              )}
             </article>
           ))}
         </div>
