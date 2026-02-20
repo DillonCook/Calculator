@@ -50,6 +50,30 @@ test('recommends price and/or down payment scenarios for constrained debt deal',
 });
 
 
+test('cash financing price-cut recommendation never suggests a zero purchase price', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash',
+      downPaymentPercent: 1,
+      purchasePrice: 405000
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2600,
+      ownerExpensesMonthly: 0
+    }
+  };
+
+  const rec = buildDealWorkoutRecommendation(model, 'longTerm');
+  const priceCutScenario = rec.scenarios.find((scenario) => scenario.key === 'price-cut');
+
+  assert.ok(priceCutScenario);
+  assert.ok((priceCutScenario?.adjustments.purchasePrice ?? 0) > 0);
+});
+
+
 test('flip workout only proposes purchase price fix based on net sale proceeds', () => {
   const model = {
     ...defaultDealInput,
