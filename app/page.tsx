@@ -59,6 +59,22 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
   ]
 };
 
+
+const buildSmoothPath = (points: { x: number; y: number }[]) => {
+  if (!points.length) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const controlX = (previous.x + current.x) / 2;
+    path += ` Q ${controlX} ${previous.y}, ${current.x} ${current.y}`;
+  }
+
+  return path;
+};
+
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
@@ -102,6 +118,45 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
+
+
+  const monthlyCashFlowChartSeries = useMemo(() => {
+    if (isFlipStrategy) return [];
+
+    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
+    const rawTimeline = operatingTimeline.slice(0, 24);
+
+    if (rawTimeline.length > 0) {
+      return rawTimeline.map((value) => {
+        if (supportsReserveToggle && !includeReserves) {
+          const reserveDelta = (activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow) - activeOutput.monthlyCashFlow;
+          return value + reserveDelta * 12;
+        }
+        return value;
+      });
+    }
+
+    return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
+  }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
+
+  const monthlyCashFlowChartPoints = useMemo(() => {
+    const maxValue = Math.max(...monthlyCashFlowChartSeries.map((point) => Math.abs(point)), 1);
+    const step = monthlyCashFlowChartSeries.length > 1 ? 100 / (monthlyCashFlowChartSeries.length - 1) : 100;
+
+    return monthlyCashFlowChartSeries.map((value, index) => {
+      const normalized = Math.max(0.16, Math.abs(value) / maxValue);
+      return {
+        x: monthlyCashFlowChartSeries.length > 1 ? index * step : 50,
+        y: 40 - normalized * 32
+      };
+    });
+  }, [monthlyCashFlowChartSeries]);
+
+  const monthlyCashFlowLinePath = useMemo(() => buildSmoothPath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
+  const monthlyCashFlowAreaPath = useMemo(
+    () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
+    [monthlyCashFlowLinePath]
+  );
 
   const activeDeal = useMemo(
     () => deals.find((deal) => deal.scenarioId === activeDealId),
@@ -448,8 +503,53 @@ export default function HomePage() {
         </section>
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
           <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+              {!isFlipStrategy ? (
+                <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
+                  <div
+                    className="absolute inset-0 opacity-25"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
+                      backgroundSize: '92px 92px, 128px 128px, 146px 146px'
+                    }}
+                  />
+                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="priority-cashflow-line" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#7BA7FF" stopOpacity="0.8" />
+                        <stop offset="50%" stopColor="#4F8DFD" stopOpacity="0.95" />
+                        <stop offset="100%" stopColor="#6E7E9C" stopOpacity="0.78" />
+                      </linearGradient>
+                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4F8DFD" stopOpacity="0.34" />
+                        <stop offset="100%" stopColor="#6E7E9C" stopOpacity="0.05" />
+                      </linearGradient>
+                      <filter id="priority-cashflow-glow" x="-20%" y="-20%" width="140%" height="160%">
+                        <feGaussianBlur stdDeviation="0.6" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
+                    {monthlyCashFlowLinePath ? (
+                      <path
+                        d={monthlyCashFlowLinePath}
+                        fill="none"
+                        stroke="url(#priority-cashflow-line)"
+                        strokeWidth="1.8"
+                        filter="url(#priority-cashflow-glow)"
+                      />
+                    ) : null}
+                    {monthlyCashFlowChartPoints.map((point, index) => (
+                      <circle key={`priority-cashflow-point-${index}`} cx={point.x} cy={point.y} r="0.95" fill="#4F8DFD" opacity="0.58" />
+                    ))}
+                  </svg>
+                </div>
+              ) : null}
+              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
                   <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
@@ -462,7 +562,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <p
                   className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
                   data-testid="kpi-priority-metric"
