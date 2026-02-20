@@ -12,8 +12,22 @@ interface DealWorkoutCardProps {
 
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
-  const shouldShowDualFixActions = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
-  const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
+  const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
+  const dualFixScenarios = {
+    downPayment: recommendation.scenarios.find((scenario) => scenario.key === 'down-payment'),
+    priceCut: recommendation.scenarios.find((scenario) => scenario.key === 'price-cut')
+  };
+  const shouldShowDualFixActions = Boolean(
+    shouldShowInlinePriceCut && dualFixScenarios.downPayment && dualFixScenarios.priceCut
+  );
+  const priceCutAmount =
+    typeof dualFixScenarios.priceCut?.adjustments.purchasePrice === 'number'
+      ? Math.max(model.purchase.purchasePrice - dualFixScenarios.priceCut.adjustments.purchasePrice, 0)
+      : 0;
+  const priceCutSubtext =
+    priceCutAmount > 0
+      ? `Cut purchase price by ${currencyFormatter.format(priceCutAmount)} so cash flow + DSCR clear constraints.`
+      : 'Cut purchase price so cash flow + DSCR clear constraints.';
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
@@ -58,16 +72,16 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                 <button
                   type="button"
                   className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => downPaymentScenario && onApply(downPaymentScenario)}
-                  disabled={!downPaymentScenario}
+                  onClick={() => dualFixScenarios.downPayment && onApply(dualFixScenarios.downPayment)}
+                  disabled={!dualFixScenarios.downPayment}
                 >
                   Raise down payment
                 </button>
                 <button
                   type="button"
                   className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => priceCutScenario && onApply(priceCutScenario)}
-                  disabled={!priceCutScenario}
+                  onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
+                  disabled={!dualFixScenarios.priceCut}
                 >
                   Cut purchase price
                 </button>
@@ -79,15 +93,28 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
               <p className="text-sm font-medium">{scenario.title}</p>
               <p className="mt-1 text-xs text-muted">{scenario.description}</p>
 
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                  onClick={() => onApply(scenario)}
-                >
-                  Apply this fix
-                </button>
-                {shouldShowDualFixActions && scenario.key === 'down-payment' && priceCutScenario ? (
+              {shouldShowInlinePriceCut && scenario.key === 'down-payment' && dualFixScenarios.priceCut ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    onClick={() => onApply(scenario)}
+                  >
+                    Apply this fix
+                  </button>
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
+                    >
+                      Apply this fix
+                    </button>
+                    <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
                     className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
