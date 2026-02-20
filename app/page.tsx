@@ -477,11 +477,23 @@ export default function HomePage() {
               Show work
             </button>
           </div>
-          <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+          <StrategyTabs
+            active={activeStrategy}
+            onChange={setActiveStrategy}
+            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+          />
           <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
-        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-7">
+          <KpiCard
+            label={priorityMetricLabel}
+            value={currencyFormatter.format(priorityMetricValue)}
+            helper={priorityMetricHelper}
+            winner={activeStrategyLabel}
+            tone={priorityMetricValue >= 0 ? 'success' : 'default'}
+            valueTestId="kpi-priority-metric"
+          />
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(result.purchase.totalCashNeeded)}
@@ -600,15 +612,10 @@ export default function HomePage() {
               ) : null}
               <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricLabel}</p>
-                  <p className="mt-1 text-sm text-muted">{priorityMetricHelper}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly cash flow mode</p>
+                  <p className="mt-1 text-sm text-muted">Toggle reserve handling to stress test hold strategies faster.</p>
                 </div>
-                <p
-                  className="text-xs italic tracking-wide text-accent/90"
-                  aria-label={`${priorityMetricLabel} strategy context`}
-                >
-                  {activeStrategyLabel}
-                </p>
+                <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
 
               <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -660,28 +667,24 @@ export default function HomePage() {
                   <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
                   <p className="text-xl font-semibold">{activeStrategyLabel}</p>
                 </div>
-                <p className="max-w-xl text-sm text-muted">{activeOutput.notes}</p>
-              </div>
-              <ul className="mt-3 space-y-1.5 text-sm text-slate-200">
-                {quickScanPoints.map((point) => (
-                  <li key={point} className="flex items-start gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted">Reserve toggles apply to long-term hold strategies. Flip focuses on resale profit.</p>
+              )}
             </div>
 
             <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
           </div>
         </section>
 
-
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
             <div className="hidden items-center gap-2 md:flex">
               <div className="min-w-0 flex-1">
-                <StrategyTabs active={activeStrategy} onChange={setActiveStrategy} />
+                <StrategyTabs
+                  active={activeStrategy}
+                  onChange={setActiveStrategy}
+                  quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+                />
               </div>
               <button
                 type="button"

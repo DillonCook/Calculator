@@ -212,7 +212,7 @@ export function KpiCard({
       {secondaryLabel && secondaryValue ? (
         <div className="relative z-10 mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 sm:px-2.5 sm:py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted sm:text-[11px]">{secondaryLabel}</p>
-          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-lg" data-testid={`kpi-${slugify(secondaryLabel)}`}>
+          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-base" data-testid={`kpi-${slugify(secondaryLabel)}`}>
             {secondaryValue}
           </p>
         </div>
