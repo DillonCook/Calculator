@@ -13,7 +13,9 @@ interface DealWorkoutCardProps {
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
+  const downPaymentScenario = recommendation.scenarios.find((scenario) => scenario.key === 'down-payment');
   const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
+  const shouldShowDualFixActions = Boolean(shouldShowInlinePriceCut && downPaymentScenario && priceCutScenario);
   const priceCutAmount =
     typeof priceCutScenario?.adjustments.purchasePrice === 'number'
       ? Math.max(model.purchase.purchasePrice - priceCutScenario.adjustments.purchasePrice, 0)
