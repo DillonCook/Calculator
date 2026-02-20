@@ -99,29 +99,37 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
         <div className="grid gap-2">
           {scenariosToRender.map((scenario) => {
             const isCashPriceCutScenario = isCashDeal && shouldShowInlinePriceCut && scenario.key === 'price-cut';
+            const isLoanDualFixLayout = shouldShowInlinePriceCut && scenario.key === 'down-payment' && Boolean(dualFixScenarios.priceCut);
+            const shouldShowScenarioDescription = !isCashPriceCutScenario && !isLoanDualFixLayout;
+
             return (
               <article key={scenario.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <p className="text-sm font-medium">{scenario.title}</p>
-                {!isCashPriceCutScenario ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
+                {shouldShowScenarioDescription ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
 
-                {shouldShowInlinePriceCut && scenario.key === 'down-payment' && dualFixScenarios.priceCut ? (
+                {isLoanDualFixLayout ? (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
-                      onClick={() => onApply(scenario)}
-                    >
-                      Apply this fix
-                    </button>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Increase money down</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium"
+                        onClick={() => onApply(scenario)}
+                      >
+                        Apply this fix
+                      </button>
+                      <p className="text-[11px] leading-tight text-muted">{scenario.description}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Reduce Purchase Price</p>
+                      <button
+                        type="button"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix
                       </button>
-                      <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut.description}</p>
+                      <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut?.description}</p>
                     </div>
                   </div>
                 ) : isCashPriceCutScenario ? (
@@ -149,7 +157,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium"
+                      className="btn-primary min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
                       onClick={() => onApply(scenario)}
                     >
                       Apply this fix
