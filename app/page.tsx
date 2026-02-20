@@ -124,14 +124,6 @@ export default function HomePage() {
   const isFlipStrategy = activeStrategy === 'flip';
   const supportsReserveToggle = activeStrategy === 'longTerm' || activeStrategy === 'airbnb' || activeStrategy === 'padSplit' || activeStrategy === 'brrrr';
   const includeReserves = includeReservesByStrategy[activeStrategy];
-  const priorityMetricLabel = isFlipStrategy ? 'Net Profit' : 'Monthly Cash Flow';
-  const priorityMetricHelper = isFlipStrategy
-    ? 'Flip strategy realizes profit at resale, so operating cash flow is modeled as $0'
-    : supportsReserveToggle
-      ? includeReserves
-        ? 'Includes maintenance and CapEx reserves for a conservative monthly cash flow view'
-        : 'Excludes maintenance and CapEx reserves to show cash flow before reserve allocations'
-      : 'Estimated monthly cash flow based on your current assumptions';
   const priorityMetricValue = isFlipStrategy
     ? activeOutput.saleProceeds ?? 0
     : supportsReserveToggle && !includeReserves
@@ -485,15 +477,7 @@ export default function HomePage() {
           <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
         </section>
 
-        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-7">
-          <KpiCard
-            label={priorityMetricLabel}
-            value={currencyFormatter.format(priorityMetricValue)}
-            helper={priorityMetricHelper}
-            winner={activeStrategyLabel}
-            tone={priorityMetricValue >= 0 ? 'success' : 'default'}
-            valueTestId="kpi-priority-metric"
-          />
+        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(result.purchase.totalCashNeeded)}
@@ -543,7 +527,7 @@ export default function HomePage() {
           />
         </section>
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
-          <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
+          <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
             <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
@@ -612,8 +596,8 @@ export default function HomePage() {
               ) : null}
               <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly cash flow mode</p>
-                  <p className="mt-1 text-sm text-muted">Toggle reserve handling to stress test hold strategies faster.</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
+                  <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
                 </div>
                 <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
@@ -659,27 +643,6 @@ export default function HomePage() {
                   </div>
                 ) : null}
               </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
-                  <p className="text-xl font-semibold">{activeStrategyLabel}</p>
-                </div>
-                <p className="max-w-xl text-sm text-muted">{activeOutput.notes}</p>
-              </div>
-              <ul className="mt-2.5 space-y-1 text-sm text-slate-200">
-                {quickScanPoints.map((point) => (
-                  <li key={`${activeStrategy}-${point}`} className="flex items-start gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-              {!supportsReserveToggle ? (
-                <p className="mt-3 text-sm text-muted">Reserve toggles apply to long-term hold strategies. Flip focuses on resale profit.</p>
-              ) : null}
             </div>
 
             <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />

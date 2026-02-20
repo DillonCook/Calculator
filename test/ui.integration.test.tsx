@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
@@ -66,16 +66,11 @@ describe('dashboard integration', () => {
     const excludeValue = currencyFormatter.format(airbnbResult.monthlyCashFlowExcludingReserves ?? airbnbResult.monthlyCashFlow);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(includeValue);
-    expect(
-      screen.getByText('Includes maintenance and CapEx reserves for a conservative monthly cash flow view')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Monthly Cash Flow')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Exclude reserves' })[0]);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(excludeValue);
-    expect(
-      screen.getByText('Excludes maintenance and CapEx reserves to show cash flow before reserve allocations')
-    ).toBeInTheDocument();
   });
 
   it('flip priority metric switches to net profit', async () => {
@@ -86,8 +81,8 @@ describe('dashboard integration', () => {
 
     const flipResult = calculateDeal(defaultDealInput).flip;
 
-    expect(screen.getByText('Net Profit')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(flipResult.saleProceeds ?? 0));
+    expect(screen.queryByRole('button', { name: 'Include reserves' })).not.toBeInTheDocument();
   });
 
 
