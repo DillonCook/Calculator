@@ -77,22 +77,18 @@ const buildLinePath = (points: { x: number; y: number }[]) => {
 const resolveRibbonPalette = (isNegative: boolean) => {
   if (isNegative) {
     return {
-      areaTop: '#fd9f4f',
-      areaBottom: '#8d5a2d',
-      lineStops: ['#ff9a3d', '#ff7a1f', '#ffb86a', '#ffd8ae'],
-      glowStops: ['rgba(255,122,31,0)', 'rgba(255,122,31,0.32)', 'rgba(255,184,106,0.52)', 'rgba(255,216,174,0)'],
-      endpointColor: '#ffd8ae',
-      pointColor: '#ffb86a'
+      areaTop: '#ff8a3c',
+      areaBottom: '#5b2f1a',
+      lineStops: ['#ff8a3c', '#ff6a22', '#ff9e57', '#ffb67b'],
+      glowStops: ['rgba(255,138,60,0)', 'rgba(255,106,34,0.22)', 'rgba(255,158,87,0.32)', 'rgba(255,182,123,0)']
     };
   }
 
   return {
-    areaTop: '#4F8DFD',
-    areaBottom: '#395c98',
-    lineStops: ['#4f8dfd', '#5aa7ff', '#7bb8ff', '#9ecfff'],
-    glowStops: ['rgba(79,141,253,0)', 'rgba(79,141,253,0.32)', 'rgba(123,184,255,0.52)', 'rgba(158,207,255,0)'],
-    endpointColor: '#c2e2ff',
-    pointColor: '#7bb8ff'
+    areaTop: '#4a7dff',
+    areaBottom: '#1a315f',
+    lineStops: ['#4a7dff', '#2f9bff', '#42bbff', '#5bc7ff'],
+    glowStops: ['rgba(74,125,255,0)', 'rgba(47,155,255,0.22)', 'rgba(66,187,255,0.32)', 'rgba(91,199,255,0)']
   };
 };
 
@@ -153,23 +149,33 @@ export default function HomePage() {
     return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
   }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
 
-  const monthlyCashFlowChartPoints = useMemo(() => {
-    const maxValue = Math.max(...monthlyCashFlowChartSeries.map((point) => Math.abs(point)), 1);
-    const step = monthlyCashFlowChartSeries.length > 1 ? 100 / (monthlyCashFlowChartSeries.length - 1) : 100;
+  const monthlyCashFlowChartMetrics = useMemo(() => {
+    const minValue = Math.min(...monthlyCashFlowChartSeries, 0);
+    const maxValue = Math.max(...monthlyCashFlowChartSeries, 0);
+    const valueRange = Math.max(maxValue - minValue, 1);
 
-    return monthlyCashFlowChartSeries.map((value, index) => {
-      const normalized = Math.max(0.16, Math.abs(value) / maxValue);
-      return {
-        x: monthlyCashFlowChartSeries.length > 1 ? index * step : 50,
-        y: 40 - normalized * 32
-      };
-    });
+    const chartTop = 5;
+    const chartBottom = 35;
+    const chartHeight = chartBottom - chartTop;
+
+    const mapValueToY = (value: number) => chartBottom - ((value - minValue) / valueRange) * chartHeight;
+
+    return {
+      baselineY: mapValueToY(0),
+      points: monthlyCashFlowChartSeries.map((value, index) => ({
+        x: monthlyCashFlowChartSeries.length > 1 ? (index / (monthlyCashFlowChartSeries.length - 1)) * 100 : 50,
+        y: mapValueToY(value)
+      }))
+    };
   }, [monthlyCashFlowChartSeries]);
 
-  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
+  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartMetrics.points), [monthlyCashFlowChartMetrics.points]);
   const monthlyCashFlowAreaPath = useMemo(
-    () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
-    [monthlyCashFlowLinePath]
+    () =>
+      monthlyCashFlowLinePath
+        ? `${monthlyCashFlowLinePath} L 100 ${monthlyCashFlowChartMetrics.baselineY} L 0 ${monthlyCashFlowChartMetrics.baselineY} Z`
+        : '',
+    [monthlyCashFlowChartMetrics.baselineY, monthlyCashFlowLinePath]
   );
   const monthlyCashFlowYearMarkers = useMemo(() => {
     if (monthlyCashFlowChartSeries.length < 12) return [];
@@ -182,14 +188,13 @@ export default function HomePage() {
       const x = totalPoints > 1 ? (monthIndex / (totalPoints - 1)) * 100 : 50;
       return {
         key: `Y${index + 1}`,
-        x,
-        label: `Y${index + 1}`
+        x
       };
     });
   }, [monthlyCashFlowChartSeries]);
   const cashFlowPathAnimationKey = useMemo(
-    () => monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|'),
-    [monthlyCashFlowChartSeries]
+    () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
+    [activeStrategy, monthlyCashFlowChartSeries]
   );
 
   const isNegativeCashFlowRibbon = useMemo(() => {
@@ -200,8 +205,8 @@ export default function HomePage() {
   }, [monthlyCashFlowChartSeries]);
 
   const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(),
-    []
+    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
+    [isNegativeCashFlowRibbon]
   );
 
   const activeDeal = useMemo(
@@ -578,38 +583,41 @@ export default function HomePage() {
                     <defs>
                       <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
-                        <stop offset="65%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
+                        <stop offset="34%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
+                        <stop offset="68%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.lineStops[3]} />
                       </linearGradient>
                       <linearGradient id="cashflowGlowGrad" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.glowStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.glowStops[1]} />
-                        <stop offset="70%" stopColor={monthlyCashFlowRibbonPalette.glowStops[2]} />
+                        <stop offset="40%" stopColor={monthlyCashFlowRibbonPalette.glowStops[1]} />
+                        <stop offset="72%" stopColor={monthlyCashFlowRibbonPalette.glowStops[2]} />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.glowStops[3]} />
                       </linearGradient>
                       <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.34" />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.08" />
                       </linearGradient>
-                      <filter id="cashflowGlow" x="-30%" y="-40%" width="170%" height="220%" colorInterpolationFilters="sRGB">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="3.25" result="blur" />
-                        <feColorMatrix
-                          in="blur"
-                          type="matrix"
-                          values="1 0 0 0 0.31 0 1 0 0 0.55 0 0 1 0 0.99 0 0 0 0.8 0"
-                          result="glow"
-                        />
-                        <feMerge>
-                          <feMergeNode in="glow" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
+                      <filter id="cashflowGlowBlur" x="-8%" y="-30%" width="116%" height="160%">
+                        <feGaussianBlur stdDeviation="0.42" />
                       </filter>
                     </defs>
-                    {[8, 14, 20, 26, 32].map((lineY) => (
-                      <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.09" strokeWidth="0.35" />
+                    {[7, 13, 19, 25, 31].map((lineY) => (
+                      <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.08" strokeWidth="0.3" />
                     ))}
-                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
+                    <line
+                      x1="0"
+                      y1={monthlyCashFlowChartMetrics.baselineY}
+                      x2="100"
+                      y2={monthlyCashFlowChartMetrics.baselineY}
+                      stroke={isNegativeCashFlowRibbon ? '#ff9e57' : '#6ea8ff'}
+                      strokeOpacity="0.28"
+                      strokeWidth="0.35"
+                    />
+                    {monthlyCashFlowAreaPath ? (
+                      <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" opacity={prefersReducedMotion ? 1 : 0.9}>
+                        {!prefersReducedMotion ? <animate attributeName="opacity" values="0.25;0.9" dur="0.8s" fill="freeze" /> : null}
+                      </path>
+                    ) : null}
                     {monthlyCashFlowLinePath ? (
                       <>
                         <path
@@ -617,10 +625,10 @@ export default function HomePage() {
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="7.2"
-                          strokeLinecap="round"
-                          opacity="0.2"
-                          filter="url(#cashflowGlow)"
+                          strokeWidth="1.8"
+                          strokeLinecap="butt"
+                          opacity="0.46"
+                          filter="url(#cashflowGlowBlur)"
                           pathLength={1}
                           strokeDasharray={prefersReducedMotion ? undefined : 1}
                           strokeDashoffset={prefersReducedMotion ? undefined : 1}
@@ -632,9 +640,9 @@ export default function HomePage() {
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowLineGrad)"
-                          strokeWidth="2.1"
-                          strokeLinecap="round"
-                          opacity="0.95"
+                          strokeWidth="1.2"
+                          strokeLinecap="butt"
+                          opacity="0.98"
                           pathLength={1}
                           strokeDasharray={prefersReducedMotion ? undefined : 1}
                           strokeDashoffset={prefersReducedMotion ? undefined : 1}
@@ -643,39 +651,21 @@ export default function HomePage() {
                         </path>
                       </>
                     ) : null}
-                    {monthlyCashFlowYearMarkers.map((marker) => (
-                      <text
-                        key={`priority-cashflow-year-${marker.key}`}
-                        x={marker.x}
-                        y="39"
-                        textAnchor="middle"
-                        fill="#BDD0E8"
-                        opacity="0.38"
-                        fontSize="1.8"
-                        letterSpacing="0.08"
-                      >
-                        {marker.label}
-                      </text>
-                    ))}
-                    {monthlyCashFlowChartPoints.map((point, index) => (
-                      <circle
-                        key={`priority-cashflow-point-${index}`}
-                        cx={point.x}
-                        cy={point.y}
-                        r="0.82"
-                        fill={monthlyCashFlowRibbonPalette.pointColor}
-                        opacity="0.45"
-                      />
+                    {monthlyCashFlowYearMarkers.map((marker, markerIndex) => (
+                      <g key={`priority-cashflow-year-${marker.key}`}>
+                        <line x1={marker.x} y1="35.4" x2={marker.x} y2="37.1" stroke="#BBD0EA" strokeOpacity="0.24" strokeWidth="0.24" />
+                        <text x={marker.x} y="38.8" textAnchor="middle" fill="#BDD0E8" opacity="0.32" fontSize="1.55" letterSpacing="0.03">
+                          {markerIndex + 1}
+                        </text>
+                      </g>
                     ))}
                   </svg>
                 </div>
               ) : null}
-              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
-                  <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
-                </div>
-                <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              <div className="relative z-10 pr-20">
+                <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
+                <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
+                <p className="absolute right-0 top-0 text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
 
               <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
