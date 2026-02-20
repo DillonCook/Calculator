@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildDealWorkoutRecommendation } from '../lib/engine/deal-workout';
+import { buildDealWorkoutRecommendation, findPurchasePriceForTargetIrr } from '../lib/engine/deal-workout';
 import { defaultDealInput } from '../lib/models/deal';
 
 test('returns no scenarios when deal already works', () => {
@@ -99,4 +99,59 @@ test('flip workout only proposes purchase price fix based on net sale proceeds',
   assert.equal(rec.scenarios.length, 1);
   assert.equal(rec.scenarios[0]?.key, 'price-cut');
   assert.equal(rec.scenarios[0]?.adjustments.downPaymentPercent, undefined);
+});
+
+
+test('loan price-cut scenario targets monthly cash flow break-even', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'loan',
+      purchasePrice: 340000,
+      arv: 340000,
+      downPaymentPercent: 0.1,
+      interestRate: 0.078
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2600,
+      ownerExpensesMonthly: 100
+    }
+  };
+
+  const rec = buildDealWorkoutRecommendation(model, 'longTerm');
+  const priceCutScenario = rec.scenarios.find((scenario) => scenario.key === 'price-cut');
+
+  assert.ok(priceCutScenario);
+  assert.ok((priceCutScenario?.adjustments.purchasePrice ?? 0) > 0);
+});
+
+test('cash IRR target helper finds lower purchase price when target IRR increases', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash',
+      downPaymentPercent: 1,
+      purchasePrice: 285000
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 3200,
+      ownerExpensesMonthly: 150
+    },
+    assumptions: {
+      ...defaultDealInput.assumptions,
+      holdYears: 7,
+      annualAppreciationPercent: 0.03
+    }
+  };
+
+  const priceAt8Pct = findPurchasePriceForTargetIrr(model, 'longTerm', 0.08);
+  const priceAt12Pct = findPurchasePriceForTargetIrr(model, 'longTerm', 0.12);
+
+  assert.ok(typeof priceAt8Pct === 'number');
+  assert.ok(typeof priceAt12Pct === 'number');
+  assert.ok((priceAt12Pct ?? 0) <= (priceAt8Pct ?? 0));
 });
