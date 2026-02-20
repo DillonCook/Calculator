@@ -75,6 +75,25 @@ const buildSmoothPath = (points: { x: number; y: number }[]) => {
   return path;
 };
 
+
+const resolveRibbonPalette = (isNegative: boolean) => {
+  if (isNegative) {
+    return {
+      strokeStops: ['#8B9BFF', '#B7A8FF', '#E8D9FF', '#FFF1F9'],
+      areaTop: '#8B9BFF',
+      areaBottom: '#7E6EAA',
+      glow: 'rgba(180,150,255,0.34)'
+    };
+  }
+
+  return {
+    strokeStops: ['#6EA8FF', '#9ED0FF', '#E0F2FF', '#FFFFFF'],
+    areaTop: '#4F8DFD',
+    areaBottom: '#6E7E9C',
+    glow: 'rgba(120,180,255,0.35)'
+  };
+};
+
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
@@ -156,6 +175,16 @@ export default function HomePage() {
   const monthlyCashFlowAreaPath = useMemo(
     () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
     [monthlyCashFlowLinePath]
+  );
+
+  const isNegativeCashFlowRibbon = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return false;
+    const average = monthlyCashFlowChartSeries.reduce((sum, value) => sum + value, 0) / monthlyCashFlowChartSeries.length;
+    return average < 0 || monthlyCashFlowChartSeries[monthlyCashFlowChartSeries.length - 1] < 0;
+  }, [monthlyCashFlowChartSeries]);
+  const monthlyCashFlowRibbonPalette = useMemo(
+    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
+    [isNegativeCashFlowRibbon]
   );
 
   const activeDeal = useMemo(
@@ -514,9 +543,74 @@ export default function HomePage() {
           />
         </section>
         <section className="accent-edge rounded-2xl p-4 shadow-soft">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch">
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr] lg:items-stretch">
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+              {!isFlipStrategy ? (
+                <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
+                  <div
+                    className="absolute inset-0 opacity-25"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
+                      backgroundSize: '92px 92px, 128px 128px, 146px 146px'
+                    }}
+                  />
+                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="priority-cashflow-line" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[0]} />
+                        <stop offset="40%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[1]} />
+                        <stop offset="75%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[2]} />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.strokeStops[3]} />
+                      </linearGradient>
+                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
+                      </linearGradient>
+                      <filter id="priority-cashflow-glow" x="-20%" y="-20%" width="140%" height="160%">
+                        <feDropShadow dx="0" dy="0" stdDeviation="1.15" floodColor={monthlyCashFlowRibbonPalette.glow} />
+                      </filter>
+                    </defs>
+                    {[8, 14, 20, 26, 32].map((lineY) => (
+                      <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.09" strokeWidth="0.35" />
+                    ))}
+                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
+                    {monthlyCashFlowLinePath ? (
+                      <>
+                        <path
+                          d={monthlyCashFlowLinePath}
+                          fill="none"
+                          stroke="url(#priority-cashflow-line)"
+                          strokeWidth="2.1"
+                          strokeLinecap="round"
+                          filter="url(#priority-cashflow-glow)"
+                          className="sm:hidden"
+                        />
+                        <path
+                          d={monthlyCashFlowLinePath}
+                          fill="none"
+                          stroke="url(#priority-cashflow-line)"
+                          strokeWidth="2.8"
+                          strokeLinecap="round"
+                          filter="url(#priority-cashflow-glow)"
+                          className="hidden sm:block"
+                        />
+                      </>
+                    ) : null}
+                    {monthlyCashFlowChartPoints.map((point, index) => (
+                      <circle
+                        key={`priority-cashflow-point-${index}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r="0.82"
+                        fill={monthlyCashFlowRibbonPalette.strokeStops[1]}
+                        opacity="0.45"
+                      />
+                    ))}
+                  </svg>
+                </div>
+              ) : null}
+              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly cash flow mode</p>
                   <p className="mt-1 text-sm text-muted">Toggle reserve handling to stress test hold strategies faster.</p>
@@ -524,34 +618,54 @@ export default function HomePage() {
                 <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
 
-              {supportsReserveToggle ? (
-                <div className="mt-3 inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
-                    }}
-                    aria-pressed={includeReserves}
-                    className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                      includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                    }`}
-                  >
-                    Include reserves
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
-                    }}
-                    aria-pressed={!includeReserves}
-                    className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                      !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
-                    }`}
-                  >
-                    Exclude reserves
-                  </button>
+              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <p
+                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                  data-testid="kpi-priority-metric"
+                >
+                  {currencyFormatter.format(priorityMetricValue)}
+                </p>
+
+                {supportsReserveToggle ? (
+                  <div className="flex shrink-0 items-center sm:pb-1">
+                    <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                        }}
+                        aria-pressed={includeReserves}
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Include reserves
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                        }}
+                        aria-pressed={!includeReserves}
+                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Exclude reserves
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
+                  <p className="text-xl font-semibold">{activeStrategyLabel}</p>
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-muted">Reserve toggles apply to long-term hold strategies. Flip focuses on resale profit.</p>
