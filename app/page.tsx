@@ -667,9 +667,19 @@ export default function HomePage() {
                   <p className="text-xs uppercase tracking-wide text-muted">Quick scan</p>
                   <p className="text-xl font-semibold">{activeStrategyLabel}</p>
                 </div>
-              ) : (
+                <p className="max-w-xl text-sm text-muted">{activeOutput.notes}</p>
+              </div>
+              <ul className="mt-2.5 space-y-1 text-sm text-slate-200">
+                {quickScanPoints.map((point) => (
+                  <li key={`${activeStrategy}-${point}`} className="flex items-start gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+              {!supportsReserveToggle ? (
                 <p className="mt-3 text-sm text-muted">Reserve toggles apply to long-term hold strategies. Flip focuses on resale profit.</p>
-              )}
+              ) : null}
             </div>
 
             <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
