@@ -13,10 +13,16 @@ interface DealWorkoutCardProps {
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
-  const priceCutScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
+  const dualFixScenarios = {
+    downPayment: recommendation.scenarios.find((scenario) => scenario.key === 'down-payment'),
+    priceCut: recommendation.scenarios.find((scenario) => scenario.key === 'price-cut')
+  };
+  const shouldShowDualFixActions = Boolean(
+    shouldShowInlinePriceCut && dualFixScenarios.downPayment && dualFixScenarios.priceCut
+  );
   const priceCutAmount =
-    typeof priceCutScenario?.adjustments.purchasePrice === 'number'
-      ? Math.max(model.purchase.purchasePrice - priceCutScenario.adjustments.purchasePrice, 0)
+    typeof dualFixScenarios.priceCut?.adjustments.purchasePrice === 'number'
+      ? Math.max(model.purchase.purchasePrice - dualFixScenarios.priceCut.adjustments.purchasePrice, 0)
       : 0;
   const priceCutSubtext =
     priceCutAmount > 0
@@ -66,16 +72,16 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                 <button
                   type="button"
                   className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => downPaymentScenario && onApply(downPaymentScenario)}
-                  disabled={!downPaymentScenario}
+                  onClick={() => dualFixScenarios.downPayment && onApply(dualFixScenarios.downPayment)}
+                  disabled={!dualFixScenarios.downPayment}
                 >
                   Raise down payment
                 </button>
                 <button
                   type="button"
                   className="btn-primary min-h-10 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => priceCutScenario && onApply(priceCutScenario)}
-                  disabled={!priceCutScenario}
+                  onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
+                  disabled={!dualFixScenarios.priceCut}
                 >
                   Cut purchase price
                 </button>
@@ -87,7 +93,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
               <p className="text-sm font-medium">{scenario.title}</p>
               <p className="mt-1 text-xs text-muted">{scenario.description}</p>
 
-              {shouldShowInlinePriceCut && scenario.key === 'down-payment' && priceCutScenario ? (
+              {shouldShowInlinePriceCut && scenario.key === 'down-payment' && dualFixScenarios.priceCut ? (
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
@@ -100,7 +106,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                     <button
                       type="button"
                       className="btn-primary min-h-10 w-full rounded-lg px-3 py-1.5 text-xs font-medium"
-                      onClick={() => onApply(priceCutScenario)}
+                      onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                     >
                       Apply this fix
                     </button>
