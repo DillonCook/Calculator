@@ -60,26 +60,41 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 };
 
 
-const buildSmoothPath = (points: { x: number; y: number }[]) => {
+const buildLinePath = (points: { x: number; y: number }[]) => {
   if (!points.length) return '';
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
   let path = `M ${points[0].x} ${points[0].y}`;
   for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
     const current = points[index];
-    const controlX = (previous.x + current.x) / 2;
-    path += ` Q ${controlX} ${previous.y}, ${current.x} ${current.y}`;
+    path += ` L ${current.x} ${current.y}`;
   }
 
   return path;
 };
 
 
-const resolveRibbonPalette = () => ({
-  areaTop: '#4F8DFD',
-  areaBottom: '#6E7E9C'
-});
+const resolveRibbonPalette = (isNegative: boolean) => {
+  if (isNegative) {
+    return {
+      areaTop: '#fd9f4f',
+      areaBottom: '#8d5a2d',
+      lineStops: ['#ff9a3d', '#ff7a1f', '#ffb86a', '#ffd8ae'],
+      glowStops: ['rgba(255,122,31,0)', 'rgba(255,122,31,0.32)', 'rgba(255,184,106,0.52)', 'rgba(255,216,174,0)'],
+      endpointColor: '#ffd8ae',
+      pointColor: '#ffb86a'
+    };
+  }
+
+  return {
+    areaTop: '#4F8DFD',
+    areaBottom: '#395c98',
+    lineStops: ['#4f8dfd', '#5aa7ff', '#7bb8ff', '#9ecfff'],
+    glowStops: ['rgba(79,141,253,0)', 'rgba(79,141,253,0.32)', 'rgba(123,184,255,0.52)', 'rgba(158,207,255,0)'],
+    endpointColor: '#c2e2ff',
+    pointColor: '#7bb8ff'
+  };
+};
 
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
@@ -151,12 +166,38 @@ export default function HomePage() {
     });
   }, [monthlyCashFlowChartSeries]);
 
-  const monthlyCashFlowLinePath = useMemo(() => buildSmoothPath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
+  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
   const monthlyCashFlowAreaPath = useMemo(
     () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
     [monthlyCashFlowLinePath]
   );
-  const monthlyCashFlowLastPoint = monthlyCashFlowChartPoints[monthlyCashFlowChartPoints.length - 1];
+  const monthlyCashFlowYearMarkers = useMemo(() => {
+    if (monthlyCashFlowChartSeries.length < 12) return [];
+
+    const totalPoints = monthlyCashFlowChartSeries.length;
+    const maxYears = Math.ceil(totalPoints / 12);
+
+    return Array.from({ length: maxYears }, (_, index) => {
+      const monthIndex = Math.min((index + 1) * 12 - 1, totalPoints - 1);
+      const x = totalPoints > 1 ? (monthIndex / (totalPoints - 1)) * 100 : 50;
+      return {
+        key: `Y${index + 1}`,
+        x,
+        label: `Y${index + 1}`
+      };
+    });
+  }, [monthlyCashFlowChartSeries]);
+  const cashFlowPathAnimationKey = useMemo(
+    () => monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|'),
+    [monthlyCashFlowChartSeries]
+  );
+
+  const isNegativeCashFlowRibbon = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return false;
+    const average = monthlyCashFlowChartSeries.reduce((sum, value) => sum + value, 0) / monthlyCashFlowChartSeries.length;
+    const lastValue = monthlyCashFlowChartSeries[monthlyCashFlowChartSeries.length - 1];
+    return average < 0 || lastValue < 0;
+  }, [monthlyCashFlowChartSeries]);
 
   const monthlyCashFlowRibbonPalette = useMemo(
     () => resolveRibbonPalette(),
@@ -536,36 +577,16 @@ export default function HomePage() {
                   <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
                     <defs>
                       <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#5aa7ff" />
-                        <stop offset="35%" stopColor="#4f8dfd" />
-                        <stop offset="65%" stopColor="#7bb8ff" />
-                        <stop offset="100%" stopColor="#c2e2ff" />
-                        {!prefersReducedMotion ? (
-                          <animateTransform
-                            attributeName="gradientTransform"
-                            type="translate"
-                            values="-50 0; 50 0; -50 0"
-                            dur="14s"
-                            repeatCount="indefinite"
-                            calcMode="linear"
-                          />
-                        ) : null}
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
+                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
+                        <stop offset="65%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.lineStops[3]} />
                       </linearGradient>
                       <linearGradient id="cashflowGlowGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="rgba(79,141,253,0.0)" />
-                        <stop offset="35%" stopColor="rgba(79,141,253,0.35)" />
-                        <stop offset="70%" stopColor="rgba(120,180,255,0.6)" />
-                        <stop offset="100%" stopColor="rgba(194,226,255,0.0)" />
-                        {!prefersReducedMotion ? (
-                          <animateTransform
-                            attributeName="gradientTransform"
-                            type="translate"
-                            values="-45 0; 45 0; -45 0"
-                            dur="16s"
-                            repeatCount="indefinite"
-                            calcMode="linear"
-                          />
-                        ) : null}
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.glowStops[0]} />
+                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.glowStops[1]} />
+                        <stop offset="70%" stopColor={monthlyCashFlowRibbonPalette.glowStops[2]} />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.glowStops[3]} />
                       </linearGradient>
                       <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
@@ -592,37 +613,57 @@ export default function HomePage() {
                     {monthlyCashFlowLinePath ? (
                       <>
                         <path
+                          key={`cashflow-glow-${cashFlowPathAnimationKey}`}
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="12"
+                          strokeWidth="7.2"
                           strokeLinecap="round"
-                          opacity="0.24"
+                          opacity="0.2"
                           filter="url(#cashflowGlow)"
-                        />
+                          pathLength={1}
+                          strokeDasharray={prefersReducedMotion ? undefined : 1}
+                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
+                        >
+                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
+                        </path>
                         <path
+                          key={`cashflow-main-${cashFlowPathAnimationKey}`}
                           d={monthlyCashFlowLinePath}
                           fill="none"
                           stroke="url(#cashflowLineGrad)"
-                          strokeWidth="2.8"
+                          strokeWidth="2.1"
                           strokeLinecap="round"
                           opacity="0.95"
-                        />
+                          pathLength={1}
+                          strokeDasharray={prefersReducedMotion ? undefined : 1}
+                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
+                        >
+                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
+                        </path>
                       </>
                     ) : null}
-                    {monthlyCashFlowLastPoint ? (
-                      <>
-                        <circle cx={monthlyCashFlowLastPoint.x} cy={monthlyCashFlowLastPoint.y} r="6" fill="#c2e2ff" opacity="0.3" filter="url(#cashflowGlow)" />
-                        <circle cx={monthlyCashFlowLastPoint.x} cy={monthlyCashFlowLastPoint.y} r="4.8" fill="#c2e2ff" opacity="0.95" />
-                      </>
-                    ) : null}
+                    {monthlyCashFlowYearMarkers.map((marker) => (
+                      <text
+                        key={`priority-cashflow-year-${marker.key}`}
+                        x={marker.x}
+                        y="39"
+                        textAnchor="middle"
+                        fill="#BDD0E8"
+                        opacity="0.38"
+                        fontSize="1.8"
+                        letterSpacing="0.08"
+                      >
+                        {marker.label}
+                      </text>
+                    ))}
                     {monthlyCashFlowChartPoints.map((point, index) => (
                       <circle
                         key={`priority-cashflow-point-${index}`}
                         cx={point.x}
                         cy={point.y}
                         r="0.82"
-                        fill="#7bb8ff"
+                        fill={monthlyCashFlowRibbonPalette.pointColor}
                         opacity="0.45"
                       />
                     ))}
