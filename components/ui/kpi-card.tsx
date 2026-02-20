@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 interface KpiDefinition {
   term: string;
@@ -24,25 +24,31 @@ const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-
 export function KpiCard({ label, value, helper, winner, tone = 'default', secondaryLabel, secondaryValue, definitions, valueTestId }: KpiCardProps) {
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
+  const chartPoints = useMemo(() => buildChartPoints(chartSeries), [chartSeries]);
+  const linePath = useMemo(() => buildSmoothPath(chartPoints), [chartPoints]);
+  const areaPath = useMemo(() => (linePath ? `${linePath} L 100 40 L 0 40 Z` : ''), [linePath]);
+  const gradientId = `kpi-cashflow-line-${slugify(label)}`;
+  const areaGradientId = `kpi-cashflow-area-${slugify(label)}`;
+  const filterId = `kpi-cashflow-glow-${slugify(label)}`;
 
   useEffect(() => {
     if (typeof primaryValueRef.current?.animate === 'function') {
       primaryValueRef.current.animate(
-      [
-        { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)' }
-      ],
-      { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        [
+          { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' }
+        ],
+        { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
       );
     }
 
     if (typeof secondaryValueRef.current?.animate === 'function') {
       secondaryValueRef.current.animate(
-      [
-        { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)' }
-      ],
-      { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        [
+          { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' }
+        ],
+        { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
       );
     }
   }, [value, secondaryValue]);
@@ -72,7 +78,7 @@ export function KpiCard({ label, value, helper, winner, tone = 'default', second
       </div>
 
       {winner ? (
-        <p className="mt-1 text-[11px] italic tracking-wide text-accent/90 sm:text-xs" aria-label={`${label} strategy context`}>
+        <p className="relative z-10 mt-1 text-[11px] italic tracking-wide text-accent/90 sm:text-xs" aria-label={`${label} strategy context`}>
           {winner}
         </p>
       ) : null}

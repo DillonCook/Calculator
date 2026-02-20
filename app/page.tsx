@@ -59,6 +59,22 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
   ]
 };
 
+
+const buildSmoothPath = (points: { x: number; y: number }[]) => {
+  if (!points.length) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const controlX = (previous.x + current.x) / 2;
+    path += ` Q ${controlX} ${previous.y}, ${current.x} ${current.y}`;
+  }
+
+  return path;
+};
+
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
 
@@ -102,6 +118,45 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
+
+
+  const monthlyCashFlowChartSeries = useMemo(() => {
+    if (isFlipStrategy) return [];
+
+    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
+    const rawTimeline = operatingTimeline.slice(0, 24);
+
+    if (rawTimeline.length > 0) {
+      return rawTimeline.map((value) => {
+        if (supportsReserveToggle && !includeReserves) {
+          const reserveDelta = (activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow) - activeOutput.monthlyCashFlow;
+          return value + reserveDelta * 12;
+        }
+        return value;
+      });
+    }
+
+    return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
+  }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
+
+  const monthlyCashFlowChartPoints = useMemo(() => {
+    const maxValue = Math.max(...monthlyCashFlowChartSeries.map((point) => Math.abs(point)), 1);
+    const step = monthlyCashFlowChartSeries.length > 1 ? 100 / (monthlyCashFlowChartSeries.length - 1) : 100;
+
+    return monthlyCashFlowChartSeries.map((value, index) => {
+      const normalized = Math.max(0.16, Math.abs(value) / maxValue);
+      return {
+        x: monthlyCashFlowChartSeries.length > 1 ? index * step : 50,
+        y: 40 - normalized * 32
+      };
+    });
+  }, [monthlyCashFlowChartSeries]);
+
+  const monthlyCashFlowLinePath = useMemo(() => buildSmoothPath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
+  const monthlyCashFlowAreaPath = useMemo(
+    () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
+    [monthlyCashFlowLinePath]
+  );
 
   const activeDeal = useMemo(
     () => deals.find((deal) => deal.scenarioId === activeDealId),
