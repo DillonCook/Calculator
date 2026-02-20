@@ -38,6 +38,36 @@ const roundCurrency = (value: number) => Math.round(value / 100) * 100;
 const roundPercent = (value: number) => Math.round(value * 1000) / 1000;
 const roundPurchasePrice = (value: number) => Math.max(roundCurrency(value), 100);
 
+const meetsTargetIrr = (model: DealInputModel, strategy: StrategyKey, targetIrr: number) => {
+  const output = calculateDeal(model)[strategy];
+  return output.irr >= targetIrr;
+};
+
+const meetsCashFlowBreakEven = (model: DealInputModel, strategy: StrategyKey, minMonthlyCashFlow = 0) => calculateDeal(model)[strategy].monthlyCashFlow >= minMonthlyCashFlow;
+
+const findPurchasePriceForMinCashFlow = (model: DealInputModel, strategy: StrategyKey, minMonthlyCashFlow = 0): number | null => {
+  const currentPrice = Math.max(model.purchase.purchasePrice, 1);
+  if (meetsCashFlowBreakEven(model, strategy, minMonthlyCashFlow)) return currentPrice;
+
+  const minPrice = 1;
+  const canBreakEvenAtMinPrice = meetsCashFlowBreakEven(withPurchaseAdjustments(model, { purchasePrice: minPrice }), strategy, minMonthlyCashFlow);
+  if (!canBreakEvenAtMinPrice) return null;
+
+  let low = minPrice;
+  let high = currentPrice;
+  for (let i = 0; i < 28; i += 1) {
+    const mid = (low + high) / 2;
+    const canBreakEven = meetsCashFlowBreakEven(withPurchaseAdjustments(model, { purchasePrice: mid }), strategy, minMonthlyCashFlow);
+    if (canBreakEven) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return low;
+};
+
 const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: ConstraintTargets = defaultTargets) => {
   const output = calculateDeal(model)[strategy];
   if (strategy === 'flip') {
@@ -179,7 +209,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
 
   const scenarios: DealWorkoutScenario[] = [];
 
-  const minWorkablePrice = findBoundary(
+  const minWorkablePriceForAllTargets = findBoundary(
     model,
     strategy,
     (value) => ({ purchasePrice: value }),
@@ -187,18 +217,20 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     Math.max(model.purchase.purchasePrice, 1)
   );
 
-  if (typeof minWorkablePrice === 'number' && minWorkablePrice < model.purchase.purchasePrice) {
-    const rounded = roundPurchasePrice(minWorkablePrice);
-    const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
-    scenarios.push({
-      key: 'price-cut',
-      title: 'Renegotiate purchase price',
-      description: `Drop purchase price by about $${roundCurrency(discount).toLocaleString()} to hit breakeven targets.`,
-      adjustments: { purchasePrice: rounded }
-    });
-  }
-
   if (model.purchase.financingType === 'loan') {
+    const minBreakEvenCashFlowPrice = findPurchasePriceForMinCashFlow(model, strategy, 0);
+
+    if (typeof minBreakEvenCashFlowPrice === 'number' && minBreakEvenCashFlowPrice < model.purchase.purchasePrice) {
+      const rounded = roundPurchasePrice(minBreakEvenCashFlowPrice);
+      const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
+      scenarios.push({
+        key: 'price-cut',
+        title: 'Renegotiate purchase price',
+        description: `Drop purchase price by about $${roundCurrency(discount).toLocaleString()} to break even on monthly cash flow.`,
+        adjustments: { purchasePrice: rounded }
+      });
+    }
+
     const minWorkableDown = findBoundary(
       model,
       strategy,
@@ -240,6 +272,17 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     }
   }
 
+  if (model.purchase.financingType === 'cash' && typeof minWorkablePriceForAllTargets === 'number' && minWorkablePriceForAllTargets < model.purchase.purchasePrice) {
+    const rounded = roundPurchasePrice(minWorkablePriceForAllTargets);
+    const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
+    scenarios.push({
+      key: 'price-cut',
+      title: 'Renegotiate purchase price',
+      description: `Drop purchase price by about $${roundCurrency(discount).toLocaleString()} to hit breakeven targets.`,
+      adjustments: { purchasePrice: rounded }
+    });
+  }
+
   return {
     canWorkAlready: false,
     constrainedByOperations: false,
@@ -248,4 +291,31 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     currentSaleProceeds: current.saleProceeds ?? 0,
     scenarios
   };
+}
+
+export function findPurchasePriceForTargetIrr(model: DealInputModel, strategy: StrategyKey, targetIrr: number): number | null {
+  if (!Number.isFinite(targetIrr)) return null;
+
+  const currentPrice = Math.max(model.purchase.purchasePrice, 1);
+  if (meetsTargetIrr(model, strategy, targetIrr)) {
+    return roundPurchasePrice(currentPrice);
+  }
+
+  const minPrice = 1;
+  const canHitTargetAtMinPrice = meetsTargetIrr(withPurchaseAdjustments(model, { purchasePrice: minPrice }), strategy, targetIrr);
+  if (!canHitTargetAtMinPrice) return null;
+
+  let low = minPrice;
+  let high = currentPrice;
+  for (let i = 0; i < 28; i += 1) {
+    const mid = (low + high) / 2;
+    const meetsTarget = meetsTargetIrr(withPurchaseAdjustments(model, { purchasePrice: mid }), strategy, targetIrr);
+    if (meetsTarget) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return roundPurchasePrice(low);
 }

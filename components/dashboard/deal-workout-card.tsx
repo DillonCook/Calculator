@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+
 import { currencyFormatter } from '@/lib/formatters';
-import { buildDealWorkoutRecommendation, type DealWorkoutScenario } from '@/lib/engine/deal-workout';
+import { buildDealWorkoutRecommendation, findPurchasePriceForTargetIrr, type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 
 interface DealWorkoutCardProps {
@@ -13,6 +15,8 @@ interface DealWorkoutCardProps {
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
+  const isCashDeal = model.purchase.financingType === 'cash';
+  const [targetIrrInput, setTargetIrrInput] = useState('12');
   const dualFixScenarios = {
     downPayment: recommendation.scenarios.find((scenario) => scenario.key === 'down-payment'),
     priceCut: recommendation.scenarios.find((scenario) => scenario.key === 'price-cut')
@@ -20,14 +24,37 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
   const shouldShowDualFixActions = Boolean(
     shouldShowInlinePriceCut && dualFixScenarios.downPayment && dualFixScenarios.priceCut
   );
-  const priceCutAmount =
-    typeof dualFixScenarios.priceCut?.adjustments.purchasePrice === 'number'
-      ? Math.max(model.purchase.purchasePrice - dualFixScenarios.priceCut.adjustments.purchasePrice, 0)
-      : 0;
+
+  const targetIrrDecimal = useMemo(() => {
+    const parsed = Number(targetIrrInput);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed / 100;
+  }, [targetIrrInput]);
+
+  const targetIrrPriceCutAmount = useMemo(() => {
+    if (!isCashDeal || targetIrrDecimal === null) return 0;
+    const targetPrice = findPurchasePriceForTargetIrr(model, strategy, targetIrrDecimal);
+    if (typeof targetPrice !== 'number') return 0;
+    return Math.max(model.purchase.purchasePrice - targetPrice, 0);
+  }, [isCashDeal, model, strategy, targetIrrDecimal]);
+
+  const applyTargetIrrPriceFix = () => {
+    if (!isCashDeal || targetIrrDecimal === null) return;
+    const targetPurchasePrice = findPurchasePriceForTargetIrr(model, strategy, targetIrrDecimal);
+    if (typeof targetPurchasePrice !== 'number') return;
+
+    onApply({
+      key: 'price-cut',
+      title: 'Target IRR purchase price',
+      description: `Cut purchase price to target ${(targetIrrDecimal * 100).toFixed(2)}% IRR.`,
+      adjustments: { purchasePrice: targetPurchasePrice }
+    });
+  };
+
   const priceCutSubtext =
-    priceCutAmount > 0
-      ? `Cut purchase price by ${currencyFormatter.format(priceCutAmount)} so cash flow + DSCR clear constraints.`
-      : 'Cut purchase price so cash flow + DSCR clear constraints.';
+    targetIrrPriceCutAmount > 0
+      ? `Cut purchase price by ${currencyFormatter.format(targetIrrPriceCutAmount)} to target ${targetIrrInput || '0'}% IRR.`
+      : `Set your target IRR to calculate the needed purchase price cut.`;
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
@@ -110,8 +137,29 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                     >
                       Apply this fix
                     </button>
-                    <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
+                    <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut.description}</p>
                   </div>
+                </div>
+              ) : isCashDeal && scenario.key === 'price-cut' && shouldShowInlinePriceCut ? (
+                <div className="mt-2 grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      aria-label="Target IRR %"
+                      type="number"
+                      step="0.1"
+                      value={targetIrrInput}
+                      onChange={(event) => setTargetIrrInput(event.target.value)}
+                      className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                    />
+                    <button
+                      type="button"
+                      className="btn-primary min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
+                      onClick={applyTargetIrrPriceFix}
+                    >
+                      Apply this fix
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
                 </div>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
