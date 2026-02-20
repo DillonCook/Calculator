@@ -727,24 +727,24 @@ export default function HomePage() {
 
         <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
-            <div className="hidden items-center gap-2 md:flex">
-              <div className="min-w-0 flex-1">
-                <StrategyTabs
-                  active={activeStrategy}
-                  onChange={setActiveStrategy}
-                  quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHapticFeedback('light');
-                  setIsStrategyWorkOpen(true);
-                }}
-                className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
-              >
-                Show work
-              </button>
+            <div className="hidden md:block">
+              <StrategyTabs
+                active={activeStrategy}
+                onChange={setActiveStrategy}
+                quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+                actionSlot={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setIsStrategyWorkOpen(true);
+                    }}
+                    className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
+                  >
+                    Show work
+                  </button>
+                }
+              />
             </div>
             <section className="hidden grid gap-3 md:grid">
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />

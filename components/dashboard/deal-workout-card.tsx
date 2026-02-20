@@ -109,20 +109,21 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
 
                 {isLoanDualFixLayout ? (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1.5 text-center sm:text-left">
+                    <div className="space-y-1.5 text-center">
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:mx-auto sm:w-36"
                         onClick={() => onApply(scenario)}
                       >
                         Apply this fix
                       </button>
                       <p className="text-[11px] leading-tight text-muted">{scenario.description}</p>
                     </div>
-                    <div className="space-y-1.5 text-center sm:text-left">
+                    <div className="space-y-1.5 text-center">
+                      <p className="text-xs font-medium text-slate-200">Reduce Purchase Price</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
+                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:mx-auto sm:w-36"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix

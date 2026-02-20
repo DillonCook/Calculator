@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { StrategyKey } from '@/lib/models/deal';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 
@@ -18,29 +20,31 @@ interface StrategyTabsProps {
     notes: string;
     points: string[];
   };
+  actionSlot?: ReactNode;
 }
 
-export function StrategyTabs({ active, onChange, quickScan }: StrategyTabsProps) {
+export function StrategyTabs({ active, onChange, quickScan, actionSlot }: StrategyTabsProps) {
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        {strategies.map((strategy) => (
-          <button
-            key={strategy.key}
-            className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
-              active === strategy.key
-                ? 'accent-edge text-white'
-                : 'bg-white/5 text-muted hover:bg-white/12'
-            }`}
-            onClick={() => {
-              triggerHapticFeedback('light');
-              onChange(strategy.key);
-            }}
-            type="button"
-          >
-            {strategy.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {strategies.map((strategy) => (
+            <button
+              key={strategy.key}
+              className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
+                active === strategy.key ? 'accent-edge text-white' : 'bg-white/5 text-muted hover:bg-white/12'
+              }`}
+              onClick={() => {
+                triggerHapticFeedback('light');
+                onChange(strategy.key);
+              }}
+              type="button"
+            >
+              {strategy.label}
+            </button>
+          ))}
+        </div>
+        {actionSlot ? <div className="shrink-0 self-start">{actionSlot}</div> : null}
       </div>
 
       {quickScan ? (
