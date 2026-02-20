@@ -60,41 +60,31 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 };
 
 
-const buildLinePath = (points: { x: number; y: number }[]) => {
-  if (!points.length) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length; index += 1) {
-    const current = points[index];
-    path += ` L ${current.x} ${current.y}`;
-  }
-
-  return path;
-};
-
 
 const resolveRibbonPalette = (isNegative: boolean) => {
   if (isNegative) {
     return {
-      areaTop: '#fd9f4f',
-      areaBottom: '#8d5a2d',
-      lineStops: ['#ff9a3d', '#ff7a1f', '#ffb86a', '#ffd8ae'],
-      glowStops: ['rgba(255,122,31,0)', 'rgba(255,122,31,0.32)', 'rgba(255,184,106,0.52)', 'rgba(255,216,174,0)'],
-      endpointColor: '#ffd8ae',
-      pointColor: '#ffb86a'
+      areaTop: '#ff8a3c',
+      areaBottom: '#5b2f1a',
+      lineStops: ['#ff8a3c', '#ff6a22', '#ff9e57', '#ffb67b'],
+      glowStops: ['rgba(255,138,60,0)', 'rgba(255,106,34,0.22)', 'rgba(255,158,87,0.32)', 'rgba(255,182,123,0)']
     };
   }
 
   return {
-    areaTop: '#4F8DFD',
-    areaBottom: '#395c98',
-    lineStops: ['#4f8dfd', '#5aa7ff', '#7bb8ff', '#9ecfff'],
-    glowStops: ['rgba(79,141,253,0)', 'rgba(79,141,253,0.32)', 'rgba(123,184,255,0.52)', 'rgba(158,207,255,0)'],
-    endpointColor: '#c2e2ff',
-    pointColor: '#7bb8ff'
+    areaTop: '#4a7dff',
+    areaBottom: '#1a315f',
+    lineStops: ['#4a7dff', '#2f9bff', '#42bbff', '#5bc7ff'],
+    glowStops: ['rgba(74,125,255,0)', 'rgba(47,155,255,0.22)', 'rgba(66,187,255,0.32)', 'rgba(91,199,255,0)']
   };
 };
+
+const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 1
+});
 
 const initialDeals = readDealsFromVault();
 const initialActiveDeal = initialDeals[0];
@@ -137,8 +127,12 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const operatingTimeline = activeOutput.cashFlowTimeline.slice(1, -1);
-    const rawTimeline = operatingTimeline.slice(0, 24);
+    const timelineWithoutAcquisitionYear = activeOutput.cashFlowTimeline.slice(1);
+    const terminalSaleProceeds = activeOutput.saleProceeds ?? 0;
+    const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
+      index === array.length - 1 ? value - terminalSaleProceeds : value
+    );
+    const rawTimeline = cashFlowOnlyTimeline;
 
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
@@ -153,43 +147,96 @@ export default function HomePage() {
     return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
   }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
 
-  const monthlyCashFlowChartPoints = useMemo(() => {
-    const maxValue = Math.max(...monthlyCashFlowChartSeries.map((point) => Math.abs(point)), 1);
-    const step = monthlyCashFlowChartSeries.length > 1 ? 100 / (monthlyCashFlowChartSeries.length - 1) : 100;
+  const monthlyCashFlowBarData = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return [];
+
+    const chartTop = 5.5;
+    const chartBottom = 33.4;
+    const chartHeight = chartBottom - chartTop;
+    const barCount = monthlyCashFlowChartSeries.length;
+    const minValue = Math.min(...monthlyCashFlowChartSeries, 0);
+    const maxValue = Math.max(...monthlyCashFlowChartSeries, 0);
+    const valueRange = Math.max(maxValue - minValue, 1);
+    const baselineY = chartTop + (maxValue / valueRange) * chartHeight;
+
+    const targetBaseWidth = barCount >= 28 ? 1.35 : barCount > 18 ? 1.8 : barCount > 12 ? 2.3 : 2.8;
+    const naturalGap = Math.max((100 - barCount * targetBaseWidth) / (barCount + 1), 0.12);
+    const gap = Math.max(naturalGap * 0.4, 0.09);
+    const barWidth = Math.max((100 - gap * (barCount + 1)) / barCount, 0.9);
+
+    const firstPositiveAfterNegativeIndex = monthlyCashFlowChartSeries.findIndex(
+      (value, index) => index > 0 && monthlyCashFlowChartSeries[index - 1] < 0 && value >= 0
+    );
 
     return monthlyCashFlowChartSeries.map((value, index) => {
-      const normalized = Math.max(0.16, Math.abs(value) / maxValue);
+      const normalizedValue = (value / valueRange) * chartHeight;
+      const height = Math.max(Math.abs(normalizedValue), 0.55);
+      const x = gap + index * (barWidth + gap);
+      const y = value >= 0 ? baselineY - height : baselineY;
+
       return {
-        x: monthlyCashFlowChartSeries.length > 1 ? index * step : 50,
-        y: 40 - normalized * 32
-      };
-    });
-  }, [monthlyCashFlowChartSeries]);
-
-  const monthlyCashFlowLinePath = useMemo(() => buildLinePath(monthlyCashFlowChartPoints), [monthlyCashFlowChartPoints]);
-  const monthlyCashFlowAreaPath = useMemo(
-    () => (monthlyCashFlowLinePath ? `${monthlyCashFlowLinePath} L 100 40 L 0 40 Z` : ''),
-    [monthlyCashFlowLinePath]
-  );
-  const monthlyCashFlowYearMarkers = useMemo(() => {
-    if (monthlyCashFlowChartSeries.length < 12) return [];
-
-    const totalPoints = monthlyCashFlowChartSeries.length;
-    const maxYears = Math.ceil(totalPoints / 12);
-
-    return Array.from({ length: maxYears }, (_, index) => {
-      const monthIndex = Math.min((index + 1) * 12 - 1, totalPoints - 1);
-      const x = totalPoints > 1 ? (monthIndex / (totalPoints - 1)) * 100 : 50;
-      return {
-        key: `Y${index + 1}`,
+        key: `bar-${index}`,
         x,
-        label: `Y${index + 1}`
+        y,
+        width: barWidth,
+        height,
+        centerX: x + barWidth / 2,
+        isNegative: value < 0,
+        isRecoveryZone: firstPositiveAfterNegativeIndex >= 0 && index >= firstPositiveAfterNegativeIndex && value >= 0,
+        baselineY,
+        chartBottom
       };
     });
   }, [monthlyCashFlowChartSeries]);
-  const cashFlowPathAnimationKey = useMemo(
-    () => monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|'),
-    [monthlyCashFlowChartSeries]
+
+  const monthlyCashFlowYearMarkers = useMemo(() => {
+    if (!monthlyCashFlowBarData.length) return [];
+
+    const totalYears = monthlyCashFlowBarData.length;
+    const step = totalYears > 20 ? 2 : 1;
+    const markerIndexes: number[] = [];
+
+    for (let yearIndex = 0; yearIndex < totalYears; yearIndex += step) {
+      markerIndexes.push(yearIndex);
+    }
+
+    if (markerIndexes[markerIndexes.length - 1] !== totalYears - 1) {
+      markerIndexes.push(totalYears - 1);
+    }
+
+    return markerIndexes.map((yearIndex) => {
+      const markerBar = monthlyCashFlowBarData[yearIndex];
+      return {
+        key: `Y${yearIndex + 1}`,
+        label: `Y${yearIndex + 1}`,
+        x: markerBar?.centerX ?? 50
+      };
+    });
+  }, [monthlyCashFlowBarData]);
+
+  const cashFlowValueMarkers = useMemo(() => {
+    if (!monthlyCashFlowChartSeries.length) return [];
+
+    const minValue = Math.min(...monthlyCashFlowChartSeries);
+    const maxValue = Math.max(...monthlyCashFlowChartSeries);
+    const steps = 4;
+    const valueRange = Math.max(maxValue - minValue, 1);
+
+    return Array.from({ length: steps }, (_, index) => {
+      const ratio = index / (steps - 1);
+      const y = 6.3 + ratio * 27.6;
+      const value = maxValue - valueRange * ratio;
+      return {
+        key: `value-${index}`,
+        y,
+        label: compactCurrencyFormatter.format(value)
+      };
+    });
+  }, [monthlyCashFlowChartSeries]);
+
+  const cashFlowBarsAnimationKey = useMemo(
+    () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
+    [activeStrategy, monthlyCashFlowChartSeries]
   );
 
   const isNegativeCashFlowRibbon = useMemo(() => {
@@ -200,8 +247,8 @@ export default function HomePage() {
   }, [monthlyCashFlowChartSeries]);
 
   const monthlyCashFlowRibbonPalette = useMemo(
-    () => resolveRibbonPalette(),
-    []
+    () => resolveRibbonPalette(isNegativeCashFlowRibbon),
+    [isNegativeCashFlowRibbon]
   );
 
   const activeDeal = useMemo(
@@ -574,108 +621,92 @@ export default function HomePage() {
                       backgroundSize: '92px 92px, 128px 128px, 146px 146px'
                     }}
                   />
-                  <svg viewBox="0 0 100 40" className="absolute inset-x-0 bottom-0 h-[42%] w-full" preserveAspectRatio="none">
+                  <svg
+                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowBarsAnimationKey}`}
+                    viewBox="0 0 100 40"
+                    className="absolute inset-x-0 bottom-0 h-[42%] w-full"
+                    preserveAspectRatio="none"
+                  >
                     <defs>
-                      <linearGradient id="cashflowLineGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} />
-                        <stop offset="65%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.lineStops[3]} />
-                      </linearGradient>
-                      <linearGradient id="cashflowGlowGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.glowStops[0]} />
-                        <stop offset="35%" stopColor={monthlyCashFlowRibbonPalette.glowStops[1]} />
-                        <stop offset="70%" stopColor={monthlyCashFlowRibbonPalette.glowStops[2]} />
-                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.glowStops[3]} />
-                      </linearGradient>
-                      <linearGradient id="priority-cashflow-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.areaTop} stopOpacity="0.3" />
+                      <linearGradient id="cashflowBarPosGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[2]} stopOpacity="0.42" />
                         <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.05" />
                       </linearGradient>
-                      <filter id="cashflowGlow" x="-30%" y="-40%" width="170%" height="220%" colorInterpolationFilters="sRGB">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="3.25" result="blur" />
-                        <feColorMatrix
-                          in="blur"
-                          type="matrix"
-                          values="1 0 0 0 0.31 0 1 0 0 0.55 0 0 1 0 0.99 0 0 0 0.8 0"
-                          result="glow"
-                        />
-                        <feMerge>
-                          <feMergeNode in="glow" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
+                      <linearGradient id="cashflowBarNegGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={monthlyCashFlowRibbonPalette.lineStops[1]} stopOpacity="0.38" />
+                        <stop offset="100%" stopColor={monthlyCashFlowRibbonPalette.areaBottom} stopOpacity="0.06" />
+                      </linearGradient>
+                      <linearGradient id="cashflowBarRecoveryGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#66C6FF" stopOpacity="0.54" />
+                        <stop offset="100%" stopColor="#1D5FB6" stopOpacity="0.08" />
+                      </linearGradient>
                     </defs>
-                    {[8, 14, 20, 26, 32].map((lineY) => (
-                      <line key={`priority-cashflow-grid-${lineY}`} x1="0" y1={lineY} x2="100" y2={lineY} stroke="#9FB6CF" strokeOpacity="0.09" strokeWidth="0.35" />
-                    ))}
-                    {monthlyCashFlowAreaPath ? <path d={monthlyCashFlowAreaPath} fill="url(#priority-cashflow-area)" /> : null}
-                    {monthlyCashFlowLinePath ? (
-                      <>
-                        <path
-                          key={`cashflow-glow-${cashFlowPathAnimationKey}`}
-                          d={monthlyCashFlowLinePath}
-                          fill="none"
-                          stroke="url(#cashflowGlowGrad)"
-                          strokeWidth="7.2"
-                          strokeLinecap="round"
-                          opacity="0.2"
-                          filter="url(#cashflowGlow)"
-                          pathLength={1}
-                          strokeDasharray={prefersReducedMotion ? undefined : 1}
-                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
-                        >
-                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
-                        </path>
-                        <path
-                          key={`cashflow-main-${cashFlowPathAnimationKey}`}
-                          d={monthlyCashFlowLinePath}
-                          fill="none"
-                          stroke="url(#cashflowLineGrad)"
-                          strokeWidth="2.1"
-                          strokeLinecap="round"
-                          opacity="0.95"
-                          pathLength={1}
-                          strokeDasharray={prefersReducedMotion ? undefined : 1}
-                          strokeDashoffset={prefersReducedMotion ? undefined : 1}
-                        >
-                          {!prefersReducedMotion ? <animate attributeName="stroke-dashoffset" from="1" to="0" dur="2s" fill="freeze" /> : null}
-                        </path>
-                      </>
-                    ) : null}
-                    {monthlyCashFlowYearMarkers.map((marker) => (
-                      <text
-                        key={`priority-cashflow-year-${marker.key}`}
-                        x={marker.x}
-                        y="39"
-                        textAnchor="middle"
-                        fill="#BDD0E8"
-                        opacity="0.38"
-                        fontSize="1.8"
-                        letterSpacing="0.08"
+                    {monthlyCashFlowBarData.map((bar, index) => (
+                      <rect
+                        key={`${bar.key}-${cashFlowBarsAnimationKey}`}
+                        x={bar.x}
+                        y={bar.y}
+                        width={bar.width}
+                        height={bar.height}
+                        rx={bar.width / 2}
+                        fill={bar.isRecoveryZone ? 'url(#cashflowBarRecoveryGrad)' : bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
+                        opacity={0.5}
                       >
-                        {marker.label}
-                      </text>
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="height"
+                            from="0"
+                            to={String(bar.height)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                        {!prefersReducedMotion ? (
+                          <animate
+                            attributeName="y"
+                            from={String(bar.baselineY)}
+                            to={String(bar.y)}
+                            dur="0.75s"
+                            begin={`${Math.min(index * 0.02, 0.32)}s`}
+                            fill="freeze"
+                          />
+                        ) : null}
+                      </rect>
                     ))}
-                    {monthlyCashFlowChartPoints.map((point, index) => (
-                      <circle
-                        key={`priority-cashflow-point-${index}`}
-                        cx={point.x}
-                        cy={point.y}
-                        r="0.82"
-                        fill={monthlyCashFlowRibbonPalette.pointColor}
-                        opacity="0.45"
-                      />
+                    <line x1="0" y1="34.4" x2="100" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.3" strokeWidth="0.34" />
+                    <line x1="1.1" y1="5.6" x2="1.1" y2="34.4" stroke="#9FB6CF" strokeOpacity="0.16" strokeWidth="0.25" />
+                    {cashFlowValueMarkers.map((marker) => (
+                      <g key={`priority-cashflow-value-${marker.key}`}>
+                        <line
+                          x1="1.1"
+                          y1={marker.y}
+                          x2="100"
+                          y2={marker.y}
+                          stroke="#9FB6CF"
+                          strokeOpacity="0.08"
+                          strokeWidth="0.2"
+                        />
+                        <text x="1.7" y={marker.y - 0.4} textAnchor="start" fill="#BDD0E8" opacity="0.22" fontSize="1.15" letterSpacing="0.02">
+                          {marker.label}
+                        </text>
+                      </g>
+                    ))}
+                    {monthlyCashFlowYearMarkers.map((marker) => (
+                      <g key={`priority-cashflow-year-${marker.key}`}>
+                        <line x1={marker.x} y1="34" x2={marker.x} y2="35.5" stroke="#BBD0EA" strokeOpacity="0.34" strokeWidth="0.26" />
+                        <text x={marker.x} y="37.2" textAnchor="middle" fill="#BDD0E8" opacity="0.54" fontSize="1.9" letterSpacing="0.03">
+                          {marker.label}
+                        </text>
+                      </g>
                     ))}
                   </svg>
                 </div>
               ) : null}
-              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
-                  <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
-                </div>
-                <p className="text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              <div className="relative z-10 pr-20">
+                <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
+                <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
+                <p className="absolute right-0 top-0 text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
 
               <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
