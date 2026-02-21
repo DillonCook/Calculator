@@ -191,10 +191,20 @@ export function KpiCard({
               i
             </button>
             <div
-              className={`absolute left-0 top-6 z-30 w-[260px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 shadow-soft backdrop-blur transition duration-150 ${
+              className={`absolute left-0 top-6 z-30 w-[260px] rounded-lg border border-slate-700/80 bg-[#0A1326] p-3 text-xs text-slate-100 shadow-soft transition duration-150 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-4 max-sm:top-auto max-sm:w-auto max-sm:rounded-xl max-sm:border-slate-600 max-sm:p-3.5 ${
                 isTooltipOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100'
               }`}
             >
+              <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
+                <button
+                  type="button"
+                  className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                  onClick={() => setIsTooltipOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
               {definitions.map((definition) => (
                 <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
                   <span className="font-semibold text-white">{definition.term}:</span> {definition.description}

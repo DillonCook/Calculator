@@ -32,10 +32,24 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange }: Timel
               i
             </button>
             <div
-              className={`absolute left-0 top-7 z-30 w-[280px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs leading-relaxed text-slate-200 shadow-soft backdrop-blur transition duration-150 ${
+              className={`absolute left-0 top-7 z-30 w-[280px] rounded-lg border border-slate-700/80 bg-[#0A1326] p-3 text-xs leading-relaxed text-slate-100 shadow-soft transition duration-150 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-4 max-sm:top-auto max-sm:w-auto max-sm:rounded-xl max-sm:border-slate-600 max-sm:p-3.5 ${
                 isIrrTooltipOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100'
               }`}
             >
+              <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
+                <button
+                  type="button"
+                  className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setIsIrrTooltipOpen(false);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
               <p>
                 <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your exit proceeds,
                 so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
