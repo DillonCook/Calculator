@@ -35,7 +35,7 @@ export function DealsVaultPanel({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const activeDeal = useMemo(() => deals.find((deal) => deal.scenarioId === activeDealId), [deals, activeDealId]);
 
@@ -83,28 +83,23 @@ export function DealsVaultPanel({
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/5 p-2.5 sm:p-3">
-      <div className="flex items-center justify-between gap-2">
+    <details
+      className="rounded-xl border border-white/10 bg-white/5 p-2.5 sm:p-3"
+      open={!isCollapsed}
+      onToggle={(event) => {
+        const nextCollapsed = !(event.currentTarget as HTMLDetailsElement).open;
+        setIsCollapsed(nextCollapsed);
+        if (nextCollapsed) closeDialog();
+      }}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
         <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
         <div className="flex items-center gap-1.5">
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Ready'}
           </span>
-          <button
-            type="button"
-            className="tap-feedback h-8 rounded-md border border-white/15 px-2 text-xs text-slate-200 transition-colors hover:bg-white/10"
-            onClick={() => {
-              triggerHapticFeedback('light');
-              setIsCollapsed((prev) => !prev);
-              if (!isCollapsed) closeDialog();
-            }}
-            aria-expanded={!isCollapsed}
-            aria-label={isCollapsed ? 'Expand deals vault' : 'Collapse deals vault'}
-          >
-            {isCollapsed ? 'Expand' : 'Minimize'}
-          </button>
         </div>
-      </div>
+      </summary>
 
       {isCollapsed ? (
         <div className="mt-2 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-xs text-muted">
@@ -216,6 +211,6 @@ export function DealsVaultPanel({
           ) : null}
         </div>
       )}
-    </section>
+    </details>
   );
 }

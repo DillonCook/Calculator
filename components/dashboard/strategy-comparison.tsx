@@ -18,6 +18,7 @@ interface StrategyComparisonProps {
 
 export function StrategyComparison({ data }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
+  const [isBoardOpen, setIsBoardOpen] = useState(true);
   const maxCashFlow = Math.max(...rows.map((row) => data[row.key].monthlyCashFlow));
 
   const equityRows = useMemo(() => {
@@ -67,28 +68,35 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
 
   return (
     <>
-      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5" open={isBoardOpen}>
+        <summary
+          className="mb-4 flex cursor-pointer list-none flex-wrap items-center justify-between gap-3"
+          onClick={(event) => {
+            event.preventDefault();
+            setIsBoardOpen((prev) => !prev);
+          }}
+        >
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
             <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveModal('equity')}
-              className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
-            >
-              Equity modeling
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveModal('cashflow')}
-              className="rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
-            >
-              Cash flow modeling
-            </button>
-          </div>
+        </summary>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveModal('equity')}
+            className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
+          >
+            Equity modeling
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModal('cashflow')}
+            className="rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
+          >
+            Cash flow modeling
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -134,7 +142,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
             );
           })}
         </div>
-      </section>
+      </details>
 
       {activeModal === 'equity' ? (
         <div

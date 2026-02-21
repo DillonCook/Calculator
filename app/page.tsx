@@ -361,15 +361,14 @@ export default function HomePage() {
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-accent">DealCook</p>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <h1 className="text-2xl font-semibold md:text-3xl">Master Summary Dashboard</h1>
-                <p className="text-sm text-muted">Analyze rental, Airbnb, PadSplit, BRRRR, and flip deals in seconds with instant cash flow, DSCR, ROI, and IRR projections.</p>
+                <h1 className="text-2xl font-semibold md:text-3xl">DealCooker</h1>
+                <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                  <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs text-muted">Active Deal</p>
@@ -389,7 +388,7 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="btn-primary inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
+                    className="btn-primary inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                     target="_blank"
                   >
                     Print View
@@ -397,7 +396,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={shareCurrentDeal}
-                    className="btn-primary min-h-11 rounded-xl px-4 py-2 text-sm font-medium"
+                    className="btn-primary min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                   >
                     Share Link
                   </button>
@@ -675,6 +674,7 @@ export default function HomePage() {
             <TimelineCard
               output={result[activeStrategy]}
               assumptions={model.assumptions}
+              defaultOpen={Boolean(activeDealId)}
               onAssumptionsChange={(updates) =>
                 updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
               }
@@ -683,7 +683,7 @@ export default function HomePage() {
           </div>
 
           <div className="hidden md:block">
-            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
+            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
           </div>
         </div>
       </div>
@@ -707,7 +707,7 @@ export default function HomePage() {
               </button>
             </div>
             {mobileInputSheet === "core" ? (
-              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} />
+              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
             ) : (
               <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
             )}
@@ -717,7 +717,7 @@ export default function HomePage() {
 
       <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 DealCook. Created by Dillon Cook. All rights reserved.</p>
+          <p>© 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3 text-slate-300">
             <Link href="/legal" className="hover:text-white">Legal Center</Link>
             <Link href="/legal/terms" className="hover:text-white">Terms</Link>

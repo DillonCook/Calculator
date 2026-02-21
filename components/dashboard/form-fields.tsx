@@ -3,6 +3,14 @@
 export const inputClass =
   'w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3 sm:py-2 sm:text-sm';
 
+const normalizeNumberString = (raw: string) => {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return raw;
+  return String(parsed);
+};
+
 export function Input({
   label,
   value,
@@ -19,7 +27,17 @@ export function Input({
   return (
     <label className="space-y-1">
       <span className="text-[11px] text-muted sm:text-xs">{label}</span>
-      <input className={inputClass} type={type} step={step ?? (type === 'number' ? '0.01' : undefined)} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input
+        className={inputClass}
+        type={type}
+        step={step ?? (type === 'number' ? '0.01' : undefined)}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => {
+          if (type !== 'number') return;
+          onChange(normalizeNumberString(event.target.value));
+        }}
+      />
     </label>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
 
@@ -6,16 +6,28 @@ interface TimelineCardProps {
   output: StrategyOutput;
   assumptions: MasterAssumptions;
   onAssumptionsChange: (updates: Partial<MasterAssumptions>) => void;
+  defaultOpen?: boolean;
 }
 
-export function TimelineCard({ output, assumptions, onAssumptionsChange }: TimelineCardProps) {
+export function TimelineCard({ output, assumptions, onAssumptionsChange, defaultOpen = true }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
 
   return (
-    <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-4 shadow-soft sm:p-5" open>
-      <summary className="flex cursor-pointer list-none flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-4 shadow-soft sm:p-5" open={isOpen}>
+      <summary
+        className="flex cursor-pointer list-none flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+        onClick={(event) => {
+          event.preventDefault();
+          setIsOpen((prev) => !prev);
+        }}
+      >
         <div className="flex items-center gap-2">
-          <h3 className="min-w-0 text-base font-semibold sm:text-lg">IRR Stream & Exit Assumptions</h3>
+          <h3 className="min-w-0 text-base font-semibold sm:text-lg">IRR Stream and Projections</h3>
           <div className="group/tooltip relative">
             <button
               type="button"
