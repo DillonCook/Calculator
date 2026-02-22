@@ -317,87 +317,87 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
       x: xCenter,
       barTop,
       barHeight,
-      isPositive: point.value >= 0
+      isPositive: point.value >= 0,
+      index
     };
   });
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#0A1326] p-2">
-        <div className="min-w-[460px]">
-          <div className="mb-1 grid grid-cols-[78px_1fr] items-center text-[10px] text-muted">
-            <p className="pl-1">Annual cash flow</p>
-            <p className="pr-2 text-right">Operating timeline (years)</p>
+      <div className="rounded-lg border border-white/10 bg-[#0A1326] p-2 sm:p-2.5">
+        <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
+          <p className="pl-0.5">Annual cash flow</p>
+          <p className="pr-0.5 text-right">Operating timeline (years)</p>
+        </div>
+
+        <div className="grid grid-cols-[56px_1fr] gap-1.5 sm:grid-cols-[78px_1fr] sm:gap-2">
+          <div className="flex flex-col justify-between py-2 text-right text-[9px] text-muted sm:text-[10px]" aria-hidden="true">
+            {yTicks.map((tick) => (
+              <span key={tick.ratio}>{tick.label}</span>
+            ))}
           </div>
 
-          <div className="grid grid-cols-[78px_1fr] gap-2">
-            <div className="flex flex-col justify-between py-2 text-right text-[10px] text-muted" aria-hidden="true">
-              {yTicks.map((tick) => (
-                <span key={tick.ratio}>{tick.label}</span>
-              ))}
-            </div>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="h-40 w-full sm:h-44"
+            role="img"
+            aria-labelledby={yAxisLabelId}
+            preserveAspectRatio="none"
+          >
+            <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
 
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              className="h-44 w-full"
-              role="img"
-              aria-labelledby={yAxisLabelId}
-            >
-              <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
+            {yTicks.map((tick) => (
+              <line
+                key={`grid-${tick.ratio}`}
+                x1={padding}
+                x2={width - padding}
+                y1={tick.y}
+                y2={tick.y}
+                stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
+                strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
+                strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
+              />
+            ))}
 
-              {yTicks.map((tick) => (
-                <line
-                  key={`grid-${tick.ratio}`}
-                  x1={padding}
-                  x2={width - padding}
-                  y1={tick.y}
-                  y2={tick.y}
-                  stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
-                  strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
-                  strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
-                />
-              ))}
-
-              {bars.map((bar, index) => (
-                <g key={`${bar.year}-${bar.value}-${index}`}>
-                  <rect
-                    x={bar.x - barWidth / 2}
-                    y={bar.barTop}
-                    width={barWidth}
-                    height={bar.barHeight}
-                    rx="4"
-                    fill={bar.isPositive ? '#34d399' : '#fb7185'}
-                    opacity={bar.year === 0 ? 0.85 : 1}
-                  >
-                    <animate
-                      attributeName="height"
-                      from="0"
-                      to={String(bar.barHeight)}
-                      dur="0.55s"
-                      begin={`${Math.min(index * 0.03, 0.36)}s`}
-                      fill="freeze"
-                    />
-                    <animate
-                      attributeName="y"
-                      from={String(zeroY)}
-                      to={String(bar.barTop)}
-                      dur="0.55s"
-                      begin={`${Math.min(index * 0.03, 0.36)}s`}
-                      fill="freeze"
-                    />
-                  </rect>
-                  <text
-                    x={bar.x}
-                    y={height - 4}
-                    textAnchor="middle"
-                    className="fill-slate-400 text-[9px]"
-                  >
-                    {bar.year}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          </div>
+            {bars.map((bar) => (
+              <g key={`${bar.year}-${bar.value}-${bar.index}`}>
+                <rect
+                  x={bar.x - barWidth / 2}
+                  y={bar.barTop}
+                  width={barWidth}
+                  height={bar.barHeight}
+                  rx="4"
+                  fill={bar.isPositive ? '#34d399' : '#fb7185'}
+                  opacity={bar.year === 0 ? 0.85 : 1}
+                >
+                  <animate
+                    attributeName="height"
+                    from="0"
+                    to={String(bar.barHeight)}
+                    dur="0.55s"
+                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
+                    fill="freeze"
+                  />
+                  <animate
+                    attributeName="y"
+                    from={String(zeroY)}
+                    to={String(bar.barTop)}
+                    dur="0.55s"
+                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
+                    fill="freeze"
+                  />
+                </rect>
+                <text
+                  x={bar.x}
+                  y={height - 4}
+                  textAnchor="middle"
+                  className="fill-slate-400 text-[9px]"
+                >
+                  {bar.year}
+                </text>
+              </g>
+            ))}
+          </svg>
         </div>
       </div>
 
