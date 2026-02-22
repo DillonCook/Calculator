@@ -52,8 +52,12 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
     return rows.map((row) => {
       const output = data[row.key];
       const points = output.cashFlowTimeline.map((value, index) => ({ year: index, value }));
-      const operatingPoints = points.length > 2 ? points.slice(1, -1) : points.slice(1);
-      const chartPoints = operatingPoints.length > 0 ? operatingPoints : points.slice(0, 1);
+      const saleProceeds = output.saleProceeds ?? 0;
+      const cashFlowOnlyPoints = points.slice(1).map((point, index, array) => ({
+        ...point,
+        value: index === array.length - 1 ? point.value - saleProceeds : point.value
+      }));
+      const chartPoints = cashFlowOnlyPoints.length > 0 ? cashFlowOnlyPoints : points.slice(0, 1);
       const operatingMaxAbs = Math.max(...chartPoints.map((point) => Math.abs(point.value)), 1);
 
       return {
@@ -222,7 +226,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               <div>
                 <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
-                <p className="text-xs text-muted">Operating years view (terminal sale year hidden) for realistic annual cash flow scale.</p>
+                <p className="text-xs text-muted">Cash-flow-only view includes the final year with sale proceeds removed for clean operating trend analysis.</p>
               </div>
               <button
                 type="button"
@@ -364,7 +368,24 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
                     rx="4"
                     fill={bar.isPositive ? '#34d399' : '#fb7185'}
                     opacity={bar.year === 0 ? 0.85 : 1}
-                  />
+                  >
+                    <animate
+                      attributeName="height"
+                      from="0"
+                      to={String(bar.barHeight)}
+                      dur="0.55s"
+                      begin={`${Math.min(index * 0.03, 0.36)}s`}
+                      fill="freeze"
+                    />
+                    <animate
+                      attributeName="y"
+                      from={String(zeroY)}
+                      to={String(bar.barTop)}
+                      dur="0.55s"
+                      begin={`${Math.min(index * 0.03, 0.36)}s`}
+                      fill="freeze"
+                    />
+                  </rect>
                   <text
                     x={bar.x}
                     y={height - 4}
