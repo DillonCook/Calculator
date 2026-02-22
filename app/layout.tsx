@@ -2,31 +2,31 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://dealcook.vercel.app'),
-  title: 'DealCook',
+  metadataBase: new URL('https://dealcooker.vercel.app'),
+  title: 'DealCooker',
   description:
-    'DealCook is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
+    'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
   openGraph: {
-    title: 'DealCook',
+    title: 'DealCooker',
     description:
-      'DealCook is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
-    url: 'https://dealcook.vercel.app',
-    siteName: 'DealCook',
+      'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
+    url: 'https://dealcooker.vercel.app',
+    siteName: 'DealCooker',
     images: [
       {
         url: '/og.png',
         width: 1200,
         height: 630,
-        alt: 'DealCook real estate deal analysis dashboard'
+        alt: 'DealCooker real estate deal analysis dashboard'
       }
     ],
     type: 'website'
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'DealCook',
+    title: 'DealCooker',
     description:
-      'DealCook is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
+      'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
     images: ['/og.png']
   }
 };
