@@ -12,10 +12,17 @@ interface TimelineCardProps {
 export function TimelineCard({ output, assumptions, onAssumptionsChange, defaultOpen = true }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [holdYearsDraft, setHoldYearsDraft] = useState(String(assumptions.holdYears));
+  const [isHoldYearsFocused, setIsHoldYearsFocused] = useState(false);
 
   useEffect(() => {
     setIsOpen(defaultOpen);
   }, [defaultOpen]);
+
+  useEffect(() => {
+    if (isHoldYearsFocused) return;
+    setHoldYearsDraft(String(assumptions.holdYears));
+  }, [assumptions.holdYears, isHoldYearsFocused]);
 
   return (
     <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-4 shadow-soft sm:p-5" open={isOpen}>
@@ -79,8 +86,20 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
             type="number"
             min={1}
-            value={assumptions.holdYears}
-            onChange={(event) => onAssumptionsChange({ holdYears: Math.max(Number(event.target.value) || 1, 1) })}
+            value={isHoldYearsFocused ? holdYearsDraft : assumptions.holdYears}
+            onFocus={() => setIsHoldYearsFocused(true)}
+            onChange={(event) => {
+              const nextDraft = event.target.value;
+              setHoldYearsDraft(nextDraft);
+              if (nextDraft === '') return;
+              onAssumptionsChange({ holdYears: Math.max(Number(nextDraft), 1) });
+            }}
+            onBlur={(event) => {
+              setIsHoldYearsFocused(false);
+              const nextRaw = event.target.value.trim();
+              if (!nextRaw) return;
+              onAssumptionsChange({ holdYears: Math.max(Number(nextRaw), 1) });
+            }}
           />
         </label>
 
@@ -114,7 +133,13 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
 }
 
 function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
-  const displayValue = Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0;
+  const [draftValue, setDraftValue] = useState(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isFocused) return;
+    setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+  }, [value, isFocused]);
 
   return (
     <label className="space-y-1">
@@ -122,8 +147,23 @@ function PercentField({ label, value, onChange }: { label: string; value: number
       <input
         className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
         type="number"
-        value={displayValue}
-        onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
+        value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
+        onFocus={() => setIsFocused(true)}
+        onChange={(event) => {
+          const nextDraft = event.target.value;
+          setDraftValue(nextDraft);
+          if (nextDraft === '') return;
+          onChange(Number(nextDraft) / 100);
+        }}
+        onBlur={(event) => {
+          setIsFocused(false);
+          if (event.target.value.trim() === '') return;
+          const nextValue = Number(event.target.value);
+          if (Number.isFinite(nextValue)) {
+            onChange(nextValue / 100);
+            setDraftValue(nextValue.toString());
+          }
+        }}
       />
     </label>
   );

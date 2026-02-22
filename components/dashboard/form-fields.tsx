@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 export const inputClass =
   'w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3 sm:py-2 sm:text-sm';
 
@@ -24,18 +26,44 @@ export function Input({
   type?: string;
   step?: string;
 }) {
+  const isNumber = type === 'number';
+  const [draftValue, setDraftValue] = useState(String(value ?? ''));
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isNumber || isFocused) return;
+    setDraftValue(String(value ?? ''));
+  }, [value, isFocused, isNumber]);
+
+  const renderedValue = isNumber && isFocused ? draftValue : value;
+
   return (
     <label className="space-y-1">
       <span className="text-[11px] text-muted sm:text-xs">{label}</span>
       <input
         className={inputClass}
         type={type}
-        step={step ?? (type === 'number' ? '0.01' : undefined)}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        step={step ?? (isNumber ? '0.01' : undefined)}
+        value={renderedValue}
+        onFocus={() => setIsFocused(true)}
+        onChange={(event) => {
+          if (!isNumber) {
+            onChange(event.target.value);
+            return;
+          }
+
+          const nextDraft = event.target.value;
+          setDraftValue(nextDraft);
+          if (nextDraft === '') return;
+          onChange(nextDraft);
+        }}
         onBlur={(event) => {
-          if (type !== 'number') return;
-          onChange(normalizeNumberString(event.target.value));
+          if (!isNumber) return;
+          setIsFocused(false);
+          const normalized = normalizeNumberString(event.target.value);
+          if (normalized === '') return;
+          setDraftValue(normalized);
+          onChange(normalized);
         }}
       />
     </label>
@@ -51,7 +79,13 @@ export function PercentInput({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const displayValue = Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0;
+  const [draftValue, setDraftValue] = useState(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isFocused) return;
+    setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+  }, [value, isFocused]);
 
   return (
     <label className="space-y-1">
@@ -60,8 +94,23 @@ export function PercentInput({
         className={inputClass}
         type="number"
         step="0.01"
-        value={displayValue}
-        onChange={(event) => onChange((Number(event.target.value) || 0) / 100)}
+        value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
+        onFocus={() => setIsFocused(true)}
+        onChange={(event) => {
+          const nextDraft = event.target.value;
+          setDraftValue(nextDraft);
+          if (nextDraft === '') return;
+          onChange(Number(nextDraft) / 100);
+        }}
+        onBlur={(event) => {
+          setIsFocused(false);
+          if (event.target.value.trim() === '') return;
+          const nextValue = Number(event.target.value);
+          if (Number.isFinite(nextValue)) {
+            onChange(nextValue / 100);
+            setDraftValue(nextValue.toString());
+          }
+        }}
       />
     </label>
   );
