@@ -97,8 +97,14 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             onBlur={(event) => {
               setIsHoldYearsFocused(false);
               const nextRaw = event.target.value.trim();
-              if (!nextRaw) return;
-              onAssumptionsChange({ holdYears: Math.max(Number(nextRaw), 1) });
+              if (!nextRaw) {
+                setHoldYearsDraft('1');
+                onAssumptionsChange({ holdYears: 1 });
+                return;
+              }
+              const normalized = Math.max(Number(nextRaw), 1);
+              setHoldYearsDraft(String(normalized));
+              onAssumptionsChange({ holdYears: normalized });
             }}
           />
         </label>
@@ -157,7 +163,11 @@ function PercentField({ label, value, onChange }: { label: string; value: number
         }}
         onBlur={(event) => {
           setIsFocused(false);
-          if (event.target.value.trim() === '') return;
+          if (event.target.value.trim() === '') {
+            onChange(0);
+            setDraftValue('0');
+            return;
+          }
           const nextValue = Number(event.target.value);
           if (Number.isFinite(nextValue)) {
             onChange(nextValue / 100);

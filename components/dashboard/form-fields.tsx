@@ -61,7 +61,16 @@ export function Input({
           if (!isNumber) return;
           setIsFocused(false);
           const normalized = normalizeNumberString(event.target.value);
-          if (normalized === '') return;
+          if (normalized === '') {
+            if (value === '') {
+              setDraftValue('');
+              onChange('');
+              return;
+            }
+            setDraftValue('0');
+            onChange('0');
+            return;
+          }
           setDraftValue(normalized);
           onChange(normalized);
         }}
@@ -104,7 +113,11 @@ export function PercentInput({
         }}
         onBlur={(event) => {
           setIsFocused(false);
-          if (event.target.value.trim() === '') return;
+          if (event.target.value.trim() === '') {
+            onChange(0);
+            setDraftValue('0');
+            return;
+          }
           const nextValue = Number(event.target.value);
           if (Number.isFinite(nextValue)) {
             onChange(nextValue / 100);
