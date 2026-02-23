@@ -93,7 +93,6 @@ export default function HomePage() {
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
-  const previousDealsRef = useRef<ScenarioRecord[]>(initialDeals);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
@@ -241,6 +240,7 @@ export default function HomePage() {
 
       const nextDeals = saveDealToVault(updatedDeal);
       setDeals(nextDeals);
+      void syncScenarioUpsert(updatedDeal);
       setSaveStatus('saved');
     }, 650);
 
@@ -286,7 +286,6 @@ export default function HomePage() {
       setCurrentUser(session?.user ?? null);
       if (!session?.user) {
         hasLoadedSupabaseDeals.current = false;
-        previousDealsRef.current = [];
         setFetchedScenarioCount(0);
         setIsAuthMenuOpen(false);
       }
@@ -308,12 +307,43 @@ export default function HomePage() {
     return () => mediaQuery.removeEventListener('change', updateMotionPreference);
   }, []);
 
+  const reportSupabaseError = (error: unknown, operation: 'fetch' | 'upsert' | 'delete') => {
+    console.error(`Supabase scenarios ${operation} error:`, error);
+    setLastCloudError(operation);
+    setSyncFeedback('Cloud sync error while saving Deal Vault.');
+  };
+
+  const syncScenarioUpsert = async (scenario: ScenarioRecord) => {
+    if (!currentUser?.id) return;
+
+    const error = await upsertSupabaseScenario(currentUser.id, scenario);
+    if (error) {
+      reportSupabaseError(error, 'upsert');
+      return;
+    }
+
+    setLastCloudError(null);
+  };
+
+  const syncScenarioDelete = async (scenarioId: string) => {
+    if (!currentUser?.id) return;
+
+    const error = await deleteSupabaseScenario(currentUser.id, scenarioId);
+    if (error) {
+      reportSupabaseError(error, 'delete');
+      return;
+    }
+
+    setLastCloudError(null);
+  };
+
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
     const next = saveDealToVault(record);
     setModel(record.payload);
     setDeals(next);
     setActiveDealId(record.scenarioId);
+    void syncScenarioUpsert(record);
     setSaveStatus('saved');
   };
 
@@ -328,8 +358,10 @@ export default function HomePage() {
     };
 
     setModel(payload);
-    const next = saveDealToVault({ ...activeDeal, dealName, payload });
+    const updatedDeal = { ...activeDeal, dealName, payload };
+    const next = saveDealToVault(updatedDeal);
     setDeals(next);
+    void syncScenarioUpsert(updatedDeal);
     setSaveStatus('saved');
   };
 
@@ -366,6 +398,7 @@ export default function HomePage() {
     setDeals(next);
     setActiveDealId(nextDeal.scenarioId);
     setModel(nextDeal.payload);
+    void syncScenarioUpsert(nextDeal);
     setSaveStatus('saved');
   };
 
@@ -377,9 +410,11 @@ export default function HomePage() {
 
   const removeScenario = () => {
     if (!activeDeal) return;
-    const next = removeDealFromVault(activeDeal.scenarioId);
+    const scenarioId = activeDeal.scenarioId;
+    const next = removeDealFromVault(scenarioId);
     setDeals(next);
     setActiveDealId('');
+    void syncScenarioDelete(scenarioId);
     setSaveStatus('idle');
   };
 
@@ -493,14 +528,11 @@ export default function HomePage() {
       if (isCancelled) return;
 
       if (error) {
-        console.error('Supabase scenarios fetch error:', error);
-        setSyncFeedback('Cloud sync failed while loading scenarios.');
-        setLastCloudError('fetch');
+        reportSupabaseError(error, 'fetch');
         return;
       }
 
       hasLoadedSupabaseDeals.current = true;
-      previousDealsRef.current = scenarios;
       setFetchedScenarioCount(scenarios.length);
       setLastCloudError(null);
       setDeals(scenarios);
@@ -510,15 +542,6 @@ export default function HomePage() {
         setActiveDealId(nextActiveDeal.scenarioId);
         setModel(nextActiveDeal.payload);
       }
-
-      if (process.env.NODE_ENV !== 'production') {
-        console.info('[DealVault Debug]', {
-          email: currentUser.email ?? null,
-          userId: currentUser.id,
-          scenariosFetched: scenarios.length,
-          lastError: null
-        });
-      }
     };
 
     loadDealsFromSupabase();
@@ -526,68 +549,18 @@ export default function HomePage() {
     return () => {
       isCancelled = true;
     };
-  }, [currentUser?.id, currentUser?.email, activeDealId]);
+  }, [currentUser?.id, activeDealId]);
 
   useEffect(() => {
-    if (!currentUser?.id || !hasLoadedSupabaseDeals.current) return;
+    if (process.env.NODE_ENV === 'production' || !currentUser?.id) return;
 
-    const previousDeals = previousDealsRef.current;
-    const previousMap = new Map(previousDeals.map((deal) => [deal.scenarioId, deal]));
-    const currentMap = new Map(deals.map((deal) => [deal.scenarioId, deal]));
-
-    const upserts = deals.filter((deal) => {
-      const previous = previousMap.get(deal.scenarioId);
-      if (!previous) return true;
-      return previous.updatedAt !== deal.updatedAt || previous.dealName !== deal.dealName;
+    console.info('[DealVault Debug]', {
+      email: currentUser.email ?? null,
+      userId: currentUser.id,
+      scenariosFetched: fetchedScenarioCount,
+      lastError: lastCloudError
     });
-
-    const deletes = previousDeals.filter((deal) => !currentMap.has(deal.scenarioId));
-
-    if (upserts.length === 0 && deletes.length === 0) return;
-
-    const syncChanges = async () => {
-      let errorType: string | null = null;
-
-      for (const scenario of upserts) {
-        const error = await upsertSupabaseScenario(currentUser.id, scenario);
-        if (error) {
-          console.error('Supabase scenarios upsert error:', error);
-          errorType = 'upsert';
-          break;
-        }
-      }
-
-      if (!errorType) {
-        for (const scenario of deletes) {
-          const error = await deleteSupabaseScenario(currentUser.id, scenario.scenarioId);
-          if (error) {
-            console.error('Supabase scenarios delete error:', error);
-            errorType = 'delete';
-            break;
-          }
-        }
-      }
-
-      if (errorType) {
-        setSyncFeedback('Cloud sync error while saving Deal Vault.');
-        setLastCloudError(errorType);
-      } else {
-        setLastCloudError(null);
-        previousDealsRef.current = deals;
-      }
-
-      if (process.env.NODE_ENV !== 'production') {
-        console.info('[DealVault Debug]', {
-          email: currentUser.email ?? null,
-          userId: currentUser.id,
-          scenariosFetched: fetchedScenarioCount,
-          lastError: errorType
-        });
-      }
-    };
-
-    syncChanges();
-  }, [currentUser?.id, currentUser?.email, deals, fetchedScenarioCount]);
+  }, [currentUser?.id, currentUser?.email, fetchedScenarioCount, lastCloudError]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -602,6 +575,7 @@ export default function HomePage() {
       setDeals(nextDeals);
       setModel(imported.payload);
       setActiveDealId(imported.scenarioId);
+      void syncScenarioUpsert(imported);
     }, 0);
 
     params.delete('s');
