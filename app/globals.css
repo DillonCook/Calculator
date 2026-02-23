@@ -46,6 +46,50 @@ body {
   }
 }
 
+
+
+
+.brandAurora {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.012em;
+}
+
+.brandAuroraLetter {
+  --letter-index: 0;
+  display: inline-block;
+  background-image: linear-gradient(115deg, #0b1b3a 0%, #2563eb 46%, #06b6d4 78%, #0b1b3a 100%);
+  background-size: 300% 100%;
+  background-position: calc((var(--letter-index) * 14%) + 0%) 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  will-change: background-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  animation: auroraLiquidFlow 18s linear infinite;
+  animation-delay: calc(var(--letter-index) * -260ms);
+}
+
+@keyframes auroraLiquidFlow {
+  0% {
+    background-position: calc((var(--letter-index) * 14%) + 0%) 50%;
+  }
+  50% {
+    background-position: calc((var(--letter-index) * 14%) + 130%) 50%;
+  }
+  100% {
+    background-position: calc((var(--letter-index) * 14%) + 260%) 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brandAuroraLetter {
+    animation: none;
+    background-position: calc((var(--letter-index) * 9%) + 16%) 50%;
+  }
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
