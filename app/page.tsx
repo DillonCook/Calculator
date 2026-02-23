@@ -110,6 +110,19 @@ export default function HomePage() {
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
 
+  const profileImageUrl = useMemo(() => {
+    if (!currentUser) return null;
+
+    const metadata = currentUser.user_metadata as { avatar_url?: string; picture?: string } | undefined;
+    return metadata?.avatar_url ?? metadata?.picture ?? null;
+  }, [currentUser]);
+
+  const profileFallbackLabel = useMemo(() => {
+    const email = currentUser?.email?.trim();
+    if (email) return email.slice(0, 2).toUpperCase();
+    return 'ME';
+  }, [currentUser]);
+
   const cashToCloseValue = useMemo(() => {
     const { purchase } = model;
 
@@ -564,7 +577,13 @@ export default function HomePage() {
                   </h1>
                   {currentUser ? (
                     <div className="flex items-center gap-2">
-                      <p className="max-w-[120px] truncate text-[11px] text-muted sm:max-w-[180px] sm:text-xs">{currentUser.email}</p>
+                      <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+                        {profileImageUrl ? (
+                          <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={signOut}
