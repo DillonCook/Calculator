@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface KpiDefinition {
   term: string;
@@ -92,6 +92,8 @@ export function KpiCard({
   chartSeries,
   valueTestId
 }: KpiCardProps) {
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const tooltipId = `kpi-tooltip-${slugify(label)}`;
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const chartPoints = useMemo(() => buildChartPoints(chartSeries), [chartSeries]);
@@ -131,7 +133,7 @@ export function KpiCard({
   }, [value, secondaryValue]);
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
+    <div className="relative min-w-0 overflow-visible rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
       {backgroundChart === 'cashflowBars' ? (
         <div className="pointer-events-none absolute inset-0 z-0 select-none">
           <div
@@ -175,26 +177,56 @@ export function KpiCard({
           </svg>
         </div>
       ) : null}
-      <div className="relative z-10 flex min-w-0 items-center gap-2">
+      {definitions?.length ? (
+        <div className="absolute right-2.5 top-2.5 z-30 sm:right-3 sm:top-3">
+          <button
+            type="button"
+            aria-label={`${label} definitions`}
+            aria-expanded={isTooltipOpen}
+            aria-controls={tooltipId}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            onClick={() => setIsTooltipOpen((prev) => !prev)}
+          >
+            i
+          </button>
+
+          {isTooltipOpen ? (
+            <>
+              <button
+                type="button"
+                aria-label="Close tooltip"
+                className="fixed inset-0 z-20 bg-black/45 sm:hidden"
+                onClick={() => setIsTooltipOpen(false)}
+              />
+              <div
+                id={tooltipId}
+                role="dialog"
+                aria-modal="false"
+                className="fixed left-1/2 top-1/2 z-30 w-[min(92vw,320px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs text-slate-100 shadow-soft sm:absolute sm:left-auto sm:right-0 sm:top-7 sm:w-[290px] sm:translate-x-0 sm:translate-y-0 sm:rounded-lg sm:border-slate-700 sm:bg-[#0A1326] sm:p-3"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
+                  <button
+                    type="button"
+                    className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                    onClick={() => setIsTooltipOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                {definitions.map((definition) => (
+                  <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
+                    <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
+                  </p>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="relative z-10 flex min-w-0 items-center gap-2 pr-6 sm:pr-7">
         <p className="min-w-0 truncate text-[11px] uppercase tracking-wide text-muted sm:text-xs">{label}</p>
-        {definitions?.length ? (
-          <div className="group/tooltip relative">
-            <button
-              type="button"
-              aria-label={`${label} definitions`}
-              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-            >
-              i
-            </button>
-            <div className="pointer-events-none absolute left-0 top-6 z-20 w-[260px] rounded-lg border border-white/10 bg-[#0F1A31]/95 p-3 text-xs text-slate-200 opacity-0 shadow-soft backdrop-blur transition duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100">
-              {definitions.map((definition) => (
-                <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
-                  <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
-                </p>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
 
       {winner ? (

@@ -267,7 +267,7 @@ export const defaultDealInput: DealInputModel = {
     platformFeePercent: 0.08,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
-    managementFeePercent: 0.12,
+    managementFeePercent: 0.06,
     turnoverCostPerMoveOut: 40,
     moveOutsPerYear: 10,
     ownerExpensesMonthly: 0,
