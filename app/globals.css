@@ -46,6 +46,18 @@ body {
   }
 }
 
+
+
+
+.brandDeal {
+  color: #2563eb;
+}
+
+.brandCooker {
+  color: #c88a4a;
+}
+
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
