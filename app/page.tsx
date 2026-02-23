@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -17,11 +18,13 @@ import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 import { normalizeListingUrl } from '@/lib/listing-link';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -83,6 +86,17 @@ export default function HomePage() {
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [mobileInputSheet, setMobileInputSheet] = useState<'core' | 'strategy' | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const hasLoadedSupabaseDeals = useRef(false);
+  const previousDealsRef = useRef<ScenarioRecord[]>(initialDeals);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
+  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -98,6 +112,19 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
+
+  const profileImageUrl = useMemo(() => {
+    if (!currentUser) return null;
+
+    const metadata = currentUser.user_metadata as { avatar_url?: string; picture?: string } | undefined;
+    return metadata?.avatar_url ?? metadata?.picture ?? null;
+  }, [currentUser]);
+
+  const profileFallbackLabel = useMemo(() => {
+    const email = currentUser?.email?.trim();
+    if (email) return email.slice(0, 2).toUpperCase();
+    return 'ME';
+  }, [currentUser]);
 
   const cashToCloseValue = useMemo(() => {
     const { purchase } = model;
@@ -233,6 +260,45 @@ export default function HomePage() {
   }, [shareFeedback]);
 
   useEffect(() => {
+    if (!authFeedback) return;
+    const timer = window.setTimeout(() => setAuthFeedback(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [authFeedback]);
+
+  useEffect(() => {
+    if (!syncFeedback) return;
+    const timer = window.setTimeout(() => setSyncFeedback(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [syncFeedback]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setCurrentUser(data.session?.user ?? null);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+      if (!session?.user) {
+        hasLoadedSupabaseDeals.current = false;
+        previousDealsRef.current = [];
+        setFetchedScenarioCount(0);
+        setIsAuthMenuOpen(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
@@ -352,6 +418,177 @@ export default function HomePage() {
     }));
   };
 
+  const signInWithGoogle = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
+
+    if (error) {
+      setAuthBusy(false);
+      setShareFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+  };
+
+  const createAccountWithEmail = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthFeedback({ tone: 'error', message: 'Enter both email and password to create an account.' });
+      return;
+    }
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signUp({
+      email: authEmail.trim(),
+      password: authPassword,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
+    setAuthBusy(false);
+
+    if (error) {
+      setAuthFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setAuthFeedback({ tone: 'success', message: 'Account created. Check your email to confirm sign in.' });
+    setAuthPassword('');
+  };
+
+  const signOut = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signOut();
+    setAuthBusy(false);
+
+    if (error) {
+      setShareFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setCurrentUser(null);
+    setIsAuthMenuOpen(false);
+  };
+
+
+  useEffect(() => {
+    if (!currentUser?.id || hasLoadedSupabaseDeals.current) return;
+
+    let isCancelled = false;
+
+    const loadDealsFromSupabase = async () => {
+      const { scenarios, error } = await fetchSupabaseScenarios(currentUser.id);
+      if (isCancelled) return;
+
+      if (error) {
+        console.error('Supabase scenarios fetch error:', error);
+        setSyncFeedback('Cloud sync failed while loading scenarios.');
+        setLastCloudError('fetch');
+        return;
+      }
+
+      hasLoadedSupabaseDeals.current = true;
+      previousDealsRef.current = scenarios;
+      setFetchedScenarioCount(scenarios.length);
+      setLastCloudError(null);
+      setDeals(scenarios);
+
+      const nextActiveDeal = scenarios.find((scenario) => scenario.scenarioId === activeDealId) ?? scenarios[0];
+      if (nextActiveDeal) {
+        setActiveDealId(nextActiveDeal.scenarioId);
+        setModel(nextActiveDeal.payload);
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', {
+          email: currentUser.email ?? null,
+          userId: currentUser.id,
+          scenariosFetched: scenarios.length,
+          lastError: null
+        });
+      }
+    };
+
+    loadDealsFromSupabase();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser?.id, currentUser?.email, activeDealId]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hasLoadedSupabaseDeals.current) return;
+
+    const previousDeals = previousDealsRef.current;
+    const previousMap = new Map(previousDeals.map((deal) => [deal.scenarioId, deal]));
+    const currentMap = new Map(deals.map((deal) => [deal.scenarioId, deal]));
+
+    const upserts = deals.filter((deal) => {
+      const previous = previousMap.get(deal.scenarioId);
+      if (!previous) return true;
+      return previous.updatedAt !== deal.updatedAt || previous.dealName !== deal.dealName;
+    });
+
+    const deletes = previousDeals.filter((deal) => !currentMap.has(deal.scenarioId));
+
+    if (upserts.length === 0 && deletes.length === 0) return;
+
+    const syncChanges = async () => {
+      let errorType: string | null = null;
+
+      for (const scenario of upserts) {
+        const error = await upsertSupabaseScenario(currentUser.id, scenario);
+        if (error) {
+          console.error('Supabase scenarios upsert error:', error);
+          errorType = 'upsert';
+          break;
+        }
+      }
+
+      if (!errorType) {
+        for (const scenario of deletes) {
+          const error = await deleteSupabaseScenario(currentUser.id, scenario.scenarioId);
+          if (error) {
+            console.error('Supabase scenarios delete error:', error);
+            errorType = 'delete';
+            break;
+          }
+        }
+      }
+
+      if (errorType) {
+        setSyncFeedback('Cloud sync error while saving Deal Vault.');
+        setLastCloudError(errorType);
+      } else {
+        setLastCloudError(null);
+        previousDealsRef.current = deals;
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', {
+          email: currentUser.email ?? null,
+          userId: currentUser.id,
+          scenariosFetched: fetchedScenarioCount,
+          lastError: errorType
+        });
+      }
+    };
+
+    syncChanges();
+  }, [currentUser?.id, currentUser?.email, deals, fetchedScenarioCount]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedToken = params.get('s');
@@ -383,10 +620,86 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <h1 className="text-2xl font-semibold md:text-3xl" aria-label="DealCooker">
-                  <span className="brandDeal">Deal</span>
-                  <span className="brandCooker">Cooker</span>
-                </h1>
+                <div className="relative flex items-start justify-between gap-3">
+                  <h1 className="text-2xl font-semibold md:text-3xl" aria-label="DealCooker">
+                    <span className="brandDeal">Deal</span>
+                    <span className="brandCooker">Cooker</span>
+                  </h1>
+                  {currentUser ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+                        {profileImageUrl ? (
+                          <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={signOut}
+                        disabled={authBusy || !isSupabaseConfigured}
+                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                      >
+                        Sign out
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsAuthMenuOpen((value) => !value)}
+                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
+                      >
+                        Sign in
+                      </button>
+                      {isAuthMenuOpen ? (
+                        <div className="absolute right-0 top-10 z-40 w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                          <button
+                            type="button"
+                            onClick={signInWithGoogle}
+                            disabled={authBusy || !isSupabaseConfigured}
+                            className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+                          >
+                            Continue with Google
+                          </button>
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs text-muted">Create account with email</p>
+                            <input
+                              type="email"
+                              value={authEmail}
+                              onChange={(event) => setAuthEmail(event.target.value)}
+                              placeholder="you@example.com"
+                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+                            />
+                            <input
+                              type="password"
+                              value={authPassword}
+                              onChange={(event) => setAuthPassword(event.target.value)}
+                              placeholder="Create password"
+                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+                            />
+                            <button
+                              type="button"
+                              onClick={createAccountWithEmail}
+                              disabled={authBusy || !isSupabaseConfigured}
+                              className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+                            >
+                              Create account with email
+                            </button>
+                          </div>
+                          {!isSupabaseConfigured ? (
+                            <p className="mt-2 text-[11px] text-muted/90">
+                              Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
+                            </p>
+                          ) : null}
+                          {authFeedback ? (
+                            <p className={`mt-2 text-[11px] ${authFeedback.tone === 'success' ? 'text-accent' : 'text-red-300'}`}>{authFeedback.message}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
@@ -438,6 +751,12 @@ export default function HomePage() {
                 {shareFeedback.fallbackUrl ? (
                   <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {syncFeedback ? (
+              <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">
+                {syncFeedback}
               </div>
             ) : null}
 
