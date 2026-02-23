@@ -1,8 +1,32 @@
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import type { ScenarioRecord } from '@/lib/models/deal';
+import { defaultDealInput, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
 import { writeScenarios } from '@/lib/scenario-storage';
 
 const SCENARIOS_TABLE = 'scenarios';
+
+
+const normalizePayload = (payload: ScenarioRecord['payload'] | null | undefined): DealInputModel => {
+  const safePayload = payload ?? defaultDealInput;
+
+  return {
+    ...defaultDealInput,
+    ...safePayload,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ...safePayload.purchase
+    },
+    longTerm: { ...defaultDealInput.longTerm, ...safePayload.longTerm },
+    airbnb: { ...defaultDealInput.airbnb, ...safePayload.airbnb },
+    padSplit: { ...defaultDealInput.padSplit, ...safePayload.padSplit },
+    brrrr: { ...defaultDealInput.brrrr, ...safePayload.brrrr },
+    flip: { ...defaultDealInput.flip, ...safePayload.flip },
+    assumptions: { ...defaultDealInput.assumptions, ...safePayload.assumptions },
+    variableExpenses:
+      Array.isArray(safePayload.variableExpenses) && safePayload.variableExpenses.length > 0
+        ? safePayload.variableExpenses
+        : defaultDealInput.variableExpenses
+  };
+};
 
 interface ScenarioRow {
   id: string;
@@ -20,11 +44,11 @@ const toScenarioRecord = (row: ScenarioRow): ScenarioRecord => {
     schemaVersion: '1.0.0',
     scenarioId: row.id,
     appVersion: '0.2.0',
-    dealName: row.name,
+    dealName: row.name || 'Untitled Deal',
     createdAt,
     updatedAt: row.updated_at,
     tags: [],
-    payload: row.payload
+    payload: normalizePayload(row.payload)
   };
 };
 
@@ -42,7 +66,7 @@ export const fetchSupabaseScenarios = async (userId: string): Promise<{ scenario
     return { scenarios: [], error: error ?? new Error('Failed to fetch scenarios.') };
   }
 
-  const scenarios = (data as ScenarioRow[]).map(toScenarioRecord);
+  const scenarios = (data as ScenarioRow[]).map((row) => toScenarioRecord(row));
   writeScenarios(scenarios);
   return { scenarios, error: null };
 };
