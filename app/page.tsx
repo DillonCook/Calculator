@@ -18,7 +18,7 @@ import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
-import { hydrateDealsFromCloud, pullLatestDealsFromCloud, syncDealsToCloud } from '@/lib/cloud-scenarios-sync';
+import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
@@ -92,8 +92,11 @@ export default function HomePage() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-  const hasHydratedCloudDeals = useRef(false);
-  const skipNextCloudPush = useRef(false);
+  const hasLoadedSupabaseDeals = useRef(false);
+  const previousDealsRef = useRef<ScenarioRecord[]>(initialDeals);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
+  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -263,6 +266,12 @@ export default function HomePage() {
   }, [authFeedback]);
 
   useEffect(() => {
+    if (!syncFeedback) return;
+    const timer = window.setTimeout(() => setSyncFeedback(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [syncFeedback]);
+
+  useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
@@ -276,7 +285,9 @@ export default function HomePage() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(session?.user ?? null);
       if (!session?.user) {
-        hasHydratedCloudDeals.current = false;
+        hasLoadedSupabaseDeals.current = false;
+        previousDealsRef.current = [];
+        setFetchedScenarioCount(0);
         setIsAuthMenuOpen(false);
       }
     });
@@ -473,71 +484,110 @@ export default function HomePage() {
 
 
   useEffect(() => {
-    if (!currentUser?.id || hasHydratedCloudDeals.current) return;
+    if (!currentUser?.id || hasLoadedSupabaseDeals.current) return;
 
     let isCancelled = false;
 
-    const hydrate = async () => {
-      const mergedDeals = await hydrateDealsFromCloud(currentUser.id, deals);
+    const loadDealsFromSupabase = async () => {
+      const { scenarios, error } = await fetchSupabaseScenarios(currentUser.id);
       if (isCancelled) return;
 
-      hasHydratedCloudDeals.current = true;
-      skipNextCloudPush.current = true;
-      setDeals(mergedDeals);
+      if (error) {
+        console.error('Supabase scenarios fetch error:', error);
+        setSyncFeedback('Cloud sync failed while loading scenarios.');
+        setLastCloudError('fetch');
+        return;
+      }
 
-      if (!activeDealId && mergedDeals[0]) {
-        setActiveDealId(mergedDeals[0].scenarioId);
-        setModel(mergedDeals[0].payload);
+      hasLoadedSupabaseDeals.current = true;
+      previousDealsRef.current = scenarios;
+      setFetchedScenarioCount(scenarios.length);
+      setLastCloudError(null);
+      setDeals(scenarios);
+
+      const nextActiveDeal = scenarios.find((scenario) => scenario.scenarioId === activeDealId) ?? scenarios[0];
+      if (nextActiveDeal) {
+        setActiveDealId(nextActiveDeal.scenarioId);
+        setModel(nextActiveDeal.payload);
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', {
+          email: currentUser.email ?? null,
+          userId: currentUser.id,
+          scenariosFetched: scenarios.length,
+          lastError: null
+        });
       }
     };
 
-    hydrate();
+    loadDealsFromSupabase();
 
     return () => {
       isCancelled = true;
     };
-  }, [currentUser?.id, deals, activeDealId]);
+  }, [currentUser?.id, currentUser?.email, activeDealId]);
 
   useEffect(() => {
-    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
-    if (skipNextCloudPush.current) {
-      skipNextCloudPush.current = false;
-      return;
-    }
+    if (!currentUser?.id || !hasLoadedSupabaseDeals.current) return;
 
-    const timer = window.setTimeout(() => {
-      syncDealsToCloud(currentUser.id, deals);
-    }, 450);
+    const previousDeals = previousDealsRef.current;
+    const previousMap = new Map(previousDeals.map((deal) => [deal.scenarioId, deal]));
+    const currentMap = new Map(deals.map((deal) => [deal.scenarioId, deal]));
 
-    return () => window.clearTimeout(timer);
-  }, [currentUser?.id, deals]);
+    const upserts = deals.filter((deal) => {
+      const previous = previousMap.get(deal.scenarioId);
+      if (!previous) return true;
+      return previous.updatedAt !== deal.updatedAt || previous.dealName !== deal.dealName;
+    });
 
-  useEffect(() => {
-    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
+    const deletes = previousDeals.filter((deal) => !currentMap.has(deal.scenarioId));
 
-    const interval = window.setInterval(async () => {
-      const mergedDeals = await pullLatestDealsFromCloud(currentUser.id, deals);
-      if (!mergedDeals) return;
+    if (upserts.length === 0 && deletes.length === 0) return;
 
-      const hasChanged =
-        mergedDeals.length !== deals.length ||
-        mergedDeals.some((deal, index) => deal.scenarioId !== deals[index]?.scenarioId || deal.updatedAt !== deals[index]?.updatedAt);
+    const syncChanges = async () => {
+      let errorType: string | null = null;
 
-      if (!hasChanged) return;
-
-      skipNextCloudPush.current = true;
-      setDeals(mergedDeals);
-
-      if (activeDealId) {
-        const nextActiveDeal = mergedDeals.find((deal) => deal.scenarioId === activeDealId);
-        if (nextActiveDeal) {
-          setModel(nextActiveDeal.payload);
+      for (const scenario of upserts) {
+        const error = await upsertSupabaseScenario(currentUser.id, scenario);
+        if (error) {
+          console.error('Supabase scenarios upsert error:', error);
+          errorType = 'upsert';
+          break;
         }
       }
-    }, 5000);
 
-    return () => window.clearInterval(interval);
-  }, [currentUser?.id, deals, activeDealId]);
+      if (!errorType) {
+        for (const scenario of deletes) {
+          const error = await deleteSupabaseScenario(currentUser.id, scenario.scenarioId);
+          if (error) {
+            console.error('Supabase scenarios delete error:', error);
+            errorType = 'delete';
+            break;
+          }
+        }
+      }
+
+      if (errorType) {
+        setSyncFeedback('Cloud sync error while saving Deal Vault.');
+        setLastCloudError(errorType);
+      } else {
+        setLastCloudError(null);
+        previousDealsRef.current = deals;
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', {
+          email: currentUser.email ?? null,
+          userId: currentUser.id,
+          scenariosFetched: fetchedScenarioCount,
+          lastError: errorType
+        });
+      }
+    };
+
+    syncChanges();
+  }, [currentUser?.id, currentUser?.email, deals, fetchedScenarioCount]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -701,6 +751,12 @@ export default function HomePage() {
                 {shareFeedback.fallbackUrl ? (
                   <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {syncFeedback ? (
+              <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">
+                {syncFeedback}
               </div>
             ) : null}
 
