@@ -17,7 +17,7 @@ import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
-import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
@@ -93,9 +93,11 @@ export default function HomePage() {
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
+  const pushTimerRef = useRef<number | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
+  const [cloudHealth, setCloudHealth] = useState<'ok' | 'error' | 'idle'>('idle');
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -240,7 +242,7 @@ export default function HomePage() {
 
       const nextDeals = saveDealToVault(updatedDeal);
       setDeals(nextDeals);
-      void syncScenarioUpsert(updatedDeal);
+      queueScenarioPush(updatedDeal);
       setSaveStatus('saved');
     }, 650);
 
@@ -307,34 +309,89 @@ export default function HomePage() {
     return () => mediaQuery.removeEventListener('change', updateMotionPreference);
   }, []);
 
+  const getUnixTime = (timestamp: string) => {
+    const parsed = Date.parse(timestamp);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const mergeScenariosByLatest = (localDeals: ScenarioRecord[], cloudDeals: ScenarioRecord[]) => {
+    const mergedMap = new Map<string, ScenarioRecord>();
+
+    for (const scenario of [...localDeals, ...cloudDeals]) {
+      const existing = mergedMap.get(scenario.scenarioId);
+      if (!existing || getUnixTime(scenario.updatedAt) > getUnixTime(existing.updatedAt)) {
+        mergedMap.set(scenario.scenarioId, scenario);
+      }
+    }
+
+    return Array.from(mergedMap.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  };
+
+  const areScenarioListsEqual = (left: ScenarioRecord[], right: ScenarioRecord[]) => {
+    if (left.length != right.length) return false;
+
+    return left.every((scenario, index) => {
+      const peer = right[index];
+      if (!peer) return false;
+
+      return scenario.scenarioId === peer.scenarioId && scenario.updatedAt === peer.updatedAt && scenario.dealName === peer.dealName;
+    });
+  };
+
   const reportSupabaseError = (error: unknown, operation: 'fetch' | 'upsert' | 'delete') => {
-    console.error(`Supabase scenarios ${operation} error:`, error);
+    const details =
+      error && typeof error === 'object'
+        ? { status: (error as { status?: unknown }).status, message: (error as { message?: unknown }).message }
+        : { status: undefined, message: String(error) };
+
+    console.error(`Supabase scenarios ${operation} error:`, { details, error });
     setLastCloudError(operation);
+    setCloudHealth('error');
     setSyncFeedback('Cloud sync error while saving Deal Vault.');
   };
 
   const syncScenarioUpsert = async (scenario: ScenarioRecord) => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) return false;
 
     const error = await upsertSupabaseScenario(currentUser.id, scenario);
     if (error) {
       reportSupabaseError(error, 'upsert');
-      return;
+      return false;
     }
 
     setLastCloudError(null);
+    setCloudHealth('ok');
+    return true;
   };
 
   const syncScenarioDelete = async (scenarioId: string) => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) return false;
 
     const error = await deleteSupabaseScenario(currentUser.id, scenarioId);
     if (error) {
       reportSupabaseError(error, 'delete');
-      return;
+      return false;
     }
 
     setLastCloudError(null);
+    setCloudHealth('ok');
+    return true;
+  };
+
+  const queueScenarioPush = (scenario: ScenarioRecord) => {
+    if (!currentUser?.id) return;
+
+    if (pushTimerRef.current) {
+      window.clearTimeout(pushTimerRef.current);
+    }
+
+    pushTimerRef.current = window.setTimeout(() => {
+      void syncScenarioUpsert(scenario);
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', { mode: 'push', scenarioId: scenario.scenarioId, pushCount: 1 });
+      }
+      pushTimerRef.current = null;
+    }, 1200);
   };
 
   const saveDealAs = (dealName: string) => {
@@ -343,7 +400,7 @@ export default function HomePage() {
     setModel(record.payload);
     setDeals(next);
     setActiveDealId(record.scenarioId);
-    void syncScenarioUpsert(record);
+    queueScenarioPush(record);
     setSaveStatus('saved');
   };
 
@@ -358,10 +415,10 @@ export default function HomePage() {
     };
 
     setModel(payload);
-    const updatedDeal = { ...activeDeal, dealName, payload };
+    const updatedDeal = { ...activeDeal, dealName, payload, updatedAt: new Date().toISOString() };
     const next = saveDealToVault(updatedDeal);
     setDeals(next);
-    void syncScenarioUpsert(updatedDeal);
+    queueScenarioPush(updatedDeal);
     setSaveStatus('saved');
   };
 
@@ -398,7 +455,7 @@ export default function HomePage() {
     setDeals(next);
     setActiveDealId(nextDeal.scenarioId);
     setModel(nextDeal.payload);
-    void syncScenarioUpsert(nextDeal);
+    queueScenarioPush(nextDeal);
     setSaveStatus('saved');
   };
 
@@ -417,8 +474,6 @@ export default function HomePage() {
     void syncScenarioDelete(scenarioId);
     setSaveStatus('idle');
   };
-
-
 
   const resolveListingDealName = useCallback(async () => null, []);
 
@@ -513,43 +568,110 @@ export default function HomePage() {
       return;
     }
 
+    hasLoadedSupabaseDeals.current = false;
+    setCloudHealth('idle');
     setCurrentUser(null);
     setIsAuthMenuOpen(false);
   };
 
+  const pullAndMergeCloudDeals = useCallback(async () => {
+    if (!currentUser?.id) return;
+
+    const localDeals = readDealsFromVault();
+    const { scenarios: cloudDeals, error } = await fetchSupabaseScenarios(currentUser.id);
+
+    if (error) {
+      reportSupabaseError(error, 'fetch');
+      return;
+    }
+
+    const mergedDeals = mergeScenariosByLatest(localDeals, cloudDeals);
+    const cloudMap = new Map(cloudDeals.map((scenario) => [scenario.scenarioId, scenario]));
+    const backfillDeals = mergedDeals.filter((scenario) => {
+      const cloudScenario = cloudMap.get(scenario.scenarioId);
+      if (!cloudScenario) return true;
+      return getUnixTime(scenario.updatedAt) > getUnixTime(cloudScenario.updatedAt);
+    });
+
+    writeScenarios(mergedDeals);
+
+    if (!areScenarioListsEqual(deals, mergedDeals)) {
+      setDeals(mergedDeals);
+    }
+
+    if (mergedDeals.length > 0) {
+      const nextActiveDeal = mergedDeals.find((scenario) => scenario.scenarioId === activeDealId) ?? mergedDeals[0];
+      if (nextActiveDeal && nextActiveDeal.scenarioId !== activeDealId) {
+        setActiveDealId(nextActiveDeal.scenarioId);
+        setModel(nextActiveDeal.payload);
+      } else if (nextActiveDeal) {
+        setModel(nextActiveDeal.payload);
+      }
+    }
+
+    let backfillCount = 0;
+    for (const scenario of backfillDeals) {
+      const ok = await syncScenarioUpsert(scenario);
+      if (ok) backfillCount += 1;
+    }
+
+    setFetchedScenarioCount(cloudDeals.length);
+    setCloudHealth('ok');
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[DealVault Debug]', {
+        mode: 'pull-merge',
+        email: currentUser.email ?? null,
+        userId: currentUser.id,
+        scenariosFetched: cloudDeals.length,
+        backfillCount,
+        pullCount: mergedDeals.length,
+        lastError: null
+      });
+    }
+  }, [activeDealId, currentUser?.email, currentUser?.id, deals]);
 
   useEffect(() => {
     if (!currentUser?.id || hasLoadedSupabaseDeals.current) return;
 
-    let isCancelled = false;
+    hasLoadedSupabaseDeals.current = true;
+    void pullAndMergeCloudDeals();
 
-    const loadDealsFromSupabase = async () => {
-      const { scenarios, error } = await fetchSupabaseScenarios(currentUser.id);
-      if (isCancelled) return;
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[DealVault Debug]', {
+        mode: 'initial-fetch',
+        email: currentUser.email ?? null,
+        userId: currentUser.id
+      });
+    }
+  }, [currentUser?.id, currentUser?.email, pullAndMergeCloudDeals]);
 
-      if (error) {
-        reportSupabaseError(error, 'fetch');
-        return;
-      }
+  useEffect(() => {
+    if (!currentUser?.id) return;
 
-      hasLoadedSupabaseDeals.current = true;
-      setFetchedScenarioCount(scenarios.length);
-      setLastCloudError(null);
-      setDeals(scenarios);
+    const poll = window.setInterval(() => {
+      void pullAndMergeCloudDeals();
+    }, 12000);
 
-      const nextActiveDeal = scenarios.find((scenario) => scenario.scenarioId === activeDealId) ?? scenarios[0];
-      if (nextActiveDeal) {
-        setActiveDealId(nextActiveDeal.scenarioId);
-        setModel(nextActiveDeal.payload);
+    const handleVisibilitySync = () => {
+      if (!document.hidden) {
+        void pullAndMergeCloudDeals();
       }
     };
 
-    loadDealsFromSupabase();
+    const handleFocusSync = () => {
+      void pullAndMergeCloudDeals();
+    };
+
+    window.addEventListener('focus', handleFocusSync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
 
     return () => {
-      isCancelled = true;
+      window.clearInterval(poll);
+      window.removeEventListener('focus', handleFocusSync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
     };
-  }, [currentUser?.id, activeDealId]);
+  }, [currentUser?.id, pullAndMergeCloudDeals]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' || !currentUser?.id) return;
@@ -561,6 +683,14 @@ export default function HomePage() {
       lastError: lastCloudError
     });
   }, [currentUser?.id, currentUser?.email, fetchedScenarioCount, lastCloudError]);
+
+  useEffect(() => {
+    return () => {
+      if (pushTimerRef.current) {
+        window.clearTimeout(pushTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -575,7 +705,7 @@ export default function HomePage() {
       setDeals(nextDeals);
       setModel(imported.payload);
       setActiveDealId(imported.scenarioId);
-      void syncScenarioUpsert(imported);
+      queueScenarioPush(imported);
     }, 0);
 
     params.delete('s');
@@ -727,6 +857,13 @@ export default function HomePage() {
                 ) : null}
               </div>
             ) : null}
+
+            <div className="flex items-center gap-2 text-[11px] text-muted sm:text-xs">
+              <span>Cloud:</span>
+              <span className={`rounded-full px-2 py-0.5 ${cloudHealth === 'ok' ? 'bg-accent/20 text-accent' : cloudHealth === 'error' ? 'bg-red-500/20 text-red-200' : 'bg-white/10 text-muted'}`}>
+                {cloudHealth === 'ok' ? 'OK' : cloudHealth === 'error' ? 'Error' : 'Idle'}
+              </span>
+            </div>
 
             {syncFeedback ? (
               <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">

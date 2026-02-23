@@ -1,6 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
-import { writeScenarios } from '@/lib/scenario-storage';
 
 const SCENARIOS_TABLE = 'scenarios';
 
@@ -67,7 +66,6 @@ export const fetchSupabaseScenarios = async (userId: string): Promise<{ scenario
   }
 
   const scenarios = (data as ScenarioRow[]).map((row) => toScenarioRecord(row));
-  writeScenarios(scenarios);
   return { scenarios, error: null };
 };
 
@@ -81,7 +79,7 @@ export const upsertSupabaseScenario = async (userId: string, scenario: ScenarioR
       user_id: userId,
       name: scenario.dealName,
       payload: scenario.payload,
-      updated_at: new Date().toISOString()
+      updated_at: scenario.updatedAt
     },
     { onConflict: 'id' }
   );
