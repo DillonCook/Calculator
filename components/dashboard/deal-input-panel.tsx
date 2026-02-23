@@ -10,6 +10,7 @@ interface DealInputPanelProps {
   value: DealInputModel;
   onChange: (next: DealInputModel) => void;
   resolveListingDealName?: (url: string) => Promise<string | null>;
+  defaultAdvancedOptionsOpen?: boolean;
 }
 
 const strategyLabels: Record<ExpenseStrategyKey, string> = {
@@ -19,7 +20,7 @@ const strategyLabels: Record<ExpenseStrategyKey, string> = {
   flip: 'Flip'
 };
 
-export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
+export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = true }: DealInputPanelProps) {
 
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     if (section === 'purchase' && field === 'purchasePrice') {
@@ -167,33 +168,34 @@ export function DealInputPanel({ value, onChange }: DealInputPanelProps) {
             </div>
           )}
 
-          <div className="mt-2.5 rounded-lg border border-white/10 bg-white/[0.02] p-2.5 sm:mt-3 sm:p-3">
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted sm:mb-2 sm:text-xs">Advanced Financing</p>
-            <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-              <Input
-                label="HELOC amount"
-                type="number"
-                value={value.purchase.helocAmount}
-                onChange={(v) => update('purchase', 'helocAmount', Number(v))}
-              />
-              <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
-              <Input label="HELOC term (years)" type="number" value={value.purchase.helocTermYears} onChange={(v) => update('purchase', 'helocTermYears', Number(v))} />
-              <Select
-                label="HELOC amortization"
-                value={value.purchase.helocAmortizationType}
-                onChange={(v) => update('purchase', 'helocAmortizationType', v as AmortizationType)}
-                options={[
-                  { label: 'Principal & Interest (PI)', value: 'PI' },
-                  { label: 'Interest-Only (IO)', value: 'IO' }
-                ]}
-              />
-              <Input
-                label="HELOC closing costs"
-                type="number"
-                value={value.purchase.helocClosingCosts}
-                onChange={(v) => update('purchase', 'helocClosingCosts', Number(v))}
-              />
-            </div>
+          <div className="mt-2.5 sm:mt-3">
+            <Section title="Advanced Options" defaultOpen={defaultAdvancedOptionsOpen}>
+              <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                <Input
+                  label="HELOC amount"
+                  type="number"
+                  value={value.purchase.helocAmount}
+                  onChange={(v) => update('purchase', 'helocAmount', Number(v))}
+                />
+                <PercentInput label="HELOC rate %" value={value.purchase.helocRate} onChange={(v) => update('purchase', 'helocRate', v)} />
+                <Input label="HELOC term (years)" type="number" value={value.purchase.helocTermYears} onChange={(v) => update('purchase', 'helocTermYears', Number(v))} />
+                <Select
+                  label="HELOC amortization"
+                  value={value.purchase.helocAmortizationType}
+                  onChange={(v) => update('purchase', 'helocAmortizationType', v as AmortizationType)}
+                  options={[
+                    { label: 'Principal & Interest (PI)', value: 'PI' },
+                    { label: 'Interest-Only (IO)', value: 'IO' }
+                  ]}
+                />
+                <Input
+                  label="HELOC closing costs"
+                  type="number"
+                  value={value.purchase.helocClosingCosts}
+                  onChange={(v) => update('purchase', 'helocClosingCosts', Number(v))}
+                />
+              </div>
+            </Section>
           </div>
         </Section>
 

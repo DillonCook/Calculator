@@ -18,6 +18,7 @@ interface StrategyComparisonProps {
 
 export function StrategyComparison({ data }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
+  const [isBoardOpen, setIsBoardOpen] = useState(true);
   const maxCashFlow = Math.max(...rows.map((row) => data[row.key].monthlyCashFlow));
 
   const equityRows = useMemo(() => {
@@ -51,8 +52,12 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
     return rows.map((row) => {
       const output = data[row.key];
       const points = output.cashFlowTimeline.map((value, index) => ({ year: index, value }));
-      const operatingPoints = points.length > 2 ? points.slice(1, -1) : points.slice(1);
-      const chartPoints = operatingPoints.length > 0 ? operatingPoints : points.slice(0, 1);
+      const saleProceeds = output.saleProceeds ?? 0;
+      const cashFlowOnlyPoints = points.slice(1).map((point, index, array) => ({
+        ...point,
+        value: index === array.length - 1 ? point.value - saleProceeds : point.value
+      }));
+      const chartPoints = cashFlowOnlyPoints.length > 0 ? cashFlowOnlyPoints : points.slice(0, 1);
       const operatingMaxAbs = Math.max(...chartPoints.map((point) => Math.abs(point.value)), 1);
 
       return {
@@ -67,28 +72,35 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
 
   return (
     <>
-      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5" open={isBoardOpen}>
+        <summary
+          className="mb-4 flex cursor-pointer list-none flex-wrap items-center justify-between gap-3"
+          onClick={(event) => {
+            event.preventDefault();
+            setIsBoardOpen((prev) => !prev);
+          }}
+        >
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
             <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveModal('equity')}
-              className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
-            >
-              Equity modeling
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveModal('cashflow')}
-              className="rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
-            >
-              Cash flow modeling
-            </button>
-          </div>
+        </summary>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveModal('equity')}
+            className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
+          >
+            Equity modeling
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModal('cashflow')}
+            className="rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
+          >
+            Cash flow modeling
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -134,7 +146,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
             );
           })}
         </div>
-      </section>
+      </details>
 
       {activeModal === 'equity' ? (
         <div
@@ -214,7 +226,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               <div>
                 <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
-                <p className="text-xs text-muted">Operating years view (terminal sale year hidden) for realistic annual cash flow scale.</p>
+                <p className="text-xs text-muted">Cash-flow-only view includes the final year with sale proceeds removed for clean operating trend analysis.</p>
               </div>
               <button
                 type="button"
@@ -305,70 +317,87 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
       x: xCenter,
       barTop,
       barHeight,
-      isPositive: point.value >= 0
+      isPositive: point.value >= 0,
+      index
     };
   });
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#0A1326] p-2">
-        <div className="min-w-[460px]">
-          <div className="mb-1 grid grid-cols-[78px_1fr] items-center text-[10px] text-muted">
-            <p className="pl-1">Annual cash flow</p>
-            <p className="pr-2 text-right">Operating timeline (years)</p>
+      <div className="rounded-lg border border-white/10 bg-[#0A1326] p-2 sm:p-2.5">
+        <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
+          <p className="pl-0.5">Annual cash flow</p>
+          <p className="pr-0.5 text-right">Operating timeline (years)</p>
+        </div>
+
+        <div className="grid grid-cols-[56px_1fr] gap-1.5 sm:grid-cols-[78px_1fr] sm:gap-2">
+          <div className="flex flex-col justify-between py-2 text-right text-[9px] text-muted sm:text-[10px]" aria-hidden="true">
+            {yTicks.map((tick) => (
+              <span key={tick.ratio}>{tick.label}</span>
+            ))}
           </div>
 
-          <div className="grid grid-cols-[78px_1fr] gap-2">
-            <div className="flex flex-col justify-between py-2 text-right text-[10px] text-muted" aria-hidden="true">
-              {yTicks.map((tick) => (
-                <span key={tick.ratio}>{tick.label}</span>
-              ))}
-            </div>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="h-40 w-full sm:h-44"
+            role="img"
+            aria-labelledby={yAxisLabelId}
+            preserveAspectRatio="none"
+          >
+            <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
 
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              className="h-44 w-full"
-              role="img"
-              aria-labelledby={yAxisLabelId}
-            >
-              <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
+            {yTicks.map((tick) => (
+              <line
+                key={`grid-${tick.ratio}`}
+                x1={padding}
+                x2={width - padding}
+                y1={tick.y}
+                y2={tick.y}
+                stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
+                strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
+                strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
+              />
+            ))}
 
-              {yTicks.map((tick) => (
-                <line
-                  key={`grid-${tick.ratio}`}
-                  x1={padding}
-                  x2={width - padding}
-                  y1={tick.y}
-                  y2={tick.y}
-                  stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
-                  strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
-                  strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
-                />
-              ))}
-
-              {bars.map((bar, index) => (
-                <g key={`${bar.year}-${bar.value}-${index}`}>
-                  <rect
-                    x={bar.x - barWidth / 2}
-                    y={bar.barTop}
-                    width={barWidth}
-                    height={bar.barHeight}
-                    rx="4"
-                    fill={bar.isPositive ? '#34d399' : '#fb7185'}
-                    opacity={bar.year === 0 ? 0.85 : 1}
+            {bars.map((bar) => (
+              <g key={`${bar.year}-${bar.value}-${bar.index}`}>
+                <rect
+                  x={bar.x - barWidth / 2}
+                  y={bar.barTop}
+                  width={barWidth}
+                  height={bar.barHeight}
+                  rx="4"
+                  fill={bar.isPositive ? '#34d399' : '#fb7185'}
+                  opacity={bar.year === 0 ? 0.85 : 1}
+                >
+                  <animate
+                    attributeName="height"
+                    from="0"
+                    to={String(bar.barHeight)}
+                    dur="0.55s"
+                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
+                    fill="freeze"
                   />
-                  <text
-                    x={bar.x}
-                    y={height - 4}
-                    textAnchor="middle"
-                    className="fill-slate-400 text-[9px]"
-                  >
-                    {bar.year}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          </div>
+                  <animate
+                    attributeName="y"
+                    from={String(zeroY)}
+                    to={String(bar.barTop)}
+                    dur="0.55s"
+                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
+                    fill="freeze"
+                  />
+                </rect>
+                <text
+                  x={bar.x}
+                  y={height - 4}
+                  textAnchor="middle"
+                  className="fill-slate-400 text-[9px]"
+                >
+                  {bar.year}
+                </text>
+              </g>
+            ))}
+          </svg>
         </div>
       </div>
 
