@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
@@ -18,6 +18,7 @@ import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { hydrateDealsFromCloud, pullLatestDealsFromCloud, syncDealsToCloud } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
@@ -91,6 +92,8 @@ export default function HomePage() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const hasHydratedCloudDeals = useRef(false);
+  const skipNextCloudPush = useRef(false);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -259,6 +262,10 @@ export default function HomePage() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(session?.user ?? null);
+      if (!session?.user) {
+        hasHydratedCloudDeals.current = false;
+        setIsAuthMenuOpen(false);
+      }
     });
 
     return () => {
@@ -450,6 +457,74 @@ export default function HomePage() {
     setCurrentUser(null);
     setIsAuthMenuOpen(false);
   };
+
+
+  useEffect(() => {
+    if (!currentUser?.id || hasHydratedCloudDeals.current) return;
+
+    let isCancelled = false;
+
+    const hydrate = async () => {
+      const mergedDeals = await hydrateDealsFromCloud(currentUser.id, deals);
+      if (isCancelled) return;
+
+      hasHydratedCloudDeals.current = true;
+      skipNextCloudPush.current = true;
+      setDeals(mergedDeals);
+
+      if (!activeDealId && mergedDeals[0]) {
+        setActiveDealId(mergedDeals[0].scenarioId);
+        setModel(mergedDeals[0].payload);
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser?.id, deals, activeDealId]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
+    if (skipNextCloudPush.current) {
+      skipNextCloudPush.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      syncDealsToCloud(currentUser.id, deals);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id, deals]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
+
+    const interval = window.setInterval(async () => {
+      const mergedDeals = await pullLatestDealsFromCloud(currentUser.id, deals);
+      if (!mergedDeals) return;
+
+      const hasChanged =
+        mergedDeals.length !== deals.length ||
+        mergedDeals.some((deal, index) => deal.scenarioId !== deals[index]?.scenarioId || deal.updatedAt !== deals[index]?.updatedAt);
+
+      if (!hasChanged) return;
+
+      skipNextCloudPush.current = true;
+      setDeals(mergedDeals);
+
+      if (activeDealId) {
+        const nextActiveDeal = mergedDeals.find((deal) => deal.scenarioId === activeDealId);
+        if (nextActiveDeal) {
+          setModel(nextActiveDeal.payload);
+        }
+      }
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [currentUser?.id, deals, activeDealId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
