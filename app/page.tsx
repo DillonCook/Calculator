@@ -13,6 +13,7 @@ import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
+import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
@@ -97,6 +98,25 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
+
+  const cashToCloseValue = useMemo(() => {
+    const { purchase } = model;
+
+    if (purchase.ownershipMode === 'owned') {
+      return Math.max(purchase.helocClosingCosts, 0);
+    }
+
+    return calculateCashToClose(
+      purchase.purchasePrice,
+      0,
+      purchase.downPaymentPercent,
+      purchase.closingCostPercent,
+      purchase.pointsPercent,
+      purchase.financingType,
+      purchase.helocAmount,
+      purchase.helocClosingCosts
+    );
+  }, [model]);
 
 
   const monthlyCashFlowChartSeries = useMemo(() => {
@@ -590,18 +610,18 @@ export default function HomePage() {
         <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
           <KpiCard
             label="Cash to Close"
-            value={currencyFormatter.format(result.purchase.totalCashNeeded)}
+            value={currencyFormatter.format(cashToCloseValue)}
             winner={activeStrategyLabel}
             secondaryLabel="Total cash invested"
             secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
             definitions={[
               {
                 term: 'Cash to Close',
-                description: 'Cash required at the closing table before post-close improvements.'
+                description: 'Cash needed at closing only (down payment, closing costs, points, and HELOC close costs). Excludes rehab and one-time setup costs.'
               },
               {
                 term: 'Total cash invested',
-                description: 'Full out-of-pocket capital including rehab and one-time strategy setup costs.'
+                description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
               }
             ]}
           />

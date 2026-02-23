@@ -33,9 +33,9 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
           setIsOpen((prev) => !prev);
         }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-start justify-between gap-2 sm:w-auto sm:items-center">
           <h3 className="min-w-0 text-base font-semibold sm:text-lg">IRR Stream and Projections</h3>
-          <div className="group/tooltip relative">
+          <div className="relative shrink-0">
             <button
               type="button"
               aria-label="IRR stream explanation"
@@ -45,35 +45,45 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
                 event.stopPropagation();
                 setIsIrrTooltipOpen((prev) => !prev);
               }}
-              onBlur={() => setIsIrrTooltipOpen(false)}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
             >
               i
             </button>
-            <div
-              className={`absolute left-0 top-7 z-30 w-[280px] rounded-lg border border-slate-700/80 bg-[#0A1326] p-3 text-xs leading-relaxed text-slate-100 shadow-soft transition duration-150 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-4 max-sm:top-auto max-sm:w-auto max-sm:rounded-xl max-sm:border-slate-600 max-sm:p-3.5 ${
-                isIrrTooltipOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100'
-              }`}
-            >
-              <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
+
+            {isIrrTooltipOpen ? (
+              <>
                 <button
                   type="button"
-                  className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                  aria-label="Close tooltip"
+                  className="fixed inset-0 z-20 bg-black/45 sm:hidden"
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
                     setIsIrrTooltipOpen(false);
                   }}
-                >
-                  Close
-                </button>
-              </div>
-              <p>
-                <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your exit proceeds,
-                so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
-              </p>
-            </div>
+                />
+                <div className="fixed left-1/2 top-1/2 z-30 w-[min(92vw,340px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs leading-relaxed text-slate-100 shadow-soft sm:absolute sm:right-0 sm:top-7 sm:w-[300px] sm:translate-x-0 sm:translate-y-0 sm:rounded-lg sm:bg-[#0A1326] sm:p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
+                    <button
+                      type="button"
+                      className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsIrrTooltipOpen(false);
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <p>
+                    <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your exit proceeds,
+                    so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
+                  </p>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
         <p className="text-xs text-muted sm:text-right">IRR-ready stream</p>
