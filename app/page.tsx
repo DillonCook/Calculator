@@ -383,7 +383,7 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <h1 className="text-2xl font-semibold md:text-3xl">DealCooker</h1>
+                <h1 className="text-2xl font-semibold md:text-3xl bg-[linear-gradient(120deg,#0b1b3a_0%,#2563eb_38%,#06b6d4_62%,#0b1b3a_100%)] bg-[length:200%_200%] bg-clip-text text-transparent animate-[gradientShift_12s_ease-in-out_infinite]">DealCooker</h1>
                 <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
