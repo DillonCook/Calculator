@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -17,11 +18,13 @@ import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario } from '@/lib/scenario-storage';
+import { hydrateDealsFromCloud, pullLatestDealsFromCloud, syncDealsToCloud } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 import { normalizeListingUrl } from '@/lib/listing-link';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
@@ -83,6 +86,14 @@ export default function HomePage() {
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [mobileInputSheet, setMobileInputSheet] = useState<'core' | 'strategy' | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const hasHydratedCloudDeals = useRef(false);
+  const skipNextCloudPush = useRef(false);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -233,6 +244,37 @@ export default function HomePage() {
   }, [shareFeedback]);
 
   useEffect(() => {
+    if (!authFeedback) return;
+    const timer = window.setTimeout(() => setAuthFeedback(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [authFeedback]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setCurrentUser(data.session?.user ?? null);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+      if (!session?.user) {
+        hasHydratedCloudDeals.current = false;
+        setIsAuthMenuOpen(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
@@ -352,6 +394,138 @@ export default function HomePage() {
     }));
   };
 
+  const signInWithGoogle = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
+
+    if (error) {
+      setAuthBusy(false);
+      setShareFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+  };
+
+  const createAccountWithEmail = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthFeedback({ tone: 'error', message: 'Enter both email and password to create an account.' });
+      return;
+    }
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signUp({
+      email: authEmail.trim(),
+      password: authPassword,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
+    setAuthBusy(false);
+
+    if (error) {
+      setAuthFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setAuthFeedback({ tone: 'success', message: 'Account created. Check your email to confirm sign in.' });
+    setAuthPassword('');
+  };
+
+  const signOut = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    setAuthBusy(true);
+    const { error } = await supabase.auth.signOut();
+    setAuthBusy(false);
+
+    if (error) {
+      setShareFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setCurrentUser(null);
+    setIsAuthMenuOpen(false);
+  };
+
+
+  useEffect(() => {
+    if (!currentUser?.id || hasHydratedCloudDeals.current) return;
+
+    let isCancelled = false;
+
+    const hydrate = async () => {
+      const mergedDeals = await hydrateDealsFromCloud(currentUser.id, deals);
+      if (isCancelled) return;
+
+      hasHydratedCloudDeals.current = true;
+      skipNextCloudPush.current = true;
+      setDeals(mergedDeals);
+
+      if (!activeDealId && mergedDeals[0]) {
+        setActiveDealId(mergedDeals[0].scenarioId);
+        setModel(mergedDeals[0].payload);
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser?.id, deals, activeDealId]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
+    if (skipNextCloudPush.current) {
+      skipNextCloudPush.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      syncDealsToCloud(currentUser.id, deals);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id, deals]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hasHydratedCloudDeals.current) return;
+
+    const interval = window.setInterval(async () => {
+      const mergedDeals = await pullLatestDealsFromCloud(currentUser.id, deals);
+      if (!mergedDeals) return;
+
+      const hasChanged =
+        mergedDeals.length !== deals.length ||
+        mergedDeals.some((deal, index) => deal.scenarioId !== deals[index]?.scenarioId || deal.updatedAt !== deals[index]?.updatedAt);
+
+      if (!hasChanged) return;
+
+      skipNextCloudPush.current = true;
+      setDeals(mergedDeals);
+
+      if (activeDealId) {
+        const nextActiveDeal = mergedDeals.find((deal) => deal.scenarioId === activeDealId);
+        if (nextActiveDeal) {
+          setModel(nextActiveDeal.payload);
+        }
+      }
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [currentUser?.id, deals, activeDealId]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedToken = params.get('s');
@@ -383,10 +557,80 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <h1 className="text-2xl font-semibold md:text-3xl" aria-label="DealCooker">
-                  <span className="brandDeal">Deal</span>
-                  <span className="brandCooker">Cooker</span>
-                </h1>
+                <div className="relative flex items-start justify-between gap-3">
+                  <h1 className="text-2xl font-semibold md:text-3xl" aria-label="DealCooker">
+                    <span className="brandDeal">Deal</span>
+                    <span className="brandCooker">Cooker</span>
+                  </h1>
+                  {currentUser ? (
+                    <div className="flex items-center gap-2">
+                      <p className="max-w-[120px] truncate text-[11px] text-muted sm:max-w-[180px] sm:text-xs">{currentUser.email}</p>
+                      <button
+                        type="button"
+                        onClick={signOut}
+                        disabled={authBusy || !isSupabaseConfigured}
+                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                      >
+                        Sign out
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsAuthMenuOpen((value) => !value)}
+                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
+                      >
+                        Sign in
+                      </button>
+                      {isAuthMenuOpen ? (
+                        <div className="absolute right-0 top-10 z-40 w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                          <button
+                            type="button"
+                            onClick={signInWithGoogle}
+                            disabled={authBusy || !isSupabaseConfigured}
+                            className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+                          >
+                            Continue with Google
+                          </button>
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs text-muted">Create account with email</p>
+                            <input
+                              type="email"
+                              value={authEmail}
+                              onChange={(event) => setAuthEmail(event.target.value)}
+                              placeholder="you@example.com"
+                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+                            />
+                            <input
+                              type="password"
+                              value={authPassword}
+                              onChange={(event) => setAuthPassword(event.target.value)}
+                              placeholder="Create password"
+                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+                            />
+                            <button
+                              type="button"
+                              onClick={createAccountWithEmail}
+                              disabled={authBusy || !isSupabaseConfigured}
+                              className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+                            >
+                              Create account with email
+                            </button>
+                          </div>
+                          {!isSupabaseConfigured ? (
+                            <p className="mt-2 text-[11px] text-muted/90">
+                              Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
+                            </p>
+                          ) : null}
+                          {authFeedback ? (
+                            <p className={`mt-2 text-[11px] ${authFeedback.tone === 'success' ? 'text-accent' : 'text-red-300'}`}>{authFeedback.message}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
