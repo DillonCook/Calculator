@@ -46,6 +46,39 @@ body {
   }
 }
 
+
+
+
+.brandSweep {
+  display: inline-block;
+  background-image: repeating-linear-gradient(
+    115deg,
+    #0b1b3a 0%,
+    #2563eb 14%,
+    #c88a4a 28%,
+    #0b1b3a 42%
+  );
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brandSweepSlide 20s linear infinite;
+}
+
+@keyframes brandSweepSlide {
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brandSweep {
+    animation: none;
+    background-position: 35% 50%;
+  }
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
