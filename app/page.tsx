@@ -383,7 +383,7 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <h1 className="text-2xl font-semibold md:text-3xl">DealCooker</h1>
+                <h1 className="brandSweep text-2xl font-semibold md:text-3xl">DealCooker</h1>
                 <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
