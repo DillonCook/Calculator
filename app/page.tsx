@@ -404,7 +404,7 @@ export default function HomePage() {
     return true;
   };
 
-  function queueScenarioPush(scenario: ScenarioRecord) {
+  const queueScenarioPush = (scenario: ScenarioRecord) => {
     if (!currentUser?.id) return;
 
     pendingUpsertIdsRef.current.add(scenario.scenarioId);
@@ -428,7 +428,7 @@ export default function HomePage() {
       pushTimerRef.current = null;
       queuedPushScenarioIdRef.current = null;
     }, 1200);
-  }
+  };
 
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
@@ -515,38 +515,9 @@ export default function HomePage() {
     }
 
     const next = removeDealFromVault(scenarioId);
-
-    if (next.length === 0) {
-      const payload: DealInputModel = {
-        ...defaultDealInput,
-        purchase: {
-          ...defaultDealInput.purchase,
-          dealName: 'New Deal'
-        },
-        longTerm: { ...defaultDealInput.longTerm },
-        airbnb: { ...defaultDealInput.airbnb },
-        padSplit: { ...defaultDealInput.padSplit },
-        brrrr: { ...defaultDealInput.brrrr },
-        flip: { ...defaultDealInput.flip },
-        variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
-          ...expense,
-          appliesTo: { ...expense.appliesTo }
-        })),
-        assumptions: { ...defaultDealInput.assumptions }
-      };
-      const nextDeal = createDealInVault(payload, payload.purchase.dealName);
-      const nextDeals = saveDealToVault(nextDeal);
-      setDeals(nextDeals);
-      setActiveDealId(nextDeal.scenarioId);
-      setModel(nextDeal.payload);
-      queueScenarioPush(nextDeal);
-      setSaveStatus('saved');
-    } else {
-      setDeals(next);
-      setActiveDealId('');
-      setSaveStatus('idle');
-    }
-    void syncScenarioDelete(scenarioId);
+    setDeals(next);
+    setActiveDealId('');
+    setSaveStatus('idle');
 
     void (async () => {
       const ok = await syncScenarioDelete(scenarioId);
@@ -585,6 +556,8 @@ export default function HomePage() {
       }
 
       console.error('Supabase share create error:', error);
+      setShareFeedback({ tone: 'error', message: 'Unable to create short share link right now.' });
+      return;
     }
 
     const encoded = encodeDealToShareParam(model);
