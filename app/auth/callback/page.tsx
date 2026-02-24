@@ -17,9 +17,35 @@ export default function AuthCallbackPage() {
 
       const url = new URL(window.location.href);
       const authCode = url.searchParams.get('code');
+      const oauthError = url.searchParams.get('error_description') ?? url.searchParams.get('error');
+
+      if (oauthError) {
+        router.replace(`/?authError=${encodeURIComponent(oauthError)}`);
+        return;
+      }
 
       if (authCode) {
-        await supabase.auth.exchangeCodeForSession(authCode);
+        const { error } = await supabase.auth.exchangeCodeForSession(authCode);
+        if (error) {
+          router.replace(`/?authError=${encodeURIComponent(error.message)}`);
+          return;
+        }
+      } else if (url.hash) {
+        const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (error) {
+            router.replace(`/?authError=${encodeURIComponent(error.message)}`);
+            return;
+          }
+        }
       }
 
       router.replace('/');

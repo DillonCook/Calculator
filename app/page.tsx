@@ -302,6 +302,20 @@ export default function HomePage() {
   }, [authFeedback]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get('authError');
+    if (!authError) return;
+
+    setAuthFeedback({ tone: 'error', message: authError });
+    setIsAuthMenuOpen(true);
+
+    params.delete('authError');
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, []);
+
+  useEffect(() => {
     if (!syncFeedback) return;
     const timer = window.setTimeout(() => setSyncFeedback(null), 3600);
     return () => window.clearTimeout(timer);
@@ -621,22 +635,20 @@ export default function HomePage() {
     setAuthBusy(true);
     setAuthFeedback(null);
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        skipBrowserRedirect: true
+        redirectTo: `${window.location.origin}/auth/callback`
       }
     });
 
-    if (error || !data?.url) {
+    if (error) {
       setAuthBusy(false);
-      setAuthFeedback({ tone: 'error', message: error?.message ?? 'Unable to start Google sign-in. Please try again.' });
+      setAuthFeedback({ tone: 'error', message: error.message ?? 'Unable to start Google sign-in. Please try again.' });
       return;
     }
 
     setIsAuthMenuOpen(false);
-    window.location.assign(data.url);
   };
 
   const createAccountWithEmail = async () => {
