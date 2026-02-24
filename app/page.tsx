@@ -94,10 +94,15 @@ export default function HomePage() {
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
+  const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
+  const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
   const [cloudHealth, setCloudHealth] = useState<'ok' | 'error' | 'idle'>('idle');
+  const [baselineComplete, setBaselineCompleteState] = useState(false);
+  const [baselineUpsertsCount, setBaselineUpsertsCount] = useState(0);
+  const [prunedLocalCount, setPrunedLocalCount] = useState(0);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -288,6 +293,9 @@ export default function HomePage() {
       setCurrentUser(session?.user ?? null);
       if (!session?.user) {
         hasLoadedSupabaseDeals.current = false;
+        pendingDeleteIdsRef.current.clear();
+        pendingUpsertIdsRef.current.clear();
+        setBaselineCompleteState(false);
         setFetchedScenarioCount(0);
         setIsAuthMenuOpen(false);
       }
@@ -312,6 +320,18 @@ export default function HomePage() {
   const getUnixTime = (timestamp: string) => {
     const parsed = Date.parse(timestamp);
     return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const getBaselineKey = (userId: string) => `dc_cloud_baseline_complete:${userId}`;
+
+  const isBaselineComplete = (userId: string) => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(getBaselineKey(userId)) === '1';
+  };
+
+  const setBaselineComplete = (userId: string) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(getBaselineKey(userId), '1');
   };
 
   const mergeScenariosByLatest = (localDeals: ScenarioRecord[], cloudDeals: ScenarioRecord[]) => {
@@ -359,6 +379,7 @@ export default function HomePage() {
       return false;
     }
 
+    pendingUpsertIdsRef.current.delete(scenario.scenarioId);
     setLastCloudError(null);
     setCloudHealth('ok');
     return true;
@@ -373,6 +394,7 @@ export default function HomePage() {
       return false;
     }
 
+    pendingUpsertIdsRef.current.delete(scenarioId);
     setLastCloudError(null);
     setCloudHealth('ok');
     return true;
@@ -380,6 +402,8 @@ export default function HomePage() {
 
   const queueScenarioPush = (scenario: ScenarioRecord) => {
     if (!currentUser?.id) return;
+
+    pendingUpsertIdsRef.current.add(scenario.scenarioId);
 
     if (pushTimerRef.current) {
       window.clearTimeout(pushTimerRef.current);
@@ -467,12 +491,28 @@ export default function HomePage() {
 
   const removeScenario = () => {
     if (!activeDeal) return;
+
     const scenarioId = activeDeal.scenarioId;
+    pendingUpsertIdsRef.current.delete(scenarioId);
+    pendingDeleteIdsRef.current.add(scenarioId);
+
     const next = removeDealFromVault(scenarioId);
     setDeals(next);
     setActiveDealId('');
     void syncScenarioDelete(scenarioId);
     setSaveStatus('idle');
+
+    void (async () => {
+      const ok = await syncScenarioDelete(scenarioId);
+      if (ok) {
+        pendingDeleteIdsRef.current.delete(scenarioId);
+        return;
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', { mode: 'pending-delete-retained', scenarioId });
+      }
+    })();
   };
 
   const resolveListingDealName = useCallback(async () => null, []);
@@ -569,6 +609,9 @@ export default function HomePage() {
     }
 
     hasLoadedSupabaseDeals.current = false;
+    pendingDeleteIdsRef.current.clear();
+    pendingUpsertIdsRef.current.clear();
+    setBaselineCompleteState(false);
     setCloudHealth('idle');
     setCurrentUser(null);
     setIsAuthMenuOpen(false);
@@ -578,20 +621,75 @@ export default function HomePage() {
     if (!currentUser?.id) return;
 
     const localDeals = readDealsFromVault();
-    const { scenarios: cloudDeals, error } = await fetchSupabaseScenarios(currentUser.id);
+    const { scenarios: fetchedCloudDeals, error } = await fetchSupabaseScenarios(currentUser.id);
 
     if (error) {
       reportSupabaseError(error, 'fetch');
       return;
     }
 
-    const mergedDeals = mergeScenariosByLatest(localDeals, cloudDeals);
+    const baselineDone = isBaselineComplete(currentUser.id);
+    setBaselineCompleteState(baselineDone);
+
+    for (const scenarioId of Array.from(pendingDeleteIdsRef.current)) {
+      const ok = await syncScenarioDelete(scenarioId);
+      if (ok) {
+        pendingDeleteIdsRef.current.delete(scenarioId);
+      }
+    }
+
+    const cloudDeals = fetchedCloudDeals.filter((scenario) => !pendingDeleteIdsRef.current.has(scenario.scenarioId));
     const cloudMap = new Map(cloudDeals.map((scenario) => [scenario.scenarioId, scenario]));
-    const backfillDeals = mergedDeals.filter((scenario) => {
+
+    const upsertCandidates = localDeals.filter((scenario) => {
       const cloudScenario = cloudMap.get(scenario.scenarioId);
-      if (!cloudScenario) return true;
+      if (!cloudScenario) {
+        return !baselineDone;
+      }
+
       return getUnixTime(scenario.updatedAt) > getUnixTime(cloudScenario.updatedAt);
     });
+
+    let baselineUpserts = 0;
+    let upsertError = false;
+
+    for (const scenario of upsertCandidates) {
+      const ok = await syncScenarioUpsert(scenario);
+      if (ok) {
+        baselineUpserts += 1;
+      } else {
+        upsertError = true;
+      }
+    }
+
+    let mergedDeals: ScenarioRecord[];
+    let prunedLocal = 0;
+
+    if (!baselineDone && !upsertError) {
+      mergedDeals = mergeScenariosByLatest(localDeals, cloudDeals);
+      setBaselineComplete(currentUser.id);
+      setBaselineCompleteState(true);
+    } else if (baselineDone) {
+      const pendingUpsertIds = pendingUpsertIdsRef.current;
+      const cloudIds = new Set(cloudDeals.map((scenario) => scenario.scenarioId));
+      const localById = new Map(localDeals.map((scenario) => [scenario.scenarioId, scenario]));
+
+      const cloudResolved = cloudDeals.map((cloudScenario) => {
+        const localScenario = localById.get(cloudScenario.scenarioId);
+        if (!localScenario) return cloudScenario;
+
+        return getUnixTime(localScenario.updatedAt) > getUnixTime(cloudScenario.updatedAt) ? localScenario : cloudScenario;
+      });
+
+      const pendingLocalDeals = localDeals.filter(
+        (scenario) => pendingUpsertIds.has(scenario.scenarioId) && !cloudIds.has(scenario.scenarioId)
+      );
+
+      mergedDeals = [...cloudResolved, ...pendingLocalDeals].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      prunedLocal = localDeals.filter((scenario) => !cloudIds.has(scenario.scenarioId) && !pendingUpsertIds.has(scenario.scenarioId)).length;
+    } else {
+      mergedDeals = mergeScenariosByLatest(localDeals, cloudDeals);
+    }
 
     writeScenarios(mergedDeals);
 
@@ -609,27 +707,27 @@ export default function HomePage() {
       }
     }
 
-    let backfillCount = 0;
-    for (const scenario of backfillDeals) {
-      const ok = await syncScenarioUpsert(scenario);
-      if (ok) backfillCount += 1;
-    }
-
     setFetchedScenarioCount(cloudDeals.length);
+    setBaselineUpsertsCount(baselineUpserts);
+    setPrunedLocalCount(prunedLocal);
     setCloudHealth('ok');
 
     if (process.env.NODE_ENV !== 'production') {
       console.info('[DealVault Debug]', {
-        mode: 'pull-merge',
+        mode: baselineDone ? 'pull-merge' : 'baseline-migration',
         email: currentUser.email ?? null,
         userId: currentUser.id,
-        scenariosFetched: cloudDeals.length,
-        backfillCount,
-        pullCount: mergedDeals.length,
-        lastError: null
+        baselineComplete: baselineDone,
+        cloudCount: cloudDeals.length,
+        localCount: localDeals.length,
+        mergedCount: mergedDeals.length,
+        baselineUpsertsCount: baselineUpserts,
+        prunedLocalCount: prunedLocal,
+        pendingDeletes: pendingDeleteIdsRef.current.size,
+        lastSupabaseError: lastCloudError
       });
     }
-  }, [activeDealId, currentUser?.email, currentUser?.id, deals]);
+  }, [activeDealId, currentUser?.email, currentUser?.id, deals, lastCloudError]);
 
   useEffect(() => {
     if (!currentUser?.id || hasLoadedSupabaseDeals.current) return;
@@ -641,7 +739,8 @@ export default function HomePage() {
       console.info('[DealVault Debug]', {
         mode: 'initial-fetch',
         email: currentUser.email ?? null,
-        userId: currentUser.id
+        userId: currentUser.id,
+        baselineComplete: isBaselineComplete(currentUser.id)
       });
     }
   }, [currentUser?.id, currentUser?.email, pullAndMergeCloudDeals]);
@@ -679,10 +778,24 @@ export default function HomePage() {
     console.info('[DealVault Debug]', {
       email: currentUser.email ?? null,
       userId: currentUser.id,
-      scenariosFetched: fetchedScenarioCount,
-      lastError: lastCloudError
+      baselineComplete,
+      cloudCount: fetchedScenarioCount,
+      localCount: deals.length,
+      mergedCount: deals.length,
+      baselineUpsertsCount,
+      prunedLocalCount,
+      lastSupabaseError: lastCloudError
     });
-  }, [currentUser?.id, currentUser?.email, fetchedScenarioCount, lastCloudError]);
+  }, [
+    baselineComplete,
+    baselineUpsertsCount,
+    currentUser?.email,
+    currentUser?.id,
+    deals.length,
+    fetchedScenarioCount,
+    lastCloudError,
+    prunedLocalCount
+  ]);
 
   useEffect(() => {
     return () => {
