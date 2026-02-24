@@ -516,6 +516,7 @@ export default function HomePage() {
     const next = removeDealFromVault(scenarioId);
     setDeals(next);
     setActiveDealId('');
+    void syncScenarioDelete(scenarioId);
     setSaveStatus('idle');
 
     void (async () => {
