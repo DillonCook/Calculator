@@ -94,6 +94,7 @@ export default function HomePage() {
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
+  const queuedPushScenarioIdRef = useRef<string | null>(null);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -295,6 +296,7 @@ export default function HomePage() {
         hasLoadedSupabaseDeals.current = false;
         pendingDeleteIdsRef.current.clear();
         pendingUpsertIdsRef.current.clear();
+        queuedPushScenarioIdRef.current = null;
         setBaselineCompleteState(false);
         setFetchedScenarioCount(0);
         setIsAuthMenuOpen(false);
@@ -372,6 +374,7 @@ export default function HomePage() {
 
   const syncScenarioUpsert = async (scenario: ScenarioRecord) => {
     if (!currentUser?.id) return false;
+    if (pendingDeleteIdsRef.current.has(scenario.scenarioId)) return false;
 
     const error = await upsertSupabaseScenario(currentUser.id, scenario);
     if (error) {
@@ -404,17 +407,25 @@ export default function HomePage() {
     if (!currentUser?.id) return;
 
     pendingUpsertIdsRef.current.add(scenario.scenarioId);
+    queuedPushScenarioIdRef.current = scenario.scenarioId;
 
     if (pushTimerRef.current) {
       window.clearTimeout(pushTimerRef.current);
     }
 
     pushTimerRef.current = window.setTimeout(() => {
+      if (!queuedPushScenarioIdRef.current || pendingDeleteIdsRef.current.has(queuedPushScenarioIdRef.current)) {
+        pushTimerRef.current = null;
+        queuedPushScenarioIdRef.current = null;
+        return;
+      }
+
       void syncScenarioUpsert(scenario);
       if (process.env.NODE_ENV !== 'production') {
         console.info('[DealVault Debug]', { mode: 'push', scenarioId: scenario.scenarioId, pushCount: 1 });
       }
       pushTimerRef.current = null;
+      queuedPushScenarioIdRef.current = null;
     }, 1200);
   };
 
@@ -495,6 +506,12 @@ export default function HomePage() {
     const scenarioId = activeDeal.scenarioId;
     pendingUpsertIdsRef.current.delete(scenarioId);
     pendingDeleteIdsRef.current.add(scenarioId);
+
+    if (pushTimerRef.current && queuedPushScenarioIdRef.current === scenarioId) {
+      window.clearTimeout(pushTimerRef.current);
+      pushTimerRef.current = null;
+      queuedPushScenarioIdRef.current = null;
+    }
 
     const next = removeDealFromVault(scenarioId);
     setDeals(next);
@@ -611,6 +628,7 @@ export default function HomePage() {
     hasLoadedSupabaseDeals.current = false;
     pendingDeleteIdsRef.current.clear();
     pendingUpsertIdsRef.current.clear();
+    queuedPushScenarioIdRef.current = null;
     setBaselineCompleteState(false);
     setCloudHealth('idle');
     setCurrentUser(null);
@@ -628,7 +646,15 @@ export default function HomePage() {
       return;
     }
 
-    const baselineDone = isBaselineComplete(currentUser.id);
+    let baselineDone = isBaselineComplete(currentUser.id);
+
+    if (!baselineDone && fetchedCloudDeals.length > 0) {
+      // Another device has already established cloud state for this user.
+      // Mark baseline complete on this device to prevent stale local backfill resurrection.
+      setBaselineComplete(currentUser.id);
+      baselineDone = true;
+    }
+
     setBaselineCompleteState(baselineDone);
 
     for (const scenarioId of Array.from(pendingDeleteIdsRef.current)) {
@@ -802,6 +828,7 @@ export default function HomePage() {
       if (pushTimerRef.current) {
         window.clearTimeout(pushTimerRef.current);
       }
+      queuedPushScenarioIdRef.current = null;
     };
   }, []);
 
