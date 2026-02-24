@@ -35,7 +35,10 @@ export function DealsVaultPanel({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(DEALS_VAULT_COLLAPSED_KEY) === '1';
+  });
 
   const activeDeal = useMemo(() => deals.find((deal) => deal.scenarioId === activeDealId), [deals, activeDealId]);
 
@@ -44,11 +47,6 @@ export function DealsVaultPanel({
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(DEALS_VAULT_COLLAPSED_KEY);
-    if (!stored) return;
-    setIsCollapsed(stored === '1');
-  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(DEALS_VAULT_COLLAPSED_KEY, isCollapsed ? '1' : '0');
@@ -96,7 +94,7 @@ export function DealsVaultPanel({
         <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
         <div className="flex items-center gap-1.5">
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Ready'}
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Idle'}
           </span>
         </div>
       </summary>
