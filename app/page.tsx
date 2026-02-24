@@ -619,18 +619,24 @@ export default function HomePage() {
     if (!supabase) return;
 
     setAuthBusy(true);
-    const { error } = await supabase.auth.signInWithOAuth({
+    setAuthFeedback(null);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: true
       }
     });
 
-    if (error) {
+    if (error || !data?.url) {
       setAuthBusy(false);
-      setShareFeedback({ tone: 'error', message: error.message });
+      setAuthFeedback({ tone: 'error', message: error?.message ?? 'Unable to start Google sign-in. Please try again.' });
       return;
     }
+
+    setIsAuthMenuOpen(false);
+    window.location.assign(data.url);
   };
 
   const createAccountWithEmail = async () => {
