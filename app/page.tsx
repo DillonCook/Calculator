@@ -595,18 +595,24 @@ export default function HomePage() {
     if (!supabase) return;
 
     setAuthBusy(true);
-    const { error } = await supabase.auth.signInWithOAuth({
+    setAuthFeedback(null);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${window.location.origin}/auth/callback`,
+        skipBrowserRedirect: true
       }
     });
 
-    if (error) {
+    if (error || !data?.url) {
       setAuthBusy(false);
-      setShareFeedback({ tone: 'error', message: error.message });
+      setAuthFeedback({ tone: 'error', message: error?.message ?? 'Unable to start Google sign-in. Please try again.' });
       return;
     }
+
+    setIsAuthMenuOpen(false);
+    window.location.assign(data.url);
   };
 
   const createAccountWithEmail = async () => {
@@ -881,6 +887,52 @@ export default function HomePage() {
     return () => window.clearTimeout(syncImportTimer);
   }, []);
 
+  const authMenuContent = (
+    <>
+      <button
+        type="button"
+        onClick={signInWithGoogle}
+        disabled={authBusy || !isSupabaseConfigured}
+        className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+      >
+        Continue with Google
+      </button>
+      <div className="mt-3 space-y-2">
+        <p className="text-xs text-muted">Create account with email</p>
+        <input
+          type="email"
+          value={authEmail}
+          onChange={(event) => setAuthEmail(event.target.value)}
+          placeholder="you@example.com"
+          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+        />
+        <input
+          type="password"
+          value={authPassword}
+          onChange={(event) => setAuthPassword(event.target.value)}
+          placeholder="Create password"
+          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+        />
+        <button
+          type="button"
+          onClick={createAccountWithEmail}
+          disabled={authBusy || !isSupabaseConfigured}
+          className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+        >
+          Create account with email
+        </button>
+      </div>
+      {!isSupabaseConfigured ? (
+        <p className="mt-2 text-[11px] text-muted/90">
+          Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
+        </p>
+      ) : null}
+      {authFeedback ? (
+        <p className={`mt-2 text-[11px] ${authFeedback.tone === 'success' ? 'text-accent' : 'text-red-300'}`}>{authFeedback.message}</p>
+      ) : null}
+    </>
+  );
+
   return (
     <main className="app-shell-fade relative min-h-screen overflow-x-hidden px-4 py-6 md:px-8">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(49,121,185,0.25)_0%,rgba(49,121,185,0.1)_35%,transparent_70%)]" />
@@ -895,7 +947,10 @@ export default function HomePage() {
                     <span className="brandCooker">Cooker</span>
                   </h1>
                   {currentUser ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:text-[11px]">
+                        Cloud: Active
+                      </span>
                       <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
                         {profileImageUrl ? (
                           <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -917,59 +972,37 @@ export default function HomePage() {
                       <button
                         type="button"
                         onClick={() => setIsAuthMenuOpen((value) => !value)}
+                        aria-expanded={isAuthMenuOpen}
+                        aria-controls="auth-menu"
                         className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
                       >
                         Sign in
                       </button>
                       {isAuthMenuOpen ? (
-                        <div className="absolute right-0 top-10 z-40 w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                          <button
-                            type="button"
-                            onClick={signInWithGoogle}
-                            disabled={authBusy || !isSupabaseConfigured}
-                            className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
-                          >
-                            Continue with Google
-                          </button>
-                          <div className="mt-3 space-y-2">
-                            <p className="text-xs text-muted">Create account with email</p>
-                            <input
-                              type="email"
-                              value={authEmail}
-                              onChange={(event) => setAuthEmail(event.target.value)}
-                              placeholder="you@example.com"
-                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
-                            />
-                            <input
-                              type="password"
-                              value={authPassword}
-                              onChange={(event) => setAuthPassword(event.target.value)}
-                              placeholder="Create password"
-                              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
-                            />
-                            <button
-                              type="button"
-                              onClick={createAccountWithEmail}
-                              disabled={authBusy || !isSupabaseConfigured}
-                              className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
-                            >
-                              Create account with email
-                            </button>
+                        <>
+                          <div id="auth-menu" className="absolute right-0 top-10 z-40 hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
+                            {authMenuContent}
                           </div>
-                          {!isSupabaseConfigured ? (
-                            <p className="mt-2 text-[11px] text-muted/90">
-                              Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
-                            </p>
-                          ) : null}
-                          {authFeedback ? (
-                            <p className={`mt-2 text-[11px] ${authFeedback.tone === 'success' ? 'text-accent' : 'text-red-300'}`}>{authFeedback.message}</p>
-                          ) : null}
-                        </div>
+                          <div className="fixed inset-0 z-50 bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
+                            <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                              <div className="mb-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAuthMenuOpen(false)}
+                                  className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                              {authMenuContent}
+                            </div>
+                          </div>
+                        </>
                       ) : null}
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
+                <p className="max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1022,13 +1055,6 @@ export default function HomePage() {
                 ) : null}
               </div>
             ) : null}
-
-            <div className="flex items-center gap-2 text-[11px] text-muted sm:text-xs">
-              <span>Cloud:</span>
-              <span className={`rounded-full px-2 py-0.5 ${cloudHealth === 'ok' ? 'bg-accent/20 text-accent' : cloudHealth === 'error' ? 'bg-red-500/20 text-red-200' : 'bg-white/10 text-muted'}`}>
-                {cloudHealth === 'ok' ? 'OK' : cloudHealth === 'error' ? 'Error' : 'Idle'}
-              </span>
-            </div>
 
             {syncFeedback ? (
               <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">
