@@ -20,6 +20,7 @@ import { defaultDealInput, type DealInputModel, type ScenarioRecord, type Strate
 import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
+import { createShortShareLink } from '@/lib/share-links';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
@@ -535,6 +536,29 @@ export default function HomePage() {
   const resolveListingDealName = useCallback(async () => null, []);
 
   const shareCurrentDeal = async () => {
+    if (currentUser?.id) {
+      const { slug, error } = await createShortShareLink({
+        ownerId: currentUser.id,
+        scenarioId: activeDealId || undefined,
+        payloadSnapshot: model
+      });
+
+      if (!error && slug) {
+        const shortUrl = `${window.location.origin}/s/${slug}`;
+        try {
+          await navigator.clipboard.writeText(shortUrl);
+          triggerHapticFeedback('success');
+          setShareFeedback({ tone: 'success', message: 'Copied share link.' });
+          return;
+        } catch {
+          setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: shortUrl });
+          return;
+        }
+      }
+
+      console.error('Supabase share create error:', error);
+    }
+
     const encoded = encodeDealToShareParam(model);
     if (!encoded) {
       setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
