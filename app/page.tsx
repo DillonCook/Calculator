@@ -66,7 +66,34 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
 
 
 
-const initialDeals = readDealsFromVault();
+
+const buildNewDealPayload = (dealName: string): DealInputModel => ({
+  ...defaultDealInput,
+  purchase: {
+    ...defaultDealInput.purchase,
+    dealName
+  },
+  longTerm: { ...defaultDealInput.longTerm },
+  airbnb: { ...defaultDealInput.airbnb },
+  padSplit: { ...defaultDealInput.padSplit },
+  brrrr: { ...defaultDealInput.brrrr },
+  flip: { ...defaultDealInput.flip },
+  variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
+    ...expense,
+    appliesTo: { ...expense.appliesTo }
+  })),
+  assumptions: { ...defaultDealInput.assumptions }
+});
+
+const storedDeals = readDealsFromVault();
+const initialDeals =
+  storedDeals.length > 0
+    ? storedDeals
+    : (() => {
+        const payload = buildNewDealPayload('New Deal');
+        const freshDeal = createDealInVault(payload, payload.purchase.dealName);
+        return saveDealToVault(freshDeal);
+      })();
 const initialActiveDeal = initialDeals[0];
 
 export default function HomePage() {
@@ -404,7 +431,7 @@ export default function HomePage() {
     return true;
   };
 
-  const queueScenarioPush = (scenario: ScenarioRecord) => {
+  function queueScenarioPush(scenario: ScenarioRecord) {
     if (!currentUser?.id) return;
 
     pendingUpsertIdsRef.current.add(scenario.scenarioId);
@@ -428,7 +455,7 @@ export default function HomePage() {
       pushTimerRef.current = null;
       queuedPushScenarioIdRef.current = null;
     }, 1200);
-  };
+  }
 
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
@@ -468,23 +495,7 @@ export default function HomePage() {
       candidateName = `New Deal ${index}`;
     }
 
-    const payload: DealInputModel = {
-      ...defaultDealInput,
-      purchase: {
-        ...defaultDealInput.purchase,
-        dealName: candidateName
-      },
-      longTerm: { ...defaultDealInput.longTerm },
-      airbnb: { ...defaultDealInput.airbnb },
-      padSplit: { ...defaultDealInput.padSplit },
-      brrrr: { ...defaultDealInput.brrrr },
-      flip: { ...defaultDealInput.flip },
-      variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
-        ...expense,
-        appliesTo: { ...expense.appliesTo }
-      })),
-      assumptions: { ...defaultDealInput.assumptions }
-    };
+    const payload = buildNewDealPayload(candidateName);
 
     const nextDeal = createDealInVault(payload, candidateName);
     const next = saveDealToVault(nextDeal);
@@ -515,9 +526,22 @@ export default function HomePage() {
     }
 
     const next = removeDealFromVault(scenarioId);
-    setDeals(next);
-    setActiveDealId('');
-    setSaveStatus('idle');
+
+    if (next.length === 0) {
+      const payload = buildNewDealPayload('New Deal');
+      const nextDeal = createDealInVault(payload, payload.purchase.dealName);
+      const nextDeals = saveDealToVault(nextDeal);
+      setDeals(nextDeals);
+      setActiveDealId(nextDeal.scenarioId);
+      setModel(nextDeal.payload);
+      queueScenarioPush(nextDeal);
+      setSaveStatus('saved');
+    } else {
+      setDeals(next);
+      setActiveDealId('');
+      setSaveStatus('idle');
+    }
+    void syncScenarioDelete(scenarioId);
 
     void (async () => {
       const ok = await syncScenarioDelete(scenarioId);
