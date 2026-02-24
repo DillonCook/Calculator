@@ -404,7 +404,7 @@ export default function HomePage() {
     return true;
   };
 
-  const queueScenarioPush = (scenario: ScenarioRecord) => {
+  function queueScenarioPush(scenario: ScenarioRecord) {
     if (!currentUser?.id) return;
 
     pendingUpsertIdsRef.current.add(scenario.scenarioId);
@@ -428,7 +428,7 @@ export default function HomePage() {
       pushTimerRef.current = null;
       queuedPushScenarioIdRef.current = null;
     }, 1200);
-  };
+  }
 
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
@@ -515,10 +515,38 @@ export default function HomePage() {
     }
 
     const next = removeDealFromVault(scenarioId);
-    setDeals(next);
-    setActiveDealId('');
+
+    if (next.length === 0) {
+      const payload: DealInputModel = {
+        ...defaultDealInput,
+        purchase: {
+          ...defaultDealInput.purchase,
+          dealName: 'New Deal'
+        },
+        longTerm: { ...defaultDealInput.longTerm },
+        airbnb: { ...defaultDealInput.airbnb },
+        padSplit: { ...defaultDealInput.padSplit },
+        brrrr: { ...defaultDealInput.brrrr },
+        flip: { ...defaultDealInput.flip },
+        variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
+          ...expense,
+          appliesTo: { ...expense.appliesTo }
+        })),
+        assumptions: { ...defaultDealInput.assumptions }
+      };
+      const nextDeal = createDealInVault(payload, payload.purchase.dealName);
+      const nextDeals = saveDealToVault(nextDeal);
+      setDeals(nextDeals);
+      setActiveDealId(nextDeal.scenarioId);
+      setModel(nextDeal.payload);
+      queueScenarioPush(nextDeal);
+      setSaveStatus('saved');
+    } else {
+      setDeals(next);
+      setActiveDealId('');
+      setSaveStatus('idle');
+    }
     void syncScenarioDelete(scenarioId);
-    setSaveStatus('idle');
 
     void (async () => {
       const ok = await syncScenarioDelete(scenarioId);
