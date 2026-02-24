@@ -3,7 +3,7 @@ import type { DealInputModel } from '@/lib/models/deal';
 
 const SHARES_TABLE = 'shares';
 const SLUG_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-const SLUG_LENGTH = 10;
+const SLUG_LENGTH = 8;
 
 export interface ShareLinkRecord {
   slug: string;
@@ -33,21 +33,52 @@ export const createShortShareLink = async (params: {
     return { slug: '', error: new Error('Supabase is not configured.') };
   }
 
-  const slug = generateSlug();
-  const { error } = await supabase.from(SHARES_TABLE).insert({
-    slug,
-    owner_id: params.ownerId,
-    scenario_id: params.scenarioId ?? null,
-    payload_snapshot: params.payloadSnapshot,
-    is_public: true,
-    expires_at: getShareExpiryIso()
-  });
+  const buildInsertCandidates = (slug: string) => {
+    const basePayload = {
+      slug,
+      payload_snapshot: params.payloadSnapshot,
+      is_public: true,
+      expires_at: getShareExpiryIso()
+    };
 
-  if (error) {
-    return { slug: '', error };
+    const withScenarioId = params.scenarioId ? { scenario_id: params.scenarioId } : {};
+
+    return [
+      { ...basePayload, user_id: params.ownerId, ...withScenarioId },
+      { ...basePayload, owner_id: params.ownerId, ...withScenarioId },
+      { ...basePayload, user_id: params.ownerId },
+      { ...basePayload, owner_id: params.ownerId },
+      basePayload
+    ];
+  };
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const slug = generateSlug();
+    const candidates = buildInsertCandidates(slug);
+
+    for (const candidate of candidates) {
+      const { error } = await supabase.from(SHARES_TABLE).insert(candidate);
+
+      if (!error) {
+        return { slug, error: null };
+      }
+
+      const code = (error as { code?: string }).code;
+      const message = (error as { message?: string }).message ?? '';
+
+      if (code === '23505') {
+        break;
+      }
+
+      if (code === '42703' || code === '22P02' || message.toLowerCase().includes('column')) {
+        continue;
+      }
+
+      return { slug: '', error };
+    }
   }
 
-  return { slug, error: null };
+  return { slug: '', error: new Error('Unable to create a unique short slug.') };
 };
 
 export const fetchShareBySlug = async (slug: string): Promise<{ share: ShareLinkRecord | null; error: unknown | null }> => {

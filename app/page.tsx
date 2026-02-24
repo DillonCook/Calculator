@@ -580,6 +580,8 @@ export default function HomePage() {
       }
 
       console.error('Supabase share create error:', error);
+      setShareFeedback({ tone: 'error', message: 'Unable to create short share link right now.' });
+      return;
     }
 
     const encoded = encodeDealToShareParam(model);
@@ -917,7 +919,10 @@ export default function HomePage() {
                     <span className="brandCooker">Cooker</span>
                   </h1>
                   {currentUser ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:text-[11px]">
+                        Cloud: Active
+                      </span>
                       <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
                         {profileImageUrl ? (
                           <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -991,7 +996,7 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
+                <p className="max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1044,13 +1049,6 @@ export default function HomePage() {
                 ) : null}
               </div>
             ) : null}
-
-            <div className="flex items-center gap-2 text-[11px] text-muted sm:text-xs">
-              <span>Cloud:</span>
-              <span className={`rounded-full px-2 py-0.5 ${cloudHealth === 'ok' ? 'bg-accent/20 text-accent' : cloudHealth === 'error' ? 'bg-red-500/20 text-red-200' : 'bg-white/10 text-muted'}`}>
-                {cloudHealth === 'ok' ? 'OK' : cloudHealth === 'error' ? 'Error' : 'Idle'}
-              </span>
-            </div>
 
             {syncFeedback ? (
               <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">
