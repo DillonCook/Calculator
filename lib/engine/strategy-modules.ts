@@ -1,11 +1,10 @@
 import {
-  buildExcelParityAnnualTimeline,
-  buildTimeline,
+  calculateRemainingBalance,
   calcTotalRoiFromTimeline,
   calculateIrr
 } from '@/lib/engine/investment-math';
 import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
-import { calculateAcquisitionDebtService, calculateCashToClose, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
+import { calculateAcquisitionDebtService, calculateCashToClose, calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
   strategy,
@@ -23,6 +22,29 @@ const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): 
   cashFlowTimeline: []
 });
 
+interface TimelineDebtInput {
+  principal: number;
+  annualRate: number;
+  termMonths: number;
+  amortizationType: 'PI' | 'IO';
+  monthlyPaymentOverride?: number;
+  terminalBalanceOverride?: number;
+}
+
+interface LeveredTimelineInput {
+  input: DealInputModel;
+  totalCashNeeded: number;
+  annualRevenueYear1: number;
+  annualOperatingExpensesYear1: number;
+  arv: number;
+  revenueGrowthRate: number;
+  expenseGrowthRate: number;
+  debts: TimelineDebtInput[];
+}
+
+const clampPercent = (value: number) => Math.min(Math.max(value, 0), 1);
+const clampGrowthRate = (value: number) => Math.min(Math.max(value, -0.95), 1);
+
 const getPurchaseLoanTerms = (input: DealInputModel) => {
   const { purchase } = input;
 
@@ -37,7 +59,10 @@ const getPurchaseLoanTerms = (input: DealInputModel) => {
     helocRate: purchase.helocRate,
     helocTermYears: purchase.helocTermYears,
     helocAmortizationType: purchase.helocAmortizationType,
-    existingMortgageMonthly: purchase.ownershipMode === 'owned' ? purchase.existingMortgageMonthly : 0
+    existingMortgageMonthly: purchase.ownershipMode === 'owned' ? purchase.existingMortgageMonthly : 0,
+    existingMortgageBalance: purchase.ownershipMode === 'owned' ? purchase.existingMortgageBalance : 0,
+    existingMortgageRate: purchase.ownershipMode === 'owned' ? purchase.existingMortgageRate : 0,
+    existingMortgageRemainingYears: purchase.ownershipMode === 'owned' ? purchase.existingMortgageRemainingYears : 0
   });
 };
 
@@ -60,6 +85,51 @@ const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrateg
   }, 0);
 };
 
+const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput[] => {
+  const { purchase } = input;
+  const debts: TimelineDebtInput[] = [];
+
+  if (purchase.ownershipMode === 'owned') {
+    const existingPrincipal = Math.max(purchase.existingMortgageBalance, 0);
+
+    if (existingPrincipal > 0) {
+      debts.push({
+        principal: existingPrincipal,
+        annualRate: Math.max(purchase.existingMortgageRate, 0),
+        termMonths: Math.max(purchase.existingMortgageRemainingYears, 1) * 12,
+        amortizationType: 'PI'
+      });
+    } else if (purchase.existingMortgageMonthly > 0) {
+      debts.push({
+        principal: 0,
+        annualRate: 0,
+        termMonths: Math.max(purchase.existingMortgageRemainingYears, 1) * 12,
+        amortizationType: 'PI',
+        monthlyPaymentOverride: Math.max(purchase.existingMortgageMonthly, 0),
+        terminalBalanceOverride: 0
+      });
+    }
+  } else if (purchase.financingType === 'loan') {
+    debts.push({
+      principal: calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent),
+      annualRate: Math.max(purchase.interestRate, 0),
+      termMonths: Math.max(purchase.loanTermYears, 1) * 12,
+      amortizationType: purchase.amortizationType
+    });
+  }
+
+  debts.push({
+    principal: Math.max(purchase.helocAmount, 0),
+    annualRate: Math.max(purchase.helocRate, 0),
+    termMonths: Math.max(purchase.helocTermYears, 1) * 12,
+    amortizationType: purchase.helocAmortizationType
+  });
+
+  return debts.filter(
+    (debt) => debt.principal > 0 || (debt.monthlyPaymentOverride ?? 0) > 0 || (debt.terminalBalanceOverride ?? 0) > 0
+  );
+};
+
 const calculateDscr = (noiMonthly: number, debtServiceMonthly: number): number => {
   if (debtServiceMonthly <= 0) return 0;
   return noiMonthly / debtServiceMonthly;
@@ -74,21 +144,37 @@ const toLine = (key: string, label: string, monthly: number): StrategyCalculatio
   annual: toAnnual(monthly)
 });
 
+const getDebtMonthlyPayment = (debt: TimelineDebtInput): number => {
+  if (debt.monthlyPaymentOverride !== undefined) return Math.max(debt.monthlyPaymentOverride, 0);
+  if (debt.principal <= 0) return 0;
+  if (debt.amortizationType === 'IO') return calculateInterestOnlyPayment(debt.principal, debt.annualRate);
+
+  return calculateMonthlyPayment(debt.principal, debt.annualRate, debt.termMonths / 12);
+};
+
+const getDebtRemainingBalanceAtHold = (debt: TimelineDebtInput, holdYears: number): number => {
+  if (debt.terminalBalanceOverride !== undefined) return Math.max(debt.terminalBalanceOverride, 0);
+  if (debt.principal <= 0) return 0;
+  if (debt.amortizationType === 'IO') return debt.principal;
+
+  return calculateRemainingBalance(debt.principal, debt.annualRate, debt.termMonths / 12, holdYears, 'PI');
+};
+
 const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit'): number => {
   if (strategy === 'longTerm') {
     const gross = input.longTerm.grossRentMonthly + input.longTerm.otherIncomeMonthly;
-    const effectiveGrossIncome = gross - gross * input.longTerm.vacancyPercent;
-    return effectiveGrossIncome * (input.longTerm.maintenancePercent + input.longTerm.capexPercent);
+    const effectiveGrossIncome = gross - gross * clampPercent(input.longTerm.vacancyPercent);
+    return effectiveGrossIncome * (clampPercent(input.longTerm.maintenancePercent) + clampPercent(input.longTerm.capexPercent));
   }
 
   if (strategy === 'airbnb') {
-    const occupiedNights = input.airbnb.nightsPerMonth * input.airbnb.occupancyPercent;
+    const occupiedNights = input.airbnb.nightsPerMonth * clampPercent(input.airbnb.occupancyPercent);
     const roomRevenue = occupiedNights * input.airbnb.adr;
     const bookings = occupiedNights / Math.max(input.airbnb.averageNightsPerBooking, 1);
     const cleaningRevenue = bookings * input.airbnb.cleaningFeeCharged;
     const gross = roomRevenue + cleaningRevenue;
 
-    return gross * (input.airbnb.maintenancePercent + input.airbnb.capexPercent);
+    return gross * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
   }
 
   const rentableRooms = Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0;
@@ -97,10 +183,10 @@ const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'a
     rentableRooms *
     avgWeeklyRatePerRoom *
     input.padSplit.weeksPerMonth *
-    input.padSplit.occupancyPercent +
+    clampPercent(input.padSplit.occupancyPercent) +
     input.padSplit.otherIncomeMonthly;
 
-  return gross * (input.padSplit.maintenancePercent + input.padSplit.capexPercent);
+  return gross * (clampPercent(input.padSplit.maintenancePercent) + clampPercent(input.padSplit.capexPercent));
 };
 
 const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
@@ -119,50 +205,64 @@ const resolveRehabBudget = (input: DealInputModel, strategy: 'brrrr' | 'flip'): 
   return input.flip.rehabOverride ?? input.purchase.rehabBudget;
 };
 
-const buildLeveredTimeline = (input: DealInputModel, totalCashNeeded: number, annualNoi: number, arv: number) => {
+const buildLeveredTimeline = ({
+  input,
+  totalCashNeeded,
+  annualRevenueYear1,
+  annualOperatingExpensesYear1,
+  arv,
+  revenueGrowthRate,
+  expenseGrowthRate,
+  debts
+}: LeveredTimelineInput) => {
   const { purchase, assumptions } = input;
+  const holdYears = Math.max(assumptions.holdYears, 0);
+  const fullYears = Math.floor(holdYears);
+  const partialYear = holdYears - fullYears;
+  const revenueGrowth = clampGrowthRate(revenueGrowthRate);
+  const expenseGrowth = clampGrowthRate(expenseGrowthRate);
+  const annualDebtService = debts.reduce((sum, debt) => sum + getDebtMonthlyPayment(debt) * 12, 0);
+  const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
 
-  const debts = [
-    {
-      principal: purchase.financingType === 'loan' ? calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent) : 0,
-      annualRate: purchase.interestRate,
-      termMonths: purchase.loanTermYears * 12,
-      amortizationType: purchase.amortizationType
-    },
-    {
-      principal: purchase.helocAmount,
-      annualRate: purchase.helocRate,
-      termMonths: purchase.helocTermYears * 12,
-      amortizationType: purchase.helocAmortizationType
-    }
-  ];
+  const baseValue = arv > 0 ? arv : purchase.purchasePrice;
+  const terminalPropertyValue = holdYears > 0 ? baseValue * Math.pow(1 + assumptions.annualAppreciationPercent, holdYears) : baseValue;
+  const saleProceeds = terminalPropertyValue * (1 - assumptions.sellingCostPercent) - remainingLoanBalance;
 
-  const timelineData = buildExcelParityAnnualTimeline({
-    initialCashInvested: totalCashNeeded,
-    annualNoiYear1: annualNoi,
-    holdYears: assumptions.holdYears,
-    noiGrowthRate: assumptions.noiGrowthPercent,
-    appreciationRate: assumptions.annualAppreciationPercent,
-    sellingCostRate: assumptions.sellingCostPercent,
-    purchasePrice: purchase.purchasePrice,
-    arv,
-    debts
-  });
+  const timeline = [-Math.abs(totalCashNeeded)];
+
+  for (let year = 1; year <= fullYears; year += 1) {
+    const revenueForYear = annualRevenueYear1 * Math.pow(1 + revenueGrowth, year - 1);
+    const expensesForYear = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, year - 1);
+    const annualNoi = revenueForYear - expensesForYear;
+    timeline.push(annualNoi - annualDebtService);
+  }
+
+  if (partialYear > 0) {
+    const partialRevenue = annualRevenueYear1 * Math.pow(1 + revenueGrowth, fullYears) * partialYear;
+    const partialExpenses = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, fullYears) * partialYear;
+    const partialDebtService = annualDebtService * partialYear;
+    timeline.push(partialRevenue - partialExpenses - partialDebtService + saleProceeds);
+  } else if (fullYears > 0) {
+    timeline[fullYears] += saleProceeds;
+  } else {
+    timeline.push(saleProceeds);
+  }
 
   return {
-    timeline: timelineData.flows,
-    saleProceeds: timelineData.netSaleProceeds,
-    irr: timelineData.irr,
-    roi: timelineData.totalRoi
+    timeline,
+    saleProceeds,
+    irr: calculateIrr(timeline),
+    roi: calcTotalRoiFromTimeline(timeline)
   };
 };
 
 
 export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput => {
-  const { purchase, assumptions } = input;
-  const base = createBaseOutput('purchase', 'Core financing and cash required to acquire the deal.');
+  const { purchase, commercial } = input;
+  const base = createBaseOutput('purchase', 'Retail / strip-plaza underwriting using leased square footage and $/sq ft rent.');
 
-  const { principal: loanAmount, debtService } = getPurchaseLoanTerms(input);
+  const { debtService, principal } = getPurchaseLoanTerms(input);
+  const fixedCosts = getMonthlyFixedCosts(input);
 
   const cashToClose =
     purchase.ownershipMode === 'owned'
@@ -178,35 +278,110 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
           purchase.helocClosingCosts
         );
 
-  const annualCashFlow = -debtService * 12;
-  const timeline = buildTimeline(cashToClose, annualCashFlow, assumptions.holdYears, 0, 0);
+  const grossLeasableAreaSqft = Math.max(commercial.grossLeasableAreaSqft, 0);
+  const occupiedSqft = Math.min(Math.max(commercial.occupiedSqft, 0), grossLeasableAreaSqft);
+  const occupancyPercent = clampPercent(commercial.vacancyPercent);
+  const creditLossPercent = clampPercent(commercial.creditLossPercent);
+  const managementFeePercent = clampPercent(commercial.managementFeePercent);
+  const rentAndRecoveryPerSqftYear = Math.max(commercial.averageBaseRentPerSqftYear, 0) + Math.max(commercial.nnnRecoveryPerSqftYear, 0);
+  const occupancyBySqft = grossLeasableAreaSqft > 0 ? occupiedSqft / grossLeasableAreaSqft : 0;
+  const annualPotentialGross = grossLeasableAreaSqft * rentAndRecoveryPerSqftYear;
+  const annualPhysicalVacancyLoss = (grossLeasableAreaSqft - occupiedSqft) * rentAndRecoveryPerSqftYear;
+  const annualOccupiedGross = annualPotentialGross - annualPhysicalVacancyLoss;
+  const annualEconomicVacancyLoss = annualOccupiedGross * occupancyPercent;
+  const annualCreditLoss = annualOccupiedGross * creditLossPercent;
+  const annualEffectiveGross = annualOccupiedGross - annualEconomicVacancyLoss - annualCreditLoss;
+  const annualManagementFee = annualEffectiveGross * managementFeePercent;
+  const annualNonRecoverableExpenses = grossLeasableAreaSqft * Math.max(commercial.nonRecoverableExpensesPerSqftYear, 0);
+  const annualTiReserve = grossLeasableAreaSqft * Math.max(commercial.tenantImprovementsReservePerSqftYear, 0);
+  const annualLeasingReserve = grossLeasableAreaSqft * Math.max(commercial.leasingCommissionsReservePerSqftYear, 0);
+  const annualFixedCosts = fixedCosts * 12;
+  const annualOperatingExpenses =
+    annualEconomicVacancyLoss +
+    annualCreditLoss +
+    annualManagementFee +
+    annualNonRecoverableExpenses +
+    annualTiReserve +
+    annualLeasingReserve +
+    annualFixedCosts;
+  const annualNoi =
+    annualOccupiedGross - annualOperatingExpenses;
+  const noiMonthly = annualNoi / 12;
+  const monthlyCashFlow = noiMonthly - debtService;
+  const annualCashFlow = monthlyCashFlow * 12;
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: cashToClose,
+    annualRevenueYear1: annualOccupiedGross,
+    annualOperatingExpensesYear1: annualOperatingExpenses,
+    arv: purchase.arv,
+    revenueGrowthRate: clampGrowthRate(commercial.annualRentGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(commercial.annualExpenseGrowthPercent),
+    debts: buildAcquisitionTimelineDebts(input)
+  });
+  const annualDebtService = debtService * 12;
+  const denominator = grossLeasableAreaSqft * rentAndRecoveryPerSqftYear * (1 - occupancyPercent - creditLossPercent) * (1 - managementFeePercent);
+  const breakEvenOccupancyPercent =
+    denominator <= 0 ? 1 : clampPercent((annualNonRecoverableExpenses + annualTiReserve + annualLeasingReserve + annualFixedCosts + annualDebtService) / denominator);
+  const debtYield = principal > 0 ? annualNoi / principal : 0;
+  const annualBaseRent = occupiedSqft * Math.max(commercial.averageBaseRentPerSqftYear, 0);
+  const annualRecoveries = occupiedSqft * Math.max(commercial.nnnRecoveryPerSqftYear, 0);
 
   return {
     ...base,
-    monthlyCashFlow: -debtService,
+    monthlyCashFlow,
+    monthlyCashFlowExcludingReserves: monthlyCashFlow + (annualTiReserve + annualLeasingReserve) / 12,
     annualCashFlow,
     totalCashNeeded: cashToClose,
-    dscr: 0,
-    roi: calcTotalRoiFromTimeline(timeline),
-    irr: calculateIrr(timeline),
-    cashFlowTimeline: timeline,
-    saleProceeds: 0,
-    noiMonthly: -debtService,
-    notes:
-      purchase.ownershipMode === 'owned'
-        ? 'Owned property basis using your existing monthly carrying costs.'
-        : loanAmount > 0
-          ? base.notes
-          : 'All-cash purchase basis and acquisition capital requirements.',
+    capRate: purchase.purchasePrice === 0 ? 0 : annualNoi / purchase.purchasePrice,
+    cashOnCashReturn: cashToClose === 0 ? 0 : annualCashFlow / cashToClose,
+    dscr: calculateDscr(noiMonthly, debtService),
+    roi: timelineData.roi,
+    irr: timelineData.irr,
+    cashFlowTimeline: timelineData.timeline,
+    saleProceeds: timelineData.saleProceeds,
+    noiMonthly,
+    notes: `Leased ${occupiedSqft.toLocaleString()} of ${grossLeasableAreaSqft.toLocaleString()} sq ft (${(occupancyBySqft * 100).toFixed(
+      1
+    )}% physical occupancy).`,
     calculationBreakdown: {
       lines: [
-        toLine('purchase-debt-service', 'Debt service', -debtService)
+        toLine('comm-base-rent', 'Base rent ($/sq ft)', annualBaseRent / 12),
+        toLine('comm-nnn-recovery', 'NNN reimbursements', annualRecoveries / 12),
+        toLine('comm-physical-vacancy', 'Physical vacancy loss (unleased SF)', -(annualPhysicalVacancyLoss / 12)),
+        toLine('comm-vacancy', 'Economic vacancy reserve', -(annualEconomicVacancyLoss / 12)),
+        toLine('comm-credit-loss', 'Credit loss reserve', -(annualCreditLoss / 12)),
+        toLine('comm-management', 'Management fee', -(annualManagementFee / 12)),
+        toLine('comm-non-recoverable', 'Non-recoverable OpEx', -(annualNonRecoverableExpenses / 12)),
+        toLine('comm-ti', 'Tenant improvement reserve', -(annualTiReserve / 12)),
+        toLine('comm-lc', 'Leasing commission reserve', -(annualLeasingReserve / 12)),
+        toLine('comm-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
+        toLine('comm-noi', 'NOI', noiMonthly),
+        toLine('comm-debt-service', 'Debt service', -debtService),
+        toLine('comm-cash-flow', 'Cash flow', monthlyCashFlow)
       ],
-      revenueMonthly: 0,
-      sellerPaidExpensesMonthly: 0,
+      revenueMonthly: annualOccupiedGross / 12,
+      sellerPaidExpensesMonthly: annualOperatingExpenses / 12,
       debtServiceMonthly: debtService,
-      noiMonthly: -debtService,
-      cashFlowMonthly: -debtService
+      noiMonthly,
+      cashFlowMonthly: monthlyCashFlow
+    },
+    commercialSummary: {
+      grossLeasableAreaSqft,
+      occupiedSqft,
+      physicalOccupancyPercent: occupancyBySqft,
+      averageBaseRentPerSqftYear: Math.max(commercial.averageBaseRentPerSqftYear, 0),
+      nnnRecoveryPerSqftYear: Math.max(commercial.nnnRecoveryPerSqftYear, 0),
+      annualPotentialGrossIncome: annualPotentialGross,
+      annualPhysicalVacancyLoss,
+      annualEconomicVacancyLoss,
+      annualCreditLoss,
+      annualEffectiveGrossIncome: annualEffectiveGross,
+      annualOperatingExpenses,
+      annualNoi,
+      annualDebtService,
+      debtYield,
+      breakEvenOccupancyPercent
     }
   };
 };
@@ -218,18 +393,33 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
   const strategyVariableCosts = getVariableExpenseTotal(input, 'longTerm');
+  const vacancyPercent = clampPercent(longTerm.vacancyPercent);
+  const maintenancePercent = clampPercent(longTerm.maintenancePercent);
+  const capexPercent = clampPercent(longTerm.capexPercent);
+  const managementPercent = clampPercent(longTerm.managementFeePercent);
 
   const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
-  const vacancy = gross * longTerm.vacancyPercent;
+  const vacancy = gross * vacancyPercent;
   const effectiveGrossIncome = gross - vacancy;
-  const maintenance = effectiveGrossIncome * longTerm.maintenancePercent;
-  const capex = effectiveGrossIncome * longTerm.capexPercent;
-  const managementFee = effectiveGrossIncome * longTerm.managementFeePercent;
+  const maintenance = effectiveGrossIncome * maintenancePercent;
+  const capex = effectiveGrossIncome * capexPercent;
+  const managementFee = effectiveGrossIncome * managementPercent;
   const noi = effectiveGrossIncome - maintenance - capex - managementFee - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
-  const annualNoi = noi * 12;
-  const timelineData = buildLeveredTimeline(input, purchaseCashNeeded, annualNoi, resolveStrategyArv(input, 'longTerm'));
+  const annualRevenueYear1 = gross * 12;
+  const annualOperatingExpensesYear1 =
+    (vacancy + maintenance + capex + managementFee + longTerm.ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: purchaseCashNeeded,
+    annualRevenueYear1,
+    annualOperatingExpensesYear1,
+    arv: resolveStrategyArv(input, 'longTerm'),
+    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    debts: buildAcquisitionTimelineDebts(input)
+  });
 
   return {
     ...base,
@@ -272,17 +462,17 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const { airbnb, purchase } = input;
   const base = createBaseOutput('airbnb', 'Short-term rental model with cleaning and platform drag.');
 
-  const occupiedNights = airbnb.nightsPerMonth * airbnb.occupancyPercent;
+  const occupiedNights = airbnb.nightsPerMonth * clampPercent(airbnb.occupancyPercent);
   const roomRevenue = occupiedNights * airbnb.adr;
   const bookings = occupiedNights / Math.max(airbnb.averageNightsPerBooking, 1);
   const cleaningRevenue = bookings * airbnb.cleaningFeeCharged;
   const gross = roomRevenue + cleaningRevenue;
 
-  const platformFees = gross * airbnb.platformFeePercent;
+  const platformFees = gross * clampPercent(airbnb.platformFeePercent);
   const cleanerCost = bookings * airbnb.cleanerCostPerTurn;
-  const maintenance = gross * airbnb.maintenancePercent;
-  const capex = gross * airbnb.capexPercent;
-  const managementFee = gross * airbnb.managementFeePercent;
+  const maintenance = gross * clampPercent(airbnb.maintenancePercent);
+  const capex = gross * clampPercent(airbnb.capexPercent);
+  const managementFee = gross * clampPercent(airbnb.managementFeePercent);
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
@@ -292,8 +482,19 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + airbnb.furnishingOneTime;
-  const annualNoi = noi * 12;
-  const timelineData = buildLeveredTimeline(input, investedCapital, annualNoi, resolveStrategyArv(input, 'airbnb'));
+  const annualRevenueYear1 = gross * 12;
+  const annualOperatingExpensesYear1 =
+    (platformFees + cleanerCost + maintenance + capex + managementFee + airbnb.ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: investedCapital,
+    annualRevenueYear1,
+    annualOperatingExpensesYear1,
+    arv: resolveStrategyArv(input, 'airbnb'),
+    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    debts: buildAcquisitionTimelineDebts(input)
+  });
 
   return {
     ...base,
@@ -351,12 +552,12 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     rentableRooms *
     avgWeeklyRatePerRoom *
     padSplit.weeksPerMonth *
-    padSplit.occupancyPercent +
+    clampPercent(padSplit.occupancyPercent) +
     padSplit.otherIncomeMonthly;
-  const platformFees = gross * padSplit.platformFeePercent;
-  const maintenance = gross * padSplit.maintenancePercent;
-  const capex = gross * padSplit.capexPercent;
-  const managementFee = gross * padSplit.managementFeePercent;
+  const platformFees = gross * clampPercent(padSplit.platformFeePercent);
+  const maintenance = gross * clampPercent(padSplit.maintenancePercent);
+  const capex = gross * clampPercent(padSplit.capexPercent);
+  const managementFee = gross * clampPercent(padSplit.managementFeePercent);
   const turnoverMonthly = (turnoverCostPerMoveOut * moveOutsPerYear * rentableRooms) / 12;
   const placementMonthly = (moveOutsPerYear * ((avgWeeklyRatePerRoom * 10) / 7)) / 12;
 
@@ -378,8 +579,28 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
-  const annualNoi = noi * 12;
-  const timelineData = buildLeveredTimeline(input, investedCapital, annualNoi, resolveStrategyArv(input, 'padSplit'));
+  const annualRevenueYear1 = gross * 12;
+  const annualOperatingExpensesYear1 =
+    (platformFees +
+      maintenance +
+      capex +
+      managementFee +
+      turnoverMonthly +
+      placementMonthly +
+      padSplit.ownerExpensesMonthly +
+      fixedCosts +
+      strategyVariableCosts) *
+    12;
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: investedCapital,
+    annualRevenueYear1,
+    annualOperatingExpensesYear1,
+    arv: resolveStrategyArv(input, 'padSplit'),
+    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    debts: buildAcquisitionTimelineDebts(input)
+  });
 
   return {
     ...base,
@@ -457,15 +678,14 @@ export const calculateBrrrrStrategy = (
   const monthly = selectedOperatingNoi - refinanceDebt;
   const annual = monthly * 12;
   const annualNoi = selectedOperatingNoi * 12;
-  const timelineData = buildExcelParityAnnualTimeline({
-    initialCashInvested: investedAfterRefi,
-    annualNoiYear1: annualNoi,
-    holdYears: input.assumptions.holdYears,
-    noiGrowthRate: input.assumptions.noiGrowthPercent,
-    appreciationRate: input.assumptions.annualAppreciationPercent,
-    sellingCostRate: input.assumptions.sellingCostPercent,
-    purchasePrice: purchase.purchasePrice,
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: investedAfterRefi,
+    annualRevenueYear1: annualNoi,
+    annualOperatingExpensesYear1: 0,
     arv: brrrrArv,
+    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
     debts: [
       {
         principal: refiLoanAmount,
@@ -484,12 +704,12 @@ export const calculateBrrrrStrategy = (
     capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
     cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
     dscr: calculateDscr(selectedOperatingNoi, refinanceDebt),
-    roi: timelineData.totalRoi,
+    roi: timelineData.roi,
     totalCashNeeded: investedAfterRefi,
     noiMonthly: selectedOperatingNoi,
     irr: timelineData.irr,
-    saleProceeds: timelineData.netSaleProceeds,
-    cashFlowTimeline: timelineData.flows,
+    saleProceeds: timelineData.saleProceeds,
+    cashFlowTimeline: timelineData.timeline,
     calculationBreakdown: {
       lines: [
         toLine('brrrr-selected-noi', 'Selected strategy NOI', selectedOperatingNoi),

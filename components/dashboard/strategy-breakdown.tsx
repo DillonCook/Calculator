@@ -2,7 +2,7 @@ import type { DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 const labelMap: Record<StrategyKey, string> = {
-  purchase: 'Purchase Analysis',
+  purchase: 'Commercial Analysis',
   longTerm: 'Long-Term Rental',
   airbnb: 'Airbnb / Short-Term',
   padSplit: 'PadSplit',
@@ -18,7 +18,7 @@ interface StrategyBreakdownProps {
 const quickScanMap: Record<StrategyKey, { title: string; points: string[] }> = {
   purchase: {
     title: 'Quick scan',
-    points: ['Baseline acquisition math for financing and all strategy overlays.']
+    points: ['Retail / strip-plaza underwriting model using leased square footage and annual $/sq ft rent assumptions.']
   },
   longTerm: {
     title: 'Quick scan',

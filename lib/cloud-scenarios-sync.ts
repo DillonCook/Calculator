@@ -14,6 +14,7 @@ const normalizePayload = (payload: ScenarioRecord['payload'] | null | undefined)
       ...defaultDealInput.purchase,
       ...safePayload.purchase
     },
+    commercial: { ...defaultDealInput.commercial, ...safePayload.commercial },
     longTerm: { ...defaultDealInput.longTerm, ...safePayload.longTerm },
     airbnb: { ...defaultDealInput.airbnb, ...safePayload.airbnb },
     padSplit: { ...defaultDealInput.padSplit, ...safePayload.padSplit },

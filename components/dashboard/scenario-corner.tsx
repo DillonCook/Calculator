@@ -90,11 +90,14 @@ export function DealsVaultPanel({
         if (nextCollapsed) closeDialog();
       }}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+      <summary className={`tap-feedback flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${isCollapsed ? 'mb-0' : 'mb-2'}`}>
         <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
         <div className="flex items-center gap-1.5">
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Idle'}
+          </span>
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            {isCollapsed ? '+' : '-'}
           </span>
         </div>
       </summary>
@@ -129,7 +132,7 @@ export function DealsVaultPanel({
                         key={deal.scenarioId}
                         type="button"
                         onClick={() => onActiveDealChange(deal.scenarioId)}
-                        className={`min-w-[190px] snap-start rounded-lg border px-3 py-2 text-left text-sm transition sm:min-w-[220px] ${
+                        className={`tap-feedback min-w-[190px] snap-start rounded-lg border px-3 py-2 text-left text-sm transition sm:min-w-[220px] ${
                           deal.scenarioId === activeDealId
                             ? 'accent-edge'
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
@@ -149,7 +152,7 @@ export function DealsVaultPanel({
 
           <div className="grid grid-cols-2 gap-1.5">
             <button
-              className="btn-primary h-10 rounded-md px-2 text-sm font-semibold"
+              className="btn-primary tap-feedback h-10 rounded-md px-2 text-sm font-semibold"
               onClick={() => openDialog('saveAs')}
               type="button"
               aria-label="Duplicate"
@@ -158,7 +161,7 @@ export function DealsVaultPanel({
               ⧉
             </button>
             <button
-              className="h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
+              className="tap-feedback h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
               onClick={() => openDialog('rename')}
               type="button"
               disabled={!activeDeal}
@@ -168,7 +171,7 @@ export function DealsVaultPanel({
               ✎
             </button>
             <button
-              className="h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
+              className="tap-feedback h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
               onClick={onCreateNew}
               type="button"
               aria-label="Create"
@@ -177,7 +180,7 @@ export function DealsVaultPanel({
               +
             </button>
             <button
-              className="h-10 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
+              className="tap-feedback h-10 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
               onClick={onDelete}
               type="button"
               disabled={!activeDeal}

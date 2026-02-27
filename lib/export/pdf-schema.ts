@@ -1,5 +1,6 @@
 import type { DealInputModel, DealResult, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { calculateCashToClose } from '@/lib/engine/finance';
 import { normalizeListingUrl } from '@/lib/listing-link';
 
 export interface PdfReportRow {
@@ -30,7 +31,8 @@ export interface PdfReportSchema {
   listingReference: PdfReportSection;
 }
 
-const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
+const strategyLabels: Record<StrategyKey, string> = {
+  purchase: 'Commercial',
   longTerm: 'Long-Term Rental',
   airbnb: 'Airbnb / STR',
   padSplit: 'PadSplit',
@@ -38,7 +40,8 @@ const strategyLabels: Record<Exclude<StrategyKey, 'purchase'>, string> = {
   flip: 'Flip'
 };
 
-const strategyBadgeCopy: Record<Exclude<StrategyKey, 'purchase'>, string> = {
+const strategyBadgeCopy: Record<StrategyKey, string> = {
+  purchase: 'Retail and strip-plaza profile driven by leased square footage and annual $/sq ft rents.',
   longTerm: 'Stable recurring rent profile with conservative underwriting.',
   airbnb: 'Revenue-optimized short-term rental profile with active operations.',
   padSplit: 'Room-by-room yield profile focused on max revenue per square foot.',
@@ -49,11 +52,12 @@ const strategyBadgeCopy: Record<Exclude<StrategyKey, 'purchase'>, string> = {
 const formatDscr = (value: number) => value.toFixed(2);
 const formatCurrency = (value: number) => currencyFormatter.format(value);
 
-const getSelectedOutput = (result: DealResult, strategy: Exclude<StrategyKey, 'purchase'>): StrategyOutput => result[strategy];
+const getSelectedOutput = (result: DealResult, strategy: StrategyKey): StrategyOutput => result[strategy];
 
-const getVariableExpenseStrategy = (input: DealInputModel, selectedStrategy: Exclude<StrategyKey, 'purchase'>): ExpenseStrategyKey => {
+const getVariableExpenseStrategy = (input: DealInputModel, selectedStrategy: StrategyKey): ExpenseStrategyKey | null => {
+  if (selectedStrategy === 'purchase') return null;
   if (selectedStrategy === 'brrrr') return input.brrrr.operatingStrategy;
-  return selectedStrategy;
+  return selectedStrategy as ExpenseStrategyKey;
 };
 
 const toWorkRows = (lines: StrategyCalculationLineItem[]) => {
@@ -66,14 +70,29 @@ const toWorkRows = (lines: StrategyCalculationLineItem[]) => {
 export const createPdfReportSchema = (
   input: DealInputModel,
   result: DealResult,
-  selectedStrategy: Exclude<StrategyKey, 'purchase'> = 'longTerm'
+  selectedStrategy: StrategyKey = 'longTerm'
 ): PdfReportSchema => {
   const strategyOutput = getSelectedOutput(result, selectedStrategy);
   const effectiveValue = selectedStrategy === 'flip' ? strategyOutput.saleProceeds ?? 0 : strategyOutput.monthlyCashFlow;
   const annualTax = input.purchase.propertyTaxAnnualOverride ?? input.purchase.purchasePrice * 0.017;
   const annualInsurance = input.purchase.insuranceAnnualOverride ?? input.purchase.purchasePrice * 0.01;
+  const cashToCloseValue =
+    input.purchase.ownershipMode === 'owned'
+      ? Math.max(input.purchase.helocClosingCosts, 0)
+      : calculateCashToClose(
+          input.purchase.purchasePrice,
+          0,
+          input.purchase.downPaymentPercent,
+          input.purchase.closingCostPercent,
+          input.purchase.pointsPercent,
+          input.purchase.financingType,
+          input.purchase.helocAmount,
+          input.purchase.helocClosingCosts
+        );
   const variableExpenseStrategy = getVariableExpenseStrategy(input, selectedStrategy);
-  const variableExpenses = input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy]);
+  const variableExpenses = variableExpenseStrategy
+    ? input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy])
+    : [];
 
   return {
     title: 'Investor Command Center',
@@ -86,7 +105,7 @@ export const createPdfReportSchema = (
       title: 'Executive Summary',
       rows: [
         { label: 'Selected Strategy', value: strategyLabels[selectedStrategy] },
-        { label: 'Cash to Close', value: formatCurrency(result.purchase.totalCashNeeded) },
+        { label: 'Cash to Close', value: formatCurrency(cashToCloseValue) },
         { label: 'Total Cash Invested', value: formatCurrency(strategyOutput.totalCashNeeded) },
         { label: 'Cap Rate', value: percentFormatter.format(strategyOutput.capRate) },
         { label: 'Cash-on-Cash Return', value: percentFormatter.format(strategyOutput.cashOnCashReturn) },

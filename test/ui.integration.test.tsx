@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
+import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 
@@ -13,6 +14,19 @@ const getStrategyButton = (label: string) => screen.getAllByRole('button', { nam
 describe('dashboard integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  });
+
+  it('shows a Commercial strategy tab and exposes strip-plaza underwriting inputs', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(getStrategyButton('Commercial'));
+
+    const rentInput = screen.getAllByLabelText('Base rent ($/sq ft/year)')[0];
+    await user.clear(rentInput);
+    await user.type(rentInput, '30');
+
+    expect(rentInput).toHaveValue(30);
   });
 
   it('editing purchase price updates master cash-to-close KPI', async () => {
@@ -27,7 +41,18 @@ describe('dashboard integration', () => {
       ...defaultDealInput,
       purchase: { ...defaultDealInput.purchase, purchasePrice: 300000 }
     };
-    const expected = currencyFormatter.format(calculateDeal(updatedModel).purchase.totalCashNeeded);
+    const expected = currencyFormatter.format(
+      calculateCashToClose(
+        updatedModel.purchase.purchasePrice,
+        0,
+        updatedModel.purchase.downPaymentPercent,
+        updatedModel.purchase.closingCostPercent,
+        updatedModel.purchase.pointsPercent,
+        updatedModel.purchase.financingType,
+        updatedModel.purchase.helocAmount,
+        updatedModel.purchase.helocClosingCosts
+      )
+    );
 
     expect(screen.getByTestId('kpi-cash-to-close')).toHaveTextContent(expected);
   });
@@ -222,7 +247,7 @@ describe('dashboard integration', () => {
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(defaultDealInput.purchase.purchasePrice);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(defaultDealInput.purchase.rehabBudget);
-    expect(screen.getAllByText('New Deal').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
   it('share link feedback auto-dismisses after a few seconds', async () => {
@@ -236,7 +261,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getAllByRole('button', { name: 'Share Link' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Send link' })[0]);
 
     expect(screen.getByText('Share link copied to clipboard.')).toBeInTheDocument();
 
@@ -253,7 +278,7 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('Airbnb'));
 
-    const printLink = screen.getByRole('link', { name: 'Print View' });
+    const printLink = screen.getByRole('link', { name: 'Print to PDF' });
     const href = printLink.getAttribute('href') ?? '';
 
     expect(href.startsWith('/print?scenario=')).toBe(true);

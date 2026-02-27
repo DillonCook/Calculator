@@ -8,6 +8,7 @@ import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
+import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onboarding-tour';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
@@ -29,7 +30,7 @@ import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 
 const activeStrategyLabels: Record<StrategyKey, string> = {
-  purchase: 'Purchase',
+  purchase: 'Commercial',
   longTerm: 'Long-Term',
   airbnb: 'Airbnb',
   padSplit: 'PadSplit',
@@ -39,8 +40,8 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 
 const quickScanDetails: Record<StrategyKey, string[]> = {
   purchase: [
-    'Baseline acquisition assumptions and financing setup for all strategy models.',
-    'Use this as your foundation before choosing a strategy-specific operating plan.'
+    'Retail / strip-plaza underwriting built around leased square footage and annual $/sq ft rent.',
+    'Model vacancy, credit loss, and TI/leasing reserves so monthly NOI is conservative.'
   ],
   longTerm: [
     'Stable buy-and-hold model with lower operational churn.',
@@ -64,6 +65,81 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
   ]
 };
 
+type CommercialDigestKey =
+  | 'leased-sf'
+  | 'physical-occ'
+  | 'break-even-occ'
+  | 'debt-yield'
+  | 'annual-pgi'
+  | 'annual-egi'
+  | 'annual-opex'
+  | 'annual-noi'
+  | 'annual-debt'
+  | 'risk-drag';
+
+const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
+const defaultCommercialDigestOrder: CommercialDigestKey[] = [
+  'leased-sf',
+  'physical-occ',
+  'break-even-occ',
+  'debt-yield',
+  'annual-pgi',
+  'annual-egi',
+  'annual-opex',
+  'annual-noi',
+  'annual-debt',
+  'risk-drag'
+];
+const commercialDigestKeySet = new Set<CommercialDigestKey>(defaultCommercialDigestOrder);
+
+const normalizeCommercialDigestOrder = (value: unknown): CommercialDigestKey[] => {
+  const normalized: CommercialDigestKey[] = [];
+  const input = Array.isArray(value) ? value : [];
+
+  for (const rawKey of input) {
+    if (typeof rawKey !== 'string') continue;
+    const key = rawKey as CommercialDigestKey;
+    if (!commercialDigestKeySet.has(key)) continue;
+    if (normalized.includes(key)) continue;
+    normalized.push(key);
+  }
+
+  for (const fallbackKey of defaultCommercialDigestOrder) {
+    if (!normalized.includes(fallbackKey)) normalized.push(fallbackKey);
+  }
+
+  return normalized;
+};
+
+const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
+const onboardingSteps: OnboardingStep[] = [
+  {
+    id: 'vault',
+    title: 'Welcome to DealCooker',
+    body: 'Thanks for being here. This Deal Vault is where you save, rename, and reload scenarios quickly so every deal stays organized.'
+  },
+  {
+    id: 'signin',
+    title: 'Sign In for Cross-Device Workflow',
+    body: 'Use Sign in in the top-right to connect your account. Signed-in deals sync across devices and let you create shorter share links for cleaner handoffs.'
+  },
+  {
+    id: 'core',
+    title: 'Start with Core Inputs',
+    body: 'Begin in Core Purchase, Financing, & Expenses. These values feed every strategy, so one clean baseline drives all downstream comparisons.'
+  },
+  {
+    id: 'strategy',
+    title: 'Then Tune Each Strategy',
+    body: 'Tap a strategy tab, then edit Strategy Inputs for that exact plan. Each strategy keeps its own assumptions so you can compare outcomes side by side.'
+  },
+  {
+    id: 'irr',
+    title: 'Watch IRR for Long Holds',
+    body: 'IRR is one of the most useful long-term metrics for hold properties. It values both cash flow size and timing, which makes comparisons much more accurate.'
+  }
+];
+
 
 
 
@@ -73,6 +149,7 @@ const buildNewDealPayload = (dealName: string): DealInputModel => ({
     ...defaultDealInput.purchase,
     dealName
   },
+  commercial: { ...defaultDealInput.commercial },
   longTerm: { ...defaultDealInput.longTerm },
   airbnb: { ...defaultDealInput.airbnb },
   padSplit: { ...defaultDealInput.padSplit },
@@ -98,7 +175,7 @@ const initialActiveDeal = initialDeals[0];
 
 export default function HomePage() {
   const [model, setModel] = useState(initialActiveDeal?.payload ?? defaultDealInput);
-  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('longTerm');
+  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('purchase');
   const [deals, setDeals] = useState<ScenarioRecord[]>(initialDeals);
   const [activeDealId, setActiveDealId] = useState(initialActiveDeal?.scenarioId ?? '');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -111,8 +188,14 @@ export default function HomePage() {
     brrrr: true,
     flip: true
   });
+  const [commercialDigestOrder, setCommercialDigestOrder] = useState<CommercialDigestKey[]>(defaultCommercialDigestOrder);
+  const [isCommercialOrderEditorOpen, setIsCommercialOrderEditorOpen] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
-  const [mobileInputSheet, setMobileInputSheet] = useState<'core' | 'strategy' | null>(null);
+  const [mobileInputView, setMobileInputView] = useState<'core' | 'strategy'>('core');
+  const [isMobileCoreInputsMinimized, setIsMobileCoreInputsMinimized] = useState(false);
+  const [isMobileStrategyInputsMinimized, setIsMobileStrategyInputsMinimized] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
@@ -132,21 +215,78 @@ export default function HomePage() {
   const [baselineComplete, setBaselineCompleteState] = useState(false);
   const [baselineUpsertsCount, setBaselineUpsertsCount] = useState(0);
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
+  const dealVaultRef = useRef<HTMLDivElement | null>(null);
+  const authControlsRef = useRef<HTMLDivElement | null>(null);
+  const mobileCoreSectionRef = useRef<HTMLDivElement | null>(null);
+  const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
+  const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
+  const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
+  const irrMetricRef = useRef<HTMLDivElement | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
 
   const activeOutput = result[activeStrategy];
+  const commercialSummary = activeStrategy === 'purchase' ? activeOutput.commercialSummary : undefined;
+  const baseCommercialDigestItems = useMemo(() => {
+    if (!commercialSummary) return [];
+
+    return [
+      {
+        key: 'leased-sf' as CommercialDigestKey,
+        label: 'Leased SF',
+        value: `${commercialSummary.occupiedSqft.toLocaleString()} / ${commercialSummary.grossLeasableAreaSqft.toLocaleString()}`
+      },
+      { key: 'physical-occ' as CommercialDigestKey, label: 'Physical Occupancy', value: percentFormatter.format(commercialSummary.physicalOccupancyPercent) },
+      { key: 'break-even-occ' as CommercialDigestKey, label: 'Break-even Occupancy', value: percentFormatter.format(commercialSummary.breakEvenOccupancyPercent) },
+      { key: 'debt-yield' as CommercialDigestKey, label: 'Debt Yield', value: percentFormatter.format(commercialSummary.debtYield) },
+      { key: 'annual-pgi' as CommercialDigestKey, label: 'Annual Potential Gross', value: currencyFormatter.format(commercialSummary.annualPotentialGrossIncome) },
+      { key: 'annual-egi' as CommercialDigestKey, label: 'Annual Effective Gross', value: currencyFormatter.format(commercialSummary.annualEffectiveGrossIncome) },
+      { key: 'annual-opex' as CommercialDigestKey, label: 'Annual Operating Expenses', value: currencyFormatter.format(commercialSummary.annualOperatingExpenses) },
+      { key: 'annual-noi' as CommercialDigestKey, label: 'Annual NOI', value: currencyFormatter.format(commercialSummary.annualNoi) },
+      { key: 'annual-debt' as CommercialDigestKey, label: 'Annual Debt Service', value: currencyFormatter.format(commercialSummary.annualDebtService) },
+      {
+        key: 'risk-drag' as CommercialDigestKey,
+        label: 'Annual Vacancy + Credit Loss',
+        value: currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)
+      }
+    ];
+  }, [commercialSummary]);
+  const commercialDigestItems = useMemo(() => {
+    const lookup = new Map(baseCommercialDigestItems.map((item) => [item.key, item]));
+    return normalizeCommercialDigestOrder(commercialDigestOrder)
+      .map((key) => lookup.get(key))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [baseCommercialDigestItems, commercialDigestOrder]);
+  const mobileCommercialOutputDefaultCount = 4;
+  const mobileCommercialDigestItems = showAllCommercialMobileOutputs
+    ? commercialDigestItems
+    : commercialDigestItems.slice(0, mobileCommercialOutputDefaultCount);
+  const hasHiddenCommercialMobileOutputs = commercialDigestItems.length > mobileCommercialOutputDefaultCount;
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
   const isFlipStrategy = activeStrategy === 'flip';
-  const supportsReserveToggle = activeStrategy === 'longTerm' || activeStrategy === 'airbnb' || activeStrategy === 'padSplit' || activeStrategy === 'brrrr';
+  const supportsReserveToggle =
+    activeStrategy === 'purchase' ||
+    activeStrategy === 'longTerm' ||
+    activeStrategy === 'airbnb' ||
+    activeStrategy === 'padSplit' ||
+    activeStrategy === 'brrrr';
   const includeReserves = includeReservesByStrategy[activeStrategy];
   const priorityMetricValue = isFlipStrategy
     ? activeOutput.saleProceeds ?? 0
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
+  const priorityMetricTitle = isFlipStrategy ? 'Net Sale Proceeds' : 'Monthly Cash Flow';
+  const priorityMetricSubtitle =
+    activeStrategy === 'purchase'
+      ? 'Includes TI and leasing reserves for conservative strip-plaza underwriting'
+      : isFlipStrategy
+        ? 'Projected one-time proceeds after rehab, sale costs, and carry costs'
+        : 'Includes maintenance and CapEx reserves for a conservative monthly cash flow view';
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -179,6 +319,17 @@ export default function HomePage() {
       purchase.helocClosingCosts
     );
   }, [model]);
+
+  const moveCommercialDigestItem = (fromIndex: number, toIndex: number) => {
+    setCommercialDigestOrder((current) => {
+      const next = [...normalizeCommercialDigestOrder(current)];
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length) return next;
+
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
 
 
   const monthlyCashFlowChartSeries = useMemo(() => {
@@ -256,6 +407,61 @@ export default function HomePage() {
   const updateModel: Dispatch<SetStateAction<DealInputModel>> = (nextModel) => {
     if (activeDealId) setSaveStatus('saving');
     setModel(nextModel);
+  };
+
+  const handleStrategyChange = (nextStrategy: StrategyKey) => {
+    setActiveStrategy(nextStrategy);
+    setIsCommercialOrderEditorOpen(false);
+    setShowAllCommercialMobileOutputs(false);
+    if (isMobileViewport) {
+      setMobileInputView('strategy');
+      setIsMobileCoreInputsMinimized(false);
+      setIsMobileStrategyInputsMinimized(false);
+    }
+  };
+
+  const isElementVisible = (element: HTMLElement | null) => {
+    if (!element) return false;
+    if (typeof window === 'undefined') return true;
+
+    const styles = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return styles.display !== 'none' && styles.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+
+  const getFirstVisibleElement = (...elements: Array<HTMLElement | null>) => {
+    return elements.find((element) => isElementVisible(element)) ?? elements.find(Boolean) ?? null;
+  };
+
+  const resolveOnboardingTarget = () => {
+    const step = onboardingSteps[onboardingStepIndex];
+    if (!step) return null;
+
+    if (step.id === 'vault') return dealVaultRef.current;
+    if (step.id === 'signin') return authControlsRef.current;
+    if (step.id === 'core') return getFirstVisibleElement(mobileCoreSectionRef.current, desktopCoreSectionRef.current);
+    if (step.id === 'strategy') return getFirstVisibleElement(mobileStrategyTabsRef.current, desktopStrategyTabsRef.current);
+    return irrMetricRef.current;
+  };
+
+  const completeOnboarding = () => {
+    setIsOnboardingOpen(false);
+    setOnboardingStepIndex(0);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    }
+  };
+
+  const goToNextOnboardingStep = () => {
+    if (onboardingStepIndex >= onboardingSteps.length - 1) {
+      completeOnboarding();
+      return;
+    }
+    setOnboardingStepIndex((current) => current + 1);
+  };
+
+  const goToPreviousOnboardingStep = () => {
+    setOnboardingStepIndex((current) => Math.max(current - 1, 0));
   };
 
   useEffect(() => {
@@ -352,14 +558,97 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      setPrefersReducedMotion(false);
+      return;
+    }
+
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
     updateMotionPreference();
-    mediaQuery.addEventListener('change', updateMotionPreference);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updateMotionPreference);
+      return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+    }
 
-    return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+    mediaQuery.addListener(updateMotionPreference);
+    return () => mediaQuery.removeListener(updateMotionPreference);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (typeof window.matchMedia === 'function') {
+      const mediaQuery = window.matchMedia('(max-width: 767px)');
+      const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+      updateViewport();
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', updateViewport);
+        return () => mediaQuery.removeEventListener('change', updateViewport);
+      }
+
+      mediaQuery.addListener(updateViewport);
+      return () => mediaQuery.removeListener(updateViewport);
+    }
+
+    const updateViewport = () => setIsMobileViewport(window.innerWidth <= 767);
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return;
+    if (typeof window === 'undefined') return;
+
+    const hasSeenTutorial = window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1';
+    if (!hasSeenTutorial) {
+      setIsOnboardingOpen(true);
+      setOnboardingStepIndex(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOnboardingOpen) return;
+
+    const step = onboardingSteps[onboardingStepIndex];
+    if (!step) return;
+
+    if (step.id === 'core') {
+      setMobileInputView('core');
+      setIsMobileCoreInputsMinimized(false);
+    }
+
+    if (step.id === 'strategy') {
+      setMobileInputView('strategy');
+      setIsMobileCoreInputsMinimized(false);
+      setIsMobileStrategyInputsMinimized(false);
+    }
+
+    if (step.id === 'signin') {
+      setIsAuthMenuOpen(false);
+    }
+  }, [isOnboardingOpen, onboardingStepIndex]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      setCommercialDigestOrder(normalizeCommercialDigestOrder(parsed));
+    } catch {
+      // Ignore malformed local preference payloads.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY, JSON.stringify(normalizeCommercialDigestOrder(commercialDigestOrder)));
+  }, [commercialDigestOrder]);
 
   const getUnixTime = (timestamp: string) => {
     const parsed = Date.parse(timestamp);
@@ -970,8 +1259,8 @@ export default function HomePage() {
   );
 
   return (
-    <main className="app-shell-fade relative min-h-screen overflow-x-hidden px-4 py-6 md:px-8">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(49,121,185,0.25)_0%,rgba(49,121,185,0.1)_35%,transparent_70%)]" />
+    <main className="app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(244,150,58,0.28)_0%,rgba(115,150,202,0.12)_34%,transparent_72%)]" />
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
@@ -982,65 +1271,67 @@ export default function HomePage() {
                     <span className="brandDeal">Deal</span>
                     <span className="brandCooker">Cooker</span>
                   </h1>
-                  {currentUser ? (
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:text-[11px]">
-                        Cloud: Active
-                      </span>
-                      <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
-                        {profileImageUrl ? (
-                          <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
-                        )}
+                  <div ref={authControlsRef} className="shrink-0">
+                    {currentUser ? (
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:text-[11px]">
+                          Cloud: Active
+                        </span>
+                        <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+                          {profileImageUrl ? (
+                            <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={signOut}
+                          disabled={authBusy || !isSupabaseConfigured}
+                          className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                        >
+                          Sign out
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={signOut}
-                        disabled={authBusy || !isSupabaseConfigured}
-                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
-                      >
-                        Sign out
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsAuthMenuOpen((value) => !value)}
-                        aria-expanded={isAuthMenuOpen}
-                        aria-controls="auth-menu"
-                        className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
-                      >
-                        Sign in
-                      </button>
-                      {isAuthMenuOpen ? (
-                        <>
-                          <div id="auth-menu" className="absolute right-0 top-10 z-40 hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
-                            {authMenuContent}
-                          </div>
-                          <div className="fixed inset-0 z-50 bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
-                            <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
-                              <div className="mb-2 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => setIsAuthMenuOpen(false)}
-                                  className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
-                                >
-                                  Close
-                                </button>
-                              </div>
+                    ) : (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsAuthMenuOpen((value) => !value)}
+                          aria-expanded={isAuthMenuOpen}
+                          aria-controls="auth-menu"
+                          className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:text-xs"
+                        >
+                          Sign in
+                        </button>
+                        {isAuthMenuOpen ? (
+                          <>
+                            <div id="auth-menu" className="absolute right-0 top-10 z-40 hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
                               {authMenuContent}
                             </div>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                  )}
+                            <div className="fixed inset-0 z-50 bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
+                              <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                                <div className="mb-2 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsAuthMenuOpen(false)}
+                                    className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
+                                  >
+                                    Close
+                                  </button>
+                                </div>
+                                {authMenuContent}
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <p className="max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
-              <div className="w-full md:w-auto md:min-w-[420px] lg:min-w-[560px]">
+              <div className="w-full md:min-w-0 lg:max-w-[560px]">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1">
                     <div className="flex items-center justify-between gap-3">
@@ -1062,17 +1353,17 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="btn-primary inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    className="btn-primary inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                     target="_blank"
                   >
-                    Print View
+                    Print to PDF
                   </Link>
                   <button
                     type="button"
                     onClick={shareCurrentDeal}
-                    className="btn-primary min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    className="btn-primary min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                   >
-                    Share Link
+                    Send link
                   </button>
                 </div>
               </div>
@@ -1093,66 +1384,111 @@ export default function HomePage() {
             ) : null}
 
             {syncFeedback ? (
-              <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:text-sm" role="status">
+              <div className="fixed inset-x-3 bottom-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:inset-x-auto sm:right-4 sm:text-sm" role="status">
                 {syncFeedback}
               </div>
             ) : null}
 
-            <DealsVaultPanel
-              deals={deals}
-              activeDealId={activeDealId}
-              activeDealName={model.purchase.dealName}
-              saveStatus={saveStatus}
-              onActiveDealChange={openRecentScenario}
-              onSaveAs={saveDealAs}
-              onRename={renameDeal}
-              onCreateNew={createNewDeal}
-              onDelete={removeScenario}
-            />
+            <div ref={dealVaultRef}>
+              <DealsVaultPanel
+                deals={deals}
+                activeDealId={activeDealId}
+                activeDealName={model.purchase.dealName}
+                saveStatus={saveStatus}
+                onActiveDealChange={openRecentScenario}
+                onSaveAs={saveDealAs}
+                onRename={renameDeal}
+                onCreateNew={createNewDeal}
+                onDelete={removeScenario}
+              />
+            </div>
 
           </div>
         </header>
 
-        <section className="grid gap-2 md:hidden">
-          <StrategyTabs
-            active={activeStrategy}
-            onChange={setActiveStrategy}
-            quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
-          />
-          <p className="text-xs text-muted">Tap to select the strategy for your inputs.</p>
-          <div className="sticky top-2 z-30 -mx-1 rounded-xl border border-white/10 bg-surface/90 px-1 py-1 backdrop-blur">
-            <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
+        {isMobileViewport ? (
+          <section className="space-y-3">
+          <div ref={mobileStrategyTabsRef}>
+            <StrategyTabs
+              active={activeStrategy}
+              onChange={handleStrategyChange}
+              quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+            />
+          </div>
+          <div className="sticky top-2 z-30 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
+            <p className="text-xs uppercase tracking-wide text-muted">Input workspace</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
               <button
                 type="button"
-                onClick={() => setMobileInputSheet('core')}
-                className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+                onClick={() => {
+                  setMobileInputView('core');
+                  setIsMobileCoreInputsMinimized(false);
+                  setIsMobileStrategyInputsMinimized(false);
+                }}
+                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight transition ${
+                  mobileInputView === 'core' ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
+                }`}
               >
-                Core Deal Inputs
+                Core Purchase, Financing, & Expenses
               </button>
               <button
                 type="button"
-                onClick={() => setMobileInputSheet('strategy')}
-                className="btn-primary min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
+                onClick={() => {
+                  setMobileInputView('strategy');
+                  setIsMobileCoreInputsMinimized(false);
+                  setIsMobileStrategyInputsMinimized(false);
+                }}
+                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight transition ${
+                  mobileInputView === 'strategy' ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
+                }`}
               >
                 Strategy Inputs
               </button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticFeedback('light');
-              setIsStrategyWorkOpen(true);
-            }}
-            className="btn-primary tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight"
-          >
-            Show work
-          </button>
-        </section>
+          <div ref={mobileCoreSectionRef} className="space-y-2">
+            <p className="text-xs text-muted">
+              {mobileInputView === 'core' ? 'Core Purchase, Financing, & Expenses' : `${activeStrategyLabel} Strategy Inputs`}
+            </p>
+            {mobileInputView === 'core' ? (
+              <DealInputPanel
+                value={model}
+                onChange={updateModel}
+                resolveListingDealName={resolveListingDealName}
+                defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+                collapsible
+                collapsed={isMobileCoreInputsMinimized}
+                onToggleCollapsed={() => setIsMobileCoreInputsMinimized((prev) => !prev)}
+              />
+            ) : (
+              <StrategyModuleInputs
+                active={activeStrategy}
+                model={model}
+                onChange={updateModel}
+                collapsible
+                collapsed={isMobileStrategyInputsMinimized}
+                onToggleCollapsed={() => setIsMobileStrategyInputsMinimized((prev) => !prev)}
+              />
+            )}
+          </div>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setIsStrategyWorkOpen(true);
+              }}
+              className="btn-primary tap-feedback min-h-12 w-full max-w-sm rounded-xl px-4 py-3 text-base font-semibold leading-tight text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)]"
+            >
+              Show work
+            </button>
+          </div>
+          </section>
+        ) : null}
 
-        <section className="accent-edge rounded-2xl p-4 shadow-soft">
-          <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+        <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft">
+          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-2 lg:items-stretch">
+            <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                   <div
@@ -1166,7 +1502,7 @@ export default function HomePage() {
                   <svg
                     key={`cashflow-ribbon-${activeStrategy}-${cashFlowBarsAnimationKey}`}
                     viewBox="0 0 100 40"
-                    className="absolute inset-x-0 bottom-0 h-[42%] w-full"
+                    className="cashflow-ribbon-mask absolute inset-x-0 bottom-0 h-[42%] w-full"
                     preserveAspectRatio="none"
                   >
                     <defs>
@@ -1216,8 +1552,8 @@ export default function HomePage() {
                 </div>
               ) : null}
               <div className="relative z-10 pr-20">
-                <p className="text-xs uppercase tracking-[0.16em] text-accent">Monthly Cash Flow</p>
-                <p className="mt-1 text-sm text-muted">Includes maintenance and CapEx reserves for a conservative monthly cash flow view</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricTitle}</p>
+                <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p>
                 <p className="absolute right-0 top-0 text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
               </div>
 
@@ -1264,7 +1600,42 @@ export default function HomePage() {
               </div>
             </div>
 
-            <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+            {activeStrategy === 'purchase' && commercialSummary ? (
+              <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-accent">Commercial dashboard</p>
+                    <h3 className="text-base font-semibold">Pro underwriting signals</h3>
+                  </div>
+                  <div className="text-right text-[11px] text-muted">
+                    <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
+                    <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-100">
+                      {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-100">
+                      Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-100">
+                      {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+            )}
           </div>
         </section>
         <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
@@ -1288,69 +1659,150 @@ export default function HomePage() {
           <KpiCard
             label="Cap Rate"
             value={percentFormatter.format(activeOutput.capRate)}
-            helper="Annual NOI ÷ current property value"
+            helper="Annual NOI / current property value"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="Cash on Cash"
             value={percentFormatter.format(activeOutput.cashOnCashReturn)}
-            helper="Annual cash flow ÷ total cash invested"
+            helper="Annual cash flow / total cash invested"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="DSCR"
             value={activeOutput.dscr.toFixed(2)}
-            helper="NOI ÷ annual debt service"
+            helper="NOI / annual debt service"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="ROI"
             value={percentFormatter.format(activeOutput.roi)}
-            helper="Total profit ÷ total cash invested"
+            helper="Total profit / total cash invested"
             winner={activeStrategyLabel}
           />
-          <KpiCard
-            label="IRR"
-            value={percentFormatter.format(activeOutput.irr)}
-            helper="Discounted return from yearly cashflow timeline"
-            winner={activeStrategyLabel}
-            definitions={[
-              {
-                term: 'IRR (Internal Rate of Return)',
-                description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
-              },
-              {
-                term: 'Why it matters',
-                description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
-              }
-            ]}
-          />
-        </section>
-
-        <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
-          <div className="space-y-4">
-            <div className="hidden md:block">
-              <StrategyTabs
-                active={activeStrategy}
-                onChange={setActiveStrategy}
-                quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
-                actionSlot={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      setIsStrategyWorkOpen(true);
-                    }}
-                    className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
-                  >
-                    Show work
-                  </button>
+          <div ref={irrMetricRef} className="min-w-0 h-full [&>div]:h-full">
+            <KpiCard
+              label="IRR"
+              value={percentFormatter.format(activeOutput.irr)}
+              helper="Discounted return from yearly cashflow timeline"
+              winner={activeStrategyLabel}
+              definitions={[
+                {
+                  term: 'IRR (Internal Rate of Return)',
+                  description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
+                },
+                {
+                  term: 'Why it matters',
+                  description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
                 }
-              />
+              ]}
+            />
+          </div>
+        </section>
+        {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted">Commercial outputs</p>
+                <p className="hidden text-[11px] text-muted sm:block">Digest view for faster leasing and risk decisions</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCommercialOrderEditorOpen((prev) => !prev)}
+                className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+              >
+                {isCommercialOrderEditorOpen ? 'Done' : 'Reorder'}
+              </button>
             </div>
-            <section className="hidden grid gap-3 md:grid">
-              <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
-            </section>
+            {isCommercialOrderEditorOpen ? (
+              <div className="mb-2 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+                {commercialDigestItems.map((item, index) => (
+                  <div key={`order-${item.key}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                    <p className="truncate text-xs text-slate-200">
+                      {index + 1}. {item.label}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Move ${item.label} up`}
+                        onClick={() => moveCommercialDigestItem(index, index - 1)}
+                        disabled={index === 0}
+                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${item.label} down`}
+                        onClick={() => moveCommercialDigestItem(index, index + 1)}
+                        disabled={index === commercialDigestItems.length - 1}
+                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-1.5 sm:hidden">
+              {mobileCommercialDigestItems.map((item) => (
+                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5">
+                  <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
+                  <p className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100">{item.value}</p>
+                </article>
+              ))}
+            </div>
+            {hasHiddenCommercialMobileOutputs ? (
+              <button
+                type="button"
+                onClick={() => setShowAllCommercialMobileOutputs((prev) => !prev)}
+                className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+              >
+                {showAllCommercialMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
+              </button>
+            ) : null}
+
+            <div className="hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-5">
+              {commercialDigestItems.map((item) => (
+                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+                  <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-100">{item.value}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:grid-cols-[1.2fr_1fr]">
+          <div className="space-y-4">
+            {!isMobileViewport ? (
+              <div ref={desktopStrategyTabsRef}>
+                <StrategyTabs
+                  active={activeStrategy}
+                  onChange={handleStrategyChange}
+                  quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+                  actionSlot={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setIsStrategyWorkOpen(true);
+                      }}
+                      className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)]"
+                    >
+                      Show work
+                    </button>
+                  }
+                />
+              </div>
+            ) : null}
+            {!isMobileViewport ? (
+              <section className="grid gap-3">
+                <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
+              </section>
+            ) : null}
             <TimelineCard
               output={result[activeStrategy]}
               assumptions={model.assumptions}
@@ -1362,39 +1814,13 @@ export default function HomePage() {
             <StrategyComparison data={result} />
           </div>
 
-          <div className="hidden md:block">
-            <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
-          </div>
+          {!isMobileViewport ? (
+            <div ref={desktopCoreSectionRef}>
+              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
+            </div>
+          ) : null}
         </div>
       </div>
-      {mobileInputSheet ? (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Close inputs"
-            className="absolute inset-0 bg-black/70"
-            onClick={() => setMobileInputSheet(null)}
-          />
-          <div className="absolute inset-x-0 bottom-0 w-full max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-t-2xl border border-white/10 bg-surface p-3 pb-6 shadow-soft">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">{mobileInputSheet === "core" ? "Core Deal Inputs" : `${activeStrategyLabel} Strategy Inputs`}</p>
-              <button
-                type="button"
-                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted"
-                onClick={() => setMobileInputSheet(null)}
-              >
-                Done
-              </button>
-            </div>
-            {mobileInputSheet === "core" ? (
-              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
-            ) : (
-              <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
-            )}
-          </div>
-        </div>
-      ) : null}
-
       <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
@@ -1409,6 +1835,16 @@ export default function HomePage() {
         </p>
       </footer>
 
+      <OnboardingTour
+        open={isOnboardingOpen}
+        steps={onboardingSteps}
+        stepIndex={onboardingStepIndex}
+        getTargetElement={resolveOnboardingTarget}
+        onBack={goToPreviousOnboardingStep}
+        onNext={goToNextOnboardingStep}
+        onSkip={completeOnboarding}
+      />
+
       <StrategyWorkLightbox
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}
@@ -1418,3 +1854,6 @@ export default function HomePage() {
     </main>
   );
 }
+
+
+

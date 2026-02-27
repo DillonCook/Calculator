@@ -14,7 +14,7 @@ interface DealWorkoutCardProps {
 
 export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
-  const shouldShowInlinePriceCut = ['longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
+  const shouldShowInlinePriceCut = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const isCashDeal = model.purchase.financingType === 'cash';
   const [targetIrrInput, setTargetIrrInput] = useState('12');
 
@@ -63,7 +63,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
       : 'Set your target IRR to calculate the needed purchase price cut.';
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
+    <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <p className="text-xs uppercase tracking-wider text-accent">Make the deal work</p>
@@ -116,7 +116,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                       <p className="text-xs font-semibold text-slate-100">{scenario.title}</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => onApply(scenario)}
                       >
                         Apply this fix
@@ -127,7 +127,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                       <p className="text-xs font-semibold text-slate-100">Reduce Purchase Price</p>
                       <button
                         type="button"
-                        className="btn-primary min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix
@@ -148,7 +148,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                       />
                       <button
                         type="button"
-                        className="btn-primary min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
+                        className="btn-primary tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
                         onClick={applyTargetIrrPriceFix}
                       >
                         Apply this fix
@@ -160,7 +160,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="btn-primary min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
+                      className="btn-primary tap-feedback min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
                       onClick={() => onApply(scenario)}
                     >
                       Apply this fix

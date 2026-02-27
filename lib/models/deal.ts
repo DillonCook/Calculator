@@ -32,6 +32,9 @@ export interface PurchaseInputs {
   hoaMonthly: number;
   pmiMonthly: number;
   existingMortgageMonthly: number;
+  existingMortgageBalance: number;
+  existingMortgageRate: number;
+  existingMortgageRemainingYears: number;
   existingTaxMonthly: number;
   existingInsuranceMonthly: number;
 }
@@ -45,6 +48,21 @@ export interface LongTermInputs {
   capexPercent: number;
   managementFeePercent: number;
   ownerExpensesMonthly: number;
+}
+
+export interface CommercialInputs {
+  grossLeasableAreaSqft: number;
+  occupiedSqft: number;
+  averageBaseRentPerSqftYear: number;
+  nnnRecoveryPerSqftYear: number;
+  vacancyPercent: number;
+  creditLossPercent: number;
+  nonRecoverableExpensesPerSqftYear: number;
+  managementFeePercent: number;
+  tenantImprovementsReservePerSqftYear: number;
+  leasingCommissionsReservePerSqftYear: number;
+  annualRentGrowthPercent: number;
+  annualExpenseGrowthPercent: number;
 }
 
 export interface AirbnbInputs {
@@ -145,8 +163,27 @@ export interface MasterAssumptions {
   noiGrowthPercent: number;
 }
 
+export interface CommercialSummaryOutput {
+  grossLeasableAreaSqft: number;
+  occupiedSqft: number;
+  physicalOccupancyPercent: number;
+  averageBaseRentPerSqftYear: number;
+  nnnRecoveryPerSqftYear: number;
+  annualPotentialGrossIncome: number;
+  annualPhysicalVacancyLoss: number;
+  annualEconomicVacancyLoss: number;
+  annualCreditLoss: number;
+  annualEffectiveGrossIncome: number;
+  annualOperatingExpenses: number;
+  annualNoi: number;
+  annualDebtService: number;
+  debtYield: number;
+  breakEvenOccupancyPercent: number;
+}
+
 export interface DealInputModel {
   purchase: PurchaseInputs;
+  commercial: CommercialInputs;
   longTerm: LongTermInputs;
   airbnb: AirbnbInputs;
   padSplit: PadSplitInputs;
@@ -172,6 +209,7 @@ export interface StrategyOutput {
   saleProceeds?: number;
   cashFlowTimeline: number[];
   calculationBreakdown?: StrategyCalculationBreakdown;
+  commercialSummary?: CommercialSummaryOutput;
 }
 
 export interface MasterSummary {
@@ -229,8 +267,25 @@ export const defaultDealInput: DealInputModel = {
     hoaMonthly: 0,
     pmiMonthly: 0,
     existingMortgageMonthly: 0,
+    existingMortgageBalance: 0,
+    existingMortgageRate: 0.065,
+    existingMortgageRemainingYears: 25,
     existingTaxMonthly: 0,
     existingInsuranceMonthly: 0
+  },
+  commercial: {
+    grossLeasableAreaSqft: 9000,
+    occupiedSqft: 8100,
+    averageBaseRentPerSqftYear: 28,
+    nnnRecoveryPerSqftYear: 9,
+    vacancyPercent: 0.06,
+    creditLossPercent: 0.01,
+    nonRecoverableExpensesPerSqftYear: 4,
+    managementFeePercent: 0.03,
+    tenantImprovementsReservePerSqftYear: 0.8,
+    leasingCommissionsReservePerSqftYear: 0.7,
+    annualRentGrowthPercent: 0.03,
+    annualExpenseGrowthPercent: 0.025
   },
   longTerm: {
     grossRentMonthly: 0,

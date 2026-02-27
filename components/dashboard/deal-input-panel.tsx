@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
@@ -11,6 +11,9 @@ interface DealInputPanelProps {
   onChange: (next: DealInputModel) => void;
   resolveListingDealName?: (url: string) => Promise<string | null>;
   defaultAdvancedOptionsOpen?: boolean;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 const strategyLabels: Record<ExpenseStrategyKey, string> = {
@@ -20,7 +23,14 @@ const strategyLabels: Record<ExpenseStrategyKey, string> = {
   flip: 'Flip'
 };
 
-export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = true }: DealInputPanelProps) {
+export function DealInputPanel({
+  value,
+  onChange,
+  defaultAdvancedOptionsOpen = true,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapsed
+}: DealInputPanelProps) {
 
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     if (section === 'purchase' && field === 'purchasePrice') {
@@ -66,26 +76,43 @@ export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = t
   const autoTaxAnnual = value.purchase.purchasePrice * 0.017;
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
+  const isPanelCollapsed = collapsible && collapsed;
 
   return (
     <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
-      <div className="mb-3 sm:mb-4">
-        <h2 className="text-base font-semibold sm:text-lg">Core Deal Inputs</h2>
-      </div>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          className="tap-feedback mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+        >
+          <h2 className="text-base font-semibold sm:text-lg">Core Purchase, Financing, & Expenses</h2>
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            {collapsed ? '+' : '-'}
+          </span>
+        </button>
+      ) : (
+        <div className="mb-3 sm:mb-4">
+          <h2 className="text-base font-semibold sm:text-lg">Core Purchase, Financing, & Expenses</h2>
+        </div>
+      )}
 
-      <button
-        type="button"
-        aria-pressed={isOwnedMode}
-        onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
-        className={`mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
-          isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
-        }`}
-      >
-        {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
-      </button>
+      <div className="panel-collapse" data-open={!isPanelCollapsed}>
+        <div className="panel-collapse-inner">
+          <button
+            type="button"
+            aria-pressed={isOwnedMode}
+            onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
+            className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
+              isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
+            }`}
+          >
+            {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
+          </button>
 
-      <div className="space-y-2.5 sm:space-y-3">
-        <Section title="Core Inputs · Purchase & Financing" defaultOpen>
+          <div className="space-y-2.5 sm:space-y-3">
+        <Section title="Acquisition and Financing" defaultOpen>
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
             <Input label="Deal name" value={value.purchase.dealName} onChange={(v) => update('purchase', 'dealName', v)} />
             <div className="sm:col-span-2">
@@ -131,6 +158,23 @@ export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = t
                   type="number"
                   value={value.purchase.existingMortgageMonthly}
                   onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
+                />
+                <Input
+                  label="Existing mortgage balance"
+                  type="number"
+                  value={value.purchase.existingMortgageBalance}
+                  onChange={(v) => update('purchase', 'existingMortgageBalance', Number(v))}
+                />
+                <PercentInput
+                  label="Existing mortgage rate %"
+                  value={value.purchase.existingMortgageRate}
+                  onChange={(v) => update('purchase', 'existingMortgageRate', v)}
+                />
+                <Input
+                  label="Existing mortgage term left (years)"
+                  type="number"
+                  value={value.purchase.existingMortgageRemainingYears}
+                  onChange={(v) => update('purchase', 'existingMortgageRemainingYears', Number(v))}
                 />
                 <Input
                   label="Property tax / month"
@@ -199,7 +243,7 @@ export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = t
           </div>
         </Section>
 
-        <Section title="Core Inputs · Variable Expense Matrix" defaultOpen>
+        <Section title="Variable Expense Matrix" defaultOpen>
           <div className="mb-2 hidden grid-cols-[1.2fr_120px_1fr] gap-2 px-2 text-[11px] uppercase tracking-wider text-muted sm:grid">
             <span>Expense</span>
             <span>Amount / mo</span>
@@ -247,16 +291,36 @@ export function DealInputPanel({ value, onChange, defaultAdvancedOptionsOpen = t
             ))}
           </div>
         </Section>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
+
   return (
-    <details className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3" open={defaultOpen}>
-      <summary className="cursor-pointer list-none text-xs font-medium text-white sm:text-sm">{title}</summary>
-      <div className="mt-2 sm:mt-3">{children}</div>
-    </details>
+    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        className="tap-feedback flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm"
+      >
+        <span>{title}</span>
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/20 px-1.5 text-xs font-semibold text-slate-200 transition-transform duration-200">
+          {isOpen ? '-' : '+'}
+        </span>
+      </button>
+      <div className="panel-collapse mt-2 sm:mt-3" data-open={isOpen}>
+        <div className="panel-collapse-inner">{children}</div>
+      </div>
+    </section>
   );
 }

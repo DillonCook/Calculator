@@ -25,10 +25,15 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
   }, [assumptions.holdYears, isHoldYearsFocused]);
 
   return (
-    <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5" open={isOpen}>
-      <summary
-        className="mb-4 flex cursor-pointer list-none flex-wrap items-start justify-between gap-3"
-        onClick={(event) => {
+    <section className="min-w-0 max-w-full overflow-visible rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        className={`tap-feedback flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${isOpen ? 'mb-4' : 'mb-0'}`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
           event.preventDefault();
           setIsOpen((prev) => !prev);
         }}
@@ -37,17 +42,19 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
           <p className="text-xs uppercase tracking-wider text-muted">Cash Flow Timeline</p>
           <h3 className="text-lg font-semibold sm:text-xl">IRR Stream</h3>
         </div>
-        <div className="relative shrink-0 self-start">
+        <div className="relative flex shrink-0 items-center gap-2 self-start">
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            {isOpen ? '-' : '+'}
+          </span>
           <button
             type="button"
             aria-label="IRR stream explanation"
             aria-expanded={isIrrTooltipOpen}
             onClick={(event) => {
-              event.preventDefault();
               event.stopPropagation();
               setIsIrrTooltipOpen((prev) => !prev);
             }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted opacity-85 transition hover:border-accent/70 hover:text-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            className="tap-feedback inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted opacity-85 transition hover:border-accent/70 hover:text-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           >
             i
           </button>
@@ -57,21 +64,19 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
               <button
                 type="button"
                 aria-label="Close tooltip"
-                className="fixed inset-0 z-20 bg-black/45 sm:hidden"
+                className="fixed inset-0 z-[65] bg-black/45 sm:hidden"
                 onClick={(event) => {
-                  event.preventDefault();
                   event.stopPropagation();
                   setIsIrrTooltipOpen(false);
                 }}
               />
-              <div className="fixed left-1/2 top-1/2 z-30 w-[min(92vw,340px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs leading-relaxed text-slate-100 shadow-soft sm:absolute sm:right-0 sm:top-7 sm:w-[300px] sm:translate-x-0 sm:translate-y-0 sm:rounded-lg sm:bg-[#0A1326] sm:p-3">
+              <div className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,340px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs leading-relaxed text-slate-100 shadow-soft sm:absolute sm:right-0 sm:top-7 sm:w-[300px] sm:translate-x-0 sm:translate-y-0 sm:rounded-lg sm:bg-[#0A1326] sm:p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
                   <button
                     type="button"
-                    className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                    className="tap-feedback rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
                     onClick={(event) => {
-                      event.preventDefault();
                       event.stopPropagation();
                       setIsIrrTooltipOpen(false);
                     }}
@@ -87,9 +92,11 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             </>
           ) : null}
         </div>
-      </summary>
+      </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="panel-collapse" data-open={isOpen}>
+        <div className="panel-collapse-inner">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="space-y-1">
           <span className="text-xs text-muted">Hold years</span>
           <input
@@ -144,7 +151,9 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
           </div>
         ))}
       </div>
-    </details>
+        </div>
+      </div>
+    </section>
   );
 }
 

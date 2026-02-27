@@ -5,6 +5,7 @@ import type { DealResult } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 
 const rows: { key: keyof Omit<DealResult, 'masterSummary'>; label: string }[] = [
+  { key: 'purchase', label: 'Commercial' },
   { key: 'longTerm', label: 'Long-Term Rental' },
   { key: 'airbnb', label: 'Airbnb / STR' },
   { key: 'padSplit', label: 'PadSplit' },
@@ -72,38 +73,42 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
 
   return (
     <>
-      <details className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5" open={isBoardOpen}>
-        <summary
-          className="mb-4 flex cursor-pointer list-none flex-wrap items-center justify-between gap-3"
-          onClick={(event) => {
-            event.preventDefault();
-            setIsBoardOpen((prev) => !prev);
-          }}
+      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+        <button
+          type="button"
+          aria-expanded={isBoardOpen}
+          className={`tap-feedback flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
+          onClick={() => setIsBoardOpen((prev) => !prev)}
         >
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
             <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
           </div>
-        </summary>
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            {isBoardOpen ? '-' : '+'}
+          </span>
+        </button>
 
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="panel-collapse" data-open={isBoardOpen}>
+          <div className="panel-collapse-inner">
+            <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveModal('equity')}
-            className="rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
+            className="tap-feedback rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
           >
             Equity modeling
           </button>
           <button
             type="button"
             onClick={() => setActiveModal('cashflow')}
-            className="rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
+            className="tap-feedback rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
           >
             Cash flow modeling
           </button>
-        </div>
+            </div>
 
-        <div className="space-y-3">
+            <div className="space-y-3">
           {rows.map((row) => {
             const output = data[row.key];
             const barWidth = maxCashFlow === 0 ? 0 : Math.max((output.monthlyCashFlow / maxCashFlow) * 100, -100);
@@ -145,8 +150,10 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               </div>
             );
           })}
+            </div>
+          </div>
         </div>
-      </details>
+      </section>
 
       {activeModal === 'equity' ? (
         <div
@@ -165,7 +172,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
+                className="tap-feedback rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
               >
                 Close
               </button>
@@ -231,7 +238,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
+                className="tap-feedback rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
               >
                 Close
               </button>

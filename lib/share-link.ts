@@ -44,6 +44,7 @@ const normalizeDealInput = (value: unknown): DealInputModel | null => {
   if (!isRecord(value)) return null;
 
   const purchase = isRecord(value.purchase) ? value.purchase : {};
+  const commercial = isRecord(value.commercial) ? value.commercial : {};
   const longTerm = isRecord(value.longTerm) ? value.longTerm : {};
   const airbnb = isRecord(value.airbnb) ? value.airbnb : {};
   const padSplit = isRecord(value.padSplit) ? value.padSplit : {};
@@ -61,6 +62,7 @@ const normalizeDealInput = (value: unknown): DealInputModel | null => {
       amortizationType: purchase.amortizationType === 'IO' ? 'IO' : 'PI',
       helocAmortizationType: purchase.helocAmortizationType === 'IO' ? 'IO' : 'PI'
     },
+    commercial: { ...defaultDealInput.commercial, ...commercial },
     longTerm: { ...defaultDealInput.longTerm, ...longTerm },
     airbnb: { ...defaultDealInput.airbnb, ...airbnb },
     padSplit: { ...defaultDealInput.padSplit, ...padSplit },

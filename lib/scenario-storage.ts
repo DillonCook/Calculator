@@ -17,6 +17,7 @@ const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
           ? 'loan'
           : (payload.purchase?.financingType ?? defaultDealInput.purchase.financingType)
     },
+    commercial: { ...defaultDealInput.commercial, ...payload.commercial },
     longTerm: { ...defaultDealInput.longTerm, ...payload.longTerm },
     airbnb: { ...defaultDealInput.airbnb, ...payload.airbnb },
     padSplit: { ...defaultDealInput.padSplit, ...payload.padSplit },

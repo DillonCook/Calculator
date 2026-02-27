@@ -1,4 +1,5 @@
 import type { DealInputModel, DealResult } from '@/lib/models/deal';
+import { calculateCashToClose } from '@/lib/engine/finance';
 import {
   calculateAirbnbStrategy,
   calculateBrrrrStrategy,
@@ -21,6 +22,7 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
   const flip = calculateFlipStrategy(input, purchase.totalCashNeeded);
 
   const strategyCashFlows = [
+    purchase.monthlyCashFlow,
     longTerm.monthlyCashFlow,
     airbnb.monthlyCashFlow,
     padSplit.monthlyCashFlow,
@@ -29,18 +31,33 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
   ];
   const bestMonthlyCashFlow = Math.max(...strategyCashFlows);
 
+  const cashToClose =
+    input.purchase.ownershipMode === 'owned'
+      ? Math.max(input.purchase.helocClosingCosts, 0)
+      : calculateCashToClose(
+          input.purchase.purchasePrice,
+          0,
+          input.purchase.downPaymentPercent,
+          input.purchase.closingCostPercent,
+          input.purchase.pointsPercent,
+          input.purchase.financingType,
+          input.purchase.helocAmount,
+          input.purchase.helocClosingCosts
+        );
+
   const summary = {
-    cashToClose: purchase.totalCashNeeded,
+    cashToClose,
     monthlyCashFlow: bestMonthlyCashFlow,
     cashOnCashReturn: Math.max(
+      purchase.cashOnCashReturn,
       longTerm.cashOnCashReturn,
       airbnb.cashOnCashReturn,
       padSplit.cashOnCashReturn,
       brrrr.cashOnCashReturn,
       flip.cashOnCashReturn
     ),
-    roi: Math.max(longTerm.roi, airbnb.roi, padSplit.roi, brrrr.roi, flip.roi),
-    irr: Math.max(longTerm.irr, airbnb.irr, padSplit.irr, brrrr.irr, flip.irr)
+    roi: Math.max(purchase.roi, longTerm.roi, airbnb.roi, padSplit.roi, brrrr.roi, flip.roi),
+    irr: Math.max(purchase.irr, longTerm.irr, airbnb.irr, padSplit.irr, brrrr.irr, flip.irr)
   };
 
   return {

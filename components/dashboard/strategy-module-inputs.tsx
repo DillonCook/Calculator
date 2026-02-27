@@ -7,19 +7,107 @@ interface StrategyModuleInputsProps {
   active: StrategyKey;
   model: DealInputModel;
   onChange: (next: DealInputModel) => void;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
-export function StrategyModuleInputs({ active, model, onChange }: StrategyModuleInputsProps) {
+export function StrategyModuleInputs({
+  active,
+  model,
+  onChange,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapsed
+}: StrategyModuleInputsProps) {
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     onChange({ ...model, [section]: { ...model[section], [field]: nextValue } });
   };
+  const commercialOccupancyPercent =
+    model.commercial.grossLeasableAreaSqft > 0
+      ? (Math.min(model.commercial.occupiedSqft, model.commercial.grossLeasableAreaSqft) / model.commercial.grossLeasableAreaSqft) * 100
+      : 0;
 
   const renderContent = () => {
     if (active === 'purchase') {
       return (
-        <p className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted">
-          Shared purchase assumptions live in Core Deal Inputs. Each strategy tab now has its own ARV so you can underwrite different exit plans quickly.
-        </p>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted">
+            <p>Underwrite retail and strip-plaza deals with leased sq ft and annual $/sq ft rents.</p>
+            <p className="mt-1 text-xs text-slate-300">
+              Physical occupancy by leased area: <span className="font-semibold text-emerald-300">{commercialOccupancyPercent.toFixed(1)}%</span>
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Gross leasable area (sq ft)"
+              type="number"
+              value={model.commercial.grossLeasableAreaSqft}
+              onChange={(v) => update('commercial', 'grossLeasableAreaSqft', Number(v))}
+            />
+            <Input
+              label="Leased area (sq ft)"
+              type="number"
+              value={model.commercial.occupiedSqft}
+              onChange={(v) => update('commercial', 'occupiedSqft', Number(v))}
+            />
+            <Input
+              label="Base rent ($/sq ft/year)"
+              type="number"
+              value={model.commercial.averageBaseRentPerSqftYear}
+              onChange={(v) => update('commercial', 'averageBaseRentPerSqftYear', Number(v))}
+            />
+            <Input
+              label="NNN reimbursements ($/sq ft/year)"
+              type="number"
+              value={model.commercial.nnnRecoveryPerSqftYear}
+              onChange={(v) => update('commercial', 'nnnRecoveryPerSqftYear', Number(v))}
+            />
+            <PercentInput
+              label="Vacancy reserve %"
+              value={model.commercial.vacancyPercent}
+              onChange={(v) => update('commercial', 'vacancyPercent', v)}
+            />
+            <PercentInput
+              label="Credit loss reserve %"
+              value={model.commercial.creditLossPercent}
+              onChange={(v) => update('commercial', 'creditLossPercent', v)}
+            />
+            <Input
+              label="Non-recoverable OpEx ($/sq ft/year)"
+              type="number"
+              value={model.commercial.nonRecoverableExpensesPerSqftYear}
+              onChange={(v) => update('commercial', 'nonRecoverableExpensesPerSqftYear', Number(v))}
+            />
+            <PercentInput
+              label="Management fee %"
+              value={model.commercial.managementFeePercent}
+              onChange={(v) => update('commercial', 'managementFeePercent', v)}
+            />
+            <Input
+              label="TI reserve ($/sq ft/year)"
+              type="number"
+              value={model.commercial.tenantImprovementsReservePerSqftYear}
+              onChange={(v) => update('commercial', 'tenantImprovementsReservePerSqftYear', Number(v))}
+            />
+            <Input
+              label="Leasing reserve ($/sq ft/year)"
+              type="number"
+              value={model.commercial.leasingCommissionsReservePerSqftYear}
+              onChange={(v) => update('commercial', 'leasingCommissionsReservePerSqftYear', Number(v))}
+            />
+            <PercentInput
+              label="Commercial rent growth %"
+              value={model.commercial.annualRentGrowthPercent}
+              onChange={(v) => update('commercial', 'annualRentGrowthPercent', v)}
+            />
+            <PercentInput
+              label="Commercial expense growth %"
+              value={model.commercial.annualExpenseGrowthPercent}
+              onChange={(v) => update('commercial', 'annualExpenseGrowthPercent', v)}
+            />
+          </div>
+        </div>
       );
     }
 
@@ -127,14 +215,34 @@ export function StrategyModuleInputs({ active, model, onChange }: StrategyModule
   };
 
   return (
-    <section className="rounded-2xl panel-surface p-5 shadow-soft">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-base font-semibold">Strategy Inputs</h3>
-        <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-muted">Updates results instantly</span>
+    <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          className="tap-feedback mb-2 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+        >
+          <h3 className="text-base font-semibold">Strategy Inputs</h3>
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            {collapsed ? '+' : '-'}
+          </span>
+        </button>
+      ) : (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="text-base font-semibold">Strategy Inputs</h3>
+          <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-muted">Updates results instantly</span>
+        </div>
+      )}
+
+      <div className="panel-collapse" data-open={!collapsed}>
+        <div className="panel-collapse-inner">
+          <div key={active} className="panel-swap">
+            {renderContent()}
+          </div>
+        </div>
       </div>
-
-
-      {renderContent()}
     </section>
   );
 }
+

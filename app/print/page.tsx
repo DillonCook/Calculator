@@ -8,11 +8,11 @@ interface PrintPageProps {
   searchParams: Promise<{ scenario?: string; strategy?: string }>;
 }
 
-const printableStrategies: StrategyKey[] = ['longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+const printableStrategies: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
 
-const parseStrategy = (value?: string): Exclude<StrategyKey, 'purchase'> => {
-  if (!value) return 'longTerm';
-  return (printableStrategies.includes(value as StrategyKey) ? value : 'longTerm') as Exclude<StrategyKey, 'purchase'>;
+const parseStrategy = (value?: string): StrategyKey => {
+  if (!value) return 'purchase';
+  return printableStrategies.includes(value as StrategyKey) ? (value as StrategyKey) : 'purchase';
 };
 
 export default async function PrintPage({ searchParams }: PrintPageProps) {

@@ -111,6 +111,71 @@ test('purchase cash-to-close uses loan points on loan amount (not purchase price
   near(result.purchase.totalCashNeeded, expected);
 });
 
+test('master summary cash-to-close excludes rehab and one-time setup costs', () => {
+  const result = calculateDeal(defaultDealInput);
+  const p = defaultDealInput.purchase;
+  const loanAmount = p.purchasePrice * (1 - p.downPaymentPercent);
+  const expectedCashToClose =
+    p.purchasePrice * p.downPaymentPercent +
+    p.purchasePrice * p.closingCostPercent +
+    loanAmount * p.pointsPercent +
+    p.helocClosingCosts;
+
+  near(result.masterSummary.cashToClose, expectedCashToClose);
+});
+
+test('commercial strategy uses leased sq ft and $/sq ft assumptions for NOI and cash flow', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 1000000,
+      arv: 1200000,
+      downPaymentPercent: 0.25,
+      interestRate: 0.07,
+      loanTermYears: 25
+    },
+    commercial: {
+      ...defaultDealInput.commercial,
+      grossLeasableAreaSqft: 12000,
+      occupiedSqft: 10200,
+      averageBaseRentPerSqftYear: 24,
+      nnnRecoveryPerSqftYear: 8,
+      vacancyPercent: 0.05,
+      creditLossPercent: 0.01,
+      nonRecoverableExpensesPerSqftYear: 4.5,
+      managementFeePercent: 0.03,
+      tenantImprovementsReservePerSqftYear: 0.9,
+      leasingCommissionsReservePerSqftYear: 0.75
+    }
+  };
+
+  const result = calculateDeal(model);
+  const c = model.commercial;
+  const occupiedSqft = Math.min(c.occupiedSqft, c.grossLeasableAreaSqft);
+  const grossRevenueMonthly = (occupiedSqft * c.averageBaseRentPerSqftYear + occupiedSqft * c.nnnRecoveryPerSqftYear) / 12;
+  const vacancyLossMonthly = grossRevenueMonthly * c.vacancyPercent;
+  const creditLossMonthly = grossRevenueMonthly * c.creditLossPercent;
+  const effectiveGrossMonthly = grossRevenueMonthly - vacancyLossMonthly - creditLossMonthly;
+  const managementFeeMonthly = effectiveGrossMonthly * c.managementFeePercent;
+  const nonRecoverableMonthly = (c.grossLeasableAreaSqft * c.nonRecoverableExpensesPerSqftYear) / 12;
+  const tiReserveMonthly = (c.grossLeasableAreaSqft * c.tenantImprovementsReservePerSqftYear) / 12;
+  const leasingReserveMonthly = (c.grossLeasableAreaSqft * c.leasingCommissionsReservePerSqftYear) / 12;
+  const noi =
+    effectiveGrossMonthly -
+    managementFeeMonthly -
+    nonRecoverableMonthly -
+    tiReserveMonthly -
+    leasingReserveMonthly -
+    fixedCostsMonthly(model);
+  const debt = calculateMonthlyPayment(calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent), model.purchase.interestRate, model.purchase.loanTermYears);
+
+  near(result.purchase.noiMonthly ?? 0, noi, 0.01);
+  near(result.purchase.monthlyCashFlow, noi - debt, 0.01);
+  near(result.purchase.monthlyCashFlowExcludingReserves ?? 0, noi - debt + tiReserveMonthly + leasingReserveMonthly, 0.01);
+  assert.ok(result.purchase.calculationBreakdown?.lines.some((line) => line.key === 'comm-base-rent'));
+});
+
 test('long-term module includes base fixed and variable expenses', () => {
   const result = calculateDeal(defaultDealInput);
   const p = defaultDealInput.purchase;

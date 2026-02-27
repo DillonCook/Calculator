@@ -4,7 +4,7 @@ import type { StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@
 import { currencyFormatter } from '@/lib/formatters';
 
 const strategyLabels: Record<StrategyKey, string> = {
-  purchase: 'Purchase',
+  purchase: 'Commercial',
   longTerm: 'Long-Term',
   airbnb: 'Airbnb / STR',
   padSplit: 'PadSplit',
@@ -20,10 +20,10 @@ interface StrategyWorkLightboxProps {
 }
 
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
-  <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:text-sm">
+  <div className="grid grid-cols-1 gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:grid-cols-[1.2fr_1fr_1fr] sm:gap-2 sm:text-sm">
     <p className="text-slate-100">{line.label}</p>
-    <p className={`text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(line.monthly)}</p>
-    <p className={`text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(line.annual)}</p>
+    <p className={`text-left sm:text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>Monthly: {currencyFormatter.format(line.monthly)}</p>
+    <p className={`text-left sm:text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>Annual: {currencyFormatter.format(line.annual)}</p>
   </div>
 );
 
@@ -139,7 +139,7 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
               <FlipFinancials breakdown={breakdown} />
             ) : (
               <div className="space-y-2">
-                <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 px-3 text-[11px] uppercase tracking-wide text-muted">
+                <div className="hidden grid-cols-[1.2fr_1fr_1fr] gap-2 px-3 text-[11px] uppercase tracking-wide text-muted sm:grid">
                   <p>Line item</p>
                   <p className="text-right">Monthly</p>
                   <p className="text-right">Annual</p>

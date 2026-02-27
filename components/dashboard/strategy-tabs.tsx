@@ -4,7 +4,7 @@ import type { StrategyKey } from '@/lib/models/deal';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 const strategies: { key: StrategyKey; label: string }[] = [
-  { key: 'purchase', label: 'Purchase' },
+  { key: 'purchase', label: 'Commercial' },
   { key: 'longTerm', label: 'Long-Term' },
   { key: 'airbnb', label: 'Airbnb' },
   { key: 'padSplit', label: 'PadSplit' },
@@ -24,7 +24,7 @@ interface StrategyTabsProps {
 }
 
 const QuickScanPanel = ({ quickScan }: { quickScan: NonNullable<StrategyTabsProps['quickScan']> }) => (
-  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+  <div className="panel-swap rounded-xl border border-white/10 bg-white/[0.03] p-3">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <p className="text-[11px] uppercase tracking-wide text-muted">Quick scan</p>
@@ -46,15 +46,17 @@ const QuickScanPanel = ({ quickScan }: { quickScan: NonNullable<StrategyTabsProp
 export function StrategyTabs({ active, onChange, quickScan, actionSlot }: StrategyTabsProps) {
   return (
     <div className="space-y-2">
-      {quickScan ? <div className="md:hidden"><QuickScanPanel quickScan={quickScan} /></div> : null}
+      {quickScan ? <div key={`quick-scan-mobile-${quickScan.title}`} className="md:hidden"><QuickScanPanel quickScan={quickScan} /></div> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {strategies.map((strategy) => (
             <button
               key={strategy.key}
-              className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out sm:w-auto ${
-                active === strategy.key ? 'accent-edge text-white' : 'bg-white/5 text-muted hover:bg-white/12'
+              className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:w-auto ${
+                active === strategy.key
+                  ? 'accent-edge text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] sm:-translate-y-[1px]'
+                  : 'border border-white/10 bg-white/5 text-muted hover:bg-white/12'
               }`}
               onClick={() => {
                 triggerHapticFeedback('light');
@@ -69,7 +71,7 @@ export function StrategyTabs({ active, onChange, quickScan, actionSlot }: Strate
         {actionSlot ? <div className="shrink-0 self-start">{actionSlot}</div> : null}
       </div>
 
-      {quickScan ? <div className="hidden md:block"><QuickScanPanel quickScan={quickScan} /></div> : null}
+      {quickScan ? <div key={`quick-scan-desktop-${quickScan.title}`} className="hidden md:block"><QuickScanPanel quickScan={quickScan} /></div> : null}
     </div>
   );
 }
