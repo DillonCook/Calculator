@@ -40,7 +40,7 @@ const normalizeVariableExpenses = (value: unknown): DealInputModel['variableExpe
     });
 };
 
-const normalizeDealInput = (value: unknown): DealInputModel | null => {
+export const normalizeDealInput = (value: unknown): DealInputModel | null => {
   if (!isRecord(value)) return null;
 
   const purchase = isRecord(value.purchase) ? value.purchase : {};

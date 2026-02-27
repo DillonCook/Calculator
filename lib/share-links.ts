@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import type { DealInputModel } from '@/lib/models/deal';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const SHARES_TABLE = 'shares';
 const SLUG_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -10,6 +11,8 @@ export interface ShareLinkRecord {
   payload_snapshot: DealInputModel;
   expires_at: string;
 }
+
+type ShareClient = Pick<SupabaseClient, 'from'>;
 
 const generateSlug = () => {
   const values = new Uint8Array(SLUG_LENGTH);
@@ -27,8 +30,8 @@ export const createShortShareLink = async (params: {
   ownerId: string;
   scenarioId?: string;
   payloadSnapshot: DealInputModel;
-}): Promise<{ slug: string; error: unknown | null }> => {
-  const supabase = getSupabaseClient();
+}, clientOverride?: ShareClient | null): Promise<{ slug: string; error: unknown | null }> => {
+  const supabase = clientOverride ?? getSupabaseClient();
   if (!supabase) {
     return { slug: '', error: new Error('Supabase is not configured.') };
   }

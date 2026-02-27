@@ -135,8 +135,8 @@ const onboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'irr',
-    title: 'Watch IRR for Long Holds',
-    body: 'IRR is one of the most useful long-term metrics for hold properties. It values both cash flow size and timing, which makes comparisons much more accurate.'
+    title: 'Use the IRR Stream',
+    body: 'IRR factors in how long owners hold a property and the exit proceeds at sale. That gives you a true apples-to-apples comparison against other deals with different timelines.'
   }
 ];
 
@@ -223,7 +223,7 @@ export default function HomePage() {
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
-  const irrMetricRef = useRef<HTMLDivElement | null>(null);
+  const irrStreamRef = useRef<HTMLDivElement | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -441,7 +441,7 @@ export default function HomePage() {
     if (step.id === 'signin') return authControlsRef.current;
     if (step.id === 'core') return getFirstVisibleElement(mobileCoreSectionRef.current, desktopCoreSectionRef.current);
     if (step.id === 'strategy') return getFirstVisibleElement(mobileStrategyTabsRef.current, desktopStrategyTabsRef.current);
-    return irrMetricRef.current;
+    return irrStreamRef.current;
   };
 
   const completeOnboarding = () => {
@@ -630,7 +630,19 @@ export default function HomePage() {
     if (step.id === 'signin') {
       setIsAuthMenuOpen(false);
     }
-  }, [isOnboardingOpen, onboardingStepIndex]);
+
+    if (step.id === 'irr') {
+      const frame = window.requestAnimationFrame(() => {
+        irrStreamRef.current?.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      });
+
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [isOnboardingOpen, onboardingStepIndex, prefersReducedMotion]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1680,7 +1692,7 @@ export default function HomePage() {
             helper="Total profit / total cash invested"
             winner={activeStrategyLabel}
           />
-          <div ref={irrMetricRef} className="min-w-0 h-full [&>div]:h-full">
+          <div className="min-w-0 h-full [&>div]:h-full">
             <KpiCard
               label="IRR"
               value={percentFormatter.format(activeOutput.irr)}
@@ -1803,14 +1815,16 @@ export default function HomePage() {
                 <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
               </section>
             ) : null}
-            <TimelineCard
-              output={result[activeStrategy]}
-              assumptions={model.assumptions}
-              defaultOpen={Boolean(activeDealId)}
-              onAssumptionsChange={(updates) =>
-                updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
-              }
-            />
+            <div ref={irrStreamRef}>
+              <TimelineCard
+                output={result[activeStrategy]}
+                assumptions={model.assumptions}
+                defaultOpen={Boolean(activeDealId)}
+                onAssumptionsChange={(updates) =>
+                  updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
+                }
+              />
+            </div>
             <StrategyComparison data={result} />
           </div>
 

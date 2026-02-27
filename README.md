@@ -74,6 +74,35 @@ npm run lint
 npm run build
 ```
 
+## Open Claw Backend Access (Deal + Short Link)
+
+Use this endpoint when an external tool (like Open Claw) needs to run a deal through the engine and create a short share link without browser login.
+
+- `POST /api/openclaw/deal`
+- Auth header: `x-openclaw-key: <OPENCLAW_API_KEY>` (or `Authorization: Bearer <OPENCLAW_API_KEY>`)
+- Required env vars:
+  - `OPENCLAW_API_KEY`
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `OPENCLAW_OWNER_USER_ID` (optional if you send `ownerId` in the request body)
+
+Example request:
+
+```bash
+curl -X POST http://localhost:3000/api/openclaw/deal \
+  -H "Content-Type: application/json" \
+  -H "x-openclaw-key: your-secret-key" \
+  -d '{
+    "deal": { "purchase": { "dealName": "Open Claw Deal" } },
+    "strategy": "purchase",
+    "createShortLink": true
+  }'
+```
+
+Notes:
+- Send a full `deal` payload for precise calculations.
+- If `createShortLink` is enabled, the route returns a `/s/{slug}` URL in `shortLink.url`.
+
 ## Legal baseline included
 
 - Proprietary `LICENSE` with all-rights-reserved language.
