@@ -1687,7 +1687,13 @@ export default function HomePage() {
                     <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
                   </div>
                   <div ref={authControlsRef} className="w-full sm:w-auto sm:shrink-0">
-                    <div className="flex w-full items-start justify-between gap-2 sm:w-auto sm:justify-start sm:gap-2.5">
+                    <div
+                      className={
+                        currentUser
+                          ? 'flex w-full items-start justify-between gap-2 sm:w-auto sm:justify-start sm:gap-2.5'
+                          : 'flex w-full flex-col items-end gap-1.5 md:w-auto md:flex-row md:items-start md:justify-start md:gap-2.5'
+                      }
+                    >
                       {currentUser ? (
                         <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
                           <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
@@ -1759,7 +1765,7 @@ export default function HomePage() {
                           }}
                           className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
-                          <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
                             <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
                             <circle cx="12" cy="13.28" r="2.7" />
                           </svg>
