@@ -292,7 +292,9 @@ export default function HomePage() {
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const dealVaultRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
+  const desktopAuthActionRef = useRef<HTMLDivElement | null>(null);
   const settingsControlsRef = useRef<HTMLDivElement | null>(null);
+  const desktopSettingsControlsRef = useRef<HTMLDivElement | null>(null);
   const mobileCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
@@ -677,7 +679,7 @@ export default function HomePage() {
     if (!step) return null;
 
     if (step.id === 'vault') return dealVaultRef.current;
-    if (step.id === 'signin') return authControlsRef.current;
+    if (step.id === 'signin') return getFirstVisibleElement(desktopAuthActionRef.current, authControlsRef.current);
     if (step.id === 'core') return getFirstVisibleElement(mobileCoreSectionRef.current, desktopCoreSectionRef.current);
     if (step.id === 'strategy') return getFirstVisibleElement(mobileStrategyTabsRef.current, desktopStrategyTabsRef.current);
     return irrStreamRef.current;
@@ -949,6 +951,7 @@ export default function HomePage() {
       const target = event.target as Node | null;
       if (!target) return;
       if (settingsControlsRef.current?.contains(target)) return;
+      if (desktopSettingsControlsRef.current?.contains(target)) return;
       setIsSettingsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1681,21 +1684,18 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <div className="relative flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="brand-lockup" aria-label="DealCooker">
-                    <h1 className="brand-text leading-none">DealCooker</h1>
-                    <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="brand-lockup" aria-label="DealCooker">
+                      <h1 className="brand-text leading-none">DealCooker</h1>
+                      <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                    </div>
+                    <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
                   </div>
-                  <div ref={authControlsRef} className="w-full sm:w-auto sm:shrink-0">
-                    <div
-                      className={
-                        currentUser
-                          ? 'flex w-full items-start justify-between gap-2 sm:w-auto sm:justify-start sm:gap-2.5'
-                          : 'flex w-full flex-col items-end gap-1.5 md:w-auto md:flex-row md:items-start md:justify-start md:gap-2.5'
-                      }
-                    >
+                  <div ref={authControlsRef} className="shrink-0">
+                    <div className="flex flex-col items-end gap-1.5">
                       {currentUser ? (
-                        <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2">
                           <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
                             Cloud: Active
                           </span>
@@ -1710,13 +1710,13 @@ export default function HomePage() {
                             type="button"
                             onClick={signOut}
                             disabled={authBusy || !isSupabaseConfigured}
-                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:hidden sm:text-xs disabled:opacity-60"
                           >
                             Sign out
                           </button>
                         </div>
                       ) : (
-                        <div className="relative">
+                        <div className="relative md:hidden">
                           <button
                             type="button"
                             onClick={() => {
@@ -1753,19 +1753,19 @@ export default function HomePage() {
                         </div>
                       )}
 
-                      <div ref={settingsControlsRef} className="relative">
+                      <div ref={settingsControlsRef} className="relative md:hidden">
                         <button
                           type="button"
                           aria-label="Open settings"
                           aria-expanded={isSettingsOpen}
-                          aria-controls="settings-menu"
+                          aria-controls="settings-menu-mobile"
                           onClick={() => {
                             setIsAuthMenuOpen(false);
                             setIsSettingsOpen((value) => !value);
                           }}
                           className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
-                          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
                             <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
                             <circle cx="12" cy="13.28" r="2.7" />
                           </svg>
@@ -1773,7 +1773,7 @@ export default function HomePage() {
 
                         {isSettingsOpen ? (
                           <>
-                            <div id="settings-menu" className="absolute right-0 top-10 z-[136] hidden w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
+                            <div id="settings-menu-mobile" className="absolute right-0 top-10 z-[136] hidden w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
                               {settingsMenuContent}
                             </div>
                             <div className="fixed inset-0 z-[141] bg-black/45 p-4 sm:hidden" onClick={() => setIsSettingsOpen(false)}>
@@ -1797,10 +1797,9 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-                <p className="max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
               </div>
               <div className="w-full md:min-w-0 lg:max-w-[560px]">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                   <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -1833,6 +1832,86 @@ export default function HomePage() {
                   >
                     Send link
                   </button>
+                  {currentUser ? (
+                    <div ref={desktopAuthActionRef} className="hidden md:flex md:flex-col md:items-end md:gap-1.5">
+                      <button
+                        type="button"
+                        onClick={signOut}
+                        disabled={authBusy || !isSupabaseConfigured}
+                        className="btn-primary btn-auth btn-auth-top tap-feedback min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm disabled:opacity-60"
+                      >
+                        Sign out
+                      </button>
+                      <div ref={desktopSettingsControlsRef} className="relative">
+                        <button
+                          type="button"
+                          aria-label="Open settings"
+                          aria-expanded={isSettingsOpen}
+                          aria-controls="settings-menu-desktop"
+                          onClick={() => {
+                            setIsAuthMenuOpen(false);
+                            setIsSettingsOpen((value) => !value);
+                          }}
+                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
+                            <circle cx="12" cy="13.28" r="2.7" />
+                          </svg>
+                        </button>
+                        {isSettingsOpen ? (
+                          <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                            {settingsMenuContent}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div ref={desktopAuthActionRef} className="hidden md:flex md:flex-col md:items-end md:gap-1.5">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSettingsOpen(false);
+                            setIsAuthMenuOpen((value) => !value);
+                          }}
+                          aria-expanded={isAuthMenuOpen}
+                          aria-controls="auth-menu-desktop"
+                          className="btn-primary btn-auth btn-auth-top tap-feedback min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                        >
+                          Sign in
+                        </button>
+                        {isAuthMenuOpen ? (
+                          <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                            {authMenuContent}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div ref={desktopSettingsControlsRef} className="relative">
+                        <button
+                          type="button"
+                          aria-label="Open settings"
+                          aria-expanded={isSettingsOpen}
+                          aria-controls="settings-menu-desktop"
+                          onClick={() => {
+                            setIsAuthMenuOpen(false);
+                            setIsSettingsOpen((value) => !value);
+                          }}
+                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
+                            <circle cx="12" cy="13.28" r="2.7" />
+                          </svg>
+                        </button>
+                        {isSettingsOpen ? (
+                          <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                            {settingsMenuContent}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
