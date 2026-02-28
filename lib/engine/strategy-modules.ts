@@ -3,7 +3,7 @@ import {
   calcTotalRoiFromTimeline,
   calculateIrr
 } from '@/lib/engine/investment-math';
-import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
+import type { DealInputModel, ExpenseStrategyKey, LongTermTurnaroundSummaryOutput, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
 import { calculateAcquisitionDebtService, calculateCashToClose, calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
@@ -256,6 +256,108 @@ const buildLeveredTimeline = ({
   };
 };
 
+const calculateLongTermTurnaroundSummary = (
+  input: DealInputModel,
+  purchaseCashNeeded: number,
+  debtService: number,
+  fixedCosts: number,
+  strategyVariableCosts: number
+): LongTermTurnaroundSummaryOutput | undefined => {
+  const turnaround = input.longTerm.turnaround;
+  if (!turnaround.enabled) return undefined;
+
+  const vacancyPercent = clampPercent(turnaround.vacancyPercent);
+  const maintenancePercent = clampPercent(turnaround.maintenancePercent);
+  const capexPercent = clampPercent(turnaround.capexPercent);
+  const managementFeePercent = clampPercent(turnaround.managementFeePercent);
+  const exitRefiCapRatePercent = Math.max(turnaround.exitRefiCapRatePercent, 0.0001);
+
+  const stabilizedGrossIncomeMonthly =
+    Math.max(turnaround.stabilizedGrossRentMonthly, 0) +
+    Math.max(turnaround.stabilizedOtherIncomeMonthly, 0) +
+    Math.max(turnaround.laundryIncomeMonthly, 0) +
+    Math.max(turnaround.vendingMiscIncomeMonthly, 0) +
+    Math.max(turnaround.garageIncomeMonthly, 0) +
+    Math.max(turnaround.parkingIncomeMonthly, 0) +
+    Math.max(turnaround.additionalIncomeMonthly, 0);
+
+  const vacancyLossMonthly = stabilizedGrossIncomeMonthly * vacancyPercent;
+  const effectiveGrossIncomeMonthly = stabilizedGrossIncomeMonthly - vacancyLossMonthly;
+  const managementFeeMonthly = effectiveGrossIncomeMonthly * managementFeePercent;
+  const maintenanceMonthly = effectiveGrossIncomeMonthly * maintenancePercent;
+  const capexMonthly = effectiveGrossIncomeMonthly * capexPercent;
+  const adjustedFixedCostsMonthly = fixedCosts + turnaround.annualTaxInsuranceAdjustment / 12;
+  const operatingExpensesMonthly =
+    maintenanceMonthly +
+    capexMonthly +
+    managementFeeMonthly +
+    Math.max(turnaround.ownerPaidExpensesMonthly, 0) +
+    adjustedFixedCostsMonthly +
+    strategyVariableCosts;
+  const noiMonthly = effectiveGrossIncomeMonthly - operatingExpensesMonthly;
+  const cashFlowPreTaxMonthly = noiMonthly - debtService;
+  const cashFlowExcludingReservesMonthly = cashFlowPreTaxMonthly + maintenanceMonthly + capexMonthly;
+  const annualNoi = noiMonthly * 12;
+  const annualCashFlowPreTax = cashFlowPreTaxMonthly * 12;
+  const rehabBudgetForStabilization = Math.max(turnaround.rehabBudgetForStabilization, 0);
+  const totalCashInvested = purchaseCashNeeded + rehabBudgetForStabilization;
+  const capRate = input.purchase.purchasePrice === 0 ? 0 : annualNoi / input.purchase.purchasePrice;
+  const cashOnCashReturn = totalCashInvested === 0 ? 0 : annualCashFlowPreTax / totalCashInvested;
+  const impliedValueAtExitCap = annualNoi / exitRefiCapRatePercent;
+  const totalProjectBasis = input.purchase.purchasePrice + rehabBudgetForStabilization;
+  const capOnCost = totalProjectBasis <= 0 ? 0 : annualNoi / totalProjectBasis;
+  const equityCreated = impliedValueAtExitCap - totalProjectBasis;
+
+  const timelineArv = input.longTerm.arvOverride ?? (impliedValueAtExitCap > 0 ? impliedValueAtExitCap : input.purchase.arv);
+  const timelineData = buildLeveredTimeline({
+    input,
+    totalCashNeeded: totalCashInvested,
+    annualRevenueYear1: stabilizedGrossIncomeMonthly * 12,
+    annualOperatingExpensesYear1: (vacancyLossMonthly + operatingExpensesMonthly) * 12,
+    arv: timelineArv,
+    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    debts: buildAcquisitionTimelineDebts(input)
+  });
+
+  return {
+    enabled: true,
+    stabilizedGrossMonthlyRent: Math.max(turnaround.stabilizedGrossRentMonthly, 0),
+    stabilizedOtherIncomeMonthly: Math.max(turnaround.stabilizedOtherIncomeMonthly, 0),
+    laundryIncomeMonthly: Math.max(turnaround.laundryIncomeMonthly, 0),
+    vendingMiscIncomeMonthly: Math.max(turnaround.vendingMiscIncomeMonthly, 0),
+    garageIncomeMonthly: Math.max(turnaround.garageIncomeMonthly, 0),
+    parkingIncomeMonthly: Math.max(turnaround.parkingIncomeMonthly, 0),
+    additionalIncomeMonthly: Math.max(turnaround.additionalIncomeMonthly, 0),
+    stabilizedGrossIncomeMonthly,
+    effectiveGrossIncomeMonthly,
+    rehabBudgetForStabilization,
+    annualTaxInsuranceAdjustment: turnaround.annualTaxInsuranceAdjustment,
+    vacancyPercent,
+    maintenancePercent,
+    capexPercent,
+    ownerPaidExpensesMonthly: Math.max(turnaround.ownerPaidExpensesMonthly, 0),
+    managementFeePercent,
+    exitRefiCapRatePercent,
+    operatingExpensesMonthly,
+    noiMonthly,
+    debtServiceMonthly: debtService,
+    cashFlowPreTaxMonthly,
+    cashFlowExcludingReservesMonthly,
+    annualNoi,
+    annualCashFlowPreTax,
+    totalCashInvested,
+    dscr: calculateDscr(noiMonthly, debtService),
+    capRate,
+    cashOnCashReturn,
+    irr: timelineData.irr,
+    roi: timelineData.roi,
+    impliedValueAtExitCap,
+    capOnCost,
+    equityCreated
+  };
+};
+
 
 export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput => {
   const { purchase, commercial } = input;
@@ -397,6 +499,9 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const maintenancePercent = clampPercent(longTerm.maintenancePercent);
   const capexPercent = clampPercent(longTerm.capexPercent);
   const managementPercent = clampPercent(longTerm.managementFeePercent);
+  const tenantPlacementFeePercent = clampPercent(longTerm.tenantPlacementFeePercent);
+  const tenantPlacementFeeOneTime =
+    purchase.ownershipMode === 'purchase' ? Math.max(longTerm.grossRentMonthly, 0) * tenantPlacementFeePercent : 0;
 
   const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
   const vacancy = gross * vacancyPercent;
@@ -420,6 +525,41 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
     debts: buildAcquisitionTimelineDebts(input)
   });
+  const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts);
+  const stabilizedIncomeSourcesMonthly =
+    (turnaroundSummary?.laundryIncomeMonthly ?? 0) +
+    (turnaroundSummary?.vendingMiscIncomeMonthly ?? 0) +
+    (turnaroundSummary?.garageIncomeMonthly ?? 0) +
+    (turnaroundSummary?.parkingIncomeMonthly ?? 0) +
+    (turnaroundSummary?.additionalIncomeMonthly ?? 0) +
+    (turnaroundSummary?.stabilizedOtherIncomeMonthly ?? 0);
+  const stabilizedVacancyMonthly =
+    turnaroundSummary ? turnaroundSummary.stabilizedGrossIncomeMonthly * turnaroundSummary.vacancyPercent : 0;
+  const stabilizedManagementMonthly =
+    turnaroundSummary ? turnaroundSummary.effectiveGrossIncomeMonthly * turnaroundSummary.managementFeePercent : 0;
+  const stabilizedMaintenanceMonthly =
+    turnaroundSummary ? turnaroundSummary.effectiveGrossIncomeMonthly * turnaroundSummary.maintenancePercent : 0;
+  const stabilizedCapexMonthly =
+    turnaroundSummary ? turnaroundSummary.effectiveGrossIncomeMonthly * turnaroundSummary.capexPercent : 0;
+  const stabilizedFixedAndTaxMonthly =
+    turnaroundSummary ? fixedCosts + turnaroundSummary.annualTaxInsuranceAdjustment / 12 : 0;
+
+  const turnaroundLines = turnaroundSummary
+    ? [
+        toLine('lt-stab-gross-rent', 'Stabilized gross rent', turnaroundSummary.stabilizedGrossMonthlyRent),
+        toLine('lt-stab-income-sources', 'Stabilized income sources (laundry/vending/garage/parking/other)', stabilizedIncomeSourcesMonthly),
+        toLine('lt-stab-vacancy', 'Stabilized vacancy loss', -stabilizedVacancyMonthly),
+        toLine('lt-stab-management', 'Stabilized management fee', -stabilizedManagementMonthly),
+        toLine('lt-stab-maintenance', 'Stabilized maintenance reserve', -stabilizedMaintenanceMonthly),
+        toLine('lt-stab-capex', 'Stabilized CapEx reserve', -stabilizedCapexMonthly),
+        toLine('lt-stab-owner-expenses', 'Stabilized owner-paid expenses', -turnaroundSummary.ownerPaidExpensesMonthly),
+        toLine('lt-stab-fixed-tax-ins', 'Fixed costs + tax/insurance adjustment', -stabilizedFixedAndTaxMonthly),
+        toLine('lt-stab-variable-expenses', 'Variable expenses', -strategyVariableCosts),
+        toLine('lt-stab-noi', 'NOI (stabilized)', turnaroundSummary.noiMonthly),
+        toLine('lt-stab-debt-service', 'Debt service', -turnaroundSummary.debtServiceMonthly),
+        toLine('lt-stab-cash-flow', 'Cash flow (stabilized, pre-tax)', turnaroundSummary.cashFlowPreTaxMonthly)
+      ]
+    : [];
 
   return {
     ...base,
@@ -435,10 +575,19 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
+    notes: turnaroundSummary
+      ? 'Buy-then-stabilize mode enabled: includes a 12-month turnaround underwriting block and stabilized performance outputs.'
+      : base.notes,
     calculationBreakdown: {
       lines: [
         toLine('lt-gross-rent', 'Gross rent', longTerm.grossRentMonthly),
         toLine('lt-other-income', 'Other income', longTerm.otherIncomeMonthly),
+        {
+          key: 'lt-tenant-placement-fyi',
+          label: 'Tenant placement fee (one-time FYI, not included in KPIs)',
+          monthly: 0,
+          annual: -tenantPlacementFeeOneTime
+        },
         toLine('lt-vacancy', 'Vacancy loss', -vacancy),
         toLine('lt-maintenance', 'Maintenance reserve', -maintenance),
         toLine('lt-capex', 'CapEx reserve', -capex),
@@ -447,14 +596,16 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
         toLine('lt-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('lt-noi', 'NOI', noi),
         toLine('lt-debt-service', 'Debt service', -debtService),
-        toLine('lt-cash-flow', 'Cash flow', monthly)
+        toLine('lt-cash-flow', 'Cash flow', monthly),
+        ...turnaroundLines
       ],
       revenueMonthly: gross,
       sellerPaidExpensesMonthly: maintenance + capex + managementFee + longTerm.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
       debtServiceMonthly: debtService,
       noiMonthly: noi,
       cashFlowMonthly: monthly
-    }
+    },
+    longTermTurnaroundSummary: turnaroundSummary
   };
 };
 

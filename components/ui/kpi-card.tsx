@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { getNegativeValueStyle, type NegativeValueKind } from '@/lib/negative-value-color';
+import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 interface KpiDefinition {
   term: string;
@@ -10,6 +13,8 @@ interface KpiDefinition {
 interface KpiCardProps {
   label: string;
   value: string;
+  numericValue?: number;
+  numericValueKind?: NegativeValueKind;
   tone?: 'default' | 'success';
   helper?: string;
   winner?: string;
@@ -82,6 +87,8 @@ const resolveRibbonPalette = (isNegative: boolean) => {
 export function KpiCard({
   label,
   value,
+  numericValue,
+  numericValueKind = 'plain',
   helper,
   winner,
   tone = 'default',
@@ -93,7 +100,11 @@ export function KpiCard({
   valueTestId
 }: KpiCardProps) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const tooltipId = `kpi-tooltip-${slugify(label)}`;
+  const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
+  const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
   const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const chartPoints = useMemo(() => buildChartPoints(chartSeries), [chartSeries]);
@@ -109,6 +120,23 @@ export function KpiCard({
   const gradientId = `kpi-cashflow-line-${slugify(label)}`;
   const areaGradientId = `kpi-cashflow-area-${slugify(label)}`;
   const filterId = `kpi-cashflow-glow-${slugify(label)}`;
+  const negativeValueStyle = useMemo(
+    () => getNegativeValueStyle(numericValue ?? Number.NaN, { kind: numericValueKind }),
+    [numericValue, numericValueKind]
+  );
+  const { style: tooltipStyle } = useFloatingTooltipPosition({
+    open: isTooltipOpen,
+    anchorRef: tooltipTriggerRef,
+    tooltipRef: tooltipPanelRef,
+    preferredPlacement: 'bottom',
+    maxWidth: 320,
+    offset: 10,
+    zIndex: 190
+  });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof primaryValueRef.current?.animate === 'function') {
@@ -131,6 +159,32 @@ export function KpiCard({
       );
     }
   }, [value, secondaryValue]);
+
+  useEffect(() => {
+    if (!isTooltipOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (tooltipAnchorRef.current?.contains(target)) return;
+      if (tooltipPanelRef.current?.contains(target)) return;
+      setIsTooltipOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsTooltipOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isTooltipOpen]);
 
   return (
     <div className="relative min-w-0 overflow-visible rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
@@ -178,8 +232,9 @@ export function KpiCard({
         </div>
       ) : null}
       {definitions?.length ? (
-        <div className="absolute right-2.5 top-2.5 z-30 sm:right-3 sm:top-3">
+        <div ref={tooltipAnchorRef} className="absolute right-2.5 top-2.5 z-30 sm:right-3 sm:top-3">
           <button
+            ref={tooltipTriggerRef}
             type="button"
             aria-label={`${label} definitions`}
             aria-expanded={isTooltipOpen}
@@ -190,38 +245,35 @@ export function KpiCard({
             i
           </button>
 
-          {isTooltipOpen ? (
-            <>
-              <button
-                type="button"
-                aria-label="Close tooltip"
-                className="fixed inset-0 z-20 bg-black/45 sm:hidden"
-                onClick={() => setIsTooltipOpen(false)}
-              />
-              <div
-                id={tooltipId}
-                role="dialog"
-                aria-modal="false"
-                className="fixed left-1/2 top-1/2 z-30 w-[min(92vw,320px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-700 bg-slate-950 p-3.5 text-xs text-slate-100 shadow-soft sm:absolute sm:left-auto sm:right-0 sm:top-7 sm:w-[290px] sm:translate-x-0 sm:translate-y-0 sm:rounded-lg sm:border-slate-700 sm:bg-[#0A1326] sm:p-3"
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
-                  <button
-                    type="button"
-                    className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
-                    onClick={() => setIsTooltipOpen(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-                {definitions.map((definition) => (
-                  <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
-                    <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
-                  </p>
-                ))}
-              </div>
-            </>
-          ) : null}
+          {isTooltipOpen && isMounted
+            ? createPortal(
+                <div
+                  ref={tooltipPanelRef}
+                  id={tooltipId}
+                  role="dialog"
+                  aria-modal="false"
+                  className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
+                  style={tooltipStyle}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
+                    <button
+                      type="button"
+                      className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                      onClick={() => setIsTooltipOpen(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {definitions.map((definition) => (
+                    <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
+                      <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
+                    </p>
+                  ))}
+                </div>,
+                document.body
+              )
+            : null}
         </div>
       ) : null}
 
@@ -239,6 +291,7 @@ export function KpiCard({
         ref={primaryValueRef}
         className={`relative z-10 mt-1 text-[clamp(1rem,5.6vw,1.5rem)] font-semibold leading-tight sm:text-3xl md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
         data-testid={valueTestId ?? `kpi-${slugify(label)}`}
+        style={negativeValueStyle}
       >
         {value}
       </p>

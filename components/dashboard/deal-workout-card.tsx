@@ -116,7 +116,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                       <p className="text-xs font-semibold text-slate-100">{scenario.title}</p>
                       <button
                         type="button"
-                        className="btn-primary tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary btn-work tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => onApply(scenario)}
                       >
                         Apply this fix
@@ -127,7 +127,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                       <p className="text-xs font-semibold text-slate-100">Reduce Purchase Price</p>
                       <button
                         type="button"
-                        className="btn-primary tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary btn-work tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix
@@ -144,11 +144,11 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                         step="0.1"
                         value={targetIrrInput}
                         onChange={(event) => setTargetIrrInput(event.target.value)}
-                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
                       />
                       <button
                         type="button"
-                        className="btn-primary tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
+                        className="btn-primary btn-work tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
                         onClick={applyTargetIrrPriceFix}
                       >
                         Apply this fix
@@ -160,7 +160,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="btn-primary tap-feedback min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
+                      className="btn-primary btn-work tap-feedback min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
                       onClick={() => onApply(scenario)}
                     >
                       Apply this fix

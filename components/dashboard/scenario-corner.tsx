@@ -115,7 +115,7 @@ export function DealsVaultPanel({
             </label>
             <input
               id="deal-search"
-              className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+              className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
               placeholder="Search deal name"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -152,7 +152,7 @@ export function DealsVaultPanel({
 
           <div className="grid grid-cols-2 gap-1.5">
             <button
-              className="btn-primary tap-feedback h-10 rounded-md px-2 text-sm font-semibold"
+              className="tap-feedback h-10 rounded-md border border-white/10 bg-white/[0.03] px-2 text-sm font-medium text-slate-200 transition-colors duration-150 hover:bg-white/10 hover:text-white"
               onClick={() => openDialog('saveAs')}
               type="button"
               aria-label="Duplicate"
@@ -171,7 +171,7 @@ export function DealsVaultPanel({
               ✎
             </button>
             <button
-              className="tap-feedback h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
+              className="btn-primary btn-vault tap-feedback h-10 rounded-md px-2 text-sm font-semibold"
               onClick={onCreateNew}
               type="button"
               aria-label="Create"
@@ -195,13 +195,13 @@ export function DealsVaultPanel({
             <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5 lg:col-span-2">
               <p className="text-xs uppercase tracking-wider text-muted">{dialogMode === 'saveAs' ? 'Save as new deal' : 'Rename deal'}</p>
               <input
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
                 value={dialogValue}
                 onChange={(event) => setDialogValue(event.target.value)}
                 placeholder="Deal name"
               />
               <div className="flex gap-2">
-                <button className="btn-primary tap-feedback min-h-10 flex-1 rounded-lg px-3 text-sm font-medium" type="button" onClick={submitDialog}>
+                <button className="btn-primary btn-vault tap-feedback min-h-10 flex-1 rounded-lg px-3 text-sm font-medium" type="button" onClick={submitDialog}>
                   Confirm
                 </button>
                 <button className="tap-feedback min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10" type="button" onClick={() => { triggerHapticFeedback('light'); closeDialog(); }}>

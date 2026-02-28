@@ -23,6 +23,21 @@ export function StrategyModuleInputs({
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     onChange({ ...model, [section]: { ...model[section], [field]: nextValue } });
   };
+  const updateLongTermTurnaround = <K extends keyof DealInputModel['longTerm']['turnaround']>(
+    field: K,
+    nextValue: DealInputModel['longTerm']['turnaround'][K]
+  ) => {
+    onChange({
+      ...model,
+      longTerm: {
+        ...model.longTerm,
+        turnaround: {
+          ...model.longTerm.turnaround,
+          [field]: nextValue
+        }
+      }
+    });
+  };
   const commercialOccupancyPercent =
     model.commercial.grossLeasableAreaSqft > 0
       ? (Math.min(model.commercial.occupiedSqft, model.commercial.grossLeasableAreaSqft) / model.commercial.grossLeasableAreaSqft) * 100
@@ -41,68 +56,80 @@ export function StrategyModuleInputs({
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
               label="Gross leasable area (sq ft)"
+              tooltip="Total rentable square footage in the property, including currently vacant units or suites."
               type="number"
               value={model.commercial.grossLeasableAreaSqft}
               onChange={(v) => update('commercial', 'grossLeasableAreaSqft', Number(v))}
             />
             <Input
               label="Leased area (sq ft)"
+              tooltip="Square footage currently leased. This drives physical occupancy and current rent collection."
               type="number"
               value={model.commercial.occupiedSqft}
               onChange={(v) => update('commercial', 'occupiedSqft', Number(v))}
             />
             <Input
               label="Base rent ($/sq ft/year)"
+              tooltip="Average annual base rent charged per leased square foot, before reimbursements."
               type="number"
               value={model.commercial.averageBaseRentPerSqftYear}
               onChange={(v) => update('commercial', 'averageBaseRentPerSqftYear', Number(v))}
             />
             <Input
               label="NNN reimbursements ($/sq ft/year)"
+              tooltip="Annual recoveries from tenants for taxes, insurance, and common area expenses."
               type="number"
               value={model.commercial.nnnRecoveryPerSqftYear}
               onChange={(v) => update('commercial', 'nnnRecoveryPerSqftYear', Number(v))}
             />
             <PercentInput
               label="Vacancy reserve %"
+              tooltip="Economic vacancy assumption applied to occupied income to stay conservative."
               value={model.commercial.vacancyPercent}
               onChange={(v) => update('commercial', 'vacancyPercent', v)}
             />
             <PercentInput
               label="Credit loss reserve %"
+              tooltip="Expected uncollectible rent from delinquencies, defaults, or tenant payment issues."
               value={model.commercial.creditLossPercent}
               onChange={(v) => update('commercial', 'creditLossPercent', v)}
             />
             <Input
               label="Non-recoverable OpEx ($/sq ft/year)"
+              tooltip="Operating expenses per square foot that the owner cannot pass through to tenants."
               type="number"
               value={model.commercial.nonRecoverableExpensesPerSqftYear}
               onChange={(v) => update('commercial', 'nonRecoverableExpensesPerSqftYear', Number(v))}
             />
             <PercentInput
               label="Management fee %"
+              tooltip="Property management cost as a percent of effective gross income."
               value={model.commercial.managementFeePercent}
               onChange={(v) => update('commercial', 'managementFeePercent', v)}
             />
             <Input
               label="TI reserve ($/sq ft/year)"
+              tooltip="Annual reserve for tenant improvements and suite build-outs."
               type="number"
               value={model.commercial.tenantImprovementsReservePerSqftYear}
               onChange={(v) => update('commercial', 'tenantImprovementsReservePerSqftYear', Number(v))}
             />
             <Input
               label="Leasing reserve ($/sq ft/year)"
+              tooltip="Annual reserve for leasing commissions on new and renewal leases."
               type="number"
               value={model.commercial.leasingCommissionsReservePerSqftYear}
               onChange={(v) => update('commercial', 'leasingCommissionsReservePerSqftYear', Number(v))}
             />
             <PercentInput
               label="Commercial rent growth %"
+              tooltip="Year-over-year growth assumption for rent and recoverable revenue."
               value={model.commercial.annualRentGrowthPercent}
               onChange={(v) => update('commercial', 'annualRentGrowthPercent', v)}
             />
             <PercentInput
               label="Commercial expense growth %"
+              tooltip="Year-over-year growth assumption for operating expenses."
               value={model.commercial.annualExpenseGrowthPercent}
               onChange={(v) => update('commercial', 'annualExpenseGrowthPercent', v)}
             />
@@ -113,14 +140,145 @@ export function StrategyModuleInputs({
 
     if (active === 'longTerm') {
       return (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
-          <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
-          <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
-          <PercentInput label="Vacancy %" value={model.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
-          <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
-          <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
-          <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-100">Buying this deal to turn it around?</p>
+                <p className="text-xs text-muted">Enable stabilized-year underwriting for any long-term rental repositioning plan.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateLongTermTurnaround('enabled', !model.longTerm.turnaround.enabled)}
+                aria-pressed={model.longTerm.turnaround.enabled}
+                className={`tap-feedback inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  model.longTerm.turnaround.enabled
+                    ? 'btn-primary'
+                    : 'border border-white/15 bg-white/[0.03] text-slate-200 hover:bg-white/[0.08]'
+                }`}
+              >
+                {model.longTerm.turnaround.enabled ? 'Turnaround On' : 'Turnaround Off'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
+            <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
+            <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
+            <PercentInput
+              label="Tenant placement fee % (1st month rent)"
+              value={model.longTerm.tenantPlacementFeePercent}
+              onChange={(v) => update('longTerm', 'tenantPlacementFeePercent', v)}
+            />
+            <PercentInput label="Vacancy %" value={model.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
+            <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
+            <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
+            <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
+          </div>
+
+          {model.longTerm.turnaround.enabled ? (
+            <section className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="mb-2">
+                <p className="text-xs uppercase tracking-wide text-accent">Stabilize Scenario (12-Month Underwrite)</p>
+                <p className="text-xs text-muted">Estimate year-one turnaround performance and value creation after repositioning.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Stabilized gross monthly rent"
+                  type="number"
+                  value={model.longTerm.turnaround.stabilizedGrossRentMonthly}
+                  onChange={(v) => updateLongTermTurnaround('stabilizedGrossRentMonthly', Number(v))}
+                />
+                <div className="sm:col-span-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-200">Additional Income (Monthly)</p>
+                  <p className="mb-2 text-[11px] text-muted">Group ancillary unit and property income in one place.</p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <Input
+                      label="Stabilized other income"
+                      type="number"
+                      value={model.longTerm.turnaround.stabilizedOtherIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('stabilizedOtherIncomeMonthly', Number(v))}
+                    />
+                    <Input
+                      label="Laundry income"
+                      type="number"
+                      value={model.longTerm.turnaround.laundryIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('laundryIncomeMonthly', Number(v))}
+                    />
+                    <Input
+                      label="Vending / misc income"
+                      type="number"
+                      value={model.longTerm.turnaround.vendingMiscIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('vendingMiscIncomeMonthly', Number(v))}
+                    />
+                    <Input
+                      label="Garage income"
+                      type="number"
+                      value={model.longTerm.turnaround.garageIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('garageIncomeMonthly', Number(v))}
+                    />
+                    <Input
+                      label="Parking income"
+                      type="number"
+                      value={model.longTerm.turnaround.parkingIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('parkingIncomeMonthly', Number(v))}
+                    />
+                    <Input
+                      label="Other ancillary income"
+                      type="number"
+                      value={model.longTerm.turnaround.additionalIncomeMonthly}
+                      onChange={(v) => updateLongTermTurnaround('additionalIncomeMonthly', Number(v))}
+                    />
+                  </div>
+                </div>
+                <Input
+                  label="Rehab budget for stabilization"
+                  type="number"
+                  value={model.longTerm.turnaround.rehabBudgetForStabilization}
+                  onChange={(v) => updateLongTermTurnaround('rehabBudgetForStabilization', Number(v))}
+                />
+                <Input
+                  label="Tax/insurance adjustment (annual)"
+                  type="number"
+                  value={model.longTerm.turnaround.annualTaxInsuranceAdjustment}
+                  onChange={(v) => updateLongTermTurnaround('annualTaxInsuranceAdjustment', Number(v))}
+                />
+                <PercentInput
+                  label="Stabilized vacancy %"
+                  value={model.longTerm.turnaround.vacancyPercent}
+                  onChange={(v) => updateLongTermTurnaround('vacancyPercent', v)}
+                />
+                <PercentInput
+                  label="Stabilized maintenance %"
+                  value={model.longTerm.turnaround.maintenancePercent}
+                  onChange={(v) => updateLongTermTurnaround('maintenancePercent', v)}
+                />
+                <PercentInput
+                  label="Stabilized CapEx %"
+                  value={model.longTerm.turnaround.capexPercent}
+                  onChange={(v) => updateLongTermTurnaround('capexPercent', v)}
+                />
+                <Input
+                  label="Owner-paid expenses (monthly)"
+                  type="number"
+                  value={model.longTerm.turnaround.ownerPaidExpensesMonthly}
+                  onChange={(v) => updateLongTermTurnaround('ownerPaidExpensesMonthly', Number(v))}
+                />
+                <PercentInput
+                  label="PM fee % (stabilized)"
+                  value={model.longTerm.turnaround.managementFeePercent}
+                  onChange={(v) => updateLongTermTurnaround('managementFeePercent', v)}
+                />
+                <PercentInput
+                  label="Exit/Refi cap rate %"
+                  tooltip="Cap rate used to value stabilized NOI at refinance or sale. Lower cap rates imply higher value."
+                  value={model.longTerm.turnaround.exitRefiCapRatePercent}
+                  onChange={(v) => updateLongTermTurnaround('exitRefiCapRatePercent', v)}
+                />
+              </div>
+            </section>
+          ) : null}
         </div>
       );
     }

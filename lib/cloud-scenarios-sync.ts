@@ -15,7 +15,14 @@ const normalizePayload = (payload: ScenarioRecord['payload'] | null | undefined)
       ...safePayload.purchase
     },
     commercial: { ...defaultDealInput.commercial, ...safePayload.commercial },
-    longTerm: { ...defaultDealInput.longTerm, ...safePayload.longTerm },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      ...safePayload.longTerm,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        ...(safePayload.longTerm?.turnaround ?? {})
+      }
+    },
     airbnb: { ...defaultDealInput.airbnb, ...safePayload.airbnb },
     padSplit: { ...defaultDealInput.padSplit, ...safePayload.padSplit },
     brrrr: { ...defaultDealInput.brrrr, ...safePayload.brrrr },

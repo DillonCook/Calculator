@@ -53,6 +53,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
           <ReportSection title={report.taxAndInsuranceDetail.title} rows={report.taxAndInsuranceDetail.rows} />
           <ReportSection title={report.variableExpenseDetail.title} rows={report.variableExpenseDetail.rows} />
           <ReportSection title={report.financingSnapshot.title} rows={report.financingSnapshot.rows} />
+          {report.turnaroundStabilization ? <ReportSection title={report.turnaroundStabilization.title} rows={report.turnaroundStabilization.rows} /> : null}
           <ReportSection title={report.assumptions.title} rows={report.assumptions.rows} />
           <ReportSection title={report.listingReference.title} rows={report.listingReference.rows} />
         </div>

@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from 'react';
 import type { DealResult } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { getNegativeValueStyle } from '@/lib/negative-value-color';
 
 const rows: { key: keyof Omit<DealResult, 'masterSummary'>; label: string }[] = [
   { key: 'purchase', label: 'Commercial' },
@@ -121,7 +122,10 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
               >
                 <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                   <p className="min-w-0 text-sm font-medium">{row.label}</p>
-                  <p className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}>
+                  <p
+                    className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}
+                    style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+                  >
                     {currencyFormatter.format(output.monthlyCashFlow)}
                     <span className="ml-1 text-xs text-muted">/mo</span>
                   </p>
@@ -133,8 +137,12 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
-                  <span className="text-center">CoC {percentFormatter.format(output.cashOnCashReturn)}</span>
-                  <span className="text-center">ROI {percentFormatter.format(output.roi)}</span>
+                  <span className="text-center">
+                    CoC <span style={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}>{percentFormatter.format(output.cashOnCashReturn)}</span>
+                  </span>
+                  <span className="text-center">
+                    ROI <span style={getNegativeValueStyle(output.roi, { kind: 'percent' })}>{percentFormatter.format(output.roi)}</span>
+                  </span>
                   <span className="text-center">
                     DSCR
                     <span
@@ -144,8 +152,12 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                       {output.dscr < 1 ? ' \u26a0' : ''}
                     </span>
                   </span>
-                  <span className="text-center">IRR {percentFormatter.format(output.irr)}</span>
-                  <span className="text-center">Cap {percentFormatter.format(output.capRate)}</span>
+                  <span className="text-center">
+                    IRR <span style={getNegativeValueStyle(output.irr, { kind: 'percent' })}>{percentFormatter.format(output.irr)}</span>
+                  </span>
+                  <span className="text-center">
+                    Cap <span style={getNegativeValueStyle(output.capRate, { kind: 'percent' })}>{percentFormatter.format(output.capRate)}</span>
+                  </span>
                 </div>
               </div>
             );
@@ -183,7 +195,10 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                 <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{row.label}</p>
-                    <p className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}>
+                    <p
+                      className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}
+                      style={getNegativeValueStyle(row.profit, { kind: 'currency' })}
+                    >
                       {row.profit >= 0 ? '+' : ''}{currencyFormatter.format(row.profit)} modeled profit
                     </p>
                   </div>

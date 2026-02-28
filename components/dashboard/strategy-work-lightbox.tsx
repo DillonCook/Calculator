@@ -2,6 +2,7 @@
 
 import type { StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
+import { getNegativeValueStyle } from '@/lib/negative-value-color';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -22,8 +23,18 @@ interface StrategyWorkLightboxProps {
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
   <div className="grid grid-cols-1 gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:grid-cols-[1.2fr_1fr_1fr] sm:gap-2 sm:text-sm">
     <p className="text-slate-100">{line.label}</p>
-    <p className={`text-left sm:text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>Monthly: {currencyFormatter.format(line.monthly)}</p>
-    <p className={`text-left sm:text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>Annual: {currencyFormatter.format(line.annual)}</p>
+    <p
+      className={`text-left sm:text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+      style={getNegativeValueStyle(line.monthly, { kind: 'currency' })}
+    >
+      Monthly: {currencyFormatter.format(line.monthly)}
+    </p>
+    <p
+      className={`text-left sm:text-right ${line.annual >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+      style={getNegativeValueStyle(line.annual, { kind: 'currency' })}
+    >
+      Annual: {currencyFormatter.format(line.annual)}
+    </p>
   </div>
 );
 
@@ -61,7 +72,9 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Total costs</p>
-          <p className="text-lg font-semibold text-slate-200">-{currencyFormatter.format(totalCosts)}</p>
+          <p className="text-lg font-semibold text-slate-200" style={getNegativeValueStyle(-totalCosts, { kind: 'currency' })}>
+            -{currencyFormatter.format(totalCosts)}
+          </p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Holding period</p>
@@ -69,7 +82,12 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Net profit</p>
-          <p className={`text-lg font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(meta.netProfit)}</p>
+          <p
+            className={`text-lg font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+            style={getNegativeValueStyle(meta.netProfit, { kind: 'currency' })}
+          >
+            {currencyFormatter.format(meta.netProfit)}
+          </p>
         </div>
       </div>
 
@@ -79,7 +97,9 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
           {costItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
               <p className="text-slate-100">{item.label}</p>
-              <p className="text-right text-slate-200">-{currencyFormatter.format(item.total)}</p>
+              <p className="text-right text-slate-200" style={getNegativeValueStyle(-item.total, { kind: 'currency' })}>
+                -{currencyFormatter.format(item.total)}
+              </p>
             </div>
           ))}
         </div>
@@ -90,13 +110,20 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
             <div key={item.key} className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm">
               <p className="text-slate-100">{item.label}</p>
               <p className="text-right text-muted">{currencyFormatter.format(item.monthly)}/mo</p>
-              <p className="text-right text-slate-200">-{currencyFormatter.format(item.total)}</p>
+              <p className="text-right text-slate-200" style={getNegativeValueStyle(-item.total, { kind: 'currency' })}>
+                -{currencyFormatter.format(item.total)}
+              </p>
             </div>
           ))}
           <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-2 border-t border-white/10 pt-2 text-sm">
             <p className="text-slate-100">Holding costs total</p>
             <p className="text-right text-muted">{currencyFormatter.format(meta.holdingCostsTotal / holdingMonths)}/mo</p>
-            <p className="text-right font-semibold text-slate-200">-{currencyFormatter.format(meta.holdingCostsTotal)}</p>
+            <p
+              className="text-right font-semibold text-slate-200"
+              style={getNegativeValueStyle(-meta.holdingCostsTotal, { kind: 'currency' })}
+            >
+              -{currencyFormatter.format(meta.holdingCostsTotal)}
+            </p>
           </div>
         </div>
       </div>
@@ -105,7 +132,12 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Net profit formula</p>
         <p className="mt-1 text-sm text-slate-200">
           {currencyFormatter.format(meta.salePrice)} - {currencyFormatter.format(totalCosts)} ={' '}
-          <span className={`font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}>{currencyFormatter.format(meta.netProfit)}</span>
+          <span
+            className={`font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+            style={getNegativeValueStyle(meta.netProfit, { kind: 'currency' })}
+          >
+            {currencyFormatter.format(meta.netProfit)}
+          </span>
         </p>
       </div>
     </div>

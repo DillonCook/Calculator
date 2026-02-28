@@ -27,6 +27,7 @@ export interface PdfReportSchema {
   taxAndInsuranceDetail: PdfReportSection;
   variableExpenseDetail: PdfReportSection;
   financingSnapshot: PdfReportSection;
+  turnaroundStabilization?: PdfReportSection;
   assumptions: PdfReportSection;
   listingReference: PdfReportSection;
 }
@@ -90,6 +91,8 @@ export const createPdfReportSchema = (
           input.purchase.helocClosingCosts
         );
   const variableExpenseStrategy = getVariableExpenseStrategy(input, selectedStrategy);
+  const turnaroundSummary = selectedStrategy === 'longTerm' ? strategyOutput.longTermTurnaroundSummary : undefined;
+  const turnaroundInputs = input.longTerm.turnaround;
   const variableExpenses = variableExpenseStrategy
     ? input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy])
     : [];
@@ -167,6 +170,43 @@ export const createPdfReportSchema = (
         { label: 'Points', value: percentFormatter.format(input.purchase.pointsPercent) }
       ]
     },
+    turnaroundStabilization:
+      selectedStrategy === 'longTerm' && turnaroundSummary?.enabled
+        ? {
+            title: 'Turnaround Stabilization (12-Month)',
+            rows: [
+              { label: 'Turnaround mode', value: turnaroundInputs.enabled ? 'Enabled' : 'Disabled' },
+              { label: 'Stabilized gross rent (monthly)', value: formatCurrency(turnaroundInputs.stabilizedGrossRentMonthly) },
+              { label: 'Stabilized other income (monthly)', value: formatCurrency(turnaroundInputs.stabilizedOtherIncomeMonthly) },
+              { label: 'Laundry + vending + garage + parking + option (monthly)', value: formatCurrency(
+                turnaroundInputs.laundryIncomeMonthly +
+                  turnaroundInputs.vendingMiscIncomeMonthly +
+                  turnaroundInputs.garageIncomeMonthly +
+                  turnaroundInputs.parkingIncomeMonthly +
+                  turnaroundInputs.additionalIncomeMonthly
+              ) },
+              { label: 'Rehab budget for stabilization', value: formatCurrency(turnaroundInputs.rehabBudgetForStabilization) },
+              { label: 'Tax/insurance adjustment (annual)', value: formatCurrency(turnaroundInputs.annualTaxInsuranceAdjustment) },
+              { label: 'Stabilized vacancy %', value: percentFormatter.format(turnaroundInputs.vacancyPercent) },
+              { label: 'Stabilized maintenance %', value: percentFormatter.format(turnaroundInputs.maintenancePercent) },
+              { label: 'Stabilized CapEx %', value: percentFormatter.format(turnaroundInputs.capexPercent) },
+              { label: 'PM fee %', value: percentFormatter.format(turnaroundInputs.managementFeePercent) },
+              { label: 'Exit/Refi cap rate %', value: percentFormatter.format(turnaroundInputs.exitRefiCapRatePercent) },
+              { label: 'NOI (stabilized)', value: formatCurrency(turnaroundSummary.noiMonthly) },
+              { label: 'Cash flow (pre-tax)', value: formatCurrency(turnaroundSummary.cashFlowPreTaxMonthly) },
+              { label: 'Cash flow excluding reserves', value: formatCurrency(turnaroundSummary.cashFlowExcludingReservesMonthly) },
+              { label: 'Total cash invested', value: formatCurrency(turnaroundSummary.totalCashInvested) },
+              { label: 'DSCR (stabilized)', value: formatDscr(turnaroundSummary.dscr) },
+              { label: 'Cap rate (stabilized)', value: percentFormatter.format(turnaroundSummary.capRate) },
+              { label: 'Cash-on-cash (stabilized)', value: percentFormatter.format(turnaroundSummary.cashOnCashReturn) },
+              { label: 'IRR (stabilized)', value: percentFormatter.format(turnaroundSummary.irr) },
+              { label: 'ROI (stabilized)', value: percentFormatter.format(turnaroundSummary.roi) },
+              { label: 'Implied value @ exit cap', value: formatCurrency(turnaroundSummary.impliedValueAtExitCap) },
+              { label: 'Cap on cost', value: percentFormatter.format(turnaroundSummary.capOnCost) },
+              { label: 'Equity created', value: formatCurrency(turnaroundSummary.equityCreated) }
+            ]
+          }
+        : undefined,
     assumptions: {
       title: 'Market Assumptions',
       rows: [

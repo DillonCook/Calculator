@@ -30,18 +30,82 @@ html {
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #c7681a 0%, #f2a44c 100%);
-    border: 1px solid rgba(255, 195, 122, 0.58);
-    color: #13253a;
-    transition: filter 180ms ease, transform 180ms ease;
+    --btn-grad-1: #a86b33;
+    --btn-grad-2: #bf8145;
+    --btn-grad-3: #d29a63;
+    --btn-border: rgba(244, 198, 142, 0.56);
+    --btn-text: #f7fbff;
+    --btn-hover-border: rgba(248, 220, 182, 0.74);
+    --btn-shadow-base: rgba(8, 18, 32, 0.26);
+    --btn-shadow-hover: rgba(8, 18, 32, 0.34);
+    --btn-shadow-active: rgba(8, 18, 32, 0.22);
+    background: linear-gradient(138deg, var(--btn-grad-1) 0%, var(--btn-grad-2) 56%, var(--btn-grad-3) 100%);
+    border: 1px solid var(--btn-border);
+    color: var(--btn-text);
+    font-weight: 700;
+    letter-spacing: 0;
+    -webkit-text-stroke: 0;
+    text-shadow: none;
+    box-shadow: 0 1px 2px var(--btn-shadow-base);
+    transition:
+      filter 180ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      border-color 180ms ease,
+      background 220ms ease;
   }
 
   .btn-primary:hover {
-    filter: brightness(1.08);
+    filter: brightness(1.04) saturate(1.02);
+    border-color: var(--btn-hover-border);
+    box-shadow: 0 2px 7px var(--btn-shadow-hover);
+    transform: translateY(-0.5px);
   }
 
   .btn-primary:active {
-    transform: translateY(1px);
+    transform: translateY(0) scale(0.992);
+    filter: brightness(0.985) saturate(1.01);
+    box-shadow: 0 1px 3px var(--btn-shadow-active);
+  }
+
+  .btn-auth {
+    --btn-grad-1: #2a4f7d;
+    --btn-grad-2: #3973a8;
+    --btn-grad-3: #58a5d8;
+    --btn-border: rgba(132, 195, 236, 0.58);
+    --btn-hover-border: rgba(165, 213, 242, 0.74);
+  }
+
+  .btn-link {
+    --btn-grad-1: #2c6186;
+    --btn-grad-2: #2f86b0;
+    --btn-grad-3: #53b7d2;
+    --btn-border: rgba(134, 213, 229, 0.58);
+    --btn-hover-border: rgba(170, 228, 240, 0.74);
+  }
+
+  .btn-work {
+    --btn-grad-1: #2a6074;
+    --btn-grad-2: #2f7f8f;
+    --btn-grad-3: #43a79e;
+    --btn-border: rgba(137, 214, 204, 0.56);
+    --btn-hover-border: rgba(174, 228, 220, 0.72);
+  }
+
+  .btn-vault {
+    --btn-grad-1: #2a5e45;
+    --btn-grad-2: #337658;
+    --btn-grad-3: #4f9a74;
+    --btn-border: rgba(152, 220, 186, 0.54);
+    --btn-hover-border: rgba(184, 234, 206, 0.7);
+  }
+
+  .btn-pdf {
+    --btn-grad-1: #a35d20;
+    --btn-grad-2: #c5782f;
+    --btn-grad-3: #de9b4c;
+    --btn-border: rgba(238, 192, 136, 0.58);
+    --btn-hover-border: rgba(243, 213, 172, 0.76);
   }
 
   .accent-edge {
@@ -56,12 +120,37 @@ html {
 
 
 
-.brandDeal {
-  color: #7eaef5;
+.brand-lockup {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  min-width: 0;
 }
 
-.brandCooker {
-  color: #f2a246;
+.brand-text {
+  display: inline-block;
+  font-weight: 800;
+  font-size: clamp(2rem, 5.6vw, 3rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  background: linear-gradient(120deg, #dfe9ff 0%, #7caef8 19%, #3f87d6 37%, #53c4dd 50%, #3f87d6 63%, #84b4f8 78%, #f39a3f 91%, #ff722e 100%);
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 10px 24px rgba(25, 56, 113, 0.22);
+  animation: brandGradient 10s ease-in-out infinite;
+}
+
+.brand-icon {
+  width: clamp(2.53rem, 6.36vw, 3.3rem);
+  height: auto;
+  display: block;
+  flex: 0 0 auto;
+  margin-left: -0.06em;
+  transform: translateY(0.64em);
+  filter: saturate(1.08) contrast(1.04);
 }
 
 
@@ -141,9 +230,11 @@ input[type='number'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand-lockup,
   .panel-collapse,
   .panel-swap,
-  .tap-feedback {
+  .tap-feedback,
+  .brand-text {
     transition: none !important;
     animation: none !important;
   }
@@ -176,6 +267,34 @@ input[type='number'] {
 
   to {
     opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes brandGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes brandFloat {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+
+  100% {
     transform: translateY(0);
   }
 }

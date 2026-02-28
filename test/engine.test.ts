@@ -198,6 +198,115 @@ test('long-term module includes base fixed and variable expenses', () => {
   near(result.longTerm.monthlyCashFlow, expectedMonthly);
 });
 
+test('long-term tenant placement fee appears in show-work only and does not change KPIs', () => {
+  const model = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2400,
+      otherIncomeMonthly: 150,
+      tenantPlacementFeePercent: 0.75
+    }
+  };
+
+  const result = calculateDeal(model);
+  const p = model.purchase;
+  const lt = model.longTerm;
+  const gross = lt.grossRentMonthly + lt.otherIncomeMonthly;
+  const effectiveGrossIncome = gross * (1 - lt.vacancyPercent);
+  const noi =
+    effectiveGrossIncome -
+    effectiveGrossIncome * lt.maintenancePercent -
+    effectiveGrossIncome * lt.capexPercent -
+    effectiveGrossIncome * lt.managementFeePercent -
+    lt.ownerExpensesMonthly -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('longTerm', model);
+  const debt = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
+
+  near(result.longTerm.noiMonthly ?? 0, noi, 0.01);
+  near(result.longTerm.monthlyCashFlow, noi - debt, 0.01);
+
+  const placementLine = result.longTerm.calculationBreakdown?.lines.find((line) => line.key === 'lt-tenant-placement-fyi');
+  assert.ok(placementLine);
+  near(placementLine?.monthly ?? 0, 0, 0.0001);
+  near(placementLine?.annual ?? 0, -(lt.grossRentMonthly * lt.tenantPlacementFeePercent), 0.01);
+});
+
+test('long-term turnaround mode computes stabilized outputs and show-work lines', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 640000,
+      downPaymentPercent: 0.2,
+      interestRate: 0.072,
+      loanTermYears: 30
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2600,
+      otherIncomeMonthly: 100,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        enabled: true,
+        stabilizedGrossRentMonthly: 7200,
+        stabilizedOtherIncomeMonthly: 250,
+        laundryIncomeMonthly: 180,
+        vendingMiscIncomeMonthly: 90,
+        garageIncomeMonthly: 140,
+        parkingIncomeMonthly: 220,
+        additionalIncomeMonthly: 120,
+        rehabBudgetForStabilization: 185000,
+        annualTaxInsuranceAdjustment: 2400,
+        vacancyPercent: 0.03,
+        maintenancePercent: 0.05,
+        capexPercent: 0.02,
+        ownerPaidExpensesMonthly: 550,
+        managementFeePercent: 0.06,
+        exitRefiCapRatePercent: 0.055
+      }
+    }
+  };
+
+  const result = calculateDeal(model);
+  const summary = result.longTerm.longTermTurnaroundSummary;
+
+  assert.ok(summary?.enabled);
+
+  const stabilizedGrossIncome =
+    model.longTerm.turnaround.stabilizedGrossRentMonthly +
+    model.longTerm.turnaround.stabilizedOtherIncomeMonthly +
+    model.longTerm.turnaround.laundryIncomeMonthly +
+    model.longTerm.turnaround.vendingMiscIncomeMonthly +
+    model.longTerm.turnaround.garageIncomeMonthly +
+    model.longTerm.turnaround.parkingIncomeMonthly +
+    model.longTerm.turnaround.additionalIncomeMonthly;
+  const vacancyLoss = stabilizedGrossIncome * model.longTerm.turnaround.vacancyPercent;
+  const effectiveGrossIncome = stabilizedGrossIncome - vacancyLoss;
+  const operatingExpenses =
+    effectiveGrossIncome * model.longTerm.turnaround.maintenancePercent +
+    effectiveGrossIncome * model.longTerm.turnaround.capexPercent +
+    effectiveGrossIncome * model.longTerm.turnaround.managementFeePercent +
+    model.longTerm.turnaround.ownerPaidExpensesMonthly +
+    (fixedCostsMonthly(model) + model.longTerm.turnaround.annualTaxInsuranceAdjustment / 12) +
+    variableCostMonthly('longTerm', model);
+  const stabilizedNoi = effectiveGrossIncome - operatingExpenses;
+  const debt = calculateMonthlyPayment(
+    calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent),
+    model.purchase.interestRate,
+    model.purchase.loanTermYears
+  );
+
+  near(summary?.stabilizedGrossIncomeMonthly ?? 0, stabilizedGrossIncome, 0.01);
+  near(summary?.effectiveGrossIncomeMonthly ?? 0, effectiveGrossIncome, 0.01);
+  near(summary?.noiMonthly ?? 0, stabilizedNoi, 0.01);
+  near(summary?.cashFlowPreTaxMonthly ?? 0, stabilizedNoi - debt, 0.01);
+  near(summary?.totalCashInvested ?? 0, result.purchase.totalCashNeeded + model.longTerm.turnaround.rehabBudgetForStabilization, 0.01);
+  near(summary?.impliedValueAtExitCap ?? 0, (stabilizedNoi * 12) / model.longTerm.turnaround.exitRefiCapRatePercent, 0.01);
+  assert.ok(result.longTerm.calculationBreakdown?.lines.some((line) => line.key === 'lt-stab-noi'));
+});
+
 
 test('owned mode uses existing carrying costs instead of purchase underwriting debt inputs', () => {
   const model = {

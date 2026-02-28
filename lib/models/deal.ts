@@ -42,12 +42,33 @@ export interface PurchaseInputs {
 export interface LongTermInputs {
   grossRentMonthly: number;
   otherIncomeMonthly: number;
+  tenantPlacementFeePercent: number;
   arvOverride: number | null;
   vacancyPercent: number;
   maintenancePercent: number;
   capexPercent: number;
   managementFeePercent: number;
   ownerExpensesMonthly: number;
+  turnaround: LongTermTurnaroundInputs;
+}
+
+export interface LongTermTurnaroundInputs {
+  enabled: boolean;
+  stabilizedGrossRentMonthly: number;
+  stabilizedOtherIncomeMonthly: number;
+  laundryIncomeMonthly: number;
+  vendingMiscIncomeMonthly: number;
+  garageIncomeMonthly: number;
+  parkingIncomeMonthly: number;
+  additionalIncomeMonthly: number;
+  rehabBudgetForStabilization: number;
+  annualTaxInsuranceAdjustment: number;
+  vacancyPercent: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  ownerPaidExpensesMonthly: number;
+  managementFeePercent: number;
+  exitRefiCapRatePercent: number;
 }
 
 export interface CommercialInputs {
@@ -181,6 +202,43 @@ export interface CommercialSummaryOutput {
   breakEvenOccupancyPercent: number;
 }
 
+export interface LongTermTurnaroundSummaryOutput {
+  enabled: boolean;
+  stabilizedGrossMonthlyRent: number;
+  stabilizedOtherIncomeMonthly: number;
+  laundryIncomeMonthly: number;
+  vendingMiscIncomeMonthly: number;
+  garageIncomeMonthly: number;
+  parkingIncomeMonthly: number;
+  additionalIncomeMonthly: number;
+  stabilizedGrossIncomeMonthly: number;
+  effectiveGrossIncomeMonthly: number;
+  rehabBudgetForStabilization: number;
+  annualTaxInsuranceAdjustment: number;
+  vacancyPercent: number;
+  maintenancePercent: number;
+  capexPercent: number;
+  ownerPaidExpensesMonthly: number;
+  managementFeePercent: number;
+  exitRefiCapRatePercent: number;
+  operatingExpensesMonthly: number;
+  noiMonthly: number;
+  debtServiceMonthly: number;
+  cashFlowPreTaxMonthly: number;
+  cashFlowExcludingReservesMonthly: number;
+  annualNoi: number;
+  annualCashFlowPreTax: number;
+  totalCashInvested: number;
+  dscr: number;
+  capRate: number;
+  cashOnCashReturn: number;
+  irr: number;
+  roi: number;
+  impliedValueAtExitCap: number;
+  capOnCost: number;
+  equityCreated: number;
+}
+
 export interface DealInputModel {
   purchase: PurchaseInputs;
   commercial: CommercialInputs;
@@ -210,6 +268,7 @@ export interface StrategyOutput {
   cashFlowTimeline: number[];
   calculationBreakdown?: StrategyCalculationBreakdown;
   commercialSummary?: CommercialSummaryOutput;
+  longTermTurnaroundSummary?: LongTermTurnaroundSummaryOutput;
 }
 
 export interface MasterSummary {
@@ -290,12 +349,31 @@ export const defaultDealInput: DealInputModel = {
   longTerm: {
     grossRentMonthly: 0,
     otherIncomeMonthly: 0,
+    tenantPlacementFeePercent: 0.75,
     arvOverride: null,
     vacancyPercent: 0.05,
     maintenancePercent: 0.05,
     capexPercent: 0.05,
     managementFeePercent: 0.08,
-    ownerExpensesMonthly: 0
+    ownerExpensesMonthly: 0,
+    turnaround: {
+      enabled: false,
+      stabilizedGrossRentMonthly: 0,
+      stabilizedOtherIncomeMonthly: 0,
+      laundryIncomeMonthly: 0,
+      vendingMiscIncomeMonthly: 0,
+      garageIncomeMonthly: 0,
+      parkingIncomeMonthly: 0,
+      additionalIncomeMonthly: 0,
+      rehabBudgetForStabilization: 0,
+      annualTaxInsuranceAdjustment: 0,
+      vacancyPercent: 0.03,
+      maintenancePercent: 0.05,
+      capexPercent: 0.02,
+      ownerPaidExpensesMonthly: 0,
+      managementFeePercent: 0.08,
+      exitRefiCapRatePercent: 0.055
+    }
   },
   airbnb: {
     adr: 0,

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
@@ -24,6 +25,7 @@ import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-li
 import { createShortShareLink } from '@/lib/share-links';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { getNegativeValueStyle, type NegativeValueKind } from '@/lib/negative-value-color';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 import { normalizeListingUrl } from '@/lib/listing-link';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
@@ -77,7 +79,30 @@ type CommercialDigestKey =
   | 'annual-debt'
   | 'risk-drag';
 
+type LongTermTurnaroundDigestKey =
+  | 'stab-gross-income'
+  | 'stab-egi'
+  | 'stab-noi'
+  | 'stab-cf'
+  | 'stab-cf-no-reserves'
+  | 'stab-invested'
+  | 'stab-dscr'
+  | 'stab-cap-rate'
+  | 'stab-coc'
+  | 'stab-irr'
+  | 'stab-implied-value'
+  | 'stab-equity-created';
+
+interface DigestItem<K extends string> {
+  key: K;
+  label: string;
+  value: string;
+  rawValue?: number;
+  rawKind?: NegativeValueKind;
+}
+
 const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
+const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
 const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'leased-sf',
   'physical-occ',
@@ -90,7 +115,22 @@ const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'annual-debt',
   'risk-drag'
 ];
+const defaultLongTermTurnaroundDigestOrder: LongTermTurnaroundDigestKey[] = [
+  'stab-gross-income',
+  'stab-egi',
+  'stab-noi',
+  'stab-cf',
+  'stab-cf-no-reserves',
+  'stab-invested',
+  'stab-dscr',
+  'stab-cap-rate',
+  'stab-coc',
+  'stab-irr',
+  'stab-implied-value',
+  'stab-equity-created'
+];
 const commercialDigestKeySet = new Set<CommercialDigestKey>(defaultCommercialDigestOrder);
+const longTermTurnaroundDigestKeySet = new Set<LongTermTurnaroundDigestKey>(defaultLongTermTurnaroundDigestOrder);
 
 const normalizeCommercialDigestOrder = (value: unknown): CommercialDigestKey[] => {
   const normalized: CommercialDigestKey[] = [];
@@ -105,6 +145,25 @@ const normalizeCommercialDigestOrder = (value: unknown): CommercialDigestKey[] =
   }
 
   for (const fallbackKey of defaultCommercialDigestOrder) {
+    if (!normalized.includes(fallbackKey)) normalized.push(fallbackKey);
+  }
+
+  return normalized;
+};
+
+const normalizeLongTermTurnaroundDigestOrder = (value: unknown): LongTermTurnaroundDigestKey[] => {
+  const normalized: LongTermTurnaroundDigestKey[] = [];
+  const input = Array.isArray(value) ? value : [];
+
+  for (const rawKey of input) {
+    if (typeof rawKey !== 'string') continue;
+    const key = rawKey as LongTermTurnaroundDigestKey;
+    if (!longTermTurnaroundDigestKeySet.has(key)) continue;
+    if (normalized.includes(key)) continue;
+    normalized.push(key);
+  }
+
+  for (const fallbackKey of defaultLongTermTurnaroundDigestOrder) {
     if (!normalized.includes(fallbackKey)) normalized.push(fallbackKey);
   }
 
@@ -190,6 +249,9 @@ export default function HomePage() {
   });
   const [commercialDigestOrder, setCommercialDigestOrder] = useState<CommercialDigestKey[]>(defaultCommercialDigestOrder);
   const [isCommercialOrderEditorOpen, setIsCommercialOrderEditorOpen] = useState(false);
+  const [longTermTurnaroundDigestOrder, setLongTermTurnaroundDigestOrder] =
+    useState<LongTermTurnaroundDigestKey[]>(defaultLongTermTurnaroundDigestOrder);
+  const [isLongTermTurnaroundOrderEditorOpen, setIsLongTermTurnaroundOrderEditorOpen] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [mobileInputView, setMobileInputView] = useState<'core' | 'strategy'>('core');
   const [isMobileCoreInputsMinimized, setIsMobileCoreInputsMinimized] = useState(false);
@@ -230,7 +292,8 @@ export default function HomePage() {
 
   const activeOutput = result[activeStrategy];
   const commercialSummary = activeStrategy === 'purchase' ? activeOutput.commercialSummary : undefined;
-  const baseCommercialDigestItems = useMemo(() => {
+  const longTermTurnaroundSummary = activeStrategy === 'longTerm' ? activeOutput.longTermTurnaroundSummary : undefined;
+  const baseCommercialDigestItems = useMemo<DigestItem<CommercialDigestKey>[]>(() => {
     if (!commercialSummary) return [];
 
     return [
@@ -239,18 +302,68 @@ export default function HomePage() {
         label: 'Leased SF',
         value: `${commercialSummary.occupiedSqft.toLocaleString()} / ${commercialSummary.grossLeasableAreaSqft.toLocaleString()}`
       },
-      { key: 'physical-occ' as CommercialDigestKey, label: 'Physical Occupancy', value: percentFormatter.format(commercialSummary.physicalOccupancyPercent) },
-      { key: 'break-even-occ' as CommercialDigestKey, label: 'Break-even Occupancy', value: percentFormatter.format(commercialSummary.breakEvenOccupancyPercent) },
-      { key: 'debt-yield' as CommercialDigestKey, label: 'Debt Yield', value: percentFormatter.format(commercialSummary.debtYield) },
-      { key: 'annual-pgi' as CommercialDigestKey, label: 'Annual Potential Gross', value: currencyFormatter.format(commercialSummary.annualPotentialGrossIncome) },
-      { key: 'annual-egi' as CommercialDigestKey, label: 'Annual Effective Gross', value: currencyFormatter.format(commercialSummary.annualEffectiveGrossIncome) },
-      { key: 'annual-opex' as CommercialDigestKey, label: 'Annual Operating Expenses', value: currencyFormatter.format(commercialSummary.annualOperatingExpenses) },
-      { key: 'annual-noi' as CommercialDigestKey, label: 'Annual NOI', value: currencyFormatter.format(commercialSummary.annualNoi) },
-      { key: 'annual-debt' as CommercialDigestKey, label: 'Annual Debt Service', value: currencyFormatter.format(commercialSummary.annualDebtService) },
+      {
+        key: 'physical-occ' as CommercialDigestKey,
+        label: 'Physical Occupancy',
+        value: percentFormatter.format(commercialSummary.physicalOccupancyPercent),
+        rawValue: commercialSummary.physicalOccupancyPercent,
+        rawKind: 'percent'
+      },
+      {
+        key: 'break-even-occ' as CommercialDigestKey,
+        label: 'Break-even Occupancy',
+        value: percentFormatter.format(commercialSummary.breakEvenOccupancyPercent),
+        rawValue: commercialSummary.breakEvenOccupancyPercent,
+        rawKind: 'percent'
+      },
+      {
+        key: 'debt-yield' as CommercialDigestKey,
+        label: 'Debt Yield',
+        value: percentFormatter.format(commercialSummary.debtYield),
+        rawValue: commercialSummary.debtYield,
+        rawKind: 'percent'
+      },
+      {
+        key: 'annual-pgi' as CommercialDigestKey,
+        label: 'Annual Potential Gross',
+        value: currencyFormatter.format(commercialSummary.annualPotentialGrossIncome),
+        rawValue: commercialSummary.annualPotentialGrossIncome,
+        rawKind: 'currency'
+      },
+      {
+        key: 'annual-egi' as CommercialDigestKey,
+        label: 'Annual Effective Gross',
+        value: currencyFormatter.format(commercialSummary.annualEffectiveGrossIncome),
+        rawValue: commercialSummary.annualEffectiveGrossIncome,
+        rawKind: 'currency'
+      },
+      {
+        key: 'annual-opex' as CommercialDigestKey,
+        label: 'Annual Operating Expenses',
+        value: currencyFormatter.format(commercialSummary.annualOperatingExpenses),
+        rawValue: commercialSummary.annualOperatingExpenses,
+        rawKind: 'currency'
+      },
+      {
+        key: 'annual-noi' as CommercialDigestKey,
+        label: 'Annual NOI',
+        value: currencyFormatter.format(commercialSummary.annualNoi),
+        rawValue: commercialSummary.annualNoi,
+        rawKind: 'currency'
+      },
+      {
+        key: 'annual-debt' as CommercialDigestKey,
+        label: 'Annual Debt Service',
+        value: currencyFormatter.format(commercialSummary.annualDebtService),
+        rawValue: commercialSummary.annualDebtService,
+        rawKind: 'currency'
+      },
       {
         key: 'risk-drag' as CommercialDigestKey,
         label: 'Annual Vacancy + Credit Loss',
-        value: currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)
+        value: currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss),
+        rawValue: commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss,
+        rawKind: 'currency'
       }
     ];
   }, [commercialSummary]);
@@ -265,6 +378,102 @@ export default function HomePage() {
     ? commercialDigestItems
     : commercialDigestItems.slice(0, mobileCommercialOutputDefaultCount);
   const hasHiddenCommercialMobileOutputs = commercialDigestItems.length > mobileCommercialOutputDefaultCount;
+  const baseLongTermTurnaroundDigestItems = useMemo<DigestItem<LongTermTurnaroundDigestKey>[]>(() => {
+    if (!longTermTurnaroundSummary?.enabled) return [];
+
+    return [
+      {
+        key: 'stab-gross-income' as LongTermTurnaroundDigestKey,
+        label: 'Stabilized Gross Income',
+        value: currencyFormatter.format(longTermTurnaroundSummary.stabilizedGrossIncomeMonthly),
+        rawValue: longTermTurnaroundSummary.stabilizedGrossIncomeMonthly,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-egi' as LongTermTurnaroundDigestKey,
+        label: 'Effective Gross Income',
+        value: currencyFormatter.format(longTermTurnaroundSummary.effectiveGrossIncomeMonthly),
+        rawValue: longTermTurnaroundSummary.effectiveGrossIncomeMonthly,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-noi' as LongTermTurnaroundDigestKey,
+        label: 'NOI (Stabilized)',
+        value: currencyFormatter.format(longTermTurnaroundSummary.noiMonthly),
+        rawValue: longTermTurnaroundSummary.noiMonthly,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-cf' as LongTermTurnaroundDigestKey,
+        label: 'Cash Flow (Pre-Tax)',
+        value: currencyFormatter.format(longTermTurnaroundSummary.cashFlowPreTaxMonthly),
+        rawValue: longTermTurnaroundSummary.cashFlowPreTaxMonthly,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-cf-no-reserves' as LongTermTurnaroundDigestKey,
+        label: 'Cash Flow excl. Reserves',
+        value: currencyFormatter.format(longTermTurnaroundSummary.cashFlowExcludingReservesMonthly),
+        rawValue: longTermTurnaroundSummary.cashFlowExcludingReservesMonthly,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-invested' as LongTermTurnaroundDigestKey,
+        label: 'Total Cash Invested',
+        value: currencyFormatter.format(longTermTurnaroundSummary.totalCashInvested),
+        rawValue: longTermTurnaroundSummary.totalCashInvested,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-dscr' as LongTermTurnaroundDigestKey,
+        label: 'DSCR (Stabilized)',
+        value: longTermTurnaroundSummary.dscr.toFixed(2),
+        rawValue: longTermTurnaroundSummary.dscr,
+        rawKind: 'ratio'
+      },
+      {
+        key: 'stab-cap-rate' as LongTermTurnaroundDigestKey,
+        label: 'Cap Rate (Stabilized)',
+        value: percentFormatter.format(longTermTurnaroundSummary.capRate),
+        rawValue: longTermTurnaroundSummary.capRate,
+        rawKind: 'percent'
+      },
+      {
+        key: 'stab-coc' as LongTermTurnaroundDigestKey,
+        label: 'Cash-on-Cash (Stabilized)',
+        value: percentFormatter.format(longTermTurnaroundSummary.cashOnCashReturn),
+        rawValue: longTermTurnaroundSummary.cashOnCashReturn,
+        rawKind: 'percent'
+      },
+      {
+        key: 'stab-irr' as LongTermTurnaroundDigestKey,
+        label: 'IRR (Stabilized)',
+        value: percentFormatter.format(longTermTurnaroundSummary.irr),
+        rawValue: longTermTurnaroundSummary.irr,
+        rawKind: 'percent'
+      },
+      {
+        key: 'stab-implied-value' as LongTermTurnaroundDigestKey,
+        label: 'Implied Value @ Exit Cap',
+        value: currencyFormatter.format(longTermTurnaroundSummary.impliedValueAtExitCap),
+        rawValue: longTermTurnaroundSummary.impliedValueAtExitCap,
+        rawKind: 'currency'
+      },
+      {
+        key: 'stab-equity-created' as LongTermTurnaroundDigestKey,
+        label: 'Equity Created',
+        value: currencyFormatter.format(longTermTurnaroundSummary.equityCreated),
+        rawValue: longTermTurnaroundSummary.equityCreated,
+        rawKind: 'currency'
+      }
+    ];
+  }, [longTermTurnaroundSummary]);
+  const longTermTurnaroundDigestItems = useMemo(() => {
+    const lookup = new Map(baseLongTermTurnaroundDigestItems.map((item) => [item.key, item]));
+    return normalizeLongTermTurnaroundDigestOrder(longTermTurnaroundDigestOrder)
+      .map((key) => lookup.get(key))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [baseLongTermTurnaroundDigestItems, longTermTurnaroundDigestOrder]);
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
   const isFlipStrategy = activeStrategy === 'flip';
@@ -287,6 +496,7 @@ export default function HomePage() {
       : isFlipStrategy
         ? 'Projected one-time proceeds after rehab, sale costs, and carry costs'
         : 'Includes maintenance and CapEx reserves for a conservative monthly cash flow view';
+  const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -323,6 +533,16 @@ export default function HomePage() {
   const moveCommercialDigestItem = (fromIndex: number, toIndex: number) => {
     setCommercialDigestOrder((current) => {
       const next = [...normalizeCommercialDigestOrder(current)];
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length) return next;
+
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+  const moveLongTermTurnaroundDigestItem = (fromIndex: number, toIndex: number) => {
+    setLongTermTurnaroundDigestOrder((current) => {
+      const next = [...normalizeLongTermTurnaroundDigestOrder(current)];
       if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length) return next;
 
       const [moved] = next.splice(fromIndex, 1);
@@ -656,11 +876,30 @@ export default function HomePage() {
       // Ignore malformed local preference payloads.
     }
   }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      setLongTermTurnaroundDigestOrder(normalizeLongTermTurnaroundDigestOrder(parsed));
+    } catch {
+      // Ignore malformed local preference payloads.
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY, JSON.stringify(normalizeCommercialDigestOrder(commercialDigestOrder)));
   }, [commercialDigestOrder]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY,
+      JSON.stringify(normalizeLongTermTurnaroundDigestOrder(longTermTurnaroundDigestOrder))
+    );
+  }, [longTermTurnaroundDigestOrder]);
 
   const getUnixTime = (timestamp: string) => {
     const parsed = Date.parse(timestamp);
@@ -1230,7 +1469,7 @@ export default function HomePage() {
         type="button"
         onClick={signInWithGoogle}
         disabled={authBusy || !isSupabaseConfigured}
-        className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+        className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
       >
         Continue with Google
       </button>
@@ -1254,7 +1493,7 @@ export default function HomePage() {
           type="button"
           onClick={createAccountWithEmail}
           disabled={authBusy || !isSupabaseConfigured}
-          className="btn-primary w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+          className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
         >
           Create account with email
         </button>
@@ -1279,10 +1518,10 @@ export default function HomePage() {
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
                 <div className="relative flex items-start justify-between gap-3">
-                  <h1 className="text-2xl font-semibold md:text-3xl" aria-label="DealCooker">
-                    <span className="brandDeal">Deal</span>
-                    <span className="brandCooker">Cooker</span>
-                  </h1>
+                  <div className="brand-lockup" aria-label="DealCooker">
+                    <h1 className="brand-text leading-none">DealCooker</h1>
+                    <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                  </div>
                   <div ref={authControlsRef} className="shrink-0">
                     {currentUser ? (
                       <div className="flex items-center gap-1.5 sm:gap-2">
@@ -1300,7 +1539,7 @@ export default function HomePage() {
                           type="button"
                           onClick={signOut}
                           disabled={authBusy || !isSupabaseConfigured}
-                          className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                          className="btn-primary btn-auth min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
                         >
                           Sign out
                         </button>
@@ -1312,7 +1551,7 @@ export default function HomePage() {
                           onClick={() => setIsAuthMenuOpen((value) => !value)}
                           aria-expanded={isAuthMenuOpen}
                           aria-controls="auth-menu"
-                          className="btn-primary min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:text-xs"
+                          className="btn-primary btn-auth min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
                         >
                           Sign in
                         </button>
@@ -1365,7 +1604,7 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="btn-primary inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                     target="_blank"
                   >
                     Print to PDF
@@ -1373,7 +1612,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={shareCurrentDeal}
-                    className="btn-primary min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)] sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
                   >
                     Send link
                   </button>
@@ -1490,7 +1729,7 @@ export default function HomePage() {
                 triggerHapticFeedback('light');
                 setIsStrategyWorkOpen(true);
               }}
-              className="btn-primary tap-feedback min-h-12 w-full max-w-sm rounded-xl px-4 py-3 text-base font-semibold leading-tight text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)]"
+              className="btn-primary btn-work tap-feedback min-h-12 w-full max-w-sm rounded-xl px-4 py-3 text-base font-semibold leading-tight"
             >
               Show work
             </button>
@@ -1573,6 +1812,7 @@ export default function HomePage() {
                 <p
                   className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
                   data-testid="kpi-priority-metric"
+                  style={priorityMetricNegativeStyle}
                 >
                   {currencyFormatter.format(priorityMetricValue)}
                 </p>
@@ -1654,6 +1894,8 @@ export default function HomePage() {
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(cashToCloseValue)}
+            numericValue={cashToCloseValue}
+            numericValueKind="currency"
             winner={activeStrategyLabel}
             secondaryLabel="Total cash invested"
             secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
@@ -1671,24 +1913,32 @@ export default function HomePage() {
           <KpiCard
             label="Cap Rate"
             value={percentFormatter.format(activeOutput.capRate)}
+            numericValue={activeOutput.capRate}
+            numericValueKind="percent"
             helper="Annual NOI / current property value"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="Cash on Cash"
             value={percentFormatter.format(activeOutput.cashOnCashReturn)}
+            numericValue={activeOutput.cashOnCashReturn}
+            numericValueKind="percent"
             helper="Annual cash flow / total cash invested"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="DSCR"
             value={activeOutput.dscr.toFixed(2)}
+            numericValue={activeOutput.dscr}
+            numericValueKind="ratio"
             helper="NOI / annual debt service"
             winner={activeStrategyLabel}
           />
           <KpiCard
             label="ROI"
             value={percentFormatter.format(activeOutput.roi)}
+            numericValue={activeOutput.roi}
+            numericValueKind="percent"
             helper="Total profit / total cash invested"
             winner={activeStrategyLabel}
           />
@@ -1696,6 +1946,8 @@ export default function HomePage() {
             <KpiCard
               label="IRR"
               value={percentFormatter.format(activeOutput.irr)}
+              numericValue={activeOutput.irr}
+              numericValueKind="percent"
               helper="Discounted return from yearly cashflow timeline"
               winner={activeStrategyLabel}
               definitions={[
@@ -1741,7 +1993,7 @@ export default function HomePage() {
                         disabled={index === 0}
                         className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
                       >
-                        ↑
+                        Up
                       </button>
                       <button
                         type="button"
@@ -1750,7 +2002,7 @@ export default function HomePage() {
                         disabled={index === commercialDigestItems.length - 1}
                         className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
                       >
-                        ↓
+                        Down
                       </button>
                     </div>
                   </div>
@@ -1762,7 +2014,12 @@ export default function HomePage() {
               {mobileCommercialDigestItems.map((item) => (
                 <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5">
                   <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
-                  <p className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100">{item.value}</p>
+                  <p
+                    className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
+                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                  >
+                    {item.value}
+                  </p>
                 </article>
               ))}
             </div>
@@ -1780,7 +2037,76 @@ export default function HomePage() {
               {commercialDigestItems.map((item) => (
                 <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-slate-100">{item.value}</p>
+                  <p
+                    className="mt-1 truncate text-sm font-semibold text-slate-100"
+                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                  >
+                    {item.value}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted">Long-term turnaround outputs</p>
+                <p className="hidden text-[11px] text-muted sm:block">12-month stabilization snapshot for multifamily turnaround decisions</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">Stabilized</span>
+                <button
+                  type="button"
+                  onClick={() => setIsLongTermTurnaroundOrderEditorOpen((prev) => !prev)}
+                  className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                >
+                  {isLongTermTurnaroundOrderEditorOpen ? 'Done' : 'Reorder'}
+                </button>
+              </div>
+            </div>
+            {isLongTermTurnaroundOrderEditorOpen ? (
+              <div className="mb-2 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+                {longTermTurnaroundDigestItems.map((item, index) => (
+                  <div key={`lt-order-${item.key}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                    <p className="truncate text-xs text-slate-200">
+                      {index + 1}. {item.label}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Move ${item.label} up`}
+                        onClick={() => moveLongTermTurnaroundDigestItem(index, index - 1)}
+                        disabled={index === 0}
+                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${item.label} down`}
+                        onClick={() => moveLongTermTurnaroundDigestItem(index, index + 1)}
+                        disabled={index === longTermTurnaroundDigestItems.length - 1}
+                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                      >
+                        Down
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+              {longTermTurnaroundDigestItems.map((item) => (
+                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+                  <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                  <p
+                    className="mt-1 truncate text-sm font-semibold text-slate-100"
+                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                  >
+                    {item.value}
+                  </p>
                 </article>
               ))}
             </div>
@@ -1802,7 +2128,7 @@ export default function HomePage() {
                         triggerHapticFeedback('light');
                         setIsStrategyWorkOpen(true);
                       }}
-                      className="btn-primary tap-feedback rounded-xl px-3 py-2 text-sm font-medium text-neutral-950/90 [text-shadow:0_1px_0_rgba(255,234,205,0.4)]"
+                      className="btn-primary btn-work tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
                     >
                       Show work
                     </button>
