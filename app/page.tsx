@@ -40,6 +40,10 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
   flip: 'Flip'
 };
 
+const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+const isStrategyKey = (value: unknown): value is StrategyKey =>
+  typeof value === 'string' && strategyKeyOrder.includes(value as StrategyKey);
+
 const quickScanDetails: Record<StrategyKey, string[]> = {
   purchase: [
     'Retail / strip-plaza underwriting built around leased square footage and annual $/sq ft rent.',
@@ -103,6 +107,8 @@ interface DigestItem<K extends string> {
 
 const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
 const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
+const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
+const SETTINGS_LIGHT_MODE_STORAGE_KEY = 'dealcooker-light-mode:v1';
 const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'leased-sf',
   'physical-occ',
@@ -231,12 +237,15 @@ const initialDeals =
         return saveDealToVault(freshDeal);
       })();
 const initialActiveDeal = initialDeals[0];
+const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
 
 export default function HomePage() {
   const [model, setModel] = useState(initialActiveDeal?.payload ?? defaultDealInput);
-  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>('purchase');
+  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
   const [deals, setDeals] = useState<ScenarioRecord[]>(initialDeals);
   const [activeDealId, setActiveDealId] = useState(initialActiveDeal?.scenarioId ?? '');
+  const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
+  const [isLightMode, setIsLightMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
@@ -258,10 +267,12 @@ export default function HomePage() {
   const [isMobileStrategyInputsMinimized, setIsMobileStrategyInputsMinimized] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
+  const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -281,6 +292,7 @@ export default function HomePage() {
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const dealVaultRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
+  const settingsControlsRef = useRef<HTMLDivElement | null>(null);
   const mobileCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
@@ -474,6 +486,11 @@ export default function HomePage() {
       .map((key) => lookup.get(key))
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }, [baseLongTermTurnaroundDigestItems, longTermTurnaroundDigestOrder]);
+  const mobileLongTermTurnaroundOutputDefaultCount = 4;
+  const mobileLongTermTurnaroundDigestItems = showAllLongTermTurnaroundMobileOutputs
+    ? longTermTurnaroundDigestItems
+    : longTermTurnaroundDigestItems.slice(0, mobileLongTermTurnaroundOutputDefaultCount);
+  const hasHiddenLongTermTurnaroundMobileOutputs = longTermTurnaroundDigestItems.length > mobileLongTermTurnaroundOutputDefaultCount;
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
   const isFlipStrategy = activeStrategy === 'flip';
@@ -632,7 +649,9 @@ export default function HomePage() {
   const handleStrategyChange = (nextStrategy: StrategyKey) => {
     setActiveStrategy(nextStrategy);
     setIsCommercialOrderEditorOpen(false);
+    setIsLongTermTurnaroundOrderEditorOpen(false);
     setShowAllCommercialMobileOutputs(false);
+    setShowAllLongTermTurnaroundMobileOutputs(false);
     if (isMobileViewport) {
       setMobileInputView('strategy');
       setIsMobileCoreInputsMinimized(false);
@@ -888,6 +907,21 @@ export default function HomePage() {
       // Ignore malformed local preference payloads.
     }
   }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedDefaultStrategy = window.localStorage.getItem(SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY);
+    if (isStrategyKey(storedDefaultStrategy)) {
+      setDefaultNewDealStrategy(storedDefaultStrategy);
+    }
+
+    const storedLightMode = window.localStorage.getItem(SETTINGS_LIGHT_MODE_STORAGE_KEY);
+    if (storedLightMode === '1') {
+      setIsLightMode(true);
+    } else if (storedLightMode === '0') {
+      setIsLightMode(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -900,6 +934,39 @@ export default function HomePage() {
       JSON.stringify(normalizeLongTermTurnaroundDigestOrder(longTermTurnaroundDigestOrder))
     );
   }, [longTermTurnaroundDigestOrder]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY, defaultNewDealStrategy);
+  }, [defaultNewDealStrategy]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SETTINGS_LIGHT_MODE_STORAGE_KEY, isLightMode ? '1' : '0');
+  }, [isLightMode]);
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (settingsControlsRef.current?.contains(target)) return;
+      setIsSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', closeOnOutsideClick);
+    window.addEventListener('touchstart', closeOnOutsideClick);
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutsideClick);
+      window.removeEventListener('touchstart', closeOnOutsideClick);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isSettingsOpen]);
 
   const getUnixTime = (timestamp: string) => {
     const parsed = Date.parse(timestamp);
@@ -1056,6 +1123,7 @@ export default function HomePage() {
     setDeals(next);
     setActiveDealId(nextDeal.scenarioId);
     setModel(nextDeal.payload);
+    setActiveStrategy(defaultNewDealStrategy);
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
   };
@@ -1088,6 +1156,7 @@ export default function HomePage() {
       setDeals(nextDeals);
       setActiveDealId(nextDeal.scenarioId);
       setModel(nextDeal.payload);
+      setActiveStrategy(defaultNewDealStrategy);
       queueScenarioPush(nextDeal);
       setSaveStatus('saved');
     } else {
@@ -1240,6 +1309,26 @@ export default function HomePage() {
     setCloudHealth('idle');
     setCurrentUser(null);
     setIsAuthMenuOpen(false);
+  };
+
+  const replayQuickTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    }
+    setOnboardingStepIndex(0);
+    setIsOnboardingOpen(true);
+    setIsSettingsOpen(false);
+    setIsAuthMenuOpen(false);
+  };
+
+  const resetOutputOrderingPreferences = () => {
+    setCommercialDigestOrder(defaultCommercialDigestOrder);
+    setLongTermTurnaroundDigestOrder(defaultLongTermTurnaroundDigestOrder);
+  };
+
+  const resetSettingsDefaults = () => {
+    setDefaultNewDealStrategy(defaultNewDealStrategyFallback);
+    setIsLightMode(false);
   };
 
   const pullAndMergeCloudDeals = useCallback(async () => {
@@ -1509,75 +1598,197 @@ export default function HomePage() {
     </>
   );
 
+  const settingsMenuContent = (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wide text-muted">New Deal Defaults</p>
+        <label className="text-[11px] text-muted" htmlFor="settings-default-strategy">
+          Default strategy
+        </label>
+        <select
+          id="settings-default-strategy"
+          value={defaultNewDealStrategy}
+          onChange={(event) => {
+            const nextStrategy = event.target.value;
+            if (isStrategyKey(nextStrategy)) {
+              setDefaultNewDealStrategy(nextStrategy);
+            }
+          }}
+          className="settings-select w-full rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-2 text-xs text-slate-100 outline-none focus:border-accent/70"
+        >
+          {strategyKeyOrder.map((strategy) => (
+            <option key={strategy} value={strategy}>
+              {activeStrategyLabels[strategy]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wide text-muted">Appearance</p>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
+          <span className="text-xs text-slate-100">Theme</span>
+          <button
+            type="button"
+            onClick={() => setIsLightMode((value) => !value)}
+            className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
+            aria-pressed={isLightMode}
+          >
+            {isLightMode ? 'Light mode' : 'Dark mode'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wide text-muted">Actions</p>
+        <button
+          type="button"
+          onClick={replayQuickTutorial}
+          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+        >
+          Replay quick tutorial
+        </button>
+        <button
+          type="button"
+          onClick={resetOutputOrderingPreferences}
+          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+        >
+          Reset output ordering
+        </button>
+        <button
+          type="button"
+          onClick={resetSettingsDefaults}
+          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+        >
+          Reset settings defaults
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <main className="app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-8">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(circle_at_top,rgba(244,150,58,0.28)_0%,rgba(115,150,202,0.12)_34%,transparent_72%)]" />
+    <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-8${isLightMode ? ' theme-light' : ''}`}>
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 top-0 h-[340px] ${
+          isLightMode
+            ? 'bg-[radial-gradient(circle_at_top,rgba(245,146,58,0.18)_0%,rgba(62,132,208,0.08)_30%,transparent_72%)]'
+            : 'bg-[radial-gradient(circle_at_top,rgba(244,150,58,0.28)_0%,rgba(115,150,202,0.12)_34%,transparent_72%)]'
+        }`}
+      />
       <div className="mx-auto max-w-7xl space-y-5">
-        <header className="panel-surface rounded-2xl p-5 shadow-soft backdrop-blur">
+        <header className="panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <div className="relative flex items-start justify-between gap-3">
+                <div className="relative flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="brand-lockup" aria-label="DealCooker">
                     <h1 className="brand-text leading-none">DealCooker</h1>
                     <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
                   </div>
-                  <div ref={authControlsRef} className="shrink-0">
-                    {currentUser ? (
-                      <div className="flex items-center gap-1.5 sm:gap-2">
-                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:text-[11px]">
-                          Cloud: Active
-                        </span>
-                        <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
-                          {profileImageUrl ? (
-                            <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
-                          )}
+                  <div ref={authControlsRef} className="w-full sm:w-auto sm:shrink-0">
+                    <div className="flex w-full items-start justify-between gap-2 sm:w-auto sm:justify-start sm:gap-2.5">
+                      {currentUser ? (
+                        <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-2">
+                          <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
+                            Cloud: Active
+                          </span>
+                          <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+                            {profileImageUrl ? (
+                              <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={signOut}
+                            disabled={authBusy || !isSupabaseConfigured}
+                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                          >
+                            Sign out
+                          </button>
                         </div>
+                      ) : (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsSettingsOpen(false);
+                              setIsAuthMenuOpen((value) => !value);
+                            }}
+                            aria-expanded={isAuthMenuOpen}
+                            aria-controls="auth-menu"
+                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs"
+                          >
+                            Sign in
+                          </button>
+                          {isAuthMenuOpen ? (
+                            <>
+                              <div id="auth-menu" className="absolute right-0 top-10 z-[135] hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
+                                {authMenuContent}
+                              </div>
+                              <div className="fixed inset-0 z-[140] bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
+                                <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                                  <div className="mb-2 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsAuthMenuOpen(false)}
+                                      className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
+                                    >
+                                      Close
+                                    </button>
+                                  </div>
+                                  {authMenuContent}
+                                </div>
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                      )}
+
+                      <div ref={settingsControlsRef} className="relative">
                         <button
                           type="button"
-                          onClick={signOut}
-                          disabled={authBusy || !isSupabaseConfigured}
-                          className="btn-primary btn-auth min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs disabled:opacity-60"
+                          aria-label="Open settings"
+                          aria-expanded={isSettingsOpen}
+                          aria-controls="settings-menu"
+                          onClick={() => {
+                            setIsAuthMenuOpen(false);
+                            setIsSettingsOpen((value) => !value);
+                          }}
+                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
-                          Sign out
+                          <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
+                            <circle cx="12" cy="13.28" r="2.7" />
+                          </svg>
                         </button>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsAuthMenuOpen((value) => !value)}
-                          aria-expanded={isAuthMenuOpen}
-                          aria-controls="auth-menu"
-                          className="btn-primary btn-auth min-h-8 rounded-lg px-2.5 py-1 text-[11px] font-medium sm:text-xs"
-                        >
-                          Sign in
-                        </button>
-                        {isAuthMenuOpen ? (
+
+                        {isSettingsOpen ? (
                           <>
-                            <div id="auth-menu" className="absolute right-0 top-10 z-40 hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
-                              {authMenuContent}
+                            <div id="settings-menu" className="absolute right-0 top-10 z-[136] hidden w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
+                              {settingsMenuContent}
                             </div>
-                            <div className="fixed inset-0 z-50 bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
-                              <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
-                                <div className="mb-2 flex justify-end">
+                            <div className="fixed inset-0 z-[141] bg-black/45 p-4 sm:hidden" onClick={() => setIsSettingsOpen(false)}>
+                              <div className="mx-auto mt-14 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-slate-100">Settings</p>
                                   <button
                                     type="button"
-                                    onClick={() => setIsAuthMenuOpen(false)}
+                                    onClick={() => setIsSettingsOpen(false)}
                                     className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
                                   >
                                     Close
                                   </button>
                                 </div>
-                                {authMenuContent}
+                                {settingsMenuContent}
                               </div>
                             </div>
                           </>
                         ) : null}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
                 <p className="max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
@@ -1819,7 +2030,7 @@ export default function HomePage() {
 
                 {supportsReserveToggle ? (
                   <div className="flex shrink-0 items-center sm:pb-1">
-                    <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                    <div className="reserve-toggle-shell inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
                       <button
                         type="button"
                         onClick={() => {
@@ -1827,8 +2038,8 @@ export default function HomePage() {
                           setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
                         }}
                         aria-pressed={includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
                         }`}
                       >
                         Include reserves
@@ -1840,8 +2051,8 @@ export default function HomePage() {
                           setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
                         }}
                         aria-pressed={!includeReserves}
-                        className={`tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          !includeReserves ? 'bg-white/15 text-slate-100' : 'text-muted hover:bg-white/10'
+                        className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                          !includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
                         }`}
                       >
                         Exclude reserves
@@ -2097,7 +2308,29 @@ export default function HomePage() {
                 ))}
               </div>
             ) : null}
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-1.5 sm:hidden">
+              {mobileLongTermTurnaroundDigestItems.map((item) => (
+                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5">
+                  <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
+                  <p
+                    className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
+                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                  >
+                    {item.value}
+                  </p>
+                </article>
+              ))}
+            </div>
+            {hasHiddenLongTermTurnaroundMobileOutputs ? (
+              <button
+                type="button"
+                onClick={() => setShowAllLongTermTurnaroundMobileOutputs((prev) => !prev)}
+                className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+              >
+                {showAllLongTermTurnaroundMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
+              </button>
+            ) : null}
+            <div className="hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-4">
               {longTermTurnaroundDigestItems.map((item) => (
                 <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>

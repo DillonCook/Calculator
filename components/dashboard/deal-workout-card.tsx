@@ -63,7 +63,7 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
       : 'Set your target IRR to calculate the needed purchase price cut.';
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
+    <section className="deal-workout-surface rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <p className="text-xs uppercase tracking-wider text-accent">Make the deal work</p>
