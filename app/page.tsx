@@ -13,7 +13,7 @@ import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onbo
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
-import { PwaInstallBanner } from '@/components/dashboard/pwa-install-banner';
+import { PwaInstallBanner, PWA_OPEN_INSTALL_EVENT } from '@/components/dashboard/pwa-install-banner';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
@@ -277,6 +277,7 @@ export default function HomePage() {
   const [authBusy, setAuthBusy] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -937,6 +938,33 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+    const displayModeQuery = window.matchMedia('(display-mode: standalone)');
+    const updateInstallState = () =>
+      setIsPwaInstalled(displayModeQuery.matches || navigatorWithStandalone.standalone === true);
+    const markInstalled = () => setIsPwaInstalled(true);
+
+    updateInstallState();
+    if (typeof displayModeQuery.addEventListener === 'function') {
+      displayModeQuery.addEventListener('change', updateInstallState);
+    } else {
+      displayModeQuery.addListener(updateInstallState);
+    }
+
+    window.addEventListener('appinstalled', markInstalled);
+    return () => {
+      if (typeof displayModeQuery.removeEventListener === 'function') {
+        displayModeQuery.removeEventListener('change', updateInstallState);
+      } else {
+        displayModeQuery.removeListener(updateInstallState);
+      }
+      window.removeEventListener('appinstalled', markInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
     if (typeof window === 'undefined') return;
 
@@ -1373,6 +1401,13 @@ export default function HomePage() {
     setIsQuickScanVisible(true);
   };
 
+  const openInstallPromptFromSettings = () => {
+    if (typeof window === 'undefined') return;
+    triggerHapticFeedback('light');
+    setIsSettingsOpen(false);
+    window.dispatchEvent(new Event(PWA_OPEN_INSTALL_EVENT));
+  };
+
   const pullAndMergeCloudDeals = useCallback(async () => {
     if (!currentUser?.id) return;
 
@@ -1708,6 +1743,15 @@ export default function HomePage() {
         >
           Reset output ordering
         </button>
+        {!isPwaInstalled ? (
+          <button
+            type="button"
+            onClick={openInstallPromptFromSettings}
+            className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+          >
+            Download the app!
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={resetSettingsDefaults}

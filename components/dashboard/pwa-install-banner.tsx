@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -8,15 +8,22 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-type InstallSurface = 'none' | 'prompt' | 'ios';
+type InstallSurface = 'none' | 'prompt' | 'ios' | 'manual';
 
 const PWA_INSTALL_DISMISS_KEY = 'dealcooker-pwa-install-dismissed-at:v1';
 const PWA_INSTALL_DISMISS_WINDOW_MS = 1000 * 60 * 60 * 24 * 14;
+export const PWA_OPEN_INSTALL_EVENT = 'dealcooker:pwa-open-install';
 
 const isStandaloneDisplayMode = () => {
   if (typeof window === 'undefined') return false;
   const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
   return window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true;
+};
+
+const isIOSDevice = () => {
+  if (typeof window === 'undefined') return false;
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  return /iphone|ipad|ipod/.test(userAgent);
 };
 
 const getDismissedAt = () => {
@@ -33,10 +40,10 @@ const getDismissedAt = () => {
 
 export function PwaInstallBanner() {
   const [installSurface, setInstallSurface] = useState<InstallSurface>('none');
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallPromptDismissed, setIsInstallPromptDismissed] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -46,9 +53,7 @@ export function PwaInstallBanner() {
       setIsInstallPromptDismissed(true);
     }
 
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    if (isIOSDevice && !isStandaloneDisplayMode()) {
+    if (isIOSDevice() && !isStandaloneDisplayMode()) {
       setInstallSurface('ios');
     }
 
@@ -60,23 +65,50 @@ export function PwaInstallBanner() {
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      setDeferredPrompt(event as BeforeInstallPromptEvent);
+      const promptEvent = event as BeforeInstallPromptEvent;
+      deferredPromptRef.current = promptEvent;
       setInstallSurface('prompt');
       setFeedback(null);
     };
 
     const handleAppInstalled = () => {
-      setDeferredPrompt(null);
+      deferredPromptRef.current = null;
       setInstallSurface('none');
       setFeedback('DealCooker is now installed on this device.');
     };
 
+    const handleOpenInstallRequest = () => {
+      if (isStandaloneDisplayMode()) {
+        setInstallSurface('none');
+        setIsInstallPromptDismissed(true);
+        return;
+      }
+
+      setIsInstallPromptDismissed(false);
+      setFeedback(null);
+
+      if (deferredPromptRef.current) {
+        setInstallSurface('prompt');
+        return;
+      }
+
+      if (isIOSDevice()) {
+        setInstallSurface('ios');
+        return;
+      }
+
+      setInstallSurface('manual');
+      setFeedback('Install prompt is not ready yet. Keep browsing, then try again from Settings.');
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener(PWA_OPEN_INSTALL_EVENT, handleOpenInstallRequest);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener(PWA_OPEN_INSTALL_EVENT, handleOpenInstallRequest);
     };
   }, []);
 
@@ -96,15 +128,19 @@ export function PwaInstallBanner() {
   };
 
   const installApp = async () => {
-    if (!deferredPrompt) return;
+    const promptEvent = deferredPromptRef.current;
+    if (!promptEvent) {
+      setFeedback('Install prompt is not ready yet. Keep browsing, then try again.');
+      return;
+    }
 
     triggerHapticFeedback('light');
     setIsInstalling(true);
     setFeedback(null);
 
     try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+      await promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
       if (outcome === 'accepted') {
         setFeedback('Installing DealCooker...');
       } else {
@@ -113,7 +149,7 @@ export function PwaInstallBanner() {
     } catch {
       setFeedback('Install is not available right now. Try again from browser settings.');
     } finally {
-      setDeferredPrompt(null);
+      deferredPromptRef.current = null;
       setIsInstalling(false);
       setInstallSurface('none');
     }
@@ -121,12 +157,14 @@ export function PwaInstallBanner() {
 
   if (!shouldRender) return null;
 
-  const title = 'Download the app, free!';
+  const title = 'Download the app!';
   const description =
     installSurface === 'ios'
       ? 'In Safari, tap Share and choose Add to Home Screen for the full app experience.'
-      : 'Install for fast launch, full-screen mode, and offline access.';
-  const installLabel = isInstalling ? 'Installing...' : 'Download free app';
+      : installSurface === 'manual'
+        ? 'Install prompt is not available yet in this browser session.'
+        : 'Install for fast launch, full-screen mode, and offline access.';
+  const installLabel = isInstalling ? 'Installing...' : 'Download the app!';
 
   return (
     <>
@@ -149,7 +187,7 @@ export function PwaInstallBanner() {
             aria-label="Dismiss install prompt"
             className="tap-feedback inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/20 bg-white/[0.03] text-slate-300 hover:border-accent/55 hover:text-accent"
           >
-            ×
+            X
           </button>
         </div>
         <div className="mt-3 flex items-center gap-2">
