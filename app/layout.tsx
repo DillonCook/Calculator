@@ -1,11 +1,24 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dealcooker.vercel.app'),
+  applicationName: 'DealCooker',
   title: 'DealCooker',
   description:
     'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'DealCooker'
+  },
+  formatDetection: {
+    telephone: false
+  },
+  icons: {
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }]
+  },
   openGraph: {
     title: 'DealCooker',
     description:
@@ -29,6 +42,11 @@ export const metadata: Metadata = {
       'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
     images: ['/og.png']
   }
+};
+
+export const viewport: Viewport = {
+  themeColor: '#121a29',
+  colorScheme: 'dark light'
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -13,6 +13,7 @@ import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onbo
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
+import { PwaInstallBanner } from '@/components/dashboard/pwa-install-banner';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
@@ -1983,6 +1984,8 @@ export default function HomePage() {
                 {syncFeedback}
               </div>
             ) : null}
+
+            <PwaInstallBanner />
 
             <div ref={dealVaultRef}>
               <DealsVaultPanel

@@ -1,0 +1,165 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { triggerHapticFeedback } from '@/lib/use-haptics';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+type InstallSurface = 'none' | 'prompt' | 'ios';
+
+const PWA_INSTALL_DISMISS_KEY = 'dealcooker-pwa-install-dismissed-at:v1';
+const PWA_INSTALL_DISMISS_WINDOW_MS = 1000 * 60 * 60 * 24 * 14;
+
+const isStandaloneDisplayMode = () => {
+  if (typeof window === 'undefined') return false;
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true;
+};
+
+const getDismissedAt = () => {
+  if (typeof window === 'undefined') return null;
+
+  const rawValue = window.localStorage.getItem(PWA_INSTALL_DISMISS_KEY);
+  if (!rawValue) return null;
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsedValue)) return null;
+
+  return parsedValue;
+};
+
+export function PwaInstallBanner() {
+  const [installSurface, setInstallSurface] = useState<InstallSurface>('none');
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstallPromptDismissed, setIsInstallPromptDismissed] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const dismissedAt = getDismissedAt();
+    if (dismissedAt && Date.now() - dismissedAt < PWA_INSTALL_DISMISS_WINDOW_MS) {
+      setIsInstallPromptDismissed(true);
+    }
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    if (isIOSDevice && !isStandaloneDisplayMode()) {
+      setInstallSurface('ios');
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+        setFeedback('Offline mode is unavailable in this browser session.');
+      });
+    }
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
+      setInstallSurface('prompt');
+      setFeedback(null);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setInstallSurface('none');
+      setFeedback('DealCooker is now installed on this device.');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const shouldRender = useMemo(() => {
+    if (isInstallPromptDismissed) return false;
+    return installSurface !== 'none';
+  }, [installSurface, isInstallPromptDismissed]);
+
+  const dismissPrompt = () => {
+    triggerHapticFeedback('light');
+    setIsInstallPromptDismissed(true);
+    try {
+      window.localStorage.setItem(PWA_INSTALL_DISMISS_KEY, String(Date.now()));
+    } catch {
+      // Ignore storage failures (private mode / blocked storage).
+    }
+  };
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+
+    triggerHapticFeedback('light');
+    setIsInstalling(true);
+    setFeedback(null);
+
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setFeedback('Installing DealCooker...');
+      } else {
+        setFeedback('Install canceled. You can install anytime from browser settings.');
+      }
+    } catch {
+      setFeedback('Install is not available right now. Try again from browser settings.');
+    } finally {
+      setDeferredPrompt(null);
+      setIsInstalling(false);
+      setInstallSurface('none');
+    }
+  };
+
+  if (!shouldRender) return null;
+
+  return (
+    <section
+      role="region"
+      aria-label="Install DealCooker"
+      className="rounded-2xl border border-accent/35 bg-[linear-gradient(140deg,rgba(20,36,56,0.92),rgba(21,47,74,0.82),rgba(20,35,48,0.94))] p-3 shadow-soft sm:p-4"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Premium install mode</p>
+          <h2 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">
+            {installSurface === 'ios' ? 'Add DealCooker to your Home Screen' : 'Install DealCooker'}
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted sm:text-sm">
+            {installSurface === 'ios'
+              ? 'On iPhone/iPad, tap Share in Safari and choose Add to Home Screen for full-screen launch and offline access.'
+              : 'Get instant launch, offline access, and a native full-screen dashboard experience.'}
+          </p>
+          {feedback ? <p className="mt-2 text-[11px] text-accent sm:text-xs">{feedback}</p> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {installSurface === 'prompt' ? (
+            <button
+              type="button"
+              onClick={installApp}
+              disabled={isInstalling}
+              className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold sm:min-h-10 sm:text-sm disabled:opacity-65"
+            >
+              {isInstalling ? 'Installing...' : 'Install app'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={dismissPrompt}
+            className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent sm:min-h-10 sm:text-sm"
+          >
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
