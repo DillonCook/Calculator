@@ -121,45 +121,91 @@ export function PwaInstallBanner() {
 
   if (!shouldRender) return null;
 
+  const title = 'Download the app, free!';
+  const description =
+    installSurface === 'ios'
+      ? 'In Safari, tap Share and choose Add to Home Screen for the full app experience.'
+      : 'Install for fast launch, full-screen mode, and offline access.';
+  const installLabel = isInstalling ? 'Installing...' : 'Download free app';
+
   return (
-    <section
-      role="region"
-      aria-label="Install DealCooker"
-      className="rounded-2xl border border-accent/35 bg-[linear-gradient(140deg,rgba(20,36,56,0.92),rgba(21,47,74,0.82),rgba(20,35,48,0.94))] p-3 shadow-soft sm:p-4"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Premium install mode</p>
-          <h2 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">
-            {installSurface === 'ios' ? 'Add DealCooker to your Home Screen' : 'Install DealCooker'}
-          </h2>
-          <p className="mt-1 text-xs leading-relaxed text-muted sm:text-sm">
-            {installSurface === 'ios'
-              ? 'On iPhone/iPad, tap Share in Safari and choose Add to Home Screen for full-screen launch and offline access.'
-              : 'Get instant launch, offline access, and a native full-screen dashboard experience.'}
-          </p>
-          {feedback ? <p className="mt-2 text-[11px] text-accent sm:text-xs">{feedback}</p> : null}
+    <>
+      <section
+        role="region"
+        aria-label="Install DealCooker"
+        className="fixed inset-x-2 z-[170] rounded-2xl border border-accent/45 bg-[linear-gradient(140deg,rgba(20,36,56,0.98),rgba(21,47,74,0.96),rgba(20,35,48,0.98))] p-3 shadow-soft sm:hidden"
+        style={{ top: 'max(env(safe-area-inset-top), 0.5rem)' }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Install for free</p>
+            <h2 className="mt-1 text-sm font-semibold text-slate-100">{title}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>
+            {feedback ? <p className="mt-2 text-[11px] text-accent">{feedback}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={dismissPrompt}
+            aria-label="Dismiss install prompt"
+            className="tap-feedback inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/20 bg-white/[0.03] text-slate-300 hover:border-accent/55 hover:text-accent"
+          >
+            ×
+          </button>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           {installSurface === 'prompt' ? (
             <button
               type="button"
               onClick={installApp}
               disabled={isInstalling}
-              className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold sm:min-h-10 sm:text-sm disabled:opacity-65"
+              className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-65"
             >
-              {isInstalling ? 'Installing...' : 'Install app'}
+              {installLabel}
             </button>
           ) : null}
           <button
             type="button"
             onClick={dismissPrompt}
-            className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent sm:min-h-10 sm:text-sm"
+            className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent"
           >
-            Maybe later
+            Not now
           </button>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section
+        role="region"
+        aria-label="Install DealCooker"
+        className="hidden rounded-2xl border border-accent/35 bg-[linear-gradient(140deg,rgba(20,36,56,0.92),rgba(21,47,74,0.82),rgba(20,35,48,0.94))] p-3 shadow-soft sm:block sm:p-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Premium install mode</p>
+            <h2 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">{title}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted sm:text-sm">{description}</p>
+            {feedback ? <p className="mt-2 text-[11px] text-accent sm:text-xs">{feedback}</p> : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {installSurface === 'prompt' ? (
+              <button
+                type="button"
+                onClick={installApp}
+                disabled={isInstalling}
+                className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold sm:min-h-10 sm:text-sm disabled:opacity-65"
+              >
+                {installLabel}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={dismissPrompt}
+              className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent sm:min-h-10 sm:text-sm"
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
