@@ -3,7 +3,7 @@ const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_FALLBACK_URL = '/offline';
 
-const PRECACHE_URLS = ['/', OFFLINE_FALLBACK_URL, '/manifest.webmanifest', '/pwa-192.png', '/pwa-512.png', '/apple-touch-icon.png'];
+const PRECACHE_URLS = ['/', OFFLINE_FALLBACK_URL, '/manifest.webmanifest', '/icon.png', '/pwa-192.png', '/pwa-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

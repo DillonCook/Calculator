@@ -17,7 +17,9 @@ export const metadata: Metadata = {
     telephone: false
   },
   icons: {
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }]
+    icon: [{ url: '/icon.png', type: 'image/png' }],
+    shortcut: [{ url: '/icon.png', type: 'image/png' }],
+    apple: [{ url: '/icon.png', type: 'image/png' }]
   },
   openGraph: {
     title: 'DealCooker',

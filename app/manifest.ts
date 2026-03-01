@@ -17,6 +17,12 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['finance', 'business', 'productivity'],
     icons: [
       {
+        src: '/icon.png',
+        sizes: '1024x977',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
         src: '/pwa-192.png',
         sizes: '192x192',
         type: 'image/png',
