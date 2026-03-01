@@ -1,6 +1,23 @@
 'use client';
 
-export function PrintActions() {
+import { useEffect } from 'react';
+
+interface PrintActionsProps {
+  documentTitle?: string;
+}
+
+export function PrintActions({ documentTitle }: PrintActionsProps) {
+  useEffect(() => {
+    if (!documentTitle) return;
+
+    const previousTitle = document.title;
+    document.title = documentTitle;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [documentTitle]);
+
   return (
     <div className="mx-auto mb-4 flex w-full max-w-4xl justify-end sm:mb-5 print:hidden">
       <button

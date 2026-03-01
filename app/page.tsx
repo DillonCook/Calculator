@@ -109,6 +109,7 @@ const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:
 const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
 const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
 const SETTINGS_LIGHT_MODE_STORAGE_KEY = 'dealcooker-light-mode:v1';
+const SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY = 'dealcooker-show-quick-scan:v1';
 const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'leased-sf',
   'physical-occ',
@@ -135,6 +136,7 @@ const defaultLongTermTurnaroundDigestOrder: LongTermTurnaroundDigestKey[] = [
   'stab-implied-value',
   'stab-equity-created'
 ];
+const valuationPercentDigestKeys = new Set<string>(['stab-cap-rate', 'stab-coc', 'stab-irr']);
 const commercialDigestKeySet = new Set<CommercialDigestKey>(defaultCommercialDigestOrder);
 const longTermTurnaroundDigestKeySet = new Set<LongTermTurnaroundDigestKey>(defaultLongTermTurnaroundDigestOrder);
 
@@ -246,6 +248,7 @@ export default function HomePage() {
   const [activeDealId, setActiveDealId] = useState(initialActiveDeal?.scenarioId ?? '');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
   const [isLightMode, setIsLightMode] = useState(false);
+  const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
@@ -494,8 +497,20 @@ export default function HomePage() {
     ? longTermTurnaroundDigestItems
     : longTermTurnaroundDigestItems.slice(0, mobileLongTermTurnaroundOutputDefaultCount);
   const hasHiddenLongTermTurnaroundMobileOutputs = longTermTurnaroundDigestItems.length > mobileLongTermTurnaroundOutputDefaultCount;
+  const shouldColorDigestMetric = (item: DigestItem<string>) => {
+    if (item.rawKind === 'currency') return true;
+    if (item.rawKind === 'ratio') return true;
+    if (item.rawKind === 'percent') return valuationPercentDigestKeys.has(item.key);
+    return false;
+  };
+  const getDigestMetricStyle = (item: DigestItem<string>) => {
+    if (!shouldColorDigestMetric(item)) return undefined;
+    const rawKind = item.rawKind ?? 'plain';
+    return getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: rawKind, baseline: rawKind === 'ratio' ? 1 : 0 });
+  };
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
+  const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
   const isFlipStrategy = activeStrategy === 'flip';
   const supportsReserveToggle =
     activeStrategy === 'purchase' ||
@@ -1003,6 +1018,13 @@ export default function HomePage() {
     } else if (storedLightMode === '0') {
       setIsLightMode(false);
     }
+
+    const storedQuickScanVisible = window.localStorage.getItem(SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY);
+    if (storedQuickScanVisible === '0') {
+      setIsQuickScanVisible(false);
+    } else if (storedQuickScanVisible === '1') {
+      setIsQuickScanVisible(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -1024,6 +1046,10 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(SETTINGS_LIGHT_MODE_STORAGE_KEY, isLightMode ? '1' : '0');
   }, [isLightMode]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY, isQuickScanVisible ? '1' : '0');
+  }, [isQuickScanVisible]);
   useEffect(() => {
     if (!isSettingsOpen) return;
 
@@ -1343,6 +1369,7 @@ export default function HomePage() {
   const resetSettingsDefaults = () => {
     setDefaultNewDealStrategy(defaultNewDealStrategyFallback);
     setIsLightMode(false);
+    setIsQuickScanVisible(true);
   };
 
   const pullAndMergeCloudDeals = useCallback(async () => {
@@ -1649,6 +1676,17 @@ export default function HomePage() {
             aria-pressed={isLightMode}
           >
             {isLightMode ? 'Light mode' : 'Dark mode'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
+          <span className="text-xs text-slate-100">Quick scan</span>
+          <button
+            type="button"
+            onClick={() => setIsQuickScanVisible((value) => !value)}
+            className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
+            aria-pressed={isQuickScanVisible}
+          >
+            {isQuickScanVisible ? 'Shown' : 'Hidden'}
           </button>
         </div>
       </div>
@@ -1972,7 +2010,7 @@ export default function HomePage() {
             <StrategyTabs
               active={activeStrategy}
               onChange={handleStrategyChange}
-              quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+              quickScan={strategyQuickScan}
             />
           </div>
           <div className="sticky top-2 z-30 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
@@ -2203,8 +2241,6 @@ export default function HomePage() {
           <KpiCard
             label="Cash to Close"
             value={currencyFormatter.format(cashToCloseValue)}
-            numericValue={cashToCloseValue}
-            numericValueKind="currency"
             winner={activeStrategyLabel}
             secondaryLabel="Total cash invested"
             secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
@@ -2240,6 +2276,7 @@ export default function HomePage() {
             value={activeOutput.dscr.toFixed(2)}
             numericValue={activeOutput.dscr}
             numericValueKind="ratio"
+            numericValueBaseline={1}
             helper="NOI / annual debt service"
             winner={activeStrategyLabel}
           />
@@ -2325,7 +2362,7 @@ export default function HomePage() {
                   <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
-                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                    style={getDigestMetricStyle(item)}
                   >
                     {item.value}
                   </p>
@@ -2348,7 +2385,7 @@ export default function HomePage() {
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
-                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                    style={getDigestMetricStyle(item)}
                   >
                     {item.value}
                   </p>
@@ -2412,7 +2449,7 @@ export default function HomePage() {
                   <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
-                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                    style={getDigestMetricStyle(item)}
                   >
                     {item.value}
                   </p>
@@ -2434,7 +2471,7 @@ export default function HomePage() {
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
-                    style={getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: item.rawKind ?? 'plain' })}
+                    style={getDigestMetricStyle(item)}
                   >
                     {item.value}
                   </p>
@@ -2451,7 +2488,7 @@ export default function HomePage() {
                 <StrategyTabs
                   active={activeStrategy}
                   onChange={handleStrategyChange}
-                  quickScan={{ title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints }}
+                  quickScan={strategyQuickScan}
                   actionSlot={
                     <button
                       type="button"

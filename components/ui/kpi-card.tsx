@@ -15,6 +15,7 @@ interface KpiCardProps {
   value: string;
   numericValue?: number;
   numericValueKind?: NegativeValueKind;
+  numericValueBaseline?: number;
   tone?: 'default' | 'success';
   helper?: string;
   winner?: string;
@@ -89,6 +90,7 @@ export function KpiCard({
   value,
   numericValue,
   numericValueKind = 'plain',
+  numericValueBaseline = 0,
   helper,
   winner,
   tone = 'default',
@@ -120,8 +122,8 @@ export function KpiCard({
   const areaGradientId = `kpi-cashflow-area-${slugify(label)}`;
   const filterId = `kpi-cashflow-glow-${slugify(label)}`;
   const negativeValueStyle = useMemo(
-    () => getNegativeValueStyle(numericValue ?? Number.NaN, { kind: numericValueKind }),
-    [numericValue, numericValueKind]
+    () => getNegativeValueStyle(numericValue ?? Number.NaN, { kind: numericValueKind, baseline: numericValueBaseline }),
+    [numericValue, numericValueBaseline, numericValueKind]
   );
   const { style: tooltipStyle } = useFloatingTooltipPosition({
     open: isTooltipOpen,

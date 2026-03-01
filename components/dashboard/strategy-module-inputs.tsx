@@ -50,7 +50,7 @@ export function StrategyModuleInputs({
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted">
             <p>Underwrite retail and strip-plaza deals with leased sq ft and annual $/sq ft rents.</p>
             <p className="mt-1 text-xs text-slate-300">
-              Physical occupancy by leased area: <span className="font-semibold text-emerald-300">{commercialOccupancyPercent.toFixed(1)}%</span>
+              Physical occupancy by leased area: <span className="font-semibold text-slate-100">{commercialOccupancyPercent.toFixed(1)}%</span>
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

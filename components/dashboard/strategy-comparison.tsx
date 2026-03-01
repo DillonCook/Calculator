@@ -146,7 +146,14 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
                   <span className="text-center">
                     DSCR
                     <span
-                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${output.dscr < 1 ? 'bg-red-500/20 text-red-200 ring-1 ring-red-500/40' : 'text-white'}`}
+                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${
+                        output.dscr < 1
+                          ? 'bg-red-500/20 ring-1 ring-red-500/40'
+                          : output.dscr > 1
+                            ? 'bg-emerald-500/15 ring-1 ring-emerald-400/35'
+                            : 'bg-white/10 text-slate-100'
+                      }`}
+                      style={getNegativeValueStyle(output.dscr, { kind: 'ratio', baseline: 1 })}
                     >
                       {output.dscr.toFixed(2)}
                       {output.dscr < 1 ? ' \u26a0' : ''}

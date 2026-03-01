@@ -761,7 +761,21 @@ input[type='number'] {
     print-color-adjust: exact;
   }
 
+  .print-report {
+    font-size: 11px;
+    line-height: 1.28;
+  }
+
+  .print-tight-grid {
+    gap: 0.4rem !important;
+  }
+
+  .print-section-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   @page {
-    margin: 0.5in;
+    margin: 0.35in;
   }
 }
