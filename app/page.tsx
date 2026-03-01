@@ -1723,7 +1723,7 @@ export default function HomePage() {
                             }}
                             aria-expanded={isAuthMenuOpen}
                             aria-controls="auth-menu"
-                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs"
+                            className="btn-signin-trigger tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs"
                           >
                             Sign in
                           </button>
@@ -1887,7 +1887,7 @@ export default function HomePage() {
                           }}
                           aria-expanded={isAuthMenuOpen}
                           aria-controls="auth-menu-desktop"
-                          className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs"
+                          className="btn-signin-trigger tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs"
                         >
                           Sign in
                         </button>
