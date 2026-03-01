@@ -14,7 +14,6 @@ interface TimelineCardProps {
 
 export function TimelineCard({ output, assumptions, onAssumptionsChange, defaultOpen = true }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [holdYearsDraft, setHoldYearsDraft] = useState(String(assumptions.holdYears));
   const [isHoldYearsFocused, setIsHoldYearsFocused] = useState(false);
@@ -32,17 +31,8 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
   });
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
     setIsOpen(defaultOpen);
   }, [defaultOpen]);
-
-  useEffect(() => {
-    if (isHoldYearsFocused) return;
-    setHoldYearsDraft(String(assumptions.holdYears));
-  }, [assumptions.holdYears, isHoldYearsFocused]);
 
   useEffect(() => {
     if (!isIrrTooltipOpen) return;
@@ -106,7 +96,7 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             i
           </button>
 
-          {isIrrTooltipOpen && isMounted
+          {isIrrTooltipOpen && typeof document !== 'undefined'
             ? createPortal(
                 <div
                   ref={tooltipPanelRef}
@@ -148,7 +138,10 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             type="number"
             min={1}
             value={isHoldYearsFocused ? holdYearsDraft : assumptions.holdYears}
-            onFocus={() => setIsHoldYearsFocused(true)}
+            onFocus={() => {
+              setHoldYearsDraft(String(assumptions.holdYears));
+              setIsHoldYearsFocused(true);
+            }}
             onChange={(event) => {
               const nextDraft = event.target.value;
               setHoldYearsDraft(nextDraft);
@@ -210,11 +203,6 @@ function PercentField({ label, value, onChange }: { label: string; value: number
   const [draftValue, setDraftValue] = useState(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
   const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (isFocused) return;
-    setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
-  }, [value, isFocused]);
-
   return (
     <label className="space-y-1">
       <span className="text-xs text-muted">{label}</span>
@@ -222,7 +210,10 @@ function PercentField({ label, value, onChange }: { label: string; value: number
         className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
         type="number"
         value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
-        onFocus={() => setIsFocused(true)}
+        onFocus={() => {
+          setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+          setIsFocused(true);
+        }}
         onChange={(event) => {
           const nextDraft = event.target.value;
           setDraftValue(nextDraft);

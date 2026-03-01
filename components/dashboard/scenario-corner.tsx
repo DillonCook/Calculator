@@ -9,8 +9,11 @@ interface DealsVaultPanelProps {
   deals: ScenarioRecord[];
   activeDealId: string;
   activeDealName: string;
+  activeDealListingUrl: string | null;
+  printToPdfUrl: string;
   saveStatus: 'idle' | 'saving' | 'saved';
   onActiveDealChange: (id: string) => void;
+  onShareLink: () => void;
   onSaveAs: (dealName: string) => void;
   onRename: (dealName: string) => void;
   onCreateNew: () => void;
@@ -24,8 +27,11 @@ export function DealsVaultPanel({
   deals,
   activeDealId,
   activeDealName,
+  activeDealListingUrl,
+  printToPdfUrl,
   saveStatus,
   onActiveDealChange,
+  onShareLink,
   onSaveAs,
   onRename,
   onCreateNew,
@@ -80,6 +86,11 @@ export function DealsVaultPanel({
     closeDialog();
   };
 
+  const stopSummaryToggle = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
     <details
       className="rounded-xl border border-white/10 bg-white/5 p-2.5 sm:p-3"
@@ -91,11 +102,52 @@ export function DealsVaultPanel({
       }}
     >
       <summary className={`tap-feedback flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${isCollapsed ? 'mb-0' : 'mb-2'}`}>
-        <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
+        <div className="min-w-0 flex items-center gap-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
+          <div className="hidden md:flex md:items-center md:gap-1.5">
+            <span className="max-w-[220px] truncate rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+              Active: {activeDealName}
+            </span>
+          </div>
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Idle'}
           </span>
+          <div className="hidden md:flex md:items-center md:gap-1.5">
+            {activeDealListingUrl ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  stopSummaryToggle(event);
+                  window.open(activeDealListingUrl, '_blank', 'noopener,noreferrer');
+                }}
+                className="tap-feedback inline-flex min-h-7 items-center rounded-md border border-white/15 bg-white/[0.03] px-2 text-[11px] text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+              >
+                Listing
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={(event) => {
+                stopSummaryToggle(event);
+                window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
+              }}
+              className="btn-primary btn-pdf tap-feedback inline-flex min-h-7 items-center rounded-md px-2 text-[11px] font-medium"
+            >
+              Print to PDF
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                stopSummaryToggle(event);
+                onShareLink();
+              }}
+              className="btn-primary btn-link tap-feedback inline-flex min-h-7 items-center rounded-md px-2 text-[11px] font-medium"
+            >
+              Send link
+            </button>
+          </div>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
             {isCollapsed ? '+' : '-'}
           </span>

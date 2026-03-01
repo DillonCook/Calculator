@@ -100,7 +100,6 @@ export function KpiCard({
   valueTestId
 }: KpiCardProps) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const tooltipId = `kpi-tooltip-${slugify(label)}`;
   const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -133,10 +132,6 @@ export function KpiCard({
     offset: 10,
     zIndex: 190
   });
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (typeof primaryValueRef.current?.animate === 'function') {
@@ -245,7 +240,7 @@ export function KpiCard({
             i
           </button>
 
-          {isTooltipOpen && isMounted
+          {isTooltipOpen && typeof document !== 'undefined'
             ? createPortal(
                 <div
                   ref={tooltipPanelRef}

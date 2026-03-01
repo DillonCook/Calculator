@@ -8,21 +8,19 @@ import { fetchShareBySlug } from '@/lib/share-links';
 export default function ShareResolverPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
+  const slug = params?.slug;
+  const hasValidSlug = typeof slug === 'string' && slug.length > 0;
   const [status, setStatus] = useState<'loading' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    const slug = params?.slug;
-    if (!slug || typeof slug !== 'string') {
-      setStatus('error');
-      setErrorMessage('Link not found.');
-      return;
-    }
+    if (!hasValidSlug) return;
+    const resolvedSlug = slug;
 
     let cancelled = false;
 
     const resolveShare = async () => {
-      const { share, error } = await fetchShareBySlug(slug);
+      const { share, error } = await fetchShareBySlug(resolvedSlug);
       if (cancelled) return;
 
       if (error || !share) {
@@ -41,7 +39,18 @@ export default function ShareResolverPage() {
     return () => {
       cancelled = true;
     };
-  }, [params?.slug, router]);
+  }, [hasValidSlug, router, slug]);
+
+  if (!hasValidSlug) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div className="rounded-xl border border-white/10 bg-panel/60 p-5 text-center">
+          <h1 className="text-base font-semibold">Unable to open share link</h1>
+          <p className="mt-2 text-sm text-muted">Link not found.</p>
+        </div>
+      </main>
+    );
+  }
 
   if (status === 'loading') {
     return (

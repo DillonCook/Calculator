@@ -22,7 +22,7 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('Commercial'));
 
-    const rentInput = screen.getAllByLabelText('Base rent ($/sq ft/year)')[0];
+    const rentInput = screen.getAllByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })[0];
     await user.clear(rentInput);
     await user.type(rentInput, '30');
 

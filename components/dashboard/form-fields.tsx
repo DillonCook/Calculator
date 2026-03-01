@@ -17,7 +17,6 @@ const normalizeNumberString = (raw: string) => {
 
 function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const fieldLabelRef = useRef<HTMLSpanElement | null>(null);
   const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
   const tooltipPanelRef = useRef<HTMLSpanElement | null>(null);
@@ -30,10 +29,6 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
     offset: 8,
     zIndex: 180
   });
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!isTooltipOpen) return;
@@ -79,7 +74,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
           >
             i
           </button>
-          {isTooltipOpen && isMounted
+          {isTooltipOpen && typeof document !== 'undefined'
             ? createPortal(
                 <span
                   ref={tooltipPanelRef}
@@ -118,12 +113,7 @@ export function Input({
   const [draftValue, setDraftValue] = useState(String(value ?? ''));
   const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (!isNumber || isFocused) return;
-    setDraftValue(String(value ?? ''));
-  }, [value, isFocused, isNumber]);
-
-  const renderedValue = isNumber && isFocused ? draftValue : value;
+  const renderedValue = isNumber ? (isFocused ? draftValue : String(value ?? '')) : value;
 
   return (
     <label className="space-y-1">
@@ -133,7 +123,11 @@ export function Input({
         type={type}
         step={step ?? (isNumber ? '0.01' : undefined)}
         value={renderedValue}
-        onFocus={() => setIsFocused(true)}
+        onFocus={() => {
+          if (!isNumber) return;
+          setDraftValue(String(value ?? ''));
+          setIsFocused(true);
+        }}
         onChange={(event) => {
           if (!isNumber) {
             onChange(event.target.value);
@@ -181,11 +175,6 @@ export function PercentInput({
   const [draftValue, setDraftValue] = useState(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
   const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (isFocused) return;
-    setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
-  }, [value, isFocused]);
-
   return (
     <label className="space-y-1">
       <FieldLabel label={label} tooltip={tooltip} />
@@ -194,7 +183,10 @@ export function PercentInput({
         type="number"
         step="0.01"
         value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
-        onFocus={() => setIsFocused(true)}
+        onFocus={() => {
+          setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
+          setIsFocused(true);
+        }}
         onChange={(event) => {
           const nextDraft = event.target.value;
           setDraftValue(nextDraft);

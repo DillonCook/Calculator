@@ -303,6 +303,7 @@ export default function HomePage() {
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
+  const printToPdfUrl = useMemo(() => `/print?scenario=${exportPayload}&strategy=${activeStrategy}`, [activeStrategy, exportPayload]);
 
   const activeOutput = result[activeStrategy];
   const commercialSummary = activeStrategy === 'purchase' ? activeOutput.commercialSummary : undefined;
@@ -530,6 +531,16 @@ export default function HomePage() {
     return 'ME';
   }, [currentUser]);
 
+  const renderProfileAvatar = () => (
+    <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+      {profileImageUrl ? (
+        <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+      )}
+    </div>
+  );
+
   const cashToCloseValue = useMemo(() => {
     const { purchase } = model;
 
@@ -704,6 +715,75 @@ export default function HomePage() {
   const goToPreviousOnboardingStep = () => {
     setOnboardingStepIndex((current) => Math.max(current - 1, 0));
   };
+
+  function reportSupabaseError(error: unknown, operation: 'fetch' | 'upsert' | 'delete') {
+    const details =
+      error && typeof error === 'object'
+        ? { status: (error as { status?: unknown }).status, message: (error as { message?: unknown }).message }
+        : { status: undefined, message: String(error) };
+
+    console.error(`Supabase scenarios ${operation} error:`, { details, error });
+    setLastCloudError(operation);
+    setCloudHealth('error');
+    setSyncFeedback('Cloud sync error while saving Deal Vault.');
+  }
+
+  async function syncScenarioUpsert(scenario: ScenarioRecord) {
+    if (!currentUser?.id) return false;
+    if (pendingDeleteIdsRef.current.has(scenario.scenarioId)) return false;
+
+    const error = await upsertSupabaseScenario(currentUser.id, scenario);
+    if (error) {
+      reportSupabaseError(error, 'upsert');
+      return false;
+    }
+
+    pendingUpsertIdsRef.current.delete(scenario.scenarioId);
+    setLastCloudError(null);
+    setCloudHealth('ok');
+    return true;
+  }
+
+  async function syncScenarioDelete(scenarioId: string) {
+    if (!currentUser?.id) return false;
+
+    const error = await deleteSupabaseScenario(currentUser.id, scenarioId);
+    if (error) {
+      reportSupabaseError(error, 'delete');
+      return false;
+    }
+
+    pendingUpsertIdsRef.current.delete(scenarioId);
+    setLastCloudError(null);
+    setCloudHealth('ok');
+    return true;
+  }
+
+  function queueScenarioPush(scenario: ScenarioRecord) {
+    if (!currentUser?.id) return;
+
+    pendingUpsertIdsRef.current.add(scenario.scenarioId);
+    queuedPushScenarioIdRef.current = scenario.scenarioId;
+
+    if (pushTimerRef.current) {
+      window.clearTimeout(pushTimerRef.current);
+    }
+
+    pushTimerRef.current = window.setTimeout(() => {
+      if (!queuedPushScenarioIdRef.current || pendingDeleteIdsRef.current.has(queuedPushScenarioIdRef.current)) {
+        pushTimerRef.current = null;
+        queuedPushScenarioIdRef.current = null;
+        return;
+      }
+
+      void syncScenarioUpsert(scenario);
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DealVault Debug]', { mode: 'push', scenarioId: scenario.scenarioId, pushCount: 1 });
+      }
+      pushTimerRef.current = null;
+      queuedPushScenarioIdRef.current = null;
+    }, 1200);
+  }
 
   useEffect(() => {
     if (!activeDealId || saveStatus !== 'saving') return;
@@ -1011,75 +1091,6 @@ export default function HomePage() {
       return scenario.scenarioId === peer.scenarioId && scenario.updatedAt === peer.updatedAt && scenario.dealName === peer.dealName;
     });
   };
-
-  const reportSupabaseError = (error: unknown, operation: 'fetch' | 'upsert' | 'delete') => {
-    const details =
-      error && typeof error === 'object'
-        ? { status: (error as { status?: unknown }).status, message: (error as { message?: unknown }).message }
-        : { status: undefined, message: String(error) };
-
-    console.error(`Supabase scenarios ${operation} error:`, { details, error });
-    setLastCloudError(operation);
-    setCloudHealth('error');
-    setSyncFeedback('Cloud sync error while saving Deal Vault.');
-  };
-
-  const syncScenarioUpsert = async (scenario: ScenarioRecord) => {
-    if (!currentUser?.id) return false;
-    if (pendingDeleteIdsRef.current.has(scenario.scenarioId)) return false;
-
-    const error = await upsertSupabaseScenario(currentUser.id, scenario);
-    if (error) {
-      reportSupabaseError(error, 'upsert');
-      return false;
-    }
-
-    pendingUpsertIdsRef.current.delete(scenario.scenarioId);
-    setLastCloudError(null);
-    setCloudHealth('ok');
-    return true;
-  };
-
-  const syncScenarioDelete = async (scenarioId: string) => {
-    if (!currentUser?.id) return false;
-
-    const error = await deleteSupabaseScenario(currentUser.id, scenarioId);
-    if (error) {
-      reportSupabaseError(error, 'delete');
-      return false;
-    }
-
-    pendingUpsertIdsRef.current.delete(scenarioId);
-    setLastCloudError(null);
-    setCloudHealth('ok');
-    return true;
-  };
-
-  function queueScenarioPush(scenario: ScenarioRecord) {
-    if (!currentUser?.id) return;
-
-    pendingUpsertIdsRef.current.add(scenario.scenarioId);
-    queuedPushScenarioIdRef.current = scenario.scenarioId;
-
-    if (pushTimerRef.current) {
-      window.clearTimeout(pushTimerRef.current);
-    }
-
-    pushTimerRef.current = window.setTimeout(() => {
-      if (!queuedPushScenarioIdRef.current || pendingDeleteIdsRef.current.has(queuedPushScenarioIdRef.current)) {
-        pushTimerRef.current = null;
-        queuedPushScenarioIdRef.current = null;
-        return;
-      }
-
-      void syncScenarioUpsert(scenario);
-      if (process.env.NODE_ENV !== 'production') {
-        console.info('[DealVault Debug]', { mode: 'push', scenarioId: scenario.scenarioId, pushCount: 1 });
-      }
-      pushTimerRef.current = null;
-      queuedPushScenarioIdRef.current = null;
-    }, 1200);
-  }
 
   const saveDealAs = (dealName: string) => {
     const record = createDealInVault(model, dealName);
@@ -1688,17 +1699,11 @@ export default function HomePage() {
                   <div ref={authControlsRef} className="flex w-full justify-end">
                     <div className="flex flex-row items-center justify-end gap-1.5">
                       {currentUser ? (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2 md:hidden">
                           <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
                             Cloud: Active
                           </span>
-                          <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
-                            {profileImageUrl ? (
-                              <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
-                            )}
-                          </div>
+                          {renderProfileAvatar()}
                           <button
                             type="button"
                             onClick={signOut}
@@ -1800,8 +1805,8 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="w-full md:min-w-0 lg:max-w-[560px]">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
-                  <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:items-center md:justify-end md:gap-2">
+                  <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1 md:hidden">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs text-muted">Active Deal</p>
@@ -1820,8 +1825,8 @@ export default function HomePage() {
                     </div>
                   </div>
                   <Link
-                    href={`/print?scenario=${exportPayload}&strategy=${activeStrategy}`}
-                    className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    href={printToPdfUrl}
+                    className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm md:hidden"
                     target="_blank"
                   >
                     Print to PDF
@@ -1829,17 +1834,21 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={shareCurrentDeal}
-                    className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                    className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm md:hidden"
                   >
                     Send link
                   </button>
                   {currentUser ? (
-                    <div ref={desktopAuthActionRef} className="hidden md:flex md:flex-col md:items-end md:gap-1.5">
+                    <div ref={desktopAuthActionRef} className="hidden md:flex md:items-center md:justify-end md:gap-2">
+                      <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                        Cloud: Active
+                      </span>
+                      {renderProfileAvatar()}
                       <button
                         type="button"
                         onClick={signOut}
                         disabled={authBusy || !isSupabaseConfigured}
-                        className="btn-primary btn-auth btn-auth-top tap-feedback min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm disabled:opacity-60"
+                        className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs disabled:opacity-60"
                       >
                         Sign out
                       </button>
@@ -1868,7 +1877,7 @@ export default function HomePage() {
                       </div>
                     </div>
                   ) : (
-                    <div ref={desktopAuthActionRef} className="hidden md:flex md:flex-col md:items-end md:gap-1.5">
+                    <div ref={desktopAuthActionRef} className="hidden md:flex md:items-center md:justify-end md:gap-2">
                       <div className="relative">
                         <button
                           type="button"
@@ -1878,7 +1887,7 @@ export default function HomePage() {
                           }}
                           aria-expanded={isAuthMenuOpen}
                           aria-controls="auth-menu-desktop"
-                          className="btn-primary btn-auth btn-auth-top tap-feedback min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm"
+                          className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs"
                         >
                           Sign in
                         </button>
@@ -1942,8 +1951,11 @@ export default function HomePage() {
                 deals={deals}
                 activeDealId={activeDealId}
                 activeDealName={model.purchase.dealName}
+                activeDealListingUrl={model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : null}
+                printToPdfUrl={printToPdfUrl}
                 saveStatus={saveStatus}
                 onActiveDealChange={openRecentScenario}
+                onShareLink={shareCurrentDeal}
                 onSaveAs={saveDealAs}
                 onRename={renameDeal}
                 onCreateNew={createNewDeal}
