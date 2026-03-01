@@ -1684,16 +1684,9 @@ export default function HomePage() {
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
-                <div className="relative flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="brand-lockup" aria-label="DealCooker">
-                      <h1 className="brand-text leading-none">DealCooker</h1>
-                      <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
-                    </div>
-                    <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
-                  </div>
-                  <div ref={authControlsRef} className="shrink-0">
-                    <div className="flex flex-col items-end gap-1.5">
+                <div className="space-y-2">
+                  <div ref={authControlsRef} className="flex w-full justify-end">
+                    <div className="flex flex-row items-center justify-end gap-1.5">
                       {currentUser ? (
                         <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2">
                           <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
@@ -1795,6 +1788,14 @@ export default function HomePage() {
                         ) : null}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="brand-lockup" aria-label="DealCooker">
+                      <h1 className="brand-text leading-none">DealCooker</h1>
+                      <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                    </div>
+                    <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
                   </div>
                 </div>
               </div>
@@ -2512,6 +2513,5 @@ export default function HomePage() {
     </main>
   );
 }
-
 
 

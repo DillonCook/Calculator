@@ -237,10 +237,13 @@ html {
 }
 
 .theme-light .brand-text {
-  background: none;
-  -webkit-text-fill-color: #2d5f95;
-  color: #2d5f95;
-  animation: none;
+  background: linear-gradient(120deg, #2f6297 0%, #4d86bf 18%, #6aa7df 34%, #ef9d42 52%, #f08931 66%, #4c88c4 82%, #2f6297 100%);
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: brandGradient 8.8s ease-in-out infinite;
   text-shadow: 0 6px 16px rgba(62, 98, 146, 0.18);
 }
 
