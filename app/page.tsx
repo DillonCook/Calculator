@@ -598,6 +598,25 @@ export default function HomePage() {
     });
   };
 
+  const cashToCloseValue = useMemo(() => {
+    const { purchase } = model;
+
+    if (purchase.ownershipMode === 'owned') {
+      return Math.max(purchase.helocClosingCosts, 0);
+    }
+
+    return calculateCashToClose(
+      purchase.purchasePrice,
+      0,
+      purchase.downPaymentPercent,
+      purchase.closingCostPercent,
+      purchase.pointsPercent,
+      purchase.financingType,
+      purchase.helocAmount,
+      purchase.helocClosingCosts
+    );
+  }, [model]);
+
 
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
