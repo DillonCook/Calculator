@@ -53,10 +53,10 @@ export function StrategyTabs({ active, onChange, quickScan, actionSlot }: Strate
           {strategies.map((strategy) => (
             <button
               key={strategy.key}
-              className={`tap-feedback w-full rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ease-out hover:-translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:w-auto ${
+              className={`tap-feedback btn-brand-profile btn-strategy-tab w-full px-4 py-2 text-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:w-auto ${
                 active === strategy.key
-                  ? 'accent-edge text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] sm:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(7,17,32,0.46),0_0_22px_rgba(245,166,82,0.22)]'
-                  : 'border border-white/10 bg-white/5 text-muted hover:border-accent/55 hover:bg-[linear-gradient(130deg,rgba(255,173,88,0.12),rgba(107,150,206,0.16))] hover:text-white hover:shadow-[0_10px_22px_rgba(4,13,26,0.38)]'
+                  ? 'btn-strategy-active'
+                  : ''
               }`}
               onClick={() => {
                 triggerHapticFeedback('light');

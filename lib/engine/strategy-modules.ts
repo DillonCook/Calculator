@@ -162,29 +162,30 @@ const getDebtRemainingBalanceAtHold = (debt: TimelineDebtInput, holdYears: numbe
 
 const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit'): number => {
   if (strategy === 'longTerm') {
-    const gross = input.longTerm.grossRentMonthly + input.longTerm.otherIncomeMonthly;
+    const modeledGross = input.longTerm.grossRentMonthly + input.longTerm.otherIncomeMonthly;
+    const gross = input.longTerm.annualRevenueOverride && input.longTerm.annualRevenueOverride > 0 ? input.longTerm.annualRevenueOverride / 12 : modeledGross;
     const effectiveGrossIncome = gross - gross * clampPercent(input.longTerm.vacancyPercent);
     return effectiveGrossIncome * (clampPercent(input.longTerm.maintenancePercent) + clampPercent(input.longTerm.capexPercent));
   }
 
   if (strategy === 'airbnb') {
+    if (input.airbnb.annualRevenueOverride && input.airbnb.annualRevenueOverride > 0) {
+      return (input.airbnb.annualRevenueOverride / 12) * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
+    }
     const occupiedNights = input.airbnb.nightsPerMonth * clampPercent(input.airbnb.occupancyPercent);
     const roomRevenue = occupiedNights * input.airbnb.adr;
-    const bookings = occupiedNights / Math.max(input.airbnb.averageNightsPerBooking, 1);
-    const cleaningRevenue = bookings * input.airbnb.cleaningFeeCharged;
-    const gross = roomRevenue + cleaningRevenue;
-
-    return gross * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
+    return roomRevenue * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
   }
 
   const rentableRooms = Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0;
   const avgWeeklyRatePerRoom = Number.isFinite(input.padSplit.avgWeeklyRatePerRoom) ? input.padSplit.avgWeeklyRatePerRoom : 0;
-  const gross =
+  const modeledGross =
     rentableRooms *
     avgWeeklyRatePerRoom *
     input.padSplit.weeksPerMonth *
     clampPercent(input.padSplit.occupancyPercent) +
     input.padSplit.otherIncomeMonthly;
+  const gross = input.padSplit.annualRevenueOverride && input.padSplit.annualRevenueOverride > 0 ? input.padSplit.annualRevenueOverride / 12 : modeledGross;
 
   return gross * (clampPercent(input.padSplit.maintenancePercent) + clampPercent(input.padSplit.capexPercent));
 };
@@ -195,7 +196,7 @@ const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbn
   if (strategy === 'longTerm') return input.longTerm.arvOverride ?? baseArv;
   if (strategy === 'airbnb') return input.airbnb.arvOverride ?? baseArv;
   if (strategy === 'padSplit') return input.padSplit.arvOverride ?? baseArv;
-  if (strategy === 'brrrr') return input.brrrr.arvOverride ?? baseArv;
+  if (strategy === 'brrrr') return input.brrrr.arvOverride ?? 0;
 
   return input.flip.arvOverride ?? baseArv;
 };
@@ -500,10 +501,13 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const capexPercent = clampPercent(longTerm.capexPercent);
   const managementPercent = clampPercent(longTerm.managementFeePercent);
   const tenantPlacementFeePercent = clampPercent(longTerm.tenantPlacementFeePercent);
+  const annualRevenueOverrideMonthly = longTerm.annualRevenueOverride && longTerm.annualRevenueOverride > 0 ? longTerm.annualRevenueOverride / 12 : null;
+  const tenantPlacementRentBase = annualRevenueOverrideMonthly ?? Math.max(longTerm.grossRentMonthly, 0);
   const tenantPlacementFeeOneTime =
-    purchase.ownershipMode === 'purchase' ? Math.max(longTerm.grossRentMonthly, 0) * tenantPlacementFeePercent : 0;
+    purchase.ownershipMode === 'purchase' ? tenantPlacementRentBase * tenantPlacementFeePercent : 0;
 
-  const gross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
+  const modeledGross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
+  const gross = annualRevenueOverrideMonthly ?? modeledGross;
   const vacancy = gross * vacancyPercent;
   const effectiveGrossIncome = gross - vacancy;
   const maintenance = effectiveGrossIncome * maintenancePercent;
@@ -543,6 +547,10 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     turnaroundSummary ? turnaroundSummary.effectiveGrossIncomeMonthly * turnaroundSummary.capexPercent : 0;
   const stabilizedFixedAndTaxMonthly =
     turnaroundSummary ? fixedCosts + turnaroundSummary.annualTaxInsuranceAdjustment / 12 : 0;
+  const longTermRevenueLines =
+    annualRevenueOverrideMonthly
+      ? [toLine('lt-annual-revenue-override', 'Annual revenue override (monthly equivalent)', gross)]
+      : [toLine('lt-gross-rent', 'Gross rent', longTerm.grossRentMonthly), toLine('lt-other-income', 'Other income', longTerm.otherIncomeMonthly)];
 
   const turnaroundLines = turnaroundSummary
     ? [
@@ -580,8 +588,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
       : base.notes,
     calculationBreakdown: {
       lines: [
-        toLine('lt-gross-rent', 'Gross rent', longTerm.grossRentMonthly),
-        toLine('lt-other-income', 'Other income', longTerm.otherIncomeMonthly),
+        ...longTermRevenueLines,
         {
           key: 'lt-tenant-placement-fyi',
           label: 'Tenant placement fee (one-time FYI, not included in KPIs)',
@@ -592,6 +599,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
         toLine('lt-maintenance', 'Maintenance reserve', -maintenance),
         toLine('lt-capex', 'CapEx reserve', -capex),
         toLine('lt-management', 'Management fee', -managementFee),
+        toLine('lt-owner-expenses', 'Owner expenses', -longTerm.ownerExpensesMonthly),
         toLine('lt-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('lt-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('lt-noi', 'NOI', noi),
@@ -614,16 +622,20 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const base = createBaseOutput('airbnb', 'Short-term rental model with cleaning and platform drag.');
 
   const occupiedNights = airbnb.nightsPerMonth * clampPercent(airbnb.occupancyPercent);
-  const roomRevenue = occupiedNights * airbnb.adr;
+  const modeledRoomRevenue = occupiedNights * airbnb.adr;
   const bookings = occupiedNights / Math.max(airbnb.averageNightsPerBooking, 1);
-  const cleaningRevenue = bookings * airbnb.cleaningFeeCharged;
+  const modeledCleaningRevenue = bookings * airbnb.cleaningFeeCharged;
+  const annualRevenueOverrideMonthly = airbnb.annualRevenueOverride && airbnb.annualRevenueOverride > 0 ? airbnb.annualRevenueOverride / 12 : null;
+  const roomRevenue = annualRevenueOverrideMonthly ?? modeledRoomRevenue;
+  const cleaningRevenue = annualRevenueOverrideMonthly ? 0 : modeledCleaningRevenue;
   const gross = roomRevenue + cleaningRevenue;
+  const feeBaseRevenue = annualRevenueOverrideMonthly ? gross : modeledRoomRevenue;
 
-  const platformFees = gross * clampPercent(airbnb.platformFeePercent);
+  const platformFees = feeBaseRevenue * clampPercent(airbnb.platformFeePercent);
   const cleanerCost = bookings * airbnb.cleanerCostPerTurn;
-  const maintenance = gross * clampPercent(airbnb.maintenancePercent);
-  const capex = gross * clampPercent(airbnb.capexPercent);
-  const managementFee = gross * clampPercent(airbnb.managementFeePercent);
+  const maintenance = feeBaseRevenue * clampPercent(airbnb.maintenancePercent);
+  const capex = feeBaseRevenue * clampPercent(airbnb.capexPercent);
+  const managementFee = feeBaseRevenue * clampPercent(airbnb.managementFeePercent);
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
@@ -663,13 +675,18 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     cashFlowTimeline: timelineData.timeline,
     calculationBreakdown: {
       lines: [
-        toLine('str-room-revenue', 'Room revenue', roomRevenue),
-        toLine('str-cleaning-revenue', 'Cleaning revenue', cleaningRevenue),
+        ...(annualRevenueOverrideMonthly
+          ? [toLine('str-annual-revenue-override', 'Annual revenue override (monthly equivalent)', gross)]
+          : [
+              toLine('str-room-revenue', 'Room revenue', roomRevenue),
+              toLine('str-cleaning-revenue', 'Cleaning revenue', cleaningRevenue)
+            ]),
         toLine('str-platform-fees', 'Platform fees', -platformFees),
         toLine('str-cleaner-cost', 'Cleaner cost', -cleanerCost),
         toLine('str-maintenance', 'Maintenance reserve', -maintenance),
         toLine('str-capex', 'CapEx reserve', -capex),
         toLine('str-management', 'Management fee', -managementFee),
+        toLine('str-owner-expenses', 'Owner expenses / imported adjustments', -airbnb.ownerExpensesMonthly),
         toLine('str-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('str-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('str-noi', 'NOI', noi),
@@ -705,19 +722,26 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     padSplit.weeksPerMonth *
     clampPercent(padSplit.occupancyPercent) +
     padSplit.otherIncomeMonthly;
-  const platformFees = gross * clampPercent(padSplit.platformFeePercent);
-  const maintenance = gross * clampPercent(padSplit.maintenancePercent);
-  const capex = gross * clampPercent(padSplit.capexPercent);
-  const managementFee = gross * clampPercent(padSplit.managementFeePercent);
+  const annualRevenueOverrideMonthly = padSplit.annualRevenueOverride && padSplit.annualRevenueOverride > 0 ? padSplit.annualRevenueOverride / 12 : null;
+  const effectiveGross = annualRevenueOverrideMonthly ?? gross;
+  const platformFees = effectiveGross * clampPercent(padSplit.platformFeePercent);
+  const maintenance = effectiveGross * clampPercent(padSplit.maintenancePercent);
+  const capex = effectiveGross * clampPercent(padSplit.capexPercent);
+  const managementFee = effectiveGross * clampPercent(padSplit.managementFeePercent);
   const turnoverMonthly = (turnoverCostPerMoveOut * moveOutsPerYear * rentableRooms) / 12;
-  const placementMonthly = (moveOutsPerYear * ((avgWeeklyRatePerRoom * 10) / 7)) / 12;
+  const derivedWeeklyRatePerRoomFromOverride =
+    annualRevenueOverrideMonthly && rentableRooms > 0 && padSplit.weeksPerMonth > 0 && clampPercent(padSplit.occupancyPercent) > 0
+      ? annualRevenueOverrideMonthly / (rentableRooms * padSplit.weeksPerMonth * clampPercent(padSplit.occupancyPercent))
+      : avgWeeklyRatePerRoom;
+  const placementBaseWeeklyRate = annualRevenueOverrideMonthly ? derivedWeeklyRatePerRoomFromOverride : avgWeeklyRatePerRoom;
+  const placementMonthly = (moveOutsPerYear * ((placementBaseWeeklyRate * 10) / 7)) / 12;
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
   const strategyVariableCosts = getVariableExpenseTotal(input, 'padSplit');
 
   const noi =
-    gross -
+    effectiveGross -
     platformFees -
     maintenance -
     capex -
@@ -730,7 +754,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
-  const annualRevenueYear1 = gross * 12;
+  const annualRevenueYear1 = effectiveGross * 12;
   const annualOperatingExpensesYear1 =
     (platformFees +
       maintenance +
@@ -769,21 +793,23 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     cashFlowTimeline: timelineData.timeline,
     calculationBreakdown: {
       lines: [
-        toLine('ps-room-revenue', 'Room revenue', gross - padSplit.otherIncomeMonthly),
-        toLine('ps-other-income', 'Other income', padSplit.otherIncomeMonthly),
+        ...(annualRevenueOverrideMonthly
+          ? [toLine('ps-annual-revenue-override', 'Annual revenue override (monthly equivalent)', effectiveGross)]
+          : [toLine('ps-room-revenue', 'Room revenue', gross - padSplit.otherIncomeMonthly), toLine('ps-other-income', 'Other income', padSplit.otherIncomeMonthly)]),
         toLine('ps-platform-fees', 'Platform fees', -platformFees),
         toLine('ps-turnover-cleaning', 'Turnover / cleaning', -turnoverMonthly),
         toLine('ps-tenant-placement', 'Tenant placement fees', -placementMonthly),
         toLine('ps-maintenance', 'Maintenance reserve', -maintenance),
         toLine('ps-capex', 'CapEx reserve', -capex),
         toLine('ps-management', 'Management fee', -managementFee),
+        toLine('ps-owner-expenses', 'Owner expenses / imported adjustments', -padSplit.ownerExpensesMonthly),
         toLine('ps-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('ps-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('ps-noi', 'NOI', noi),
         toLine('ps-debt-service', 'Debt service', -debtService),
         toLine('ps-cash-flow', 'Cash flow', monthly)
       ],
-      revenueMonthly: gross,
+      revenueMonthly: effectiveGross,
       sellerPaidExpensesMonthly:
         platformFees +
         turnoverMonthly +
@@ -808,21 +834,40 @@ export const calculateBrrrrStrategy = (
 ): StrategyOutput => {
   const { brrrr, purchase } = input;
   const brrrrArv = resolveStrategyArv(input, 'brrrr');
+  const brrrrRehabBudget = resolveRehabBudget(input, 'brrrr');
   const selectedOperatingNoi = operatingNoiByStrategy[brrrr.operatingStrategy] ?? operatingNoiByStrategy.longTerm;
   const base = createBaseOutput('brrrr', 'Buy-rehab-refi model blending hold costs and post-refi operation.');
 
   const strategyVariableCosts = getVariableExpenseTotal(input, brrrr.operatingStrategy);
   const setupCostOneTime = brrrr.operatingStrategy === 'airbnb' ? input.airbnb.furnishingOneTime : brrrr.operatingStrategy === 'padSplit' ? input.padSplit.furnishingOneTime : 0;
   const fixedCosts = getMonthlyFixedCosts(input);
-  const acquisitionDebtService = getPurchaseLoanTerms(input).debtService;
-  const totalHoldingCosts = brrrr.holdingMonths * (brrrr.holdingExpensesMonthly + fixedCosts + strategyVariableCosts + acquisitionDebtService);
-  const investedAtPurchase = purchaseCashNeeded + totalHoldingCosts + setupCostOneTime;
+  const purchaseLoanTerms = getPurchaseLoanTerms(input);
+  const acquisitionDebtService = purchaseLoanTerms.debtService;
+  const initialLoanPayoff = purchaseLoanTerms.primaryPrincipal;
+  const holdingMonths = Math.max(brrrr.holdingMonths, 0);
+  const purchaseCashComponent =
+    purchase.ownershipMode === 'owned'
+      ? 0
+      : purchase.financingType === 'cash'
+        ? Math.max(purchase.purchasePrice, 0)
+        : Math.max(purchase.purchasePrice * purchase.downPaymentPercent, 0);
+  const buyClosingCosts = purchase.ownershipMode === 'owned' ? 0 : Math.max(purchase.purchasePrice * purchase.closingCostPercent, 0);
+  const pointsCost =
+    purchase.ownershipMode === 'owned' || purchase.financingType !== 'loan'
+      ? 0
+      : Math.max(calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent) * purchase.pointsPercent, 0);
+  const helocOffset = purchase.ownershipMode === 'owned' ? 0 : Math.max(purchase.helocAmount, 0);
+  const helocClosingCosts = Math.max(purchase.helocClosingCosts, 0);
+  const monthlyHoldingExpenses = Math.max(brrrr.holdingExpensesMonthly, 0);
+  const brrrrPurchaseCashNeeded =
+    purchase.ownershipMode === 'owned'
+      ? Math.max(purchaseCashNeeded, 0) + Math.max(brrrrRehabBudget, 0)
+      : Math.max(purchaseCashNeeded - Math.max(purchase.rehabBudget, 0) + Math.max(brrrrRehabBudget, 0), 0);
+  const totalHoldingCosts = holdingMonths * (monthlyHoldingExpenses + fixedCosts + strategyVariableCosts + acquisitionDebtService);
+  const investedAtPurchase = brrrrPurchaseCashNeeded + totalHoldingCosts + setupCostOneTime;
   const refiLoanAmount = (brrrrArv || 0) * brrrr.refinanceLtvPercent;
   const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
-
-  const initialLoanAmount = purchase.financingType === 'loan' ? calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent) : 0;
-
-  const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoanAmount;
+  const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoanPayoff;
   const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
 
   const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
@@ -871,7 +916,32 @@ export const calculateBrrrrStrategy = (
       sellerPaidExpensesMonthly: 0,
       debtServiceMonthly: refinanceDebt,
       noiMonthly: selectedOperatingNoi,
-      cashFlowMonthly: monthly
+      cashFlowMonthly: monthly,
+      brrrrMeta: {
+        operatingStrategy: brrrr.operatingStrategy,
+        holdingMonths,
+        purchaseCashComponent,
+        buyClosingCosts,
+        pointsCost,
+        rehabBudget: Math.max(brrrrRehabBudget, 0),
+        helocOffset,
+        helocClosingCosts,
+        setupCostOneTime,
+        monthlyHoldingExpenses,
+        fixedHoldingCostsMonthly: fixedCosts,
+        variableHoldingCostsMonthly: strategyVariableCosts,
+        lenderHoldingCostsMonthly: acquisitionDebtService,
+        holdingCostsTotal: totalHoldingCosts,
+        investedAtPurchase,
+        arvAtRefi: brrrrArv,
+        refiLoanAmount,
+        refiClosingCosts,
+        initialLoanPayoff,
+        cashBackAtRefiNet,
+        investedAfterRefi,
+        selectedOperatingNoi,
+        refinanceDebt
+      }
     }
   };
 };

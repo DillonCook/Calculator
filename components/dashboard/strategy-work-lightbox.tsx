@@ -13,6 +13,12 @@ const strategyLabels: Record<StrategyKey, string> = {
   flip: 'Flip'
 };
 
+const brrrrOperatingLabels = {
+  longTerm: 'Long-Term',
+  airbnb: 'Airbnb / STR',
+  padSplit: 'PadSplit'
+} as const;
+
 interface StrategyWorkLightboxProps {
   open: boolean;
   activeStrategy: StrategyKey;
@@ -37,6 +43,219 @@ const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
     </p>
   </div>
 );
+
+const formatFormulaMoney = (value: number) => (value < 0 ? `(${currencyFormatter.format(value)})` : currencyFormatter.format(value));
+
+const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<StrategyOutput['calculationBreakdown']>; output: StrategyOutput }) => {
+  const meta = breakdown.brrrrMeta;
+
+  if (!meta) return null;
+
+  const holdingMonths = Math.max(meta.holdingMonths, 0);
+  const cashInBeforeHolding =
+    meta.purchaseCashComponent +
+    meta.buyClosingCosts +
+    meta.pointsCost +
+    meta.rehabBudget +
+    meta.setupCostOneTime +
+    meta.helocClosingCosts -
+    meta.helocOffset;
+  const monthlyHoldingTotal =
+    meta.monthlyHoldingExpenses + meta.fixedHoldingCostsMonthly + meta.variableHoldingCostsMonthly + meta.lenderHoldingCostsMonthly;
+
+  const upfrontRows = [
+    { key: 'purchase-cash', label: 'Purchase cash in', amount: meta.purchaseCashComponent, tone: 'neutral' as const },
+    { key: 'buy-closing', label: 'Buy closing costs', amount: meta.buyClosingCosts, tone: 'neutral' as const },
+    { key: 'points', label: 'Loan points', amount: meta.pointsCost, tone: 'neutral' as const },
+    { key: 'rehab', label: 'Rehab budget', amount: meta.rehabBudget, tone: 'neutral' as const },
+    { key: 'setup', label: 'One-time setup costs', amount: meta.setupCostOneTime, tone: 'neutral' as const },
+    { key: 'heloc-offset', label: 'HELOC draw offset', amount: meta.helocOffset, tone: 'offset' as const },
+    { key: 'heloc-close', label: 'HELOC closing costs', amount: meta.helocClosingCosts, tone: 'neutral' as const }
+  ].filter((item) => item.amount > 0);
+
+  const holdingRows = [
+    { key: 'monthly-hold', label: 'Monthly holding expenses', monthly: meta.monthlyHoldingExpenses, total: meta.monthlyHoldingExpenses * holdingMonths },
+    { key: 'fixed-hold', label: 'Fixed carrying costs', monthly: meta.fixedHoldingCostsMonthly, total: meta.fixedHoldingCostsMonthly * holdingMonths },
+    { key: 'variable-hold', label: 'Variable expenses', monthly: meta.variableHoldingCostsMonthly, total: meta.variableHoldingCostsMonthly * holdingMonths },
+    { key: 'lender-hold', label: 'First-loan carrying costs', monthly: meta.lenderHoldingCostsMonthly, total: meta.lenderHoldingCostsMonthly * holdingMonths }
+  ].filter((item) => item.monthly > 0 || item.total > 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Invested at purchase</p>
+          <p className="text-lg font-semibold text-slate-100">{currencyFormatter.format(meta.investedAtPurchase)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Cash back at refi</p>
+          <p
+            className={`text-lg font-semibold ${meta.cashBackAtRefiNet >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+            style={getNegativeValueStyle(meta.cashBackAtRefiNet, { kind: 'currency' })}
+          >
+            {currencyFormatter.format(meta.cashBackAtRefiNet)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Cash left in deal</p>
+          <p
+            className={`text-lg font-semibold ${meta.investedAfterRefi <= 0 ? 'text-emerald-300' : 'text-slate-100'}`}
+            style={meta.investedAfterRefi <= 0 ? getNegativeValueStyle(-meta.investedAfterRefi, { kind: 'currency' }) : undefined}
+          >
+            {currencyFormatter.format(meta.investedAfterRefi)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Post-refi ops model</p>
+          <p className="text-lg font-semibold text-slate-100">{brrrrOperatingLabels[meta.operatingStrategy]}</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Post-refi NOI</p>
+          <p
+            className={`text-lg font-semibold ${meta.selectedOperatingNoi >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+            style={getNegativeValueStyle(meta.selectedOperatingNoi, { kind: 'currency' })}
+          >
+            {currencyFormatter.format(meta.selectedOperatingNoi)}/mo
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Cash flow after refi</p>
+          <p
+            className={`text-lg font-semibold ${output.monthlyCashFlow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+            style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+          >
+            {currencyFormatter.format(output.monthlyCashFlow)}/mo
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Cash invested before refi</p>
+          {upfrontRows.length === 0 ? (
+            <p className="text-sm text-muted">No upfront BRRRR capital items beyond holding costs.</p>
+          ) : (
+            upfrontRows.map((item) => (
+              <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+                <p className="text-slate-100">{item.label}</p>
+                <p
+                  className={`text-right ${item.tone === 'offset' ? 'text-emerald-300' : 'text-slate-100'}`}
+                  style={item.tone === 'offset' ? getNegativeValueStyle(item.amount, { kind: 'currency' }) : undefined}
+                >
+                  {item.tone === 'offset' ? '-' : ''}
+                  {currencyFormatter.format(item.amount)}
+                </p>
+              </div>
+            ))
+          )}
+          <div className="mt-1 grid grid-cols-[1fr_auto] gap-2 border-t border-white/10 pt-2 text-sm">
+            <p className="text-slate-100">Cash in before holding</p>
+            <p className="text-right font-semibold text-slate-100">{currencyFormatter.format(cashInBeforeHolding)}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Holding costs ({holdingMonths} mo)</p>
+          {holdingRows.length === 0 ? (
+            <p className="text-sm text-muted">No modeled holding costs before refi.</p>
+          ) : (
+            holdingRows.map((item) => (
+              <div key={item.key} className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm">
+                <p className="text-slate-100">{item.label}</p>
+                <p className="text-right text-muted">{currencyFormatter.format(item.monthly)}/mo</p>
+                <p className="text-right text-slate-100">{currencyFormatter.format(item.total)}</p>
+              </div>
+            ))
+          )}
+          <div className="mt-1 grid grid-cols-[1fr_auto_auto] gap-2 border-t border-white/10 pt-2 text-sm">
+            <p className="text-slate-100">Holding costs total</p>
+            <p className="text-right text-muted">{currencyFormatter.format(monthlyHoldingTotal)}/mo</p>
+            <p className="text-right font-semibold text-slate-100">{currencyFormatter.format(meta.holdingCostsTotal)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Refi math</p>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">BRRRR ARV</p>
+            <p className="text-right text-slate-100">{currencyFormatter.format(meta.arvAtRefi)}</p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Refi loan amount</p>
+            <p className="text-right text-slate-100">{currencyFormatter.format(meta.refiLoanAmount)}</p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Refi closing costs</p>
+            <p className="text-right text-slate-100">{currencyFormatter.format(meta.refiClosingCosts)}</p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">First-loan payoff</p>
+            <p className="text-right text-slate-100">{currencyFormatter.format(meta.initialLoanPayoff)}</p>
+          </div>
+          <div className="mt-1 grid grid-cols-[1fr_auto] gap-2 border-t border-white/10 pt-2 text-sm">
+            <p className="text-slate-100">Cash back at refi</p>
+            <p
+              className={`text-right font-semibold ${meta.cashBackAtRefiNet >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+              style={getNegativeValueStyle(meta.cashBackAtRefiNet, { kind: 'currency' })}
+            >
+              {currencyFormatter.format(meta.cashBackAtRefiNet)}
+            </p>
+          </div>
+          {meta.arvAtRefi <= 0 ? (
+            <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+              No BRRRR ARV entered yet. Refi proceeds are zero, so cash back currently only reflects the first-loan payoff.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Post-refi operating math</p>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Operating model</p>
+            <p className="text-right text-slate-100">{brrrrOperatingLabels[meta.operatingStrategy]}</p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Selected NOI</p>
+            <p
+              className={`text-right ${meta.selectedOperatingNoi >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+              style={getNegativeValueStyle(meta.selectedOperatingNoi, { kind: 'currency' })}
+            >
+              {currencyFormatter.format(meta.selectedOperatingNoi)}/mo
+            </p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Refi debt service</p>
+            <p className="text-right text-slate-100">{currencyFormatter.format(meta.refinanceDebt)}/mo</p>
+          </div>
+          <div className="mt-1 grid grid-cols-[1fr_auto] gap-2 border-t border-white/10 pt-2 text-sm">
+            <p className="text-slate-100">Cash flow</p>
+            <p
+              className={`text-right font-semibold ${output.monthlyCashFlow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+              style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+            >
+              {currencyFormatter.format(output.monthlyCashFlow)}/mo
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Cash left in deal formula</p>
+        <p className="mt-1 text-sm text-slate-200">
+          {formatFormulaMoney(meta.investedAtPurchase)} - {formatFormulaMoney(meta.cashBackAtRefiNet)} ={' '}
+          <span
+            className={`font-semibold ${meta.investedAfterRefi <= 0 ? 'text-emerald-300' : 'text-slate-100'}`}
+            style={meta.investedAfterRefi <= 0 ? getNegativeValueStyle(-meta.investedAfterRefi, { kind: 'currency' }) : undefined}
+          >
+            {formatFormulaMoney(meta.investedAfterRefi)}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+};
 
 
 const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['calculationBreakdown']> }) => {
@@ -156,7 +375,7 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
           <div>
             <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
             <h3 className="text-xl font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
-            <p className="text-sm text-muted">Line-item math behind each strategy&apos;s outcome, including detailed flip net profit math.</p>
+            <p className="text-sm text-muted">Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10">
             Close
@@ -167,7 +386,9 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
           <p className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
         ) : (
           <div className="space-y-3">
-            {activeStrategy === 'flip' && breakdown.flipMeta ? (
+            {activeStrategy === 'brrrr' && breakdown.brrrrMeta ? (
+              <BrrrrFinancials breakdown={breakdown} output={output} />
+            ) : activeStrategy === 'flip' && breakdown.flipMeta ? (
               <FlipFinancials breakdown={breakdown} />
             ) : (
               <div className="space-y-2">

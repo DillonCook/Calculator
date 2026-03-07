@@ -43,7 +43,7 @@ export const getNegativeValueColor = (value: number, options?: NegativeValueColo
   return `rgb(${mixChannel(softPink.r, deepRed.r, intensity)} ${mixChannel(softPink.g, deepRed.g, intensity)} ${mixChannel(softPink.b, deepRed.b, intensity)})`;
 };
 
-const getPositiveValueGradientStyle = (value: number, options?: NegativeValueColorOptions): CSSProperties | undefined => {
+const getPositiveValueColor = (value: number, options?: NegativeValueColorOptions): string | undefined => {
   if (!Number.isFinite(value)) return undefined;
 
   const kind = options?.kind ?? 'plain';
@@ -53,50 +53,34 @@ const getPositiveValueGradientStyle = (value: number, options?: NegativeValueCol
 
   const scaledMagnitude = getScaledMagnitude(delta, kind);
   const severity = getSeverity(scaledMagnitude, kind);
-  const intensity = clamp(0.14 + Math.pow(severity, 0.82) * 0.9);
-  const exceptionalBoost = clamp((severity - 0.78) / 0.22);
+  const intensity = clamp(0.16 + Math.pow(severity, 0.9) * 0.84);
+  const exceptionalBoost = clamp((severity - 0.82) / 0.18);
 
-  const lightStart = { r: 198, g: 250, b: 212 };
-  const strongStart = { r: 96, g: 232, b: 138 };
-  const lightEnd = { r: 108, g: 232, b: 142 };
-  const strongEnd = { r: 16, g: 177, b: 88 };
-  const exceptionalEnd = { r: 3, g: 146, b: 68 };
+  const lightGreen = { r: 176, g: 244, b: 194 };
+  const strongGreen = { r: 24, g: 182, b: 97 };
+  const exceptionalGreen = { r: 6, g: 152, b: 77 };
 
-  const start = {
-    r: mixChannel(lightStart.r, strongStart.r, intensity),
-    g: mixChannel(lightStart.g, strongStart.g, intensity),
-    b: mixChannel(lightStart.b, strongStart.b, intensity)
-  };
-  const end = {
-    r: mixChannel(lightEnd.r, strongEnd.r, intensity),
-    g: mixChannel(lightEnd.g, strongEnd.g, intensity),
-    b: mixChannel(lightEnd.b, strongEnd.b, intensity)
-  };
-  const boostedEnd = {
-    r: mixChannel(end.r, exceptionalEnd.r, exceptionalBoost),
-    g: mixChannel(end.g, exceptionalEnd.g, exceptionalBoost),
-    b: mixChannel(end.b, exceptionalEnd.b, exceptionalBoost)
-  };
-  const mid = {
-    r: mixChannel(start.r, boostedEnd.r, 0.46),
-    g: mixChannel(start.g, boostedEnd.g, 0.46),
-    b: mixChannel(start.b, boostedEnd.b, 0.46)
+  const baseGreen = {
+    r: mixChannel(lightGreen.r, strongGreen.r, intensity),
+    g: mixChannel(lightGreen.g, strongGreen.g, intensity),
+    b: mixChannel(lightGreen.b, strongGreen.b, intensity)
   };
 
-  return {
-    color: `rgb(${boostedEnd.r} ${boostedEnd.g} ${boostedEnd.b})`,
-    backgroundImage: `linear-gradient(108deg, rgb(${start.r} ${start.g} ${start.b}) 0%, rgb(${mid.r} ${mid.g} ${mid.b}) 52%, rgb(${boostedEnd.r} ${boostedEnd.g} ${boostedEnd.b}) 100%)`,
-    WebkitBackgroundClip: 'text',
-    backgroundClip: 'text',
-    WebkitTextFillColor: 'transparent'
+  const finalGreen = {
+    r: mixChannel(baseGreen.r, exceptionalGreen.r, exceptionalBoost),
+    g: mixChannel(baseGreen.g, exceptionalGreen.g, exceptionalBoost),
+    b: mixChannel(baseGreen.b, exceptionalGreen.b, exceptionalBoost)
   };
+
+  return `rgb(${finalGreen.r} ${finalGreen.g} ${finalGreen.b})`;
 };
 
 export const getNegativeValueStyle = (value: number, options?: NegativeValueColorOptions): CSSProperties | undefined => {
   const baseline = options?.baseline ?? 0;
 
   if (value > baseline) {
-    return getPositiveValueGradientStyle(value, options);
+    const color = getPositiveValueColor(value, options);
+    return color ? { color } : undefined;
   }
 
   const color = getNegativeValueColor(value, options);

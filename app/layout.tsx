@@ -54,7 +54,48 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (() => {
+                try {
+                  const host = window.location.hostname;
+                  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+                  if (!isLocalhost) return;
+
+                  const guardKey = 'dealcooker-dev-sw-cleanup:v1';
+                  if (window.sessionStorage.getItem(guardKey) === 'done') return;
+                  window.sessionStorage.setItem(guardKey, 'done');
+
+                  const cleanupPromises = [];
+                  if ('serviceWorker' in navigator) {
+                    cleanupPromises.push(
+                      navigator.serviceWorker.getRegistrations().then((registrations) =>
+                        Promise.all(registrations.map((registration) => registration.unregister()))
+                      )
+                    );
+                  }
+                  if ('caches' in window) {
+                    cleanupPromises.push(
+                      caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+                    );
+                  }
+
+                  Promise.allSettled(cleanupPromises).finally(() => {
+                    window.setTimeout(() => {
+                      window.location.reload();
+                    }, 120);
+                  });
+                } catch {
+                  // Ignore cleanup failures during local development bootstrap.
+                }
+              })();
+            `
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

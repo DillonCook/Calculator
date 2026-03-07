@@ -102,6 +102,7 @@ export function KpiCard({
   valueTestId
 }: KpiCardProps) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const closeTooltipTimerRef = useRef<number | null>(null);
   const tooltipId = `kpi-tooltip-${slugify(label)}`;
   const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -134,6 +135,25 @@ export function KpiCard({
     offset: 10,
     zIndex: 190
   });
+
+  const clearCloseTooltipTimer = () => {
+    if (closeTooltipTimerRef.current === null) return;
+    window.clearTimeout(closeTooltipTimerRef.current);
+    closeTooltipTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTooltipTimer();
+    setIsTooltipOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTooltipTimer();
+    closeTooltipTimerRef.current = window.setTimeout(() => {
+      setIsTooltipOpen(false);
+      closeTooltipTimerRef.current = null;
+    }, 90);
+  };
 
   useEffect(() => {
     if (typeof primaryValueRef.current?.animate === 'function') {
@@ -182,6 +202,13 @@ export function KpiCard({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isTooltipOpen]);
+
+  useEffect(
+    () => () => {
+      clearCloseTooltipTimer();
+    },
+    []
+  );
 
   return (
     <div className="relative min-w-0 overflow-visible rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
@@ -237,7 +264,14 @@ export function KpiCard({
             aria-expanded={isTooltipOpen}
             aria-controls={tooltipId}
             className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-            onClick={() => setIsTooltipOpen((prev) => !prev)}
+            onMouseEnter={openTooltip}
+            onMouseLeave={scheduleCloseTooltip}
+            onFocus={openTooltip}
+            onBlur={scheduleCloseTooltip}
+            onClick={() => {
+              clearCloseTooltipTimer();
+              setIsTooltipOpen((prev) => !prev);
+            }}
           >
             i
           </button>
@@ -251,6 +285,8 @@ export function KpiCard({
                   aria-modal="false"
                   className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
                   style={tooltipStyle}
+                  onMouseEnter={openTooltip}
+                  onMouseLeave={scheduleCloseTooltip}
                 >
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>

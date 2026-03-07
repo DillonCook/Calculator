@@ -9,14 +9,17 @@ interface DealsVaultPanelProps {
   deals: ScenarioRecord[];
   activeDealId: string;
   activeDealName: string;
+  activeDealListingValue: string;
   activeDealListingUrl: string | null;
   printToPdfUrl: string;
   saveStatus: 'idle' | 'saving' | 'saved';
   onActiveDealChange: (id: string) => void;
   onShareLink: () => void;
-  onSaveAs: (dealName: string) => void;
+  onSaveAs: (dealName: string, listingUrl: string) => void;
   onRename: (dealName: string) => void;
-  onCreateNew: () => void;
+  onCreateNew: (dealName: string, listingUrl: string) => void;
+  onDealNameChange: (dealName: string) => void;
+  onListingUrlChange: (listingUrl: string) => void;
   onDelete: () => void;
 }
 
@@ -27,6 +30,7 @@ export function DealsVaultPanel({
   deals,
   activeDealId,
   activeDealName,
+  activeDealListingValue,
   activeDealListingUrl,
   printToPdfUrl,
   saveStatus,
@@ -35,12 +39,15 @@ export function DealsVaultPanel({
   onSaveAs,
   onRename,
   onCreateNew,
+  onDealNameChange,
+  onListingUrlChange,
   onDelete
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | null>(null);
+  const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | 'create' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
+  const [dialogListingValue, setDialogListingValue] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem(DEALS_VAULT_COLLAPSED_KEY) === '1';
@@ -66,22 +73,31 @@ export function DealsVaultPanel({
     return deals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
   }, [deals, normalizedSearch]);
 
-  const openDialog = (mode: 'saveAs' | 'rename') => {
+  const openDialog = (mode: 'saveAs' | 'rename' | 'create') => {
     triggerHapticFeedback('light');
     setDialogMode(mode);
-    setDialogValue(activeDeal?.dealName ?? '');
+    if (mode === 'create') {
+      setDialogValue('New Deal');
+      setDialogListingValue('');
+      return;
+    }
+    setDialogValue(activeDeal?.dealName ?? activeDealName);
+    setDialogListingValue(activeDeal?.payload.purchase.listingUrl ?? activeDealListingValue);
   };
 
   const closeDialog = () => {
     setDialogMode(null);
     setDialogValue('');
+    setDialogListingValue('');
   };
 
   const submitDialog = () => {
     const name = dialogValue.trim();
+    const listingUrl = dialogListingValue.trim();
     if (!name) return;
     if (dialogMode === 'rename') onRename(name);
-    if (dialogMode === 'saveAs') onSaveAs(name);
+    if (dialogMode === 'saveAs') onSaveAs(name, listingUrl);
+    if (dialogMode === 'create') onCreateNew(name, listingUrl);
     triggerHapticFeedback('success');
     closeDialog();
   };
@@ -122,9 +138,9 @@ export function DealsVaultPanel({
                   stopSummaryToggle(event);
                   window.open(activeDealListingUrl, '_blank', 'noopener,noreferrer');
                 }}
-                className="tap-feedback inline-flex min-h-7 items-center rounded-md border border-white/15 bg-white/[0.03] px-2 text-[11px] text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+                className="tap-feedback inline-flex min-h-7 items-center rounded-md border border-accent/40 bg-accent/12 px-2 text-[11px] font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
               >
-                Listing
+                Listing Link
               </button>
             ) : null}
             <button
@@ -162,6 +178,31 @@ export function DealsVaultPanel({
       ) : (
         <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_160px] lg:items-start">
           <div className="space-y-2">
+            <div className="rounded-xl border border-white/10 bg-black/15 p-2.5">
+              <p className="text-[11px] uppercase tracking-wider text-muted">Deal identity</p>
+              <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] text-muted">Deal name</span>
+                  <input
+                    className="h-9 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
+                    value={activeDealName}
+                    onChange={(event) => onDealNameChange(event.target.value)}
+                    placeholder="Deal title"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] text-muted">Listing URL (Zillow, Redfin, etc.)</span>
+                  <input
+                    aria-label="Listing URL (Zillow, Redfin, etc.)"
+                    className="h-9 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
+                    value={activeDealListingValue}
+                    onChange={(event) => onListingUrlChange(event.target.value)}
+                    placeholder="Listing URL (optional)"
+                  />
+                </label>
+              </div>
+            </div>
+
             <label className="sr-only" htmlFor="deal-search">
               Search deals
             </label>
@@ -224,7 +265,7 @@ export function DealsVaultPanel({
             </button>
             <button
               className="btn-primary btn-vault tap-feedback h-10 rounded-md px-2 text-sm font-semibold"
-              onClick={onCreateNew}
+              onClick={() => openDialog('create')}
               type="button"
               aria-label="Create"
               title="Create"
@@ -245,13 +286,23 @@ export function DealsVaultPanel({
 
           {dialogMode ? (
             <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5 lg:col-span-2">
-              <p className="text-xs uppercase tracking-wider text-muted">{dialogMode === 'saveAs' ? 'Save as new deal' : 'Rename deal'}</p>
+              <p className="text-xs uppercase tracking-wider text-muted">
+                {dialogMode === 'saveAs' ? 'Save as new deal' : dialogMode === 'create' ? 'Create new deal' : 'Rename deal'}
+              </p>
               <input
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
                 value={dialogValue}
                 onChange={(event) => setDialogValue(event.target.value)}
                 placeholder="Deal name"
               />
+              {dialogMode !== 'rename' ? (
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
+                  value={dialogListingValue}
+                  onChange={(event) => setDialogListingValue(event.target.value)}
+                  placeholder="Listing URL (optional)"
+                />
+              ) : null}
               <div className="flex gap-2">
                 <button className="btn-primary btn-vault tap-feedback min-h-10 flex-1 rounded-lg px-3 text-sm font-medium" type="button" onClick={submitDialog}>
                   Confirm

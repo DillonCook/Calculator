@@ -135,6 +135,21 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
   });
 
+  it('BRRRR show work exposes capital-in and refi math sections', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(getStrategyButton('BRRRR'));
+    await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
+
+    expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
+    expect(screen.getByText('BRRRR calculations')).toBeInTheDocument();
+    expect(screen.getByText('Cash invested before refi')).toBeInTheDocument();
+    expect(screen.getAllByText('Cash back at refi').length).toBeGreaterThan(0);
+    expect(screen.getByText('Cash left in deal')).toBeInTheDocument();
+    expect(screen.getByText('Refi math')).toBeInTheDocument();
+  });
+
   it('save as flow persists a deal in the vault list', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -244,9 +259,21 @@ describe('dashboard integration', () => {
     await user.type(rehabBudget, '95000');
 
     await user.click(screen.getAllByRole('button', { name: 'Create' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Confirm' })[0]);
 
-    expect(screen.getByLabelText('Purchase price')).toHaveValue(defaultDealInput.purchase.purchasePrice);
-    expect(screen.getByLabelText('Rehab budget')).toHaveValue(defaultDealInput.purchase.rehabBudget);
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
+    expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
+    expect(screen.getByLabelText('Gross rent / mo')).toHaveValue(0);
+
+    await user.click(getStrategyButton('Airbnb'));
+    expect(screen.getByLabelText('ADR')).toHaveValue(0);
+
+    await user.click(getStrategyButton('PadSplit'));
+    expect(screen.getByLabelText('Weekly rate / room')).toHaveValue(0);
+
+    await user.click(getStrategyButton('Commercial'));
+    expect(screen.getAllByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })[0]).toHaveValue(0);
+
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
@@ -270,6 +297,54 @@ describe('dashboard integration', () => {
     });
 
     expect(screen.queryByText('Share link copied to clipboard.')).not.toBeInTheDocument();
+  });
+
+  it('removes the T12 import section from core inputs', async () => {
+    render(<HomePage />);
+    expect(screen.queryByRole('button', { name: 'Import T12/P&L' })).not.toBeInTheDocument();
+  });
+
+  it('annual revenue override is available and updates long-term results', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const longTermOverrideModel = {
+      ...defaultDealInput,
+      longTerm: {
+        ...defaultDealInput.longTerm,
+        annualRevenueOverride: 72000
+      }
+    };
+    const expectedLongTerm = calculateDeal(longTermOverrideModel).longTerm.monthlyCashFlow;
+
+    const annualRevenueInput = screen.getByLabelText('Annual revenue (optional)');
+    await user.clear(annualRevenueInput);
+    await user.type(annualRevenueInput, '72000');
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(expectedLongTerm));
+
+    await user.click(getStrategyButton('Airbnb'));
+    expect(screen.getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+
+    await user.click(getStrategyButton('PadSplit'));
+    expect(screen.getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+  });
+
+  it('allows renaming and adding variable expenses', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Expenses' }));
+
+    const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
+    const firstLabel = screen.getByLabelText('Expense label 1');
+    await user.clear(firstLabel);
+    await user.type(firstLabel, 'Utilities Master');
+    expect(screen.getByLabelText('Expense label 1')).toHaveValue('Utilities Master');
+
+    await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
+
+    const afterCount = screen.getAllByLabelText(/Expense label/i).length;
+    expect(afterCount).toBe(beforeCount + 1);
   });
 
   it('print view link includes encoded scenario payload and selected strategy', async () => {

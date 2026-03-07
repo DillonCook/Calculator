@@ -14,6 +14,7 @@ interface TimelineCardProps {
 
 export function TimelineCard({ output, assumptions, onAssumptionsChange, defaultOpen = true }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
+  const closeTooltipTimerRef = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [holdYearsDraft, setHoldYearsDraft] = useState(String(assumptions.holdYears));
   const [isHoldYearsFocused, setIsHoldYearsFocused] = useState(false);
@@ -29,6 +30,25 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
     offset: 10,
     zIndex: 190
   });
+
+  const clearCloseTooltipTimer = () => {
+    if (closeTooltipTimerRef.current === null) return;
+    window.clearTimeout(closeTooltipTimerRef.current);
+    closeTooltipTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTooltipTimer();
+    setIsIrrTooltipOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTooltipTimer();
+    closeTooltipTimerRef.current = window.setTimeout(() => {
+      setIsIrrTooltipOpen(false);
+      closeTooltipTimerRef.current = null;
+    }, 90);
+  };
 
   useEffect(() => {
     setIsOpen(defaultOpen);
@@ -60,6 +80,13 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
     };
   }, [isIrrTooltipOpen]);
 
+  useEffect(
+    () => () => {
+      clearCloseTooltipTimer();
+    },
+    []
+  );
+
   return (
     <section className="min-w-0 max-w-full overflow-visible rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
       <div
@@ -89,8 +116,13 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
             aria-expanded={isIrrTooltipOpen}
             onClick={(event) => {
               event.stopPropagation();
+              clearCloseTooltipTimer();
               setIsIrrTooltipOpen((prev) => !prev);
             }}
+            onMouseEnter={openTooltip}
+            onMouseLeave={scheduleCloseTooltip}
+            onFocus={openTooltip}
+            onBlur={scheduleCloseTooltip}
             className="tap-feedback inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted opacity-85 transition hover:border-accent/70 hover:text-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           >
             i
@@ -103,6 +135,8 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
                   className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs leading-relaxed text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
                   style={tooltipStyle}
                   onClick={(event) => event.stopPropagation()}
+                  onMouseEnter={openTooltip}
+                  onMouseLeave={scheduleCloseTooltip}
                 >
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>

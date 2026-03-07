@@ -42,6 +42,7 @@ export interface PurchaseInputs {
 export interface LongTermInputs {
   grossRentMonthly: number;
   otherIncomeMonthly: number;
+  annualRevenueOverride: number | null;
   tenantPlacementFeePercent: number;
   arvOverride: number | null;
   vacancyPercent: number;
@@ -89,6 +90,7 @@ export interface CommercialInputs {
 export interface AirbnbInputs {
   adr: number;
   arvOverride: number | null;
+  annualRevenueOverride: number | null;
   occupancyPercent: number;
   nightsPerMonth: number;
   platformFeePercent: number;
@@ -105,6 +107,7 @@ export interface AirbnbInputs {
 export interface PadSplitInputs {
   rentableRooms: number;
   arvOverride: number | null;
+  annualRevenueOverride: number | null;
   avgWeeklyRatePerRoom: number;
   occupancyPercent: number;
   weeksPerMonth: number;
@@ -133,6 +136,31 @@ export interface StrategyCalculationBreakdown {
   debtServiceMonthly: number;
   noiMonthly: number;
   cashFlowMonthly: number;
+  brrrrMeta?: {
+    operatingStrategy: BrrrrOperatingStrategy;
+    holdingMonths: number;
+    purchaseCashComponent: number;
+    buyClosingCosts: number;
+    pointsCost: number;
+    rehabBudget: number;
+    helocOffset: number;
+    helocClosingCosts: number;
+    setupCostOneTime: number;
+    monthlyHoldingExpenses: number;
+    fixedHoldingCostsMonthly: number;
+    variableHoldingCostsMonthly: number;
+    lenderHoldingCostsMonthly: number;
+    holdingCostsTotal: number;
+    investedAtPurchase: number;
+    arvAtRefi: number;
+    refiLoanAmount: number;
+    refiClosingCosts: number;
+    initialLoanPayoff: number;
+    cashBackAtRefiNet: number;
+    investedAfterRefi: number;
+    selectedOperatingNoi: number;
+    refinanceDebt: number;
+  };
   flipMeta?: {
     holdingMonths: number;
     salePrice: number;
@@ -349,6 +377,7 @@ export const defaultDealInput: DealInputModel = {
   longTerm: {
     grossRentMonthly: 0,
     otherIncomeMonthly: 0,
+    annualRevenueOverride: null,
     tenantPlacementFeePercent: 0.75,
     arvOverride: null,
     vacancyPercent: 0.05,
@@ -378,6 +407,7 @@ export const defaultDealInput: DealInputModel = {
   airbnb: {
     adr: 0,
     arvOverride: null,
+    annualRevenueOverride: null,
     occupancyPercent: 0.68,
     nightsPerMonth: 30.4,
     platformFeePercent: 0.14,
@@ -393,6 +423,7 @@ export const defaultDealInput: DealInputModel = {
   padSplit: {
     rentableRooms: 0,
     arvOverride: null,
+    annualRevenueOverride: null,
     avgWeeklyRatePerRoom: 0,
     occupancyPercent: 0.9,
     weeksPerMonth: 4.3333,

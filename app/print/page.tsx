@@ -67,8 +67,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
         <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] px-4 py-4 sm:px-6 print:px-4 print:py-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] print:grid-cols-[minmax(0,1fr)_auto]">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Investor Report</p>
-              <h1 className="mt-1 text-2xl font-semibold leading-tight text-slate-900 sm:text-[1.7rem]">{report.title}</h1>
+              <h1 className="text-2xl font-semibold leading-tight text-slate-900 sm:text-[1.7rem]">{report.title}</h1>
               <p className="mt-1 max-w-3xl text-[13px] leading-snug text-slate-600">{report.subtitle}</p>
             </div>
             <div className="grid gap-1 text-[11px] text-slate-700 print:text-[10px]">

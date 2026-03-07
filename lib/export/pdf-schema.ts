@@ -41,14 +41,10 @@ const strategyLabels: Record<StrategyKey, string> = {
   flip: 'Flip'
 };
 
-const strategyBadgeCopy: Record<StrategyKey, string> = {
-  purchase: 'Retail and strip-plaza profile driven by leased square footage and annual $/sq ft rents.',
-  longTerm: 'Stable recurring rent profile with conservative underwriting.',
-  airbnb: 'Revenue-optimized short-term rental profile with active operations.',
-  padSplit: 'Room-by-room yield profile focused on max revenue per square foot.',
-  brrrr: 'Capital recycling profile optimized for refinance velocity.',
-  flip: 'Speed-to-profit profile focused on renovation and resale execution.'
-};
+const buildFriendlySubtitle = (strategy: StrategyKey) =>
+  `Start with Executive Summary to see cash needed and core returns for this ${strategyLabels[strategy]} plan. ` +
+  'Then review Performance Highlights and Assumptions to understand what is driving the numbers. ' +
+  'These are projections based on your inputs, so edit your deal assumptions and regenerate anytime.';
 
 const formatDscr = (value: number) => value.toFixed(2);
 const formatCurrency = (value: number) => currencyFormatter.format(value);
@@ -93,13 +89,15 @@ export const createPdfReportSchema = (
   const variableExpenseStrategy = getVariableExpenseStrategy(input, selectedStrategy);
   const turnaroundSummary = selectedStrategy === 'longTerm' ? strategyOutput.longTermTurnaroundSummary : undefined;
   const turnaroundInputs = input.longTerm.turnaround;
+  const holdYears = Math.max(0, input.assumptions.holdYears);
+  const holdYearsLabel = holdYears === 1 ? '1 year' : `${holdYears} years`;
   const variableExpenses = variableExpenseStrategy
     ? input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy])
     : [];
 
   return {
-    title: 'Investor Command Center',
-    subtitle: strategyBadgeCopy[selectedStrategy],
+    title: 'Deal Summary',
+    subtitle: buildFriendlySubtitle(selectedStrategy),
     generatedAt: new Date().toISOString(),
     dealName: input.purchase.dealName,
     selectedStrategy,
@@ -123,7 +121,7 @@ export const createPdfReportSchema = (
         { label: 'NOI (Monthly)', value: formatCurrency(strategyOutput.noiMonthly ?? 0) },
         { label: 'ROI', value: percentFormatter.format(strategyOutput.roi) },
         { label: 'IRR', value: percentFormatter.format(strategyOutput.irr) },
-        { label: 'Projected Sale Proceeds (Hold End)', value: formatCurrency(strategyOutput.saleProceeds ?? 0) }
+        { label: `Projected Sale Proceeds (after holding for ${holdYearsLabel})`, value: formatCurrency(strategyOutput.saleProceeds ?? 0) }
       ]
     },
     underwritingWork: {

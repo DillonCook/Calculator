@@ -164,6 +164,12 @@ export function StrategyModuleInputs({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
+            <Input
+              label="Annual revenue (optional)"
+              type="number"
+              value={model.longTerm.annualRevenueOverride ?? ''}
+              onChange={(v) => update('longTerm', 'annualRevenueOverride', v === '' ? null : Number(v))}
+            />
             <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
             <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
             <PercentInput
@@ -287,6 +293,12 @@ export function StrategyModuleInputs({
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
+          <Input
+            label="Annual revenue (optional)"
+            type="number"
+            value={model.airbnb.annualRevenueOverride ?? ''}
+            onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}
+          />
           <Input label="ADR" type="number" value={model.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
           <PercentInput label="Occupancy %" value={model.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
           <Input label="Nights per month" type="number" value={model.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
@@ -306,6 +318,12 @@ export function StrategyModuleInputs({
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
+          <Input
+            label="Annual revenue (optional)"
+            type="number"
+            value={model.padSplit.annualRevenueOverride ?? ''}
+            onChange={(v) => update('padSplit', 'annualRevenueOverride', v === '' ? null : Number(v))}
+          />
           <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
           <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
           <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />

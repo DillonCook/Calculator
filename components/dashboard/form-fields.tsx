@@ -20,6 +20,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   const fieldLabelRef = useRef<HTMLSpanElement | null>(null);
   const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
   const tooltipPanelRef = useRef<HTMLSpanElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
   const { style: tooltipStyle } = useFloatingTooltipPosition({
     open: isTooltipOpen,
     anchorRef: tooltipButtonRef,
@@ -29,6 +30,25 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
     offset: 8,
     zIndex: 180
   });
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current === null) return;
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTimer();
+    setIsTooltipOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsTooltipOpen(false);
+      closeTimerRef.current = null;
+    }, 90);
+  };
 
   useEffect(() => {
     if (!isTooltipOpen) return;
@@ -56,6 +76,13 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
     };
   }, [isTooltipOpen]);
 
+  useEffect(
+    () => () => {
+      clearCloseTimer();
+    },
+    []
+  );
+
   return (
     <span ref={fieldLabelRef} className="relative flex items-center gap-1 text-[11px] text-muted sm:text-xs">
       <span>{label}</span>
@@ -66,9 +93,14 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
             type="button"
             aria-label={`More info about ${label}`}
             className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            onMouseEnter={openTooltip}
+            onMouseLeave={scheduleCloseTooltip}
+            onFocus={openTooltip}
+            onBlur={scheduleCloseTooltip}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              clearCloseTimer();
               setIsTooltipOpen((prev) => !prev);
             }}
           >
@@ -82,6 +114,8 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
                   aria-modal="false"
                   className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
                   style={tooltipStyle}
+                  onMouseEnter={openTooltip}
+                  onMouseLeave={scheduleCloseTooltip}
                 >
                   {tooltip}
                 </span>,

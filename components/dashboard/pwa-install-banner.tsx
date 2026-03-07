@@ -58,9 +58,20 @@ export function PwaInstallBanner() {
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-        setFeedback('Offline mode is unavailable in this browser session.');
-      });
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+          setFeedback('Offline mode is unavailable in this browser session.');
+        });
+      } else {
+        // Prevent stale chunk/runtime mismatches during local development.
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            registration.unregister().catch(() => {
+              // Ignore cleanup failures in dev.
+            });
+          });
+        });
+      }
     }
 
     const handleBeforeInstallPrompt = (event: Event) => {

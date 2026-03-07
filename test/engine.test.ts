@@ -401,8 +401,15 @@ test('flip IRR timeline exits at full terminal cash flow, not net profit only', 
 });
 
 test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-back bump', () => {
-  const result = calculateDeal(defaultDealInput);
-  const { purchase: p, brrrr } = defaultDealInput;
+  const model = {
+    ...defaultDealInput,
+    brrrr: {
+      ...defaultDealInput.brrrr,
+      arvOverride: defaultDealInput.purchase.arv
+    }
+  };
+  const result = calculateDeal(model);
+  const { purchase: p, brrrr } = model;
 
   const strategyVariableCosts = variableCostMonthly('longTerm');
   const acquisitionDebtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
@@ -531,6 +538,7 @@ test('BRRRR cash back uses payoff of initial acquisition debt', () => {
     },
     brrrr: {
       ...defaultDealInput.brrrr,
+      arvOverride: 420000,
       holdingMonths: 6,
       refinanceLtvPercent: 0.75,
       refinanceClosingCostPercent: 0.02
@@ -539,7 +547,7 @@ test('BRRRR cash back uses payoff of initial acquisition debt', () => {
 
   const result = calculateDeal(model);
   const initialLoan = calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent);
-  const refiLoanAmount = model.purchase.arv * model.brrrr.refinanceLtvPercent;
+  const refiLoanAmount = (model.brrrr.arvOverride ?? 0) * model.brrrr.refinanceLtvPercent;
   const expectedCashBack = refiLoanAmount - refiLoanAmount * model.brrrr.refinanceClosingCostPercent - initialLoan;
 
   const strategyVariableCosts = variableCostMonthly('longTerm', model);
@@ -568,6 +576,32 @@ test('HELOC supplemental amount reduces out-of-pocket cash-to-close', () => {
   near(adjusted, Math.max(baseline - 20000, 0) + 1200);
 });
 
+test('long-term annual revenue override takes precedence over monthly rent and other income inputs', () => {
+  const base = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      annualRevenueOverride: 60000,
+      grossRentMonthly: 1200,
+      otherIncomeMonthly: 100
+    }
+  };
+
+  const changedInputs = {
+    ...base,
+    longTerm: {
+      ...base.longTerm,
+      grossRentMonthly: 4800,
+      otherIncomeMonthly: 900
+    }
+  };
+
+  const baseResult = calculateDeal(base).longTerm;
+  const changedResult = calculateDeal(changedInputs).longTerm;
+
+  near(baseResult.noiMonthly ?? 0, changedResult.noiMonthly ?? 0, 0.0001);
+});
+
 
 test('STR includes management fee, reserves, and furnishing in invested capital', () => {
   const model = {
@@ -585,20 +619,73 @@ test('STR includes management fee, reserves, and furnishing in invested capital'
   const airbnb = model.airbnb;
   const occupiedNights = airbnb.nightsPerMonth * airbnb.occupancyPercent;
   const bookings = occupiedNights / Math.max(airbnb.averageNightsPerBooking, 1);
-  const gross = occupiedNights * airbnb.adr + bookings * airbnb.cleaningFeeCharged;
+  const roomRevenue = occupiedNights * airbnb.adr;
+  const gross = roomRevenue + bookings * airbnb.cleaningFeeCharged;
   const noi =
     gross -
-    gross * airbnb.platformFeePercent -
+    roomRevenue * airbnb.platformFeePercent -
     bookings * airbnb.cleanerCostPerTurn -
-    gross * airbnb.maintenancePercent -
-    gross * airbnb.capexPercent -
-    gross * airbnb.managementFeePercent -
+    roomRevenue * airbnb.maintenancePercent -
+    roomRevenue * airbnb.capexPercent -
+    roomRevenue * airbnb.managementFeePercent -
     airbnb.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('airbnb', model);
 
   near(result.airbnb.noiMonthly ?? 0, noi, 0.01);
   near(result.airbnb.totalCashNeeded, result.purchase.totalCashNeeded + airbnb.furnishingOneTime, 0.01);
+});
+
+test('STR cleaning revenue does not increase platform, management, maintenance, or capex drag', () => {
+  const model = {
+    ...defaultDealInput,
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      cleaningFeeCharged: 500
+    }
+  };
+
+  const result = calculateDeal(model);
+  const lines = result.airbnb.calculationBreakdown?.lines ?? [];
+  const platformLine = lines.find((line) => line.key === 'str-platform-fees');
+  const managementLine = lines.find((line) => line.key === 'str-management');
+  const maintenanceLine = lines.find((line) => line.key === 'str-maintenance');
+  const capexLine = lines.find((line) => line.key === 'str-capex');
+
+  const airbnb = model.airbnb;
+  const occupiedNights = airbnb.nightsPerMonth * airbnb.occupancyPercent;
+  const roomRevenue = occupiedNights * airbnb.adr;
+
+  near(Math.abs(platformLine?.monthly ?? 0), roomRevenue * airbnb.platformFeePercent, 0.0001);
+  near(Math.abs(managementLine?.monthly ?? 0), roomRevenue * airbnb.managementFeePercent, 0.0001);
+  near(Math.abs(maintenanceLine?.monthly ?? 0), roomRevenue * airbnb.maintenancePercent, 0.0001);
+  near(Math.abs(capexLine?.monthly ?? 0), roomRevenue * airbnb.capexPercent, 0.0001);
+});
+
+test('STR annual revenue override ignores ADR and cleaning-fee inputs for revenue modeling', () => {
+  const base = {
+    ...defaultDealInput,
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      annualRevenueOverride: 120000,
+      adr: 150,
+      cleaningFeeCharged: 80
+    }
+  };
+
+  const changedInputs = {
+    ...base,
+    airbnb: {
+      ...base.airbnb,
+      adr: 420,
+      cleaningFeeCharged: 260
+    }
+  };
+
+  const baseResult = calculateDeal(base).airbnb;
+  const changedResult = calculateDeal(changedInputs).airbnb;
+
+  near(baseResult.noiMonthly ?? 0, changedResult.noiMonthly ?? 0, 0.0001);
 });
 
 test('PadSplit includes other income plus reserve and management fee percentages', () => {
@@ -629,6 +716,33 @@ test('PadSplit includes other income plus reserve and management fee percentages
     variableCostMonthly('padSplit', model);
 
   near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
+});
+
+test('PadSplit annual revenue override takes precedence over room-rent inputs', () => {
+  const base = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      annualRevenueOverride: 96000,
+      rentableRooms: 4,
+      avgWeeklyRatePerRoom: 150,
+      otherIncomeMonthly: 0
+    }
+  };
+
+  const changedInputs = {
+    ...base,
+    padSplit: {
+      ...base.padSplit,
+      avgWeeklyRatePerRoom: 420,
+      otherIncomeMonthly: 5000
+    }
+  };
+
+  const baseResult = calculateDeal(base).padSplit;
+  const changedResult = calculateDeal(changedInputs).padSplit;
+
+  near(baseResult.noiMonthly ?? 0, changedResult.noiMonthly ?? 0, 0.0001);
 });
 
 test('PadSplit turnover and placement fees match spreadsheet formulas and are separate line items', () => {
@@ -679,13 +793,14 @@ test('BRRRR uses selected operating strategy NOI for post-refi operations', () =
     ...defaultDealInput,
     brrrr: {
       ...defaultDealInput.brrrr,
+      arvOverride: defaultDealInput.purchase.arv,
       operatingStrategy: 'airbnb' as const
     }
   };
 
   const result = calculateDeal(model);
   const refiDebt = calculateMonthlyPayment(
-    model.purchase.arv * model.brrrr.refinanceLtvPercent,
+    (model.brrrr.arvOverride ?? 0) * model.brrrr.refinanceLtvPercent,
     model.brrrr.refinanceRate,
     model.purchase.loanTermYears
   );
@@ -737,13 +852,75 @@ test('strategy-level ARV override affects sale proceeds for hold strategies', ()
   assert.ok((overridden.longTerm.saleProceeds ?? 0) > (baseline.longTerm.saleProceeds ?? 0));
 });
 
-test('BRRRR rehab override does not change refinance netting in year-0 cash flow', () => {
+test('BRRRR requires explicit BRRRR ARV before refinance math is applied', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 210000,
+      arv: 210000,
+      rehabBudget: 0,
+      downPaymentPercent: 0.035,
+      closingCostPercent: 0,
+      interestRate: 0.0275,
+      loanTermYears: 30,
+      pointsPercent: 0
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 1200,
+      otherIncomeMonthly: 0,
+      vacancyPercent: 0.05,
+      maintenancePercent: 0.05,
+      capexPercent: 0.05,
+      managementFeePercent: 0.08,
+      ownerExpensesMonthly: 0
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
+      ...expense,
+      monthlyAmount: 0,
+      appliesTo: { ...expense.appliesTo }
+    })),
+    brrrr: {
+      ...defaultDealInput.brrrr,
+      arvOverride: null,
+      rehabOverride: 0,
+      holdingMonths: 6,
+      holdingExpensesMonthly: 0,
+      refinanceRate: 0.065,
+      refinanceClosingCostPercent: 0.03,
+      operatingStrategy: 'longTerm' as const
+    }
+  };
+
+  const result = calculateDeal(model);
+  const expectedNoi = result.longTerm.noiMonthly ?? 0;
+  const initialLoan = calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent);
+  const acquisitionDebtService = calculateMonthlyPayment(initialLoan, model.purchase.interestRate, model.purchase.loanTermYears);
+  const investedAtPurchase =
+    result.purchase.totalCashNeeded +
+    model.brrrr.holdingMonths * (model.brrrr.holdingExpensesMonthly + fixedCostsMonthly(model) + variableCostMonthly('longTerm', model) + acquisitionDebtService);
+
+  near(result.brrrr.noiMonthly ?? 0, expectedNoi, 0.01);
+  near(result.brrrr.monthlyCashFlow, expectedNoi, 0.01);
+  near(result.brrrr.annualCashFlow, expectedNoi * 12, 0.01);
+  near(result.brrrr.capRate, 0, 0.000001);
+  near(result.brrrr.dscr, 0, 0.000001);
+  near(result.brrrr.totalCashNeeded, investedAtPurchase + initialLoan, 0.01);
+});
+
+test('BRRRR rehab override changes BRRRR invested capital', () => {
   const baseModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
       purchasePrice: 300000,
+      rehabBudget: 40000,
       arv: 420000
+    },
+    brrrr: {
+      ...defaultDealInput.brrrr,
+      arvOverride: 420000
     }
   };
 
@@ -763,7 +940,8 @@ test('BRRRR rehab override does not change refinance netting in year-0 cash flow
     }
   });
 
-  near(highRehab.brrrr.cashFlowTimeline[0], lowRehab.brrrr.cashFlowTimeline[0], 0.01);
+  near(highRehab.brrrr.totalCashNeeded - lowRehab.brrrr.totalCashNeeded, 60000, 0.01);
+  near(Math.abs(highRehab.brrrr.cashFlowTimeline[0]) - Math.abs(lowRehab.brrrr.cashFlowTimeline[0]), 60000, 0.01);
 });
 
 test('REI Calculator v2.15 parity fixture', () => {
@@ -779,6 +957,10 @@ test('REI Calculator v2.15 parity fixture', () => {
       pointsPercent: 0,
       interestRate: 0.0637,
       loanTermYears: 30
+    },
+    brrrr: {
+      ...defaultDealInput.brrrr,
+      arvOverride: 445000
     },
     assumptions: {
       ...defaultDealInput.assumptions,
@@ -827,8 +1009,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.longTerm.irr, -0.1306043926, 1e-9);
   near(result.longTerm.roi, -3.285657625, 1e-9);
 
-  near(result.airbnb.irr, -0.0721259459, 1e-9);
-  near(result.airbnb.roi, -1.4687068242, 1e-9);
+  near(result.airbnb.irr, -0.04822822475582286, 1e-9);
+  near(result.airbnb.roi, -0.9668730042395492, 1e-9);
 
   near(result.padSplit.irr, -0.051673852668701885, 1e-9);
   near(result.padSplit.roi, -1.0535906071482806, 1e-9);

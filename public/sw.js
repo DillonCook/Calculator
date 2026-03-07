@@ -1,11 +1,17 @@
-const CACHE_VERSION = 'dealcooker-v1';
+const CACHE_VERSION = 'dealcooker-v2';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_FALLBACK_URL = '/offline';
 
 const PRECACHE_URLS = ['/', OFFLINE_FALLBACK_URL, '/manifest.webmanifest', '/icon.png', '/pwa-192.png', '/pwa-512.png', '/apple-touch-icon.png'];
+const isLocalhost = (hostname) => hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 
 self.addEventListener('install', (event) => {
+  if (isLocalhost(self.location.hostname)) {
+    self.skipWaiting();
+    return;
+  }
+
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
@@ -18,6 +24,13 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
+      if (isLocalhost(self.location.hostname)) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+        await self.registration.unregister();
+        return;
+      }
+
       const cacheKeys = await caches.keys();
       await Promise.all(
         cacheKeys
@@ -34,6 +47,10 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+  if (isLocalhost(requestUrl.hostname)) return;
+
+  // Never cache Next internal assets to avoid stale runtime chunks.
+  if (requestUrl.pathname.startsWith('/_next/')) return;
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
@@ -55,9 +72,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const isStaticAsset =
-    requestUrl.pathname.startsWith('/_next/static/') ||
-    /\.(?:css|js|png|jpg|jpeg|webp|svg|ico|json|woff|woff2)$/.test(requestUrl.pathname);
+  const isStaticAsset = /\.(?:png|jpg|jpeg|webp|svg|ico|json|woff|woff2)$/.test(requestUrl.pathname);
 
   if (!isStaticAsset) return;
 

@@ -28,7 +28,7 @@ import { createShortShareLink } from '@/lib/share-links';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle, type NegativeValueKind } from '@/lib/negative-value-color';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
-import { normalizeListingUrl } from '@/lib/listing-link';
+import { extractDealNameFromListingUrl, isOneHomeUrl, normalizeListingUrl } from '@/lib/listing-link';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 
@@ -85,12 +85,8 @@ type CommercialDigestKey =
   | 'risk-drag';
 
 type LongTermTurnaroundDigestKey =
-  | 'stab-gross-income'
-  | 'stab-egi'
-  | 'stab-noi'
   | 'stab-cf'
   | 'stab-cf-no-reserves'
-  | 'stab-invested'
   | 'stab-dscr'
   | 'stab-cap-rate'
   | 'stab-coc'
@@ -124,15 +120,11 @@ const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'risk-drag'
 ];
 const defaultLongTermTurnaroundDigestOrder: LongTermTurnaroundDigestKey[] = [
-  'stab-gross-income',
-  'stab-egi',
-  'stab-noi',
   'stab-cf',
   'stab-cf-no-reserves',
-  'stab-invested',
-  'stab-dscr',
   'stab-cap-rate',
   'stab-coc',
+  'stab-dscr',
   'stab-irr',
   'stab-implied-value',
   'stab-equity-created'
@@ -211,14 +203,14 @@ const onboardingSteps: OnboardingStep[] = [
 
 
 
-const buildNewDealPayload = (dealName: string): DealInputModel => ({
+const cloneDefaultDealPayload = (): DealInputModel => ({
   ...defaultDealInput,
-  purchase: {
-    ...defaultDealInput.purchase,
-    dealName
-  },
+  purchase: { ...defaultDealInput.purchase },
   commercial: { ...defaultDealInput.commercial },
-  longTerm: { ...defaultDealInput.longTerm },
+  longTerm: {
+    ...defaultDealInput.longTerm,
+    turnaround: { ...defaultDealInput.longTerm.turnaround }
+  },
   airbnb: { ...defaultDealInput.airbnb },
   padSplit: { ...defaultDealInput.padSplit },
   brrrr: { ...defaultDealInput.brrrr },
@@ -230,12 +222,56 @@ const buildNewDealPayload = (dealName: string): DealInputModel => ({
   assumptions: { ...defaultDealInput.assumptions }
 });
 
+const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel => {
+  const base = cloneDefaultDealPayload();
+
+  return {
+    ...base,
+    purchase: {
+      ...base.purchase,
+      dealName,
+      listingUrl,
+      purchasePrice: 0,
+      rehabBudget: 0,
+      arv: 0
+    },
+    commercial: {
+      ...base.commercial,
+      averageBaseRentPerSqftYear: 0,
+      nnnRecoveryPerSqftYear: 0
+    },
+    longTerm: {
+      ...base.longTerm,
+      grossRentMonthly: 0,
+      turnaround: {
+        ...base.longTerm.turnaround,
+        stabilizedGrossRentMonthly: 0
+      }
+    },
+    airbnb: {
+      ...base.airbnb,
+      adr: 0
+    },
+    padSplit: {
+      ...base.padSplit,
+      avgWeeklyRatePerRoom: 0
+    }
+  };
+};
+
 const storedDeals = readDealsFromVault();
 const initialDeals =
   storedDeals.length > 0
     ? storedDeals
     : (() => {
-        const payload = buildNewDealPayload('New Deal');
+        const payload = {
+          ...cloneDefaultDealPayload(),
+          purchase: {
+            ...defaultDealInput.purchase,
+            dealName: 'New Deal',
+            listingUrl: ''
+          }
+        };
         const freshDeal = createDealInVault(payload, payload.purchase.dealName);
         return saveDealToVault(freshDeal);
       })();
@@ -403,27 +439,6 @@ export default function HomePage() {
 
     return [
       {
-        key: 'stab-gross-income' as LongTermTurnaroundDigestKey,
-        label: 'Stabilized Gross Income',
-        value: currencyFormatter.format(longTermTurnaroundSummary.stabilizedGrossIncomeMonthly),
-        rawValue: longTermTurnaroundSummary.stabilizedGrossIncomeMonthly,
-        rawKind: 'currency'
-      },
-      {
-        key: 'stab-egi' as LongTermTurnaroundDigestKey,
-        label: 'Effective Gross Income',
-        value: currencyFormatter.format(longTermTurnaroundSummary.effectiveGrossIncomeMonthly),
-        rawValue: longTermTurnaroundSummary.effectiveGrossIncomeMonthly,
-        rawKind: 'currency'
-      },
-      {
-        key: 'stab-noi' as LongTermTurnaroundDigestKey,
-        label: 'NOI (Stabilized)',
-        value: currencyFormatter.format(longTermTurnaroundSummary.noiMonthly),
-        rawValue: longTermTurnaroundSummary.noiMonthly,
-        rawKind: 'currency'
-      },
-      {
         key: 'stab-cf' as LongTermTurnaroundDigestKey,
         label: 'Cash Flow (Pre-Tax)',
         value: currencyFormatter.format(longTermTurnaroundSummary.cashFlowPreTaxMonthly),
@@ -435,13 +450,6 @@ export default function HomePage() {
         label: 'Cash Flow excl. Reserves',
         value: currencyFormatter.format(longTermTurnaroundSummary.cashFlowExcludingReservesMonthly),
         rawValue: longTermTurnaroundSummary.cashFlowExcludingReservesMonthly,
-        rawKind: 'currency'
-      },
-      {
-        key: 'stab-invested' as LongTermTurnaroundDigestKey,
-        label: 'Total Cash Invested',
-        value: currencyFormatter.format(longTermTurnaroundSummary.totalCashInvested),
-        rawValue: longTermTurnaroundSummary.totalCashInvested,
         rawKind: 'currency'
       },
       {
@@ -1147,8 +1155,16 @@ export default function HomePage() {
     });
   };
 
-  const saveDealAs = (dealName: string) => {
-    const record = createDealInVault(model, dealName);
+  const saveDealAs = (dealName: string, listingUrl: string) => {
+    const nextPayload: DealInputModel = {
+      ...model,
+      purchase: {
+        ...model.purchase,
+        dealName,
+        listingUrl
+      }
+    };
+    const record = createDealInVault(nextPayload, dealName);
     const next = saveDealToVault(record);
     setModel(record.payload);
     setDeals(next);
@@ -1175,17 +1191,17 @@ export default function HomePage() {
     setSaveStatus('saved');
   };
 
-  const createNewDeal = () => {
+  const createNewDeal = (requestedDealName: string, listingUrl: string) => {
     const normalizedNames = new Set(deals.map((deal) => deal.dealName.toLowerCase()));
     let index = 1;
-    let candidateName = 'New Deal';
+    let candidateName = requestedDealName.trim() || 'New Deal';
 
     while (normalizedNames.has(candidateName.toLowerCase())) {
       index += 1;
-      candidateName = `New Deal ${index}`;
+      candidateName = `${requestedDealName.trim() || 'New Deal'} ${index}`;
     }
 
-    const payload = buildNewDealPayload(candidateName);
+    const payload = buildNewDealPayload(candidateName, listingUrl.trim());
 
     const nextDeal = createDealInVault(payload, candidateName);
     const next = saveDealToVault(nextDeal);
@@ -1195,6 +1211,33 @@ export default function HomePage() {
     setActiveStrategy(defaultNewDealStrategy);
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
+  };
+
+  const handleDealNameChange = (dealName: string) => {
+    updateModel((current) => ({
+      ...current,
+      purchase: {
+        ...current.purchase,
+        dealName
+      }
+    }));
+  };
+
+  const handleListingUrlChange = (listingUrlInput: string) => {
+    const listingUrl = listingUrlInput.trim();
+    updateModel((current) => {
+      const extractedDealName = extractDealNameFromListingUrl(listingUrl);
+      const shouldRename = !isOneHomeUrl(listingUrl) && Boolean(extractedDealName);
+
+      return {
+        ...current,
+        purchase: {
+          ...current.purchase,
+          listingUrl,
+          dealName: shouldRename ? extractedDealName ?? current.purchase.dealName : current.purchase.dealName
+        }
+      };
+    });
   };
 
   const openRecentScenario = (scenarioId: string) => {
@@ -2036,6 +2079,7 @@ export default function HomePage() {
                 deals={deals}
                 activeDealId={activeDealId}
                 activeDealName={model.purchase.dealName}
+                activeDealListingValue={model.purchase.listingUrl}
                 activeDealListingUrl={model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : null}
                 printToPdfUrl={printToPdfUrl}
                 saveStatus={saveStatus}
@@ -2044,6 +2088,8 @@ export default function HomePage() {
                 onSaveAs={saveDealAs}
                 onRename={renameDeal}
                 onCreateNew={createNewDeal}
+                onDealNameChange={handleDealNameChange}
+                onListingUrlChange={handleListingUrlChange}
                 onDelete={removeScenario}
               />
             </div>
@@ -2571,7 +2617,12 @@ export default function HomePage() {
 
           {!isMobileViewport ? (
             <div ref={desktopCoreSectionRef}>
-              <DealInputPanel value={model} onChange={updateModel} resolveListingDealName={resolveListingDealName} defaultAdvancedOptionsOpen={Boolean(activeDealId)} />
+              <DealInputPanel
+                value={model}
+                onChange={updateModel}
+                resolveListingDealName={resolveListingDealName}
+                defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+              />
             </div>
           ) : null}
         </div>
