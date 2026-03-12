@@ -3065,7 +3065,7 @@ export default function HomePage() {
         </button>
 
         {compactMode === 'inputs' ? (
-          <div role="tablist" aria-label="Input section selection" className="grid grid-cols-4 gap-2">
+          <div role="tablist" aria-label="Input section selection" className="grid grid-cols-4 gap-2 max-[359px]:grid-cols-2">
             {compactInputSections.map((section) => {
               const isActive = compactInputSection === section.key;
 
@@ -3079,14 +3079,14 @@ export default function HomePage() {
                   aria-controls={`compact-input-panel-${section.key}`}
                   tabIndex={isActive ? 0 : -1}
                   onClick={() => selectCompactInputSection(section.key)}
-                  className={`tap-feedback rounded-xl border px-3 py-2 text-left transition ${
+                  className={`tap-feedback flex min-h-[3.5rem] flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition ${
                     isActive
                       ? 'accent-edge bg-accent/10 text-slate-100'
                       : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
                   }`}
                 >
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.14em]">{section.label}</span>
-                  <span className={`mt-1 block truncate text-[10px] ${isActive ? 'text-slate-200' : 'text-muted'}`}>{section.summary}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] leading-none">{section.label}</span>
+                  <span className={`mt-1 block max-w-full truncate text-[9px] leading-tight ${isActive ? 'text-slate-200' : 'text-muted'}`}>{section.summary}</span>
                 </button>
               );
             })}
