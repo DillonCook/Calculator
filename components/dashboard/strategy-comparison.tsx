@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
 import type { DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
@@ -18,16 +18,20 @@ const strategyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSpli
 interface StrategyComparisonProps {
   data: DealResult;
   defaultBoardOpen?: boolean;
+  inlineModelingViews?: boolean;
+  lockBoardOpen?: boolean;
   visibleStrategies?: StrategyKey[];
 }
 
 export function StrategyComparison({
   data,
   defaultBoardOpen = true,
+  inlineModelingViews = false,
+  lockBoardOpen = false,
   visibleStrategies
 }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
-  const [isBoardOpen, setIsBoardOpen] = useState(defaultBoardOpen);
+  const [isBoardOpen, setIsBoardOpen] = useState(lockBoardOpen ? true : defaultBoardOpen);
   const rows = useMemo(() => {
     const selectedStrategies =
       visibleStrategies && visibleStrategies.length > 0
@@ -39,11 +43,16 @@ export function StrategyComparison({
       label: strategyLabels[strategy]
     }));
   }, [visibleStrategies]);
-  const maxCashFlow = Math.max(...rows.map((row) => data[row.key].monthlyCashFlow), 0);
+  const maxCashFlowMagnitude = Math.max(...rows.map((row) => Math.abs(data[row.key].monthlyCashFlow)), 1);
 
   useEffect(() => {
-    setIsBoardOpen(defaultBoardOpen);
-  }, [defaultBoardOpen]);
+    setIsBoardOpen(lockBoardOpen ? true : defaultBoardOpen);
+  }, [defaultBoardOpen, lockBoardOpen]);
+
+  useEffect(() => {
+    if (!inlineModelingViews) return;
+    setActiveModal(null);
+  }, [inlineModelingViews]);
 
   const equityRows = useMemo(() => {
     return rows.map((row) => {
@@ -94,27 +103,153 @@ export function StrategyComparison({
     });
   }, [data, rows]);
 
-  return (
-    <>
-      <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-        <button
-          type="button"
-          aria-expanded={isBoardOpen}
-          className={`tap-feedback flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
-          onClick={() => setIsBoardOpen((prev) => !prev)}
-        >
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
-            <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
-          </div>
-          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
-            {isBoardOpen ? '-' : '+'}
-          </span>
-        </button>
+  const inlineComparisonCards = (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const output = data[row.key];
+        const equityRow = equityRows.find((entry) => entry.key === row.key);
+        const cashFlowRow = cashFlowRows.find((entry) => entry.key === row.key);
+        if (!equityRow || !cashFlowRow) return null;
 
-        <div className="panel-collapse" data-open={isBoardOpen}>
-          <div className="panel-collapse-inner">
-            <div className="mb-4 flex flex-wrap gap-2">
+        const barWidth = Math.min((Math.abs(output.monthlyCashFlow) / maxCashFlowMagnitude) * 100, 100);
+        const isPositive = output.monthlyCashFlow >= 0;
+
+        return (
+          <article
+            key={`inline-compare-${row.key}`}
+            className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(24,38,59,0.96),rgba(9,15,28,0.96))] p-3 shadow-soft"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-70"
+              style={{
+                background:
+                  'radial-gradient(circle at 12% 18%, rgba(92, 203, 255, 0.18), transparent 34%), radial-gradient(circle at 86% 14%, rgba(244, 150, 58, 0.14), transparent 28%)'
+              }}
+            />
+
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted">{row.label}</p>
+                  <p
+                    className={`mt-1 text-2xl font-semibold tracking-tight ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
+                    style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+                  >
+                    {currencyFormatter.format(output.monthlyCashFlow)}
+                    <span className="ml-1 text-xs font-medium text-muted">/mo</span>
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted">IRR</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-100" style={getNegativeValueStyle(output.irr, { kind: 'percent' })}>
+                    {percentFormatter.format(output.irr)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
+                  <span>Cash-flow strength</span>
+                  <span>DSCR {output.dscr.toFixed(2)}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <CompactMetric
+                  label="CoC"
+                  value={percentFormatter.format(output.cashOnCashReturn)}
+                  toneStyle={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}
+                />
+                <CompactMetric
+                  label="ROI"
+                  value={percentFormatter.format(output.roi)}
+                  toneStyle={getNegativeValueStyle(output.roi, { kind: 'percent' })}
+                />
+                <CompactMetric
+                  label="Cap"
+                  value={percentFormatter.format(output.capRate)}
+                  toneStyle={getNegativeValueStyle(output.capRate, { kind: 'percent' })}
+                />
+                <CompactMetric
+                  label="Exit"
+                  value={equityRow.multiple.toFixed(2) + 'x'}
+                  toneStyle={undefined}
+                />
+              </div>
+
+              <div className="mt-3 grid gap-2 max-[359px]:grid-cols-1 sm:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                <section className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Equity</p>
+                      <p
+                        className={`mt-1 text-xs font-semibold ${equityRow.profit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
+                        style={getNegativeValueStyle(equityRow.profit, { kind: 'currency' })}
+                      >
+                        {equityRow.profit >= 0 ? '+' : ''}
+                        {currencyFormatter.format(equityRow.profit)} profit
+                      </p>
+                    </div>
+                    <div className="text-right text-[10px] text-muted">
+                      <p>{currencyFormatter.format(equityRow.saleProceeds)} exit</p>
+                      <p>{equityRow.yearsHeld} years</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 space-y-2">
+                    <ModelBar label="Invested" value={equityRow.invested} max={maxModeledEquity} tone="invested" compact />
+                    <ModelBar
+                      label="Modeled exit"
+                      value={equityRow.equityModeled}
+                      max={maxModeledEquity}
+                      tone={equityRow.equityModeled >= equityRow.invested ? 'equity' : 'warning'}
+                      compact
+                    />
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-muted">
+                    <span>
+                      Multiple <span className="text-slate-100">{equityRow.multiple.toFixed(2)}x</span>
+                    </span>
+                    <span>
+                      Break-even{' '}
+                      <span className={equityRow.breakEvenYear ? 'text-emerald-300' : 'text-amber-300'}>
+                        {equityRow.breakEvenYear ? `Y${equityRow.breakEvenYear}` : 'No'}
+                      </span>
+                    </span>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-white/10 bg-[#0a1326] p-2.5">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-200">Cash flow trend</p>
+                      <p className="mt-1 text-[10px] text-muted">Sale proceeds removed from the last year.</p>
+                    </div>
+                    <p className="text-[10px] text-muted">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
+                  </div>
+                  <CashFlowGraph points={cashFlowRow.chartPoints} compact />
+                </section>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+
+  const boardContent = (
+    <div className="space-y-3">
+      {!inlineModelingViews ? (
+        <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveModal('equity')}
@@ -129,74 +264,188 @@ export function StrategyComparison({
           >
             Cash flow modeling
           </button>
-            </div>
+        </div>
+      ) : null}
 
-            <div className="space-y-3">
-          {rows.map((row) => {
-            const output = data[row.key];
-            const barWidth = maxCashFlow === 0 ? 0 : Math.max((output.monthlyCashFlow / maxCashFlow) * 100, -100);
-            const isPositive = output.monthlyCashFlow >= 0;
+      {rows.map((row) => {
+        const output = data[row.key];
+        const barWidth = Math.min((Math.abs(output.monthlyCashFlow) / maxCashFlowMagnitude) * 100, 100);
+        const isPositive = output.monthlyCashFlow >= 0;
 
-            return (
-              <div
-                key={row.key}
-                className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-white/10 bg-white/5'}`}
+        return (
+          <div
+            key={row.key}
+            className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-white/10 bg-white/5'}`}
+          >
+            <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="min-w-0 text-sm font-medium">{row.label}</p>
+              <p
+                className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}
+                style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
               >
-                <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="min-w-0 text-sm font-medium">{row.label}</p>
-                  <p
-                    className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}
-                    style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
-                  >
-                    {currencyFormatter.format(output.monthlyCashFlow)}
-                    <span className="ml-1 text-xs text-muted">/mo</span>
-                  </p>
-                </div>
+                {currencyFormatter.format(output.monthlyCashFlow)}
+                <span className="ml-1 text-xs text-muted">/mo</span>
+              </p>
+            </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-slate-400'}`}
-                    style={{ width: `${Math.abs(barWidth)}%` }}
+                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                    style={{ width: `${barWidth}%` }}
                   />
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
-                  <span className="text-center">
-                    CoC <span style={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}>{percentFormatter.format(output.cashOnCashReturn)}</span>
-                  </span>
-                  <span className="text-center">
-                    ROI <span style={getNegativeValueStyle(output.roi, { kind: 'percent' })}>{percentFormatter.format(output.roi)}</span>
-                  </span>
-                  <span className="text-center">
-                    DSCR
-                    <span
-                      className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${
-                        output.dscr < 1
-                          ? 'bg-red-500/20 ring-1 ring-red-500/40'
-                          : output.dscr > 1
-                            ? 'bg-emerald-500/15 ring-1 ring-emerald-400/35'
-                            : 'bg-white/10 text-slate-100'
-                      }`}
-                      style={getNegativeValueStyle(output.dscr, { kind: 'ratio', baseline: 1 })}
-                    >
-                      {output.dscr.toFixed(2)}
-                      {output.dscr < 1 ? ' \u26a0' : ''}
-                    </span>
-                  </span>
-                  <span className="text-center">
-                    IRR <span style={getNegativeValueStyle(output.irr, { kind: 'percent' })}>{percentFormatter.format(output.irr)}</span>
-                  </span>
-                  <span className="text-center">
-                    Cap <span style={getNegativeValueStyle(output.capRate, { kind: 'percent' })}>{percentFormatter.format(output.capRate)}</span>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+            <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
+              <span className="text-center">
+                CoC <span style={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}>{percentFormatter.format(output.cashOnCashReturn)}</span>
+              </span>
+              <span className="text-center">
+                ROI <span style={getNegativeValueStyle(output.roi, { kind: 'percent' })}>{percentFormatter.format(output.roi)}</span>
+              </span>
+              <span className="text-center">
+                DSCR
+                <span
+                  className={`ml-1 inline-flex rounded-full px-1.5 py-0.5 font-semibold ${
+                    output.dscr < 1
+                      ? 'bg-red-500/20 ring-1 ring-red-500/40'
+                      : output.dscr > 1
+                        ? 'bg-emerald-500/15 ring-1 ring-emerald-400/35'
+                        : 'bg-white/10 text-slate-100'
+                  }`}
+                  style={getNegativeValueStyle(output.dscr, { kind: 'ratio', baseline: 1 })}
+                >
+                  {output.dscr.toFixed(2)}
+                  {output.dscr < 1 ? ' \u26a0' : ''}
+                </span>
+              </span>
+              <span className="text-center">
+                IRR <span style={getNegativeValueStyle(output.irr, { kind: 'percent' })}>{percentFormatter.format(output.irr)}</span>
+              </span>
+              <span className="text-center">
+                Cap <span style={getNegativeValueStyle(output.capRate, { kind: 'percent' })}>{percentFormatter.format(output.capRate)}</span>
+              </span>
             </div>
           </div>
-        </div>
-      </section>
+        );
+      })}
+    </div>
+  );
 
-      {activeModal === 'equity' ? (
+  const equityModelingContent = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {equityRows.map((row) => (
+        <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">{row.label}</p>
+            <p
+              className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}
+              style={getNegativeValueStyle(row.profit, { kind: 'currency' })}
+            >
+              {row.profit >= 0 ? '+' : ''}
+              {currencyFormatter.format(row.profit)} modeled profit
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <ModelBar label="Cash invested" value={row.invested} max={maxModeledEquity} tone="invested" />
+            <ModelBar
+              label="Modeled equity at exit"
+              value={row.equityModeled}
+              max={maxModeledEquity}
+              tone={row.equityModeled >= row.invested ? 'equity' : 'warning'}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+            <p>
+              Sale proceeds <span className="ml-1 text-white">{currencyFormatter.format(row.saleProceeds)}</span>
+            </p>
+            <p>
+              Equity multiple <span className="ml-1 text-white">{row.multiple.toFixed(2)}x</span>
+            </p>
+            <p>
+              Years held <span className="ml-1 text-white">{row.yearsHeld}</span>
+            </p>
+            <p>
+              Break-even year
+              <span className={`ml-1 ${row.breakEvenYear ? 'text-emerald-300' : 'text-amber-300'}`}>
+                {row.breakEvenYear ? `Year ${row.breakEvenYear}` : 'Not reached'}
+              </span>
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const cashFlowModelingContent = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {cashFlowRows.map((row) => (
+        <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">{row.label}</p>
+            <p className="text-xs text-muted">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
+          </div>
+          <CashFlowGraph points={row.chartPoints} />
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <>
+      {inlineModelingViews ? (
+        <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
+              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
+              <p className="mt-1 text-xs text-muted">Each card blends KPIs, modeled equity, and the operating cash-flow curve.</p>
+            </div>
+            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+              {rows.length} exits
+            </span>
+          </div>
+          {inlineComparisonCards}
+        </section>
+      ) : (
+      <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+        {lockBoardOpen ? (
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
+              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
+            </div>
+            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+              {rows.length} exits
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-expanded={isBoardOpen}
+            className={`tap-feedback flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
+            onClick={() => setIsBoardOpen((prev) => !prev)}
+          >
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
+              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
+            </div>
+            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+              {isBoardOpen ? '-' : '+'}
+            </span>
+          </button>
+        )}
+
+        {lockBoardOpen ? (
+          boardContent
+        ) : (
+          <div className="panel-collapse" data-open={isBoardOpen}>
+            <div className="panel-collapse-inner">{boardContent}</div>
+          </div>
+        )}
+      </section>
+      )}
+
+      {!inlineModelingViews && activeModal === 'equity' ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm"
           role="dialog"
@@ -219,53 +468,12 @@ export function StrategyComparison({
               </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {equityRows.map((row) => (
-                <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{row.label}</p>
-                    <p
-                      className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}
-                      style={getNegativeValueStyle(row.profit, { kind: 'currency' })}
-                    >
-                      {row.profit >= 0 ? '+' : ''}{currencyFormatter.format(row.profit)} modeled profit
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <ModelBar
-                      label="Cash invested"
-                      value={row.invested}
-                      max={maxModeledEquity}
-                      tone="invested"
-                    />
-                    <ModelBar
-                      label="Modeled equity at exit"
-                      value={row.equityModeled}
-                      max={maxModeledEquity}
-                      tone={row.equityModeled >= row.invested ? 'equity' : 'warning'}
-                    />
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-                    <p>Sale proceeds <span className="ml-1 text-white">{currencyFormatter.format(row.saleProceeds)}</span></p>
-                    <p>Equity multiple <span className="ml-1 text-white">{row.multiple.toFixed(2)}x</span></p>
-                    <p>Years held <span className="ml-1 text-white">{row.yearsHeld}</span></p>
-                    <p>
-                      Break-even year
-                      <span className={`ml-1 ${row.breakEvenYear ? 'text-emerald-300' : 'text-amber-300'}`}>
-                        {row.breakEvenYear ? `Year ${row.breakEvenYear}` : 'Not reached'}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {equityModelingContent}
           </div>
         </div>
       ) : null}
 
-      {activeModal === 'cashflow' ? (
+      {!inlineModelingViews && activeModal === 'cashflow' ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm"
           role="dialog"
@@ -288,17 +496,7 @@ export function StrategyComparison({
               </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {cashFlowRows.map((row) => (
-                <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{row.label}</p>
-                    <p className="text-xs text-muted">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
-                  </div>
-                  <CashFlowGraph points={row.chartPoints} />
-                </div>
-              ))}
-            </div>
+            {cashFlowModelingContent}
           </div>
         </div>
       ) : null}
@@ -306,28 +504,51 @@ export function StrategyComparison({
   );
 }
 
-function ModelBar({ label, value, max, tone }: { label: string; value: number; max: number; tone: 'invested' | 'equity' | 'warning' }) {
+function CompactMetric({ label, value, toneStyle }: { label: string; value: string; toneStyle?: CSSProperties }) {
+  return (
+    <article className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
+      <p className="mt-1 text-xs font-semibold text-slate-100" style={toneStyle}>
+        {value}
+      </p>
+    </article>
+  );
+}
+
+function ModelBar({
+  label,
+  value,
+  max,
+  tone,
+  compact = false
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone: 'invested' | 'equity' | 'warning';
+  compact?: boolean;
+}) {
   const width = Math.max(Math.min((Math.abs(value) / Math.max(max, 1)) * 100, 100), 0);
   const toneClass = tone === 'invested' ? 'bg-slate-400' : tone === 'equity' ? 'bg-emerald-400' : 'bg-amber-300';
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-xs text-muted">
+      <div className={`mb-1 flex items-center justify-between ${compact ? 'text-[10px]' : 'text-xs'} text-muted`}>
         <span>{label}</span>
         <span className="text-white">{currencyFormatter.format(value)}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+      <div className={`${compact ? 'h-1.5' : 'h-2'} overflow-hidden rounded-full bg-white/10`}>
         <div className={`h-full rounded-full ${toneClass}`} style={{ width: `${width}%` }} />
       </div>
     </div>
   );
 }
 
-function CashFlowGraph({ points }: { points: { year: number; value: number }[] }) {
+function CashFlowGraph({ points, compact = false }: { points: { year: number; value: number }[]; compact?: boolean }) {
   const yAxisLabelId = useId();
   const width = 100;
-  const height = 100;
-  const padding = 8;
+  const height = compact ? 78 : 100;
+  const padding = compact ? 6 : 8;
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
@@ -341,7 +562,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
   const toY = (value: number): number => padding + ((paddedMax - value) / domainRange) * chartHeight;
   const zeroY = toY(0);
 
-  const tickCount = 5;
+  const tickCount = compact ? 4 : 5;
   const yTicks = Array.from({ length: tickCount }, (_, index) => {
     const ratio = index / (tickCount - 1);
     const value = paddedMax - ratio * domainRange;
@@ -355,7 +576,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
 
   const barGap = Math.max(points.length - 1, 1);
   const stepX = chartWidth / barGap;
-  const barWidth = Math.max(Math.min(stepX * 0.62, 6), 2.25);
+  const barWidth = Math.max(Math.min(stepX * 0.62, compact ? 5 : 6), compact ? 1.8 : 2.25);
 
   const bars = points.map((point, index) => {
     const xCenter = points.length <= 1 ? width / 2 : padding + index * stepX;
@@ -374,15 +595,20 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
   });
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-lg border border-white/10 bg-[#0A1326] p-2 sm:p-2.5">
-        <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
-          <p className="pl-0.5">Annual cash flow</p>
-          <p className="pr-0.5 text-right">Operating timeline (years)</p>
-        </div>
+    <div className={compact ? 'space-y-1' : 'space-y-2'}>
+      <div className={`rounded-lg border border-white/10 bg-[#0A1326] ${compact ? 'p-0' : 'p-2 sm:p-2.5'}`}>
+        {!compact ? (
+          <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
+            <p className="pl-0.5">Annual cash flow</p>
+            <p className="pr-0.5 text-right">Operating timeline (years)</p>
+          </div>
+        ) : null}
 
-        <div className="grid grid-cols-[56px_1fr] gap-1.5 sm:grid-cols-[78px_1fr] sm:gap-2">
-          <div className="flex flex-col justify-between py-2 text-right text-[9px] text-muted sm:text-[10px]" aria-hidden="true">
+        <div className={compact ? 'grid grid-cols-[36px_1fr] gap-1' : 'grid grid-cols-[56px_1fr] gap-1.5 sm:grid-cols-[78px_1fr] sm:gap-2'}>
+          <div
+            className={`flex flex-col justify-between ${compact ? 'py-1 text-right text-[7px]' : 'py-2 text-right text-[9px] sm:text-[10px]'} text-muted`}
+            aria-hidden="true"
+          >
             {yTicks.map((tick) => (
               <span key={tick.ratio}>{tick.label}</span>
             ))}
@@ -390,7 +616,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
 
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="h-40 w-full sm:h-44"
+            className={compact ? 'h-24 w-full' : 'h-40 w-full sm:h-44'}
             role="img"
             aria-labelledby={yAxisLabelId}
             preserveAspectRatio="none"
@@ -442,7 +668,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
                   x={bar.x}
                   y={height - 3}
                   textAnchor="middle"
-                  style={{ fill: '#94a3b8', fontSize: '4.4px' }}
+                  style={{ fill: '#94a3b8', fontSize: compact ? '3.4px' : '4.4px' }}
                 >
                   {bar.year}
                 </text>
@@ -452,7 +678,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
         </div>
       </div>
 
-      <div className="flex items-center justify-end text-[11px] text-muted">
+      <div className={`flex items-center justify-end ${compact ? 'text-[10px]' : 'text-[11px]'} text-muted`}>
         <span>Year {Math.max(points.at(-1)?.year ?? 1, 1)}</span>
       </div>
     </div>

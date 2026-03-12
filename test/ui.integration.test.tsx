@@ -267,8 +267,38 @@ describe('dashboard integration', () => {
     await user.click(within(selection).getByRole('button', { name: /Airbnb/i }));
 
     expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();
-    expect(within(board).getByRole('button', { name: 'Equity modeling' })).toBeInTheDocument();
-    expect(within(board).getByRole('button', { name: 'Cash flow modeling' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Equity modeling' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cash flow modeling' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Equity modeling by strategy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cash flow modeling by strategy')).not.toBeInTheDocument();
+    expect(within(board).getAllByText('Cash flow trend').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Cash-flow strength').length).toBeGreaterThan(0);
+  });
+
+  it('shows timeline as a compact read-only reference on mobile', async () => {
+    window.localStorage.clear();
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '285000');
+
+    const grossRent = screen.getAllByLabelText('Gross rent / mo')[0];
+    await user.clear(grossRent);
+    await user.type(grossRent, '2600');
+
+    await user.click(screen.getByRole('button', { name: 'Results' }));
+    await user.click(screen.getByRole('button', { name: 'Timeline' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Timeline' });
+
+    expect(within(dialog).getByText('Years 0 - 10')).toBeInTheDocument();
+    expect(within(dialog).getByText('Reference only. Edit exit and IRR assumptions from Inputs.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Hold years')).not.toBeInTheDocument();
   });
 
   it('shows a Commercial strategy tab and exposes strip-plaza underwriting inputs', async () => {

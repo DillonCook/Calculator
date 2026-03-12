@@ -274,7 +274,7 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   {
     id: 'mobileCompare',
     title: 'Compare Uses Multi-Select',
-    body: 'Compare is now a strategy filter for the master board. Pick the exits you want on screen, then use Compare all exits at a glance, Equity modeling, and Cash flow modeling.'
+    body: 'Compare is now a strategy filter for compact strategy cards. Pick the exits you want on screen, then scan KPIs, modeled equity, and cash-flow trend together inside each card.'
   },
   {
     id: 'mobileActions',
@@ -2566,7 +2566,7 @@ export default function HomePage() {
             <p className="text-xs uppercase tracking-[0.16em] text-accent">Compare</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose the exits you want on the board</h2>
             <p className="mt-1 text-sm text-muted">
-              Pick at least two strategies, then review the filtered master board with equity and cash flow modeling.
+              Pick at least two strategies, then scan KPI, equity, and cash-flow context inside each filtered strategy card.
             </p>
           </div>
           <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
@@ -2594,7 +2594,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <StrategyComparison data={result} visibleStrategies={compactCompareSelection} />
+      <StrategyComparison data={result} visibleStrategies={compactCompareSelection} inlineModelingViews lockBoardOpen />
     </>
   );
 
@@ -2857,7 +2857,7 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'timeline'} title="Timeline" onClose={() => setCompactSheetView(null)}>
-        <TimelineCard output={result[activeStrategy]} assumptions={model.assumptions} defaultOpen />
+        <TimelineCard output={result[activeStrategy]} assumptions={model.assumptions} collapsible={false} summaryVariant="compact" />
       </MobileSheet>
     </>
   );
