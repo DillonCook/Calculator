@@ -10,8 +10,11 @@ interface UseFloatingTooltipPositionOptions {
   viewportPadding?: number;
   offset?: number;
   maxWidth?: number;
+  minWidth?: number;
   fallbackHeight?: number;
   zIndex?: number;
+  mobileCenteredBreakpoint?: number;
+  desktopInset?: number;
 }
 
 interface FloatingTooltipPositionState {
@@ -29,16 +32,24 @@ export function useFloatingTooltipPosition({
   viewportPadding = 12,
   offset = 10,
   maxWidth = 320,
+  minWidth = 220,
   fallbackHeight = 180,
-  zIndex = 170
+  zIndex = 170,
+  mobileCenteredBreakpoint = 640,
+  desktopInset = 28
 }: UseFloatingTooltipPositionOptions): FloatingTooltipPositionState {
+  const widthRule = `min(${maxWidth}px, calc(100vw - ${viewportPadding * 2}px))`;
+  const minWidthRule = `min(${minWidth}px, calc(100vw - ${viewportPadding * 2}px))`;
+
   const [state, setState] = useState<FloatingTooltipPositionState>({
     placement: preferredPlacement,
     style: {
       position: 'fixed',
       top: viewportPadding,
       left: viewportPadding,
-      maxWidth: `min(${maxWidth}px, calc(100vw - ${viewportPadding * 2}px))`,
+      width: 'max-content',
+      minWidth: minWidthRule,
+      maxWidth: widthRule,
       zIndex,
       visibility: 'hidden'
     }
@@ -75,7 +86,11 @@ export function useFloatingTooltipPosition({
       }
 
       const maxLeft = Math.max(viewportPadding, viewportWidth - viewportPadding - tooltipWidth);
-      const left = clamp(anchorRect.left + anchorRect.width / 2 - tooltipWidth / 2, viewportPadding, maxLeft);
+      const centeredLeft = clamp(viewportWidth / 2 - tooltipWidth / 2, viewportPadding, maxLeft);
+      const inwardPadding = viewportWidth <= mobileCenteredBreakpoint ? viewportPadding : viewportPadding + desktopInset;
+      const maxInsetLeft = Math.max(inwardPadding, viewportWidth - inwardPadding - tooltipWidth);
+      const anchoredLeft = clamp(anchorRect.left + anchorRect.width / 2 - tooltipWidth / 2, inwardPadding, maxInsetLeft);
+      const left = viewportWidth <= mobileCenteredBreakpoint ? centeredLeft : anchoredLeft;
 
       const unconstrainedTop = placement === 'bottom' ? anchorRect.bottom + offset : anchorRect.top - tooltipHeight - offset;
       const maxTop = Math.max(viewportPadding, viewportHeight - viewportPadding - tooltipHeight);
@@ -87,7 +102,9 @@ export function useFloatingTooltipPosition({
           position: 'fixed',
           top,
           left,
-          maxWidth: `min(${maxWidth}px, calc(100vw - ${viewportPadding * 2}px))`,
+          width: 'max-content',
+          minWidth: minWidthRule,
+          maxWidth: widthRule,
           zIndex,
           visibility: 'visible'
         }
@@ -122,10 +139,12 @@ export function useFloatingTooltipPosition({
     viewportPadding,
     offset,
     maxWidth,
+    minWidth,
     fallbackHeight,
-    zIndex
+    zIndex,
+    mobileCenteredBreakpoint,
+    desktopInset
   ]);
 
   return state;
 }
-

@@ -46,6 +46,7 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 
 const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
 type CompactMode = 'inputs' | 'results' | 'compare';
+type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 
@@ -270,7 +271,7 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   {
     id: 'mobileInputs',
     title: 'Inputs Is the Starting Mode',
-    body: 'Phone workflow starts with quick-start deal inputs first. Fill the baseline here, then open the deeper core and strategy sections only when you need them.'
+    body: 'Phone workflow keeps Core, Expenses, Strategy, and IRR separate, but you can jump between them from the sticky switcher without losing your place.'
   },
   {
     id: 'mobileResults',
@@ -393,8 +394,7 @@ export default function HomePage() {
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [compactMode, setCompactMode] = useState<CompactMode>('inputs');
   const [compactSheetView, setCompactSheetView] = useState<CompactSheetView>(null);
-  const [isMobileCoreInputsMinimized, setIsMobileCoreInputsMinimized] = useState(false);
-  const [isMobileStrategyInputsMinimized, setIsMobileStrategyInputsMinimized] = useState(false);
+  const [compactInputSection, setCompactInputSection] = useState<CompactInputSection>('core');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
@@ -809,6 +809,33 @@ export default function HomePage() {
     setCompactMode('inputs');
   }, [compactMode, compactReadiness.ready, isMobileViewport]);
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
+  const compactInputSections = [
+    {
+      key: 'core' as const,
+      label: 'Core',
+      summary:
+        model.purchase.ownershipMode === 'owned'
+          ? 'Owned carry'
+          : model.purchase.financingType === 'loan'
+            ? 'Loan baseline'
+            : 'Cash baseline'
+    },
+    {
+      key: 'expenses' as const,
+      label: 'Expenses',
+      summary: 'Taxes + variable'
+    },
+    {
+      key: 'strategy' as const,
+      label: 'Strategy',
+      summary: activeStrategyLabel
+    },
+    {
+      key: 'irr' as const,
+      label: 'IRR',
+      summary: `${model.assumptions.holdYears}y hold`
+    }
+  ];
   const activeDealDisplayName = model.purchase.dealName || 'New Deal';
   const quickScanPoints = quickScanDetails[activeStrategy];
   const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
@@ -1022,9 +1049,24 @@ export default function HomePage() {
     if (isMobileViewport) {
       setCompactMode('inputs');
       setCompactSheetView(null);
-      setIsMobileCoreInputsMinimized(false);
-      setIsMobileStrategyInputsMinimized(false);
+      setCompactInputSection('strategy');
     }
+  };
+
+  const selectCompactInputSection = (section: CompactInputSection) => {
+    if (compactInputSection !== section) {
+      triggerHapticFeedback('light');
+      setCompactInputSection(section);
+    }
+
+    if (typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      if (typeof mobileCoreSectionRef.current?.scrollIntoView !== 'function') return;
+      mobileCoreSectionRef.current.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start'
+      });
+    });
   };
 
   const isElementVisible = (element: HTMLElement | null) => {
@@ -1334,15 +1376,13 @@ export default function HomePage() {
     if (step.id === 'mobileStrategy') {
       setCompactMode('inputs');
       setCompactSheetView(null);
-      setIsMobileCoreInputsMinimized(false);
-      setIsMobileStrategyInputsMinimized(false);
+      setCompactInputSection('strategy');
     }
 
     if (step.id === 'mobileInputs') {
       setCompactMode('inputs');
       setCompactSheetView(null);
-      setIsMobileCoreInputsMinimized(false);
-      setIsMobileStrategyInputsMinimized(false);
+      setCompactInputSection('core');
     }
 
     if (step.id === 'mobileResults') {
@@ -1359,13 +1399,12 @@ export default function HomePage() {
 
     if (step.id === 'core') {
       setCompactMode('inputs');
-      setIsMobileCoreInputsMinimized(false);
+      setCompactInputSection('core');
     }
 
     if (step.id === 'strategy') {
       setCompactMode('inputs');
-      setIsMobileCoreInputsMinimized(false);
-      setIsMobileStrategyInputsMinimized(false);
+      setCompactInputSection('strategy');
     }
 
     if (step.id === 'signin') {
@@ -2366,30 +2405,59 @@ export default function HomePage() {
   );
 
   const compactInputsView = (
-    <>
-      <div ref={mobileCoreSectionRef}>
+    <div ref={mobileCoreSectionRef} className="scroll-mt-28 space-y-4">
+      <div
+        id="compact-input-panel-core"
+        role="tabpanel"
+        aria-labelledby="compact-input-tab-core"
+        hidden={compactInputSection !== 'core'}
+        className={compactInputSection === 'core' ? 'panel-swap' : 'hidden'}
+      >
         <DealInputPanel
-        value={model}
-        onChange={updateModel}
-        resolveListingDealName={resolveListingDealName}
-        defaultAdvancedOptionsOpen={false}
-        collapsible
-        collapsed={isMobileCoreInputsMinimized}
-        onToggleCollapsed={() => setIsMobileCoreInputsMinimized((prev) => !prev)}
+          value={model}
+          onChange={updateModel}
+          resolveListingDealName={resolveListingDealName}
+          defaultAdvancedOptionsOpen={false}
+          forcedCoreSection="purchaseFinancing"
         />
       </div>
 
-      <StrategyModuleInputs
-        active={activeStrategy}
-        model={model}
-        onChange={updateModel}
-        collapsible
-        collapsed={isMobileStrategyInputsMinimized}
-        onToggleCollapsed={() => setIsMobileStrategyInputsMinimized((prev) => !prev)}
-      />
+      <div
+        id="compact-input-panel-expenses"
+        role="tabpanel"
+        aria-labelledby="compact-input-tab-expenses"
+        hidden={compactInputSection !== 'expenses'}
+        className={compactInputSection === 'expenses' ? 'panel-swap' : 'hidden'}
+      >
+        <DealInputPanel
+          value={model}
+          onChange={updateModel}
+          resolveListingDealName={resolveListingDealName}
+          defaultAdvancedOptionsOpen={false}
+          forcedCoreSection="expenses"
+        />
+      </div>
 
-      <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
-    </>
+      <div
+        id="compact-input-panel-strategy"
+        role="tabpanel"
+        aria-labelledby="compact-input-tab-strategy"
+        hidden={compactInputSection !== 'strategy'}
+        className={compactInputSection === 'strategy' ? 'panel-swap' : 'hidden'}
+      >
+        <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
+      </div>
+
+      <div
+        id="compact-input-panel-irr"
+        role="tabpanel"
+        aria-labelledby="compact-input-tab-irr"
+        hidden={compactInputSection !== 'irr'}
+        className={compactInputSection === 'irr' ? 'panel-swap' : 'hidden'}
+      >
+        <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
+      </div>
+    </div>
   );
 
   const headlineMetricSection = (
@@ -2872,15 +2940,6 @@ export default function HomePage() {
                 View listing
               </button>
             ) : null}
-            {!isPwaInstalled ? (
-              <button
-                type="button"
-                onClick={openInstallPromptFromSettings}
-                className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
-              >
-                Download the app
-              </button>
-            ) : null}
           </div>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -2980,7 +3039,7 @@ export default function HomePage() {
 
   const compactShell = (
     <>
-      <section ref={mobileStrategyTabsRef} className="sticky top-2 z-30 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
+      <section ref={mobileStrategyTabsRef} className="sticky top-2 z-30 space-y-2 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
         <button
           ref={compactStrategyButtonRef}
           type="button"
@@ -3004,6 +3063,35 @@ export default function HomePage() {
             </svg>
           </div>
         </button>
+
+        {compactMode === 'inputs' ? (
+          <div role="tablist" aria-label="Input section selection" className="grid grid-cols-4 gap-2">
+            {compactInputSections.map((section) => {
+              const isActive = compactInputSection === section.key;
+
+              return (
+                <button
+                  key={`compact-input-tab-${section.key}`}
+                  id={`compact-input-tab-${section.key}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`compact-input-panel-${section.key}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => selectCompactInputSection(section.key)}
+                  className={`tap-feedback rounded-xl border px-3 py-2 text-left transition ${
+                    isActive
+                      ? 'accent-edge bg-accent/10 text-slate-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.14em]">{section.label}</span>
+                  <span className={`mt-1 block truncate text-[10px] ${isActive ? 'text-slate-200' : 'text-muted'}`}>{section.summary}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>

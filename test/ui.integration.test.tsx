@@ -98,6 +98,42 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
   });
 
+  it('switches between core, expenses, strategy, and IRR sections from the mobile input switcher', async () => {
+    window.localStorage.clear();
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const tablist = screen.getByRole('tablist', { name: 'Input section selection' });
+    const coreTab = within(tablist).getByRole('tab', { name: /Core/i });
+    const expensesTab = within(tablist).getByRole('tab', { name: /Expenses/i });
+    const strategyTab = within(tablist).getByRole('tab', { name: /Strategy/i });
+    const irrTab = within(tablist).getByRole('tab', { name: /IRR/i });
+
+    expect(coreTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Purchase & Financing' })).toBeInTheDocument();
+
+    await user.click(expensesTab);
+
+    expect(expensesTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Expenses' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Purchase & Financing' })).not.toBeInTheDocument();
+
+    await user.click(strategyTab);
+
+    expect(strategyTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Strategy Inputs' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
+
+    await user.click(irrTab);
+
+    expect(irrTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'IRR and timeline inputs' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Strategy Inputs' })).not.toBeInTheDocument();
+  });
+
   it('opens recent deals from the compact header', async () => {
     setViewport(390);
 
@@ -369,7 +405,7 @@ describe('dashboard integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Timeline' });
 
     expect(within(dialog).getByText('Years 0 - 10')).toBeInTheDocument();
-    expect(within(dialog).getByText('Reference only. Edit exit and IRR assumptions from Inputs.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Internal Rate of Return Assumptions')).toBeInTheDocument();
     expect(within(dialog).queryByText('Hold years')).not.toBeInTheDocument();
   });
 

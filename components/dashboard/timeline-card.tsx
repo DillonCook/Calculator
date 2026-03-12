@@ -106,8 +106,7 @@ export function TimelineCard({
       {summaryVariant === 'compact' ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Reference assumptions</p>
-            <span className="rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">Read-only</span>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
           </div>
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
             {compactReferenceItems.map((item) => (
@@ -125,8 +124,6 @@ export function TimelineCard({
           <SummaryMetric label="Selling cost" value={percentFormatter.format(assumptions.sellingCostPercent)} />
         </div>
       )}
-
-      <p className="mt-3 text-[11px] text-muted">Reference only. Edit exit and IRR assumptions from Inputs.</p>
 
       <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
         {output.cashFlowTimeline.map((flow, index) => (

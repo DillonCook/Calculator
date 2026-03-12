@@ -19,7 +19,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const fieldLabelRef = useRef<HTMLSpanElement | null>(null);
   const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
-  const tooltipPanelRef = useRef<HTMLSpanElement | null>(null);
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const { style: tooltipStyle } = useFloatingTooltipPosition({
     open: isTooltipOpen,
@@ -108,7 +108,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
           </button>
           {isTooltipOpen && typeof document !== 'undefined'
             ? createPortal(
-                <span
+                <div
                   ref={tooltipPanelRef}
                   role="dialog"
                   aria-modal="false"
@@ -118,7 +118,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
                   onMouseLeave={scheduleCloseTooltip}
                 >
                   {tooltip}
-                </span>,
+                </div>,
                 document.body
               )
             : null}

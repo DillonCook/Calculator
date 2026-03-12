@@ -16,6 +16,7 @@ interface DealInputPanelProps {
   collapsible?: boolean;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  forcedCoreSection?: Exclude<CoreInputSection, 'known'>;
 }
 
 type CoreInputSection = 'purchaseFinancing' | 'expenses' | 'known';
@@ -522,7 +523,8 @@ export function DealInputPanel({
   defaultAdvancedOptionsOpen = true,
   collapsible = false,
   collapsed = false,
-  onToggleCollapsed
+  onToggleCollapsed,
+  forcedCoreSection
 }: DealInputPanelProps) {
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
@@ -668,6 +670,10 @@ export function DealInputPanel({
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
   const isPanelCollapsed = collapsible && collapsed;
+  const resolvedCoreSection = forcedCoreSection ?? activeCoreSection;
+  const panelTitle = forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Core Purchase, Financing, & Expenses';
+  const showOwnershipModeToggle = forcedCoreSection !== 'expenses';
+  const showCoreSectionTabs = !forcedCoreSection;
 
   return (
     <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
@@ -678,53 +684,57 @@ export function DealInputPanel({
           aria-expanded={!collapsed}
           className="tap-feedback mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
         >
-          <h2 className="text-base font-semibold sm:text-lg">Core Purchase, Financing, & Expenses</h2>
+          <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
             {collapsed ? '+' : '-'}
           </span>
         </button>
       ) : (
         <div className="mb-3 sm:mb-4">
-          <h2 className="text-base font-semibold sm:text-lg">Core Purchase, Financing, & Expenses</h2>
+          <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
         </div>
       )}
 
       <div className="panel-collapse" data-open={!isPanelCollapsed}>
         <div className="panel-collapse-inner">
-          <button
-            type="button"
-            aria-pressed={isOwnedMode}
-            onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
-            className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
-              isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
-            }`}
-          >
-            {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
-          </button>
+          {showOwnershipModeToggle ? (
+            <button
+              type="button"
+              aria-pressed={isOwnedMode}
+              onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
+              className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
+                isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
+              }`}
+            >
+              {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
+            </button>
+          ) : null}
 
-          <div className="mb-2.5 sm:mb-3">
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['purchaseFinancing', 'expenses'] as CoreInputSection[]).map((section) => {
-                const active = activeCoreSection === section;
-                return (
-                  <button
-                    key={section}
-                    type="button"
-                    onClick={() => setActiveCoreSection(section)}
-                    aria-pressed={active}
-                    className={`tap-feedback min-h-9 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition sm:text-xs ${
-                      active ? 'btn-primary' : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
-                    }`}
-                  >
-                    {coreSectionMeta[section].title}
-                  </button>
-                );
-              })}
+          {showCoreSectionTabs ? (
+            <div className="mb-2.5 sm:mb-3">
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['purchaseFinancing', 'expenses'] as CoreInputSection[]).map((section) => {
+                  const active = resolvedCoreSection === section;
+                  return (
+                    <button
+                      key={section}
+                      type="button"
+                      onClick={() => setActiveCoreSection(section)}
+                      aria-pressed={active}
+                      className={`tap-feedback min-h-9 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition sm:text-xs ${
+                        active ? 'btn-primary' : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      {coreSectionMeta[section].title}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="space-y-2.5 sm:space-y-3">
-            {activeCoreSection === 'purchaseFinancing' ? (
+            {resolvedCoreSection === 'purchaseFinancing' ? (
               <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   {!isOwnedMode ? (
@@ -822,7 +832,7 @@ export function DealInputPanel({
               </section>
             ) : null}
 
-            {activeCoreSection === 'expenses' ? (
+            {resolvedCoreSection === 'expenses' ? (
               <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
@@ -961,7 +971,7 @@ export function DealInputPanel({
               </section>
             ) : null}
 
-            {activeCoreSection === 'known' ? (
+            {resolvedCoreSection === 'known' ? (
               <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="flex flex-col gap-2">
                   <div>

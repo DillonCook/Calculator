@@ -194,7 +194,7 @@ export function StrategyComparison({
                       </p>
                     </div>
                     <div className="text-right text-[10px] text-muted">
-                      <p>
+                      <p className="whitespace-nowrap">
                         {currencyFormatter.format(equityRow.exitCashReturned)} {equityRow.exitLabel.toLowerCase()}
                       </p>
                       <p>{formatHoldLabel(equityRow.holdMonths)}</p>
