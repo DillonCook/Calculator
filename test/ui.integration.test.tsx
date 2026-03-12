@@ -264,6 +264,12 @@ describe('dashboard integration', () => {
 
     expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Cash to Close').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Total Invested').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Modeled Exit').length).toBeGreaterThan(0);
+    expect(within(board).queryByText('Modeled total return')).not.toBeInTheDocument();
+    expect(within(board).queryByText('Payback')).not.toBeInTheDocument();
+    expect(within(board).queryByText('Operating CF')).not.toBeInTheDocument();
 
     await user.click(within(selection).getByRole('button', { name: /Airbnb/i }));
     expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();

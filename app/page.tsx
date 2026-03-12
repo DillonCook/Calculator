@@ -253,7 +253,7 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   {
     id: 'irr',
     title: 'Use the IRR Stream',
-    body: 'IRR factors in how long owners hold a property and the exit proceeds at sale. That gives you a true apples-to-apples comparison against other deals with different timelines.'
+    body: 'IRR factors in how long owners hold a property and the projected sale proceeds at exit. That gives you a true apples-to-apples comparison against other deals with different timelines.'
   }
 ];
 const mobileOnboardingSteps: OnboardingStep[] = [
@@ -2689,7 +2689,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      <StrategyComparison data={result} visibleStrategies={compactCompareSelection} inlineModelingViews lockBoardOpen />
+      <StrategyComparison
+        data={result}
+        input={model}
+        holdYears={model.assumptions.holdYears}
+        visibleStrategies={compactCompareSelection}
+        inlineModelingViews
+        lockBoardOpen
+      />
     </>
   );
 
@@ -3797,7 +3804,7 @@ export default function HomePage() {
                 defaultOpen={Boolean(activeDealId)}
               />
             </div>
-            <StrategyComparison data={result} />
+            <StrategyComparison data={result} input={model} holdYears={model.assumptions.holdYears} />
           </div>
 
           {!isMobileViewport ? (

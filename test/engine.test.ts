@@ -4,7 +4,8 @@ import test from 'node:test';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '../lib/engine/finance';
 import { buildExcelParityAnnualTimeline, calcTotalRoiFromTimeline, calculateRemainingBalance, estimateSaleProceeds } from '../lib/engine/investment-math';
-import { defaultDealInput } from '../lib/models/deal';
+import { defaultDealInput, type StrategyOutput } from '../lib/models/deal';
+import { getProjectionMetrics } from '../lib/projection-metrics';
 
 import { createScenarioRecord, decodeScenario, encodeScenario } from '../lib/scenario-storage';
 import { createPdfReportSchema } from '../lib/export/pdf-schema';
@@ -30,6 +31,23 @@ const fixedCostsMonthly = (input = defaultDealInput) => {
 
 const variableCostMonthly = (strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'flip', input = defaultDealInput) =>
   input.variableExpenses.reduce((sum, entry) => (entry.appliesTo[strategy] ? sum + entry.monthlyAmount : sum), 0);
+
+const createProjectionOutput = (overrides: Partial<StrategyOutput>): StrategyOutput => ({
+  strategy: 'longTerm',
+  monthlyCashFlow: 0,
+  annualCashFlow: 0,
+  capRate: 0,
+  cashOnCashReturn: 0,
+  dscr: 0,
+  roi: 0,
+  irr: 0,
+  totalCashNeeded: 0,
+  notes: '',
+  noiMonthly: 0,
+  saleProceeds: 0,
+  cashFlowTimeline: [],
+  ...overrides
+});
 
 
 test('excel parity timeline indexes property value, NOI, flows, and ROI exactly like Master Summary', () => {
@@ -95,6 +113,115 @@ test('excel parity timeline keeps sale proceeds in year N (no extra year)', () =
 
   assert.equal(timeline.flows.length, holdYears + 1);
   assert.ok(Number.isFinite(timeline.flows[holdYears]));
+});
+
+test('projection metrics separate operating cash flow from sale cash and compute modeled exit from the timeline', () => {
+  const output = createProjectionOutput({
+    strategy: 'longTerm',
+    totalCashNeeded: 100000,
+    saleProceeds: 65000,
+    cashFlowTimeline: [-100000, 12000, 12600, 13230 + 65000]
+  });
+
+  const metrics = getProjectionMetrics(output, 3);
+
+  near(metrics.cumulativeOperatingCashFlow, 37830, 1e-6);
+  near(metrics.exitCashReturned, 65000, 1e-6);
+  near(metrics.modeledTotalReturn, 102830, 1e-6);
+  near(metrics.modeledProfit, 2830, 1e-6);
+  near(metrics.modeledMultiple, 1.0283, 1e-6);
+  assert.equal(metrics.paybackMonths, 36);
+});
+
+test('projection metrics compute month-based payback from modeled period cash flows', () => {
+  const output = createProjectionOutput({
+    strategy: 'longTerm',
+    totalCashNeeded: 24000,
+    saleProceeds: 0,
+    cashFlowTimeline: [-24000, 12000, 24000]
+  });
+
+  const metrics = getProjectionMetrics(output, 2);
+
+  assert.equal(metrics.paybackMonths, 18);
+});
+
+test('projection metrics compute month-based break-even from modeled sale cash before the final hold month', () => {
+  const input = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 100000,
+      arv: 100000,
+      rehabBudget: 0,
+      downPaymentPercent: 0.2,
+      closingCostPercent: 0,
+      interestRate: 0,
+      loanTermYears: 30,
+      pointsPercent: 0,
+      financingType: 'loan' as const,
+      amortizationType: 'PI' as const,
+      helocAmount: 0
+    },
+    assumptions: {
+      ...defaultDealInput.assumptions,
+      holdYears: 10,
+      annualAppreciationPercent: 0,
+      sellingCostPercent: 0.08
+    }
+  };
+  const finalSaleCash = 100000 * (1 - 0.08) - calculateRemainingBalance(80000, 0, 30, 10, 'PI');
+  const output = createProjectionOutput({
+    strategy: 'longTerm',
+    totalCashNeeded: 20000,
+    saleProceeds: finalSaleCash,
+    cashFlowTimeline: [-20000, 0, 0, 0, 0, 0, 0, 0, 0, 0, finalSaleCash]
+  });
+
+  const metrics = getProjectionMetrics(output, 10, input);
+
+  assert.equal(metrics.paybackMonths, 36);
+});
+
+test('projection metrics treat flip exit cash as the full terminal return and keep operating cash flow at zero', () => {
+  const output = createProjectionOutput({
+    strategy: 'flip',
+    totalCashNeeded: 30000,
+    saleProceeds: 5000,
+    cashFlowTimeline: [-30000, 35000],
+    calculationBreakdown: {
+      lines: [],
+      revenueMonthly: 0,
+      sellerPaidExpensesMonthly: 0,
+      debtServiceMonthly: 0,
+      noiMonthly: 0,
+      cashFlowMonthly: 0,
+      flipMeta: {
+        holdingMonths: 6,
+        salePrice: 0,
+        purchasePrice: 0,
+        rehabBudget: 0,
+        buyClosingCosts: 0,
+        agentCommission: 0,
+        sellClosingCosts: 0,
+        sellerConcessions: 0,
+        fixedHoldingCostsMonthly: 0,
+        variableHoldingCostsMonthly: 0,
+        lenderHoldingCostsMonthly: 0,
+        holdingCostsTotal: 0,
+        netProfit: 5000
+      }
+    }
+  });
+
+  const metrics = getProjectionMetrics(output, 10);
+
+  near(metrics.cumulativeOperatingCashFlow, 0, 1e-6);
+  near(metrics.exitCashReturned, 35000, 1e-6);
+  near(metrics.modeledTotalReturn, 35000, 1e-6);
+  near(metrics.modeledProfit, 5000, 1e-6);
+  assert.equal(metrics.paybackMonths, 6);
+  assert.equal(metrics.exitLabel, 'Projected sale proceeds');
 });
 
 test('purchase cash-to-close uses loan points on loan amount (not purchase price)', () => {

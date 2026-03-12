@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
-import type { DealResult, StrategyKey } from '@/lib/models/deal';
+import type { DealInputModel, DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
+import { getProjectionMetrics } from '@/lib/projection-metrics';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -17,6 +18,8 @@ const strategyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSpli
 
 interface StrategyComparisonProps {
   data: DealResult;
+  input: DealInputModel;
+  holdYears: number;
   defaultBoardOpen?: boolean;
   inlineModelingViews?: boolean;
   lockBoardOpen?: boolean;
@@ -25,6 +28,8 @@ interface StrategyComparisonProps {
 
 export function StrategyComparison({
   data,
+  input,
+  holdYears,
   defaultBoardOpen = true,
   inlineModelingViews = false,
   lockBoardOpen = false,
@@ -57,38 +62,26 @@ export function StrategyComparison({
   const equityRows = useMemo(() => {
     return rows.map((row) => {
       const output = data[row.key];
-      const invested = Math.max(output.totalCashNeeded, 0);
-      const saleProceeds = output.saleProceeds ?? 0;
-      const yearsHeld = Math.max(output.cashFlowTimeline.length - 1, 1);
-      const operationalProfit = output.annualCashFlow * yearsHeld;
-      const equityModeled = saleProceeds + operationalProfit;
-      const profit = equityModeled - invested;
-      const breakEvenYear = output.cashFlowTimeline.findIndex((flow, index) => index > 0 && flow + saleProceeds >= invested);
+      const projectionMetrics = getProjectionMetrics(output, holdYears, input);
 
       return {
         key: row.key,
         label: row.label,
-        invested,
-        saleProceeds,
-        yearsHeld,
-        equityModeled,
-        profit,
-        breakEvenYear: breakEvenYear > 0 ? breakEvenYear : null,
-        multiple: invested > 0 ? equityModeled / invested : 0
+        ...projectionMetrics
       };
     });
-  }, [data, rows]);
+  }, [data, holdYears, input, rows]);
 
-  const maxModeledEquity = Math.max(...equityRows.map((row) => Math.max(row.equityModeled, row.invested, 1)));
+  const maxModeledReturn = Math.max(...equityRows.map((row) => Math.max(row.modeledTotalReturn, row.totalInvested, 1)));
 
   const cashFlowRows = useMemo(() => {
     return rows.map((row) => {
       const output = data[row.key];
+      const projectionMetrics = getProjectionMetrics(output, holdYears, input);
       const points = output.cashFlowTimeline.map((value, index) => ({ year: index, value }));
-      const saleProceeds = output.saleProceeds ?? 0;
       const cashFlowOnlyPoints = points.slice(1).map((point, index, array) => ({
         ...point,
-        value: index === array.length - 1 ? point.value - saleProceeds : point.value
+        value: index === array.length - 1 ? point.value - projectionMetrics.exitCashReturned : point.value
       }));
       const chartPoints = cashFlowOnlyPoints.length > 0 ? cashFlowOnlyPoints : points.slice(0, 1);
       const operatingMaxAbs = Math.max(...chartPoints.map((point) => Math.abs(point.value)), 1);
@@ -98,10 +91,11 @@ export function StrategyComparison({
         label: row.label,
         points,
         chartPoints,
-        operatingMaxAbs
+        operatingMaxAbs,
+        exitLabel: projectionMetrics.exitLabel
       };
     });
-  }, [data, rows]);
+  }, [data, holdYears, input, rows]);
 
   const inlineComparisonCards = (
     <div className="space-y-3">
@@ -180,8 +174,8 @@ export function StrategyComparison({
                   toneStyle={getNegativeValueStyle(output.capRate, { kind: 'percent' })}
                 />
                 <CompactMetric
-                  label="Exit"
-                  value={equityRow.multiple.toFixed(2) + 'x'}
+                  label="Cash to Close"
+                  value={currencyFormatter.format(data.masterSummary.cashToClose)}
                   toneStyle={undefined}
                 />
               </div>
@@ -192,38 +186,40 @@ export function StrategyComparison({
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Equity</p>
                       <p
-                        className={`mt-1 text-xs font-semibold ${equityRow.profit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
-                        style={getNegativeValueStyle(equityRow.profit, { kind: 'currency' })}
+                        className={`mt-1 text-xs font-semibold ${equityRow.modeledProfit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
+                        style={getNegativeValueStyle(equityRow.modeledProfit, { kind: 'currency' })}
                       >
-                        {equityRow.profit >= 0 ? '+' : ''}
-                        {currencyFormatter.format(equityRow.profit)} profit
+                        {equityRow.modeledProfit >= 0 ? '+' : ''}
+                        {currencyFormatter.format(equityRow.modeledProfit)} modeled profit
                       </p>
                     </div>
                     <div className="text-right text-[10px] text-muted">
-                      <p>{currencyFormatter.format(equityRow.saleProceeds)} exit</p>
-                      <p>{equityRow.yearsHeld} years</p>
+                      <p>
+                        {currencyFormatter.format(equityRow.exitCashReturned)} {equityRow.exitLabel.toLowerCase()}
+                      </p>
+                      <p>{formatHoldLabel(equityRow.holdMonths)}</p>
                     </div>
                   </div>
 
                   <div className="mt-2 space-y-2">
-                    <ModelBar label="Invested" value={equityRow.invested} max={maxModeledEquity} tone="invested" compact />
+                    <ModelBar label="Total Invested" value={equityRow.totalInvested} max={maxModeledReturn} tone="invested" compact />
                     <ModelBar
-                      label="Modeled exit"
-                      value={equityRow.equityModeled}
-                      max={maxModeledEquity}
-                      tone={equityRow.equityModeled >= equityRow.invested ? 'equity' : 'warning'}
+                      label="Modeled Exit"
+                      value={equityRow.modeledTotalReturn}
+                      max={maxModeledReturn}
+                      tone={equityRow.modeledTotalReturn >= equityRow.totalInvested ? 'equity' : 'warning'}
                       compact
                     />
                   </div>
 
                   <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-muted">
                     <span>
-                      Multiple <span className="text-slate-100">{equityRow.multiple.toFixed(2)}x</span>
+                      Modeled multiple <span className="text-slate-100">{equityRow.modeledMultiple.toFixed(2)}x</span>
                     </span>
                     <span>
-                      Break-even{' '}
-                      <span className={equityRow.breakEvenYear ? 'text-emerald-300' : 'text-amber-300'}>
-                        {equityRow.breakEvenYear ? `Y${equityRow.breakEvenYear}` : 'No'}
+                      Break-even if selling{' '}
+                      <span className={equityRow.paybackMonths !== null ? 'text-emerald-300' : 'text-amber-300'}>
+                        {formatBreakEvenLabel(equityRow.paybackMonths)}
                       </span>
                     </span>
                   </div>
@@ -233,7 +229,7 @@ export function StrategyComparison({
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-200">Cash flow trend</p>
-                      <p className="mt-1 text-[10px] text-muted">Sale proceeds removed from the last year.</p>
+                      <p className="mt-1 text-[10px] text-muted">Projected sale proceeds removed from the last period.</p>
                     </div>
                     <p className="text-[10px] text-muted">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
                   </div>
@@ -337,38 +333,41 @@ export function StrategyComparison({
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
             <p
-              className={`text-xs font-medium ${row.profit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}
-              style={getNegativeValueStyle(row.profit, { kind: 'currency' })}
+              className={`text-xs font-medium ${row.modeledProfit >= 0 ? 'text-emerald-300' : 'text-red-200'}`}
+              style={getNegativeValueStyle(row.modeledProfit, { kind: 'currency' })}
             >
-              {row.profit >= 0 ? '+' : ''}
-              {currencyFormatter.format(row.profit)} modeled profit
+              {row.modeledProfit >= 0 ? '+' : ''}
+              {currencyFormatter.format(row.modeledProfit)} modeled profit
             </p>
           </div>
 
           <div className="space-y-2">
-            <ModelBar label="Cash invested" value={row.invested} max={maxModeledEquity} tone="invested" />
+            <ModelBar label="Total Invested" value={row.totalInvested} max={maxModeledReturn} tone="invested" />
             <ModelBar
-              label="Modeled equity at exit"
-              value={row.equityModeled}
-              max={maxModeledEquity}
-              tone={row.equityModeled >= row.invested ? 'equity' : 'warning'}
+              label="Modeled Exit"
+              value={row.modeledTotalReturn}
+              max={maxModeledReturn}
+              tone={row.modeledTotalReturn >= row.totalInvested ? 'equity' : 'warning'}
             />
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
             <p>
-              Sale proceeds <span className="ml-1 text-white">{currencyFormatter.format(row.saleProceeds)}</span>
+              Cash to close <span className="ml-1 text-white">{currencyFormatter.format(data.masterSummary.cashToClose)}</span>
             </p>
             <p>
-              Equity multiple <span className="ml-1 text-white">{row.multiple.toFixed(2)}x</span>
+              {row.exitLabel} <span className="ml-1 text-white">{currencyFormatter.format(row.exitCashReturned)}</span>
             </p>
             <p>
-              Years held <span className="ml-1 text-white">{row.yearsHeld}</span>
+              Modeled multiple <span className="ml-1 text-white">{row.modeledMultiple.toFixed(2)}x</span>
             </p>
             <p>
-              Break-even year
-              <span className={`ml-1 ${row.breakEvenYear ? 'text-emerald-300' : 'text-amber-300'}`}>
-                {row.breakEvenYear ? `Year ${row.breakEvenYear}` : 'Not reached'}
+              Hold <span className="ml-1 text-white">{formatHoldLabel(row.holdMonths)}</span>
+            </p>
+            <p>
+              Break-even if selling
+              <span className={`ml-1 ${row.paybackMonths !== null ? 'text-emerald-300' : 'text-amber-300'}`}>
+                {formatBreakEvenLabel(row.paybackMonths)}
               </span>
             </p>
           </div>
@@ -448,7 +447,7 @@ export function StrategyComparison({
               <div>
                 <p className="text-xs uppercase tracking-wider text-accent">Master Summary</p>
                 <h3 className="text-xl font-semibold">Equity modeling by strategy</h3>
-                <p className="text-xs text-muted">Years held and break-even year are based on your Hold Years input.</p>
+                <p className="text-xs text-muted">Modeled Exit combines hold-period cash flow with projected sale proceeds. Break-even if selling tests the earliest month a sale would return your total invested capital.</p>
               </div>
               <button
                 type="button"
@@ -476,7 +475,7 @@ export function StrategyComparison({
               <div>
                 <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
-                <p className="text-xs text-muted">Cash-flow-only view includes the final year with sale proceeds removed for clean operating trend analysis.</p>
+                <p className="text-xs text-muted">Cash-flow-only view removes the exit event from the final period so you can read operating performance on its own.</p>
               </div>
               <button
                 type="button"
@@ -504,6 +503,22 @@ function CompactMetric({ label, value, toneStyle }: { label: string; value: stri
       </p>
     </article>
   );
+}
+
+function formatHoldLabel(holdMonths: number) {
+  if (holdMonths <= 0) return '0 months';
+  if (holdMonths % 12 === 0) {
+    const years = holdMonths / 12;
+    return `${years} ${years === 1 ? 'year' : 'years'}`;
+  }
+
+  return `${holdMonths} mo`;
+}
+
+function formatBreakEvenLabel(paybackMonths: number | null) {
+  if (paybackMonths === null) return 'Not in hold';
+  if (paybackMonths <= 0) return '0 mo';
+  return `${paybackMonths} mo`;
 }
 
 function ModelBar({

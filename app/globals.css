@@ -781,6 +781,10 @@ input[type='number'] {
     opacity 180ms ease;
 }
 
+.mobile-sheet-grab-zone {
+  touch-action: none;
+}
+
 .mobile-sheet-panel[data-dragging='true'] .mobile-sheet-handle {
   opacity: 0.8;
   transform: scaleX(1.08);

@@ -182,7 +182,7 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
         >
           <div className="sticky top-0 z-10 border-b border-white/10 bg-surface/95 px-4 pb-3 pt-3 backdrop-blur">
             <div
-              className="mb-3 flex justify-center lg:hidden touch-none select-none"
+              className="mobile-sheet-grab-zone -mx-4 -mt-3 mb-2 flex min-h-12 items-center justify-center px-4 pt-2 pb-3 lg:hidden touch-none select-none"
               role="presentation"
               aria-hidden="true"
               onPointerDown={handleDragStart}
@@ -190,7 +190,7 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
               onPointerUp={handleDragEnd}
               onPointerCancel={handleDragCancel}
             >
-              <div className="mobile-sheet-handle h-1.5 w-14 rounded-full bg-white/15" />
+              <div className="mobile-sheet-handle h-2 w-20 rounded-full bg-white/15" />
             </div>
             <div className="flex items-start justify-between gap-3">
               <div>

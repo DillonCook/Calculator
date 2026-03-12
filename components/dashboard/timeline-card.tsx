@@ -210,7 +210,7 @@ export function TimelineCard({
                       </button>
                     </div>
                     <p>
-                      <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your exit proceeds,
+                      <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your projected sale proceeds,
                       so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
                     </p>
                   </div>,
@@ -269,7 +269,7 @@ export function TimelineCard({
                       </button>
                     </div>
                     <p>
-                      <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your exit proceeds,
+                      <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your projected sale proceeds,
                       so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
                     </p>
                   </div>,
