@@ -33,15 +33,15 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[180] bg-[#040814]/72 backdrop-blur-sm"
+      className="fixed inset-0 z-[180] overflow-y-auto bg-[#040814]/72 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
-      <div className="flex h-full items-end justify-center lg:px-6 lg:py-8">
+      <div className="flex min-h-full items-end justify-center lg:px-6 lg:py-8">
         <div
-          className="max-h-[min(88vh,960px)] w-full max-w-3xl overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-surface shadow-soft lg:rounded-3xl"
+          className="flex max-h-[min(88dvh,960px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-surface shadow-soft lg:rounded-3xl"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -62,7 +62,10 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
             </div>
           </div>
 
-          <div className="scrollbar-premium overflow-y-auto px-4 pb-5 pt-4 sm:px-5">
+          <div
+            className="scrollbar-premium min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 pt-4 touch-pan-y sm:px-5"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {children}
           </div>
         </div>

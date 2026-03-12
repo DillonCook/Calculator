@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
@@ -21,7 +22,7 @@ import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToV
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
-import { defaultDealInput, type DealInputModel, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
+import { defaultDealInput, type DealInputModel, type MasterAssumptions, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
@@ -64,8 +65,9 @@ const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
   { id: 'roi', label: 'ROI' },
   { id: 'irr', label: 'IRR' }
 ];
-const defaultHeadlineMetricIds: [HeadlineMetricId, HeadlineMetricId] = ['cashToClose', 'irr'];
-const MOBILE_HEADLINE_METRICS_STORAGE_KEY = 'dealcooker-mobile-headline-metrics:v1';
+const defaultHeadlineMetricOrder: HeadlineMetricId[] = ['cashToClose', 'capRate', 'cashOnCash', 'dscr', 'roi', 'irr'];
+const KPI_ORDER_STORAGE_KEY = 'dealcooker-kpi-order:v1';
+const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const compactStrategyDescriptions: Record<StrategyKey, string> = {
   purchase: 'Commercial rent-roll underwriting',
@@ -163,6 +165,24 @@ const defaultLongTermTurnaroundDigestOrder: LongTermTurnaroundDigestKey[] = [
 const valuationPercentDigestKeys = new Set<string>(['stab-cap-rate', 'stab-coc', 'stab-irr']);
 const commercialDigestKeySet = new Set<CommercialDigestKey>(defaultCommercialDigestOrder);
 const longTermTurnaroundDigestKeySet = new Set<LongTermTurnaroundDigestKey>(defaultLongTermTurnaroundDigestOrder);
+const normalizeHeadlineMetricOrder = (value: unknown): HeadlineMetricId[] => {
+  const normalized: HeadlineMetricId[] = [];
+  const input = Array.isArray(value) ? value : [];
+
+  for (const rawKey of input) {
+    if (typeof rawKey !== 'string') continue;
+    const key = rawKey as HeadlineMetricId;
+    if (!headlineMetricKeySet.has(key)) continue;
+    if (normalized.includes(key)) continue;
+    normalized.push(key);
+  }
+
+  for (const fallbackKey of defaultHeadlineMetricOrder) {
+    if (!normalized.includes(fallbackKey)) normalized.push(fallbackKey);
+  }
+
+  return normalized;
+};
 
 const normalizeCommercialDigestOrder = (value: unknown): CommercialDigestKey[] => {
   const normalized: CommercialDigestKey[] = [];
@@ -371,8 +391,11 @@ export default function HomePage() {
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
   const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(strategyKeyOrder);
-  const [selectedHeadlineMetricIds, setSelectedHeadlineMetricIds] = useState<[HeadlineMetricId, HeadlineMetricId]>(defaultHeadlineMetricIds);
+  const [compactDealsSearch, setCompactDealsSearch] = useState('');
+  const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
+  const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
@@ -645,15 +668,18 @@ export default function HomePage() {
       missing
     };
   }, [activeStrategy, model, result]);
-  const compactUnlockSummary =
-    compactReadiness.missing.length > 0
-      ? `Finish ${compactReadiness.missing.slice(0, 3).join(', ')} to unlock Results and Compare.`
-      : null;
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
   );
+  const recentCompactDeals = useMemo(() => compactSortedDeals.slice(0, 6), [compactSortedDeals]);
+  const normalizedCompactDealsSearch = compactDealsSearch.trim().toLowerCase();
+  const filteredCompactSortedDeals = useMemo(() => {
+    if (!normalizedCompactDealsSearch) return compactSortedDeals;
+    return compactSortedDeals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedCompactDealsSearch));
+  }, [compactSortedDeals, normalizedCompactDealsSearch]);
+  const displayedCompactDeals = normalizedCompactDealsSearch ? filteredCompactSortedDeals : recentCompactDeals;
   const compactCompareSelection = useMemo(
     () => strategyKeyOrder.filter((strategy) => compactSelectedStrategies.includes(strategy)),
     [compactSelectedStrategies]
@@ -748,20 +774,12 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const rawValue = window.localStorage.getItem(MOBILE_HEADLINE_METRICS_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(KPI_ORDER_STORAGE_KEY);
     if (!rawValue) return;
 
     try {
       const parsedValue = JSON.parse(rawValue);
-      if (!Array.isArray(parsedValue) || parsedValue.length !== 2) return;
-      const [firstMetric, secondMetric] = parsedValue;
-      if (
-        headlineMetricOptions.some((option) => option.id === firstMetric) &&
-        headlineMetricOptions.some((option) => option.id === secondMetric) &&
-        firstMetric !== secondMetric
-      ) {
-        setSelectedHeadlineMetricIds([firstMetric, secondMetric]);
-      }
+      setHeadlineMetricOrder(normalizeHeadlineMetricOrder(parsedValue));
     } catch {
       // Ignore malformed stored KPI preferences.
     }
@@ -769,8 +787,8 @@ export default function HomePage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(MOBILE_HEADLINE_METRICS_STORAGE_KEY, JSON.stringify(selectedHeadlineMetricIds));
-  }, [selectedHeadlineMetricIds]);
+    window.localStorage.setItem(KPI_ORDER_STORAGE_KEY, JSON.stringify(normalizeHeadlineMetricOrder(headlineMetricOrder)));
+  }, [headlineMetricOrder]);
 
   useEffect(() => {
     setCompactSelectedStrategies((current) => {
@@ -785,8 +803,17 @@ export default function HomePage() {
     setCompactMode('inputs');
   }, [compactMode, compactReadiness.ready, isMobileViewport]);
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
+  const activeDealDisplayName = model.purchase.dealName || 'New Deal';
   const quickScanPoints = quickScanDetails[activeStrategy];
   const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
+  const orderedHeadlineMetricIds = normalizeHeadlineMetricOrder(headlineMetricOrder);
+  const showTargetIrrInput =
+    model.purchase.financingType === 'cash' &&
+    ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(activeStrategy);
+  const hasMoreMetricsContent =
+    Boolean(strategyQuickScan) ||
+    (activeStrategy === 'purchase' && commercialDigestItems.length > 0) ||
+    (activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0);
   const isFlipStrategy = activeStrategy === 'flip';
   const supportsReserveToggle =
     activeStrategy === 'purchase' ||
@@ -835,6 +862,16 @@ export default function HomePage() {
   const moveCommercialDigestItem = (fromIndex: number, toIndex: number) => {
     setCommercialDigestOrder((current) => {
       const next = [...normalizeCommercialDigestOrder(current)];
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length) return next;
+
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+  const moveHeadlineMetricItem = (fromIndex: number, toIndex: number) => {
+    setHeadlineMetricOrder((current) => {
+      const next = [...normalizeHeadlineMetricOrder(current)];
       if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length) return next;
 
       const [moved] = next.splice(fromIndex, 1);
@@ -931,18 +968,8 @@ export default function HomePage() {
     setModel(nextModel);
   };
 
-  const updateHeadlineMetricSelection = (slotIndex: 0 | 1, nextMetricId: HeadlineMetricId) => {
-    setSelectedHeadlineMetricIds((current) => {
-      const next: [HeadlineMetricId, HeadlineMetricId] = [...current] as [HeadlineMetricId, HeadlineMetricId];
-      const otherIndex: 0 | 1 = slotIndex === 0 ? 1 : 0;
-
-      if (next[otherIndex] === nextMetricId) {
-        next[otherIndex] = next[slotIndex];
-      }
-
-      next[slotIndex] = nextMetricId;
-      return next;
-    });
+  const updateAssumptions = (updates: Partial<MasterAssumptions>) => {
+    updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }));
   };
 
   const toggleCompactCompareStrategy = (strategy: StrategyKey) => {
@@ -960,6 +987,7 @@ export default function HomePage() {
 
   const handleStrategyChange = (nextStrategy: StrategyKey) => {
     setActiveStrategy(nextStrategy);
+    setIsHeadlineMetricOrderEditorOpen(false);
     setIsCommercialOrderEditorOpen(false);
     setIsLongTermTurnaroundOrderEditorOpen(false);
     setShowAllCommercialMobileOutputs(false);
@@ -1541,7 +1569,7 @@ export default function HomePage() {
     qualifyInstallPrompt();
   };
 
-  const createNewDeal = (requestedDealName: string, listingUrl: string) => {
+  const createNewDeal = (requestedDealName: string, listingUrl: string, options?: { openIdentityEditor?: boolean }) => {
     const candidateName = buildUniqueDealName(requestedDealName);
     const payload = buildNewDealPayload(candidateName, listingUrl.trim());
 
@@ -1554,6 +1582,9 @@ export default function HomePage() {
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
+    if (options?.openIdentityEditor) {
+      setIsDealIdentityOpen(true);
+    }
   };
 
   const duplicateScenario = (scenarioId: string) => {
@@ -1604,6 +1635,14 @@ export default function HomePage() {
         }
       };
     });
+  };
+
+  const openDealIdentityEditor = () => {
+    triggerHapticFeedback('light');
+    setCompactSheetView(null);
+    setIsAuthMenuOpen(false);
+    setIsSettingsOpen(false);
+    setIsDealIdentityOpen(true);
   };
 
   const openRecentScenario = (scenarioId: string) => {
@@ -2186,118 +2225,59 @@ export default function HomePage() {
     </div>
   );
 
+  const dealIdentitySheet = (
+    <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={() => setIsDealIdentityOpen(false)}>
+      <div className="space-y-4">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="mb-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">Header editor</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-100">Deal name and listing link</h3>
+            <p className="mt-1 text-sm text-muted">Changes save to the active deal as you type.</p>
+          </div>
+
+          <div className="grid gap-3">
+            <label className="space-y-1">
+              <span className="text-[11px] text-muted">Deal name</span>
+              <input
+                className={inputClass}
+                value={model.purchase.dealName}
+                onChange={(event) => handleDealNameChange(event.target.value)}
+                placeholder="Deal title"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[11px] text-muted">Listing URL</span>
+              <input
+                aria-label="Listing URL (Zillow, Redfin, etc.)"
+                className={inputClass}
+                value={model.purchase.listingUrl}
+                onChange={(event) => handleListingUrlChange(event.target.value)}
+                placeholder="Listing URL (optional)"
+              />
+            </label>
+          </div>
+
+          {model.purchase.listingUrl ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                className="tap-feedback inline-flex min-h-9 items-center rounded-lg border border-accent/40 bg-accent/12 px-3 py-1.5 text-xs font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
+                href={normalizeListingUrl(model.purchase.listingUrl)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View listing link
+              </a>
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </MobileSheet>
+  );
+
   const compactInputsView = (
     <>
-      <section ref={mobileCoreSectionRef} className="panel-surface rounded-2xl p-3.5 shadow-soft">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-accent">Quick start</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-100">Enter the baseline first</h2>
-            <p className="mt-1 text-sm text-muted">
-              Deal identity, price, rehab, leverage, and strategy unlock the rest of the mobile analysis flow.
-            </p>
-          </div>
-          <span className="whitespace-nowrap rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-200">
-            {activeStrategyLabel}
-          </span>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Deal name</span>
-            <input
-              className={inputClass}
-              value={model.purchase.dealName}
-              onChange={(event) => handleDealNameChange(event.target.value)}
-              placeholder="Deal title"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Listing URL</span>
-            <input
-              aria-label="Listing URL (Zillow, Redfin, etc.)"
-              className={inputClass}
-              value={model.purchase.listingUrl}
-              onChange={(event) => handleListingUrlChange(event.target.value)}
-              placeholder="Listing URL (optional)"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Purchase price</span>
-            <input
-              aria-label="Purchase price"
-              className={inputClass}
-              type="number"
-              value={model.purchase.purchasePrice}
-              onChange={(event) =>
-                updateModel((current) => ({
-                  ...current,
-                  purchase: { ...current.purchase, purchasePrice: Number(event.target.value || 0) }
-                }))
-              }
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Rehab budget</span>
-            <input
-              aria-label="Rehab budget"
-              className={inputClass}
-              type="number"
-              value={model.purchase.rehabBudget}
-              onChange={(event) =>
-                updateModel((current) => ({
-                  ...current,
-                  purchase: { ...current.purchase, rehabBudget: Number(event.target.value || 0) }
-                }))
-              }
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Down payment %</span>
-            <input
-              aria-label="Down payment %"
-              className={inputClass}
-              type="number"
-              step="0.01"
-              value={Number((model.purchase.downPaymentPercent * 100).toFixed(2))}
-              onChange={(event) =>
-                updateModel((current) => ({
-                  ...current,
-                  purchase: { ...current.purchase, downPaymentPercent: Number(event.target.value || 0) / 100 }
-                }))
-              }
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-muted">Interest rate %</span>
-            <input
-              aria-label="Interest rate %"
-              className={inputClass}
-              type="number"
-              step="0.01"
-              value={Number((model.purchase.interestRate * 100).toFixed(2))}
-              onChange={(event) =>
-                updateModel((current) => ({
-                  ...current,
-                  purchase: { ...current.purchase, interestRate: Number(event.target.value || 0) / 100 }
-                }))
-              }
-            />
-          </label>
-        </div>
-
-        {compactUnlockSummary ? (
-          <div className="mt-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-slate-100">
-            {compactUnlockSummary}
-          </div>
-        ) : (
-          <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-            Results and Compare are unlocked for this strategy.
-          </div>
-        )}
-      </section>
-
-      <DealInputPanel
+      <div ref={mobileCoreSectionRef}>
+        <DealInputPanel
         value={model}
         onChange={updateModel}
         resolveListingDealName={resolveListingDealName}
@@ -2305,7 +2285,8 @@ export default function HomePage() {
         collapsible
         collapsed={isMobileCoreInputsMinimized}
         onToggleCollapsed={() => setIsMobileCoreInputsMinimized((prev) => !prev)}
-      />
+        />
+      </div>
 
       <StrategyModuleInputs
         active={activeStrategy}
@@ -2315,7 +2296,71 @@ export default function HomePage() {
         collapsed={isMobileStrategyInputsMinimized}
         onToggleCollapsed={() => setIsMobileStrategyInputsMinimized((prev) => !prev)}
       />
+
+      <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
     </>
+  );
+
+  const headlineMetricSection = (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted">Core KPIs</p>
+          <p className="hidden text-[11px] text-muted sm:block">These stay on the results page. Reorder them anytime.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
+          className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+        >
+          {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Reorder'}
+        </button>
+      </div>
+
+      {isHeadlineMetricOrderEditorOpen ? (
+        <div className="mb-3 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+          {orderedHeadlineMetricIds.map((metricId, index) => {
+            const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
+
+            return (
+              <div key={`kpi-order-${metricId}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                <p className="truncate text-xs text-slate-200">
+                  {index + 1}. {metricLabel}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`Move ${metricLabel} up`}
+                    onClick={() => moveHeadlineMetricItem(index, index - 1)}
+                    disabled={index === 0}
+                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${metricLabel} down`}
+                    onClick={() => moveHeadlineMetricItem(index, index + 1)}
+                    disabled={index === orderedHeadlineMetricIds.length - 1}
+                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                  >
+                    Down
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
+        {orderedHeadlineMetricIds.map((metricId) => (
+          <div key={`headline-metric-${metricId}`} className="min-w-0 h-full [&>div]:h-full">
+            {headlineMetricCards[metricId]}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 
   const compactResultsView = (
@@ -2438,13 +2483,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
-        {selectedHeadlineMetricIds.map((metricId) => (
-          <div key={metricId} className="min-w-0">
-            {headlineMetricCards[metricId]}
-          </div>
-        ))}
-      </section>
+      {headlineMetricSection}
 
       {activeStrategy === 'purchase' && commercialSummary ? (
         <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
@@ -2480,14 +2519,20 @@ export default function HomePage() {
           </div>
         </section>
       ) : (
-        <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+        <DealWorkoutCard
+          model={model}
+          strategy={activeStrategy}
+          targetIrrPercent={model.assumptions.targetIrrPercent}
+          onApply={applyDealWorkoutScenario}
+        />
       )}
 
       <section className="grid grid-cols-3 gap-2">
         <button
           type="button"
           onClick={() => setCompactSheetView('metrics')}
-          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
+          disabled={!hasMoreMetricsContent}
+          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
         >
           More metrics
         </button>
@@ -2542,15 +2587,11 @@ export default function HomePage() {
                   isSelected ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{activeStrategyLabels[strategy]}</span>
-                  <span className="text-[11px] text-muted">{isSelected ? 'Included' : 'Hidden'}</span>
-                </div>
+                <span className="font-medium">{activeStrategyLabels[strategy]}</span>
               </button>
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-muted">Use at least two strategies. The board and both modeling views only show the strategies selected here.</p>
       </section>
 
       <StrategyComparison data={result} visibleStrategies={compactCompareSelection} />
@@ -2561,7 +2602,7 @@ export default function HomePage() {
     <>
       <MobileSheet open={compactSheetView === 'deals'} title="Deals" onClose={() => setCompactSheetView(null)}>
         <div className="space-y-4">
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="flex h-[min(62dvh,540px)] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Recent deals</p>
@@ -2572,60 +2613,78 @@ export default function HomePage() {
               </span>
             </div>
 
-            {compactSortedDeals.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                {compactSortedDeals.map((deal) => (
-                  <article
-                    key={`compact-recent-${deal.scenarioId}`}
-                    className={`rounded-xl border p-3 ${
-                      deal.scenarioId === activeDealId ? 'accent-edge' : 'border-white/10 bg-black/20'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHapticFeedback('light');
-                        openRecentScenario(deal.scenarioId);
-                        setCompactSheetView(null);
-                      }}
-                      className="tap-feedback w-full text-left"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="line-clamp-1 text-sm font-medium text-slate-100">{deal.dealName}</p>
-                        <span className="shrink-0 text-[11px] text-muted">
-                          {compactDealDateFormatter.format(new Date(deal.updatedAt))}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">
-                        {deal.scenarioId === activeDealId ? 'Current active deal' : 'Tap to open'}
-                      </p>
-                    </button>
+            <label className="sr-only" htmlFor="compact-deal-search">
+              Search deal name
+            </label>
+            <input
+              id="compact-deal-search"
+              className={`${inputClass} mt-3 bg-white/[0.03]`}
+              placeholder="Search deal name"
+              value={compactDealsSearch}
+              onChange={(event) => setCompactDealsSearch(event.target.value)}
+            />
+            <p className="mt-2 text-xs text-muted">Showing your latest 6 deals. Search to find anything older.</p>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+            {displayedCompactDeals.length > 0 ? (
+              <div className="scrollbar-premium mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="space-y-2">
+                  {displayedCompactDeals.map((deal) => (
+                    <article
+                      key={`compact-recent-${deal.scenarioId}`}
+                      className={`rounded-xl border p-3 ${
+                        deal.scenarioId === activeDealId ? 'accent-edge' : 'border-white/10 bg-black/20'
+                      }`}
+                    >
                       <button
                         type="button"
-                        onClick={() => duplicateScenario(deal.scenarioId)}
-                        className="tap-feedback rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-100"
-                        aria-label={`Duplicate ${deal.dealName}`}
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          openRecentScenario(deal.scenarioId);
+                          setCompactSheetView(null);
+                        }}
+                        className="tap-feedback w-full text-left"
                       >
-                        Duplicate
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="line-clamp-1 text-sm font-medium text-slate-100">{deal.dealName}</p>
+                          <span className="shrink-0 text-[11px] text-muted">
+                            {compactDealDateFormatter.format(new Date(deal.updatedAt))}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">
+                          {deal.scenarioId === activeDealId ? 'Current active deal' : 'Tap to open'}
+                        </p>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => removeScenarioById(deal.scenarioId)}
-                        className="tap-feedback rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100"
-                        aria-label={`Delete ${deal.dealName}`}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))}
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => duplicateScenario(deal.scenarioId)}
+                          className="tap-feedback rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-100"
+                          aria-label={`Duplicate ${deal.dealName}`}
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeScenarioById(deal.scenarioId)}
+                          className="tap-feedback rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100"
+                          aria-label={`Delete ${deal.dealName}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
             ) : (
-              <p className="mt-3 rounded-xl border border-dashed border-white/15 bg-black/20 px-3 py-2 text-sm text-muted">
-                No saved deals yet. Start with a blank one and it will appear here.
-              </p>
+              <div className="mt-3 flex min-h-0 flex-1 items-center">
+                <p className="w-full rounded-xl border border-dashed border-white/15 bg-black/20 px-3 py-2 text-sm text-muted">
+                  {compactDealsSearch.trim()
+                    ? 'No deals match this search.'
+                    : 'No saved deals yet. Start with a blank one and it will appear here.'}
+                </p>
+              </div>
             )}
           </section>
         </div>
@@ -2741,35 +2800,11 @@ export default function HomePage() {
 
       <MobileSheet open={compactSheetView === 'metrics'} title="More metrics" onClose={() => setCompactSheetView(null)}>
         <div className="space-y-4">
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted">Headline KPI selection</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {[0, 1].map((slotIndex) => (
-                <label key={`headline-slot-${slotIndex}`} className="space-y-1">
-                  <span className="text-[11px] text-muted">Headline KPI {slotIndex + 1}</span>
-                  <select
-                    value={selectedHeadlineMetricIds[slotIndex as 0 | 1]}
-                    onChange={(event) => updateHeadlineMetricSelection(slotIndex as 0 | 1, event.target.value as HeadlineMetricId)}
-                    className={`${inputClass} bg-white/[0.03]`}
-                  >
-                    {headlineMetricOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid gap-3 sm:grid-cols-2">
-            {headlineMetricOptions.map((option) => (
-              <div key={`metric-sheet-${option.id}`} className="min-w-0">
-                {headlineMetricCards[option.id]}
-              </div>
-            ))}
-          </section>
+          {!hasMoreMetricsContent ? (
+            <section className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-3">
+              <p className="text-sm text-muted">No additional scenario-specific metrics are available for this strategy right now.</p>
+            </section>
+          ) : null}
 
           {strategyQuickScan ? (
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -2822,12 +2857,7 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'timeline'} title="Timeline" onClose={() => setCompactSheetView(null)}>
-        <TimelineCard
-          output={result[activeStrategy]}
-          assumptions={model.assumptions}
-          defaultOpen
-          onAssumptionsChange={(updates) => updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))}
-        />
+        <TimelineCard output={result[activeStrategy]} assumptions={model.assumptions} defaultOpen />
       </MobileSheet>
     </>
   );
@@ -2914,12 +2944,20 @@ export default function HomePage() {
                     <h1 className="brand-text leading-none">DealCooker</h1>
                     <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
                   </div>
-                  <p className="mt-2 text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
-                  <p className="mt-1 truncate text-base font-semibold text-slate-100">{model.purchase.dealName || 'New Deal'}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Ready'}
-                    {currentUser ? ' | Cloud active' : ' | Local only'}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={openDealIdentityEditor}
+                    className="tap-feedback mt-2 w-full max-w-[18rem] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+                    aria-label="Edit active deal details"
+                  >
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <p className="truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
+                      <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                        Edit
+                      </span>
+                    </div>
+                  </button>
                 </div>
                 <button
                   ref={compactMenuButtonRef}
@@ -2939,7 +2977,7 @@ export default function HomePage() {
                   type="button"
                   onClick={() => {
                     triggerHapticFeedback('light');
-                    createNewDeal('New Deal', '');
+                    createNewDeal('New Deal', '', { openIdentityEditor: true });
                     setCompactMode('inputs');
                     setCompactSheetView(null);
                   }}
@@ -3022,8 +3060,12 @@ export default function HomePage() {
                               <div id="auth-menu" className="absolute right-0 top-10 z-[135] hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
                                 {authMenuContent}
                               </div>
-                              <div className="fixed inset-0 z-[140] bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
-                                <div className="mx-auto mt-16 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                              <div className="fixed inset-0 z-[140] overflow-y-auto bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
+                                <div
+                                  className="scrollbar-premium mx-auto mt-16 max-h-[calc(100dvh-4rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur"
+                                  style={{ WebkitOverflowScrolling: 'touch' }}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
                                   <div className="mb-2 flex justify-end">
                                     <button
                                       type="button"
@@ -3064,8 +3106,12 @@ export default function HomePage() {
                             <div id="settings-menu-mobile" className="absolute right-0 top-10 z-[136] hidden w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
                               {settingsMenuContent}
                             </div>
-                            <div className="fixed inset-0 z-[141] bg-black/45 p-4 sm:hidden" onClick={() => setIsSettingsOpen(false)}>
-                              <div className="mx-auto mt-14 w-full max-w-sm rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                            <div className="fixed inset-0 z-[141] overflow-y-auto bg-black/45 p-4 sm:hidden" onClick={() => setIsSettingsOpen(false)}>
+                              <div
+                                className="scrollbar-premium mx-auto mt-14 max-h-[calc(100dvh-4rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur"
+                                style={{ WebkitOverflowScrolling: 'touch' }}
+                                onClick={(event) => event.stopPropagation()}
+                              >
                                 <div className="mb-2 flex items-center justify-between">
                                   <p className="text-sm font-semibold text-slate-100">Settings</p>
                                   <button
@@ -3096,24 +3142,20 @@ export default function HomePage() {
               </div>
               <div className="w-full md:min-w-0 lg:max-w-[560px]">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:items-center md:justify-end md:gap-2">
-                  <div className="col-span-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:col-span-1 md:hidden">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted">Active Deal</p>
-                        <p className="truncate text-sm font-medium">{model.purchase.dealName}</p>
-                      </div>
-                      {model.purchase.listingUrl ? (
-                        <a
-                          className="inline-flex shrink-0 items-center self-center text-xs text-accent underline decoration-accent/70 underline-offset-2"
-                          href={normalizeListingUrl(model.purchase.listingUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View listing link
-                        </a>
-                      ) : null}
+                  <button
+                    type="button"
+                    onClick={openDealIdentityEditor}
+                    className="hidden min-w-[240px] max-w-[320px] flex-1 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left md:flex"
+                    aria-label="Edit active deal details"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted">Active deal</p>
+                      <p className="truncate text-sm font-medium text-slate-100">{activeDealDisplayName}</p>
                     </div>
-                  </div>
+                    <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                      Edit
+                    </span>
+                  </button>
                   <Link
                     href={printToPdfUrl}
                     className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm md:hidden"
@@ -3415,82 +3457,16 @@ export default function HomePage() {
                 </div>
               </section>
             ) : (
-              <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+              <DealWorkoutCard
+                model={model}
+                strategy={activeStrategy}
+                targetIrrPercent={model.assumptions.targetIrrPercent}
+                onApply={applyDealWorkoutScenario}
+              />
             )}
           </div>
         </section>
-        <section className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
-          <KpiCard
-            label="Cash to Close"
-            value={currencyFormatter.format(cashToCloseValue)}
-            winner={activeStrategyLabel}
-            secondaryLabel="Total cash invested"
-            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
-            definitions={[
-              {
-                term: 'Cash to Close',
-                description: 'Cash needed at closing only (down payment, closing costs, points, and HELOC close costs). Excludes rehab and one-time setup costs.'
-              },
-              {
-                term: 'Total cash invested',
-                description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
-              }
-            ]}
-          />
-          <KpiCard
-            label="Cap Rate"
-            value={percentFormatter.format(activeOutput.capRate)}
-            numericValue={activeOutput.capRate}
-            numericValueKind="percent"
-            helper="Annual NOI / current property value"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="Cash on Cash"
-            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
-            numericValue={activeOutput.cashOnCashReturn}
-            numericValueKind="percent"
-            helper="Annual cash flow / total cash invested"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="DSCR"
-            value={activeOutput.dscr.toFixed(2)}
-            numericValue={activeOutput.dscr}
-            numericValueKind="ratio"
-            numericValueBaseline={1}
-            helper="NOI / annual debt service"
-            winner={activeStrategyLabel}
-          />
-          <KpiCard
-            label="ROI"
-            value={percentFormatter.format(activeOutput.roi)}
-            numericValue={activeOutput.roi}
-            numericValueKind="percent"
-            helper="Total profit / total cash invested"
-            winner={activeStrategyLabel}
-          />
-          <div className="min-w-0 h-full [&>div]:h-full">
-            <KpiCard
-              label="IRR"
-              value={percentFormatter.format(activeOutput.irr)}
-              numericValue={activeOutput.irr}
-              numericValueKind="percent"
-              helper="Discounted return from yearly cashflow timeline"
-              winner={activeStrategyLabel}
-              definitions={[
-                {
-                  term: 'IRR (Internal Rate of Return)',
-                  description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
-                },
-                {
-                  term: 'Why it matters',
-                  description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
-                }
-              ]}
-            />
-          </div>
-        </section>
+        {headlineMetricSection}
         {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
           <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -3696,22 +3672,20 @@ export default function HomePage() {
                 output={result[activeStrategy]}
                 assumptions={model.assumptions}
                 defaultOpen={Boolean(activeDealId)}
-                onAssumptionsChange={(updates) =>
-                  updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))
-                }
               />
             </div>
             <StrategyComparison data={result} />
           </div>
 
           {!isMobileViewport ? (
-            <div ref={desktopCoreSectionRef}>
+            <div ref={desktopCoreSectionRef} className="space-y-4">
               <DealInputPanel
                 value={model}
                 onChange={updateModel}
                 resolveListingDealName={resolveListingDealName}
                 defaultAdvancedOptionsOpen={Boolean(activeDealId)}
               />
+              <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
             </div>
           ) : null}
         </div>
@@ -3731,6 +3705,8 @@ export default function HomePage() {
           For educational and informational purposes only. Not financial, legal, tax, or investment advice.
         </p>
       </footer>
+
+      {dealIdentitySheet}
 
       <OnboardingTour
         open={isOnboardingOpen}

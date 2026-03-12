@@ -788,6 +788,8 @@ input[type='number'] {
 .scrollbar-premium {
   scrollbar-width: thin;
   scrollbar-color: rgba(241, 163, 70, 0.93) rgba(84, 120, 165, 0.22);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .scrollbar-premium::-webkit-scrollbar {

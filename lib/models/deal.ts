@@ -210,6 +210,7 @@ export interface MasterAssumptions {
   annualAppreciationPercent: number;
   sellingCostPercent: number;
   noiGrowthPercent: number;
+  targetIrrPercent: number;
 }
 
 export interface CommercialSummaryOutput {
@@ -472,6 +473,7 @@ export const defaultDealInput: DealInputModel = {
     holdYears: 10,
     annualAppreciationPercent: 0.04,
     sellingCostPercent: 0.08,
-    noiGrowthPercent: 0.025
+    noiGrowthPercent: 0.025,
+    targetIrrPercent: 0.12
   }
 };

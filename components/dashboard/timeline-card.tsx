@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
-import { currencyFormatter } from '@/lib/formatters';
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 interface TimelineCardProps {
   output: StrategyOutput;
   assumptions: MasterAssumptions;
-  onAssumptionsChange: (updates: Partial<MasterAssumptions>) => void;
   defaultOpen?: boolean;
 }
 
-export function TimelineCard({ output, assumptions, onAssumptionsChange, defaultOpen = true }: TimelineCardProps) {
+export function TimelineCard({ output, assumptions, defaultOpen = true }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
   const closeTooltipTimerRef = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [holdYearsDraft, setHoldYearsDraft] = useState(String(assumptions.holdYears));
-  const [isHoldYearsFocused, setIsHoldYearsFocused] = useState(false);
   const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
   const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
@@ -165,109 +162,38 @@ export function TimelineCard({ output, assumptions, onAssumptionsChange, default
       <div className="panel-collapse" data-open={isOpen}>
         <div className="panel-collapse-inner">
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="space-y-1">
-          <span className="text-xs text-muted">Hold years</span>
-          <input
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-            type="number"
-            min={1}
-            value={isHoldYearsFocused ? holdYearsDraft : assumptions.holdYears}
-            onFocus={() => {
-              setHoldYearsDraft(String(assumptions.holdYears));
-              setIsHoldYearsFocused(true);
-            }}
-            onChange={(event) => {
-              const nextDraft = event.target.value;
-              setHoldYearsDraft(nextDraft);
-              if (nextDraft === '') return;
-              onAssumptionsChange({ holdYears: Math.max(Number(nextDraft), 1) });
-            }}
-            onBlur={(event) => {
-              setIsHoldYearsFocused(false);
-              const nextRaw = event.target.value.trim();
-              if (!nextRaw) {
-                setHoldYearsDraft('1');
-                onAssumptionsChange({ holdYears: 1 });
-                return;
-              }
-              const normalized = Math.max(Number(nextRaw), 1);
-              setHoldYearsDraft(String(normalized));
-              onAssumptionsChange({ holdYears: normalized });
-            }}
-          />
-        </label>
-
-        <PercentField
-          label="NOI growth %"
-          value={assumptions.noiGrowthPercent}
-          onChange={(value) => onAssumptionsChange({ noiGrowthPercent: value })}
-        />
-        <PercentField
-          label="Appreciation %"
-          value={assumptions.annualAppreciationPercent}
-          onChange={(value) => onAssumptionsChange({ annualAppreciationPercent: value })}
-        />
-        <PercentField
-          label="Selling cost %"
-          value={assumptions.sellingCostPercent}
-          onChange={(value) => onAssumptionsChange({ sellingCostPercent: value })}
-        />
-      </div>
-
-      <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-        {output.cashFlowTimeline.map((flow, index) => (
-          <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
-            <p className="text-xs text-muted">Year {index}</p>
-            <p
-              className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
-              style={getNegativeValueStyle(flow, { kind: 'currency' })}
-            >
-              {currencyFormatter.format(flow)}
-            </p>
+            <SummaryMetric label="Hold years" value={`${assumptions.holdYears}`} />
+            <SummaryMetric label="NOI growth" value={percentFormatter.format(assumptions.noiGrowthPercent)} />
+            <SummaryMetric label="Appreciation" value={percentFormatter.format(assumptions.annualAppreciationPercent)} />
+            <SummaryMetric label="Selling cost" value={percentFormatter.format(assumptions.sellingCostPercent)} />
           </div>
-        ))}
-      </div>
+
+          <p className="mt-3 text-[11px] text-muted">Edit exit and IRR assumptions from Inputs. The stream below updates from those values.</p>
+
+          <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+            {output.cashFlowTimeline.map((flow, index) => (
+              <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
+                <p className="text-xs text-muted">Year {index}</p>
+                <p
+                  className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+                  style={getNegativeValueStyle(flow, { kind: 'currency' })}
+                >
+                  {currencyFormatter.format(flow)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function PercentField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
-  const [draftValue, setDraftValue] = useState(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
-  const [isFocused, setIsFocused] = useState(false);
-
+function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <label className="space-y-1">
-      <span className="text-xs text-muted">{label}</span>
-      <input
-        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-        type="number"
-        value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
-        onFocus={() => {
-          setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');
-          setIsFocused(true);
-        }}
-        onChange={(event) => {
-          const nextDraft = event.target.value;
-          setDraftValue(nextDraft);
-          if (nextDraft === '') return;
-          onChange(Number(nextDraft) / 100);
-        }}
-        onBlur={(event) => {
-          setIsFocused(false);
-          if (event.target.value.trim() === '') {
-            onChange(0);
-            setDraftValue('0');
-            return;
-          }
-          const nextValue = Number(event.target.value);
-          if (Number.isFinite(nextValue)) {
-            onChange(nextValue / 100);
-            setDraftValue(nextValue.toString());
-          }
-        }}
-      />
-    </label>
+    <article className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
+    </article>
   );
 }

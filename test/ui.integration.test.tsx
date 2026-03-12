@@ -33,6 +33,14 @@ const setViewport = (width: number) => {
     })
   });
 };
+const createSavedDeal = (dealName: string, updatedAt: string) =>
+  createScenarioRecord(
+    {
+      ...defaultDealInput,
+      purchase: { ...defaultDealInput.purchase, dealName }
+    },
+    { createdAt: updatedAt, updatedAt }
+  );
 
 describe('dashboard integration', () => {
   beforeEach(() => {
@@ -71,7 +79,7 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Recent deals' })).toBeInTheDocument();
     expect(resultsButton).toBeDisabled();
     expect(compareButton).toBeDisabled();
-    expect(screen.getByText('Enter the baseline first')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
 
     const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
     await user.clear(purchasePrice);
@@ -106,6 +114,95 @@ describe('dashboard integration', () => {
     expect(within(dialog).getByRole('button', { name: 'Delete Test Seed Deal' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'New deal' })).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
+  });
+
+  it('opens the deal identity editor from the compact header', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Listing URL (Zillow, Redfin, etc.)')).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('Test Seed Deal')).toBeInTheDocument();
+  });
+
+  it('opens the deal identity editor after creating a new deal from mobile header', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('New Deal')).toBeInTheDocument();
+  });
+
+  it('caps compact recent deals to the six most recent entries by default', async () => {
+    setViewport(390);
+    writeScenarios([
+      createSavedDeal('Recent Deal 1', '2026-01-08T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 2', '2026-01-07T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 3', '2026-01-06T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 4', '2026-01-05T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 5', '2026-01-04T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 6', '2026-01-03T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 7', '2026-01-02T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 8', '2026-01-01T12:00:00.000Z')
+    ]);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deals' });
+
+    expect(within(dialog).getAllByRole('button', { name: /Duplicate Recent Deal / })).toHaveLength(6);
+    expect(within(dialog).getByText('Recent Deal 1')).toBeInTheDocument();
+    expect(within(dialog).getByText('Recent Deal 6')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Recent Deal 7')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Recent Deal 8')).not.toBeInTheDocument();
+  });
+
+  it('searches older deals from compact recent deals by name', async () => {
+    setViewport(390);
+    writeScenarios([
+      createSavedDeal('Recent Deal 1', '2026-01-08T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 2', '2026-01-07T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 3', '2026-01-06T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 4', '2026-01-05T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 5', '2026-01-04T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 6', '2026-01-03T12:00:00.000Z'),
+      createSavedDeal('Austin BRRRR', '2026-01-02T12:00:00.000Z'),
+      createSavedDeal('Miami Flip', '2026-01-01T12:00:00.000Z')
+    ]);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deals' });
+    const search = within(dialog).getByPlaceholderText('Search deal name');
+
+    expect(within(dialog).queryByText('Austin BRRRR')).not.toBeInTheDocument();
+
+    await user.type(search, 'Austin');
+
+    expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
   });
 
   it('duplicates and deletes saved deals from compact recent deals', async () => {
@@ -361,7 +458,11 @@ describe('dashboard integration', () => {
     await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
 
     expect(screen.getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
-    expect(screen.getByRole('link', { name: 'View listing link' })).toHaveAttribute(
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+
+    expect(within(dialog).getByRole('link', { name: 'View listing link' })).toHaveAttribute(
       'href',
       'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
     );

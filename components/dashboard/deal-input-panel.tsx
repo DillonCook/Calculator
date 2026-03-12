@@ -703,7 +703,7 @@ export function DealInputPanel({
           </button>
 
           <div className="mb-2.5 sm:mb-3">
-            <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-1.5">
               {(['purchaseFinancing', 'expenses'] as CoreInputSection[]).map((section) => {
                 const active = activeCoreSection === section;
                 return (

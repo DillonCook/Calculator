@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { currencyFormatter } from '@/lib/formatters';
 import { buildDealWorkoutRecommendation, findPurchasePriceForTargetIrr, type DealWorkoutScenario } from '@/lib/engine/deal-workout';
@@ -9,14 +9,14 @@ import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 interface DealWorkoutCardProps {
   model: DealInputModel;
   strategy: StrategyKey;
+  targetIrrPercent: number;
   onApply: (scenario: DealWorkoutScenario) => void;
 }
 
-export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardProps) {
+export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const isCashDeal = model.purchase.financingType === 'cash';
-  const [targetIrrInput, setTargetIrrInput] = useState('12');
 
   const dualFixScenarios = {
     downPayment: recommendation.scenarios.find((scenario) => scenario.key === 'down-payment'),
@@ -31,11 +31,8 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
     ? recommendation.scenarios.filter((scenario) => scenario.key !== 'price-cut')
     : recommendation.scenarios;
 
-  const targetIrrDecimal = useMemo(() => {
-    const parsed = Number(targetIrrInput);
-    if (!Number.isFinite(parsed)) return null;
-    return parsed / 100;
-  }, [targetIrrInput]);
+  const targetIrrDecimal = Number.isFinite(targetIrrPercent) ? Math.max(targetIrrPercent, 0) : null;
+  const targetIrrLabel = targetIrrDecimal === null ? '0.00' : (targetIrrDecimal * 100).toFixed(2);
 
   const targetIrrPriceCutAmount = useMemo(() => {
     if (!isCashDeal || targetIrrDecimal === null) return 0;
@@ -52,15 +49,17 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
     onApply({
       key: 'price-cut',
       title: 'Target IRR purchase price',
-      description: `Cut purchase price to target ${(targetIrrDecimal * 100).toFixed(2)}% IRR.`,
+      description: `Cut purchase price to target ${targetIrrLabel}% IRR.`,
       adjustments: { purchasePrice: targetPurchasePrice }
     });
   };
 
   const priceCutSubtext =
-    targetIrrPriceCutAmount > 0
-      ? `Cut purchase price by ${currencyFormatter.format(targetIrrPriceCutAmount)} to target ${targetIrrInput || '0'}% IRR.`
-      : 'Set your target IRR to calculate the needed purchase price cut.';
+    targetIrrDecimal === null
+      ? 'Set a target IRR on Inputs to calculate the needed purchase price cut.'
+      : targetIrrPriceCutAmount > 0
+        ? `Cut purchase price by ${currencyFormatter.format(targetIrrPriceCutAmount)} to target ${targetIrrLabel}% IRR.`
+        : `Target IRR is set to ${targetIrrLabel}% from Inputs.`;
 
   return (
     <section className="deal-workout-surface rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
@@ -137,19 +136,15 @@ export function DealWorkoutCard({ model, strategy, onApply }: DealWorkoutCardPro
                   </div>
                 ) : isCashPriceCutScenario ? (
                   <div className="mt-2 grid gap-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        aria-label="Target IRR %"
-                        type="number"
-                        step="0.1"
-                        value={targetIrrInput}
-                        onChange={(event) => setTargetIrrInput(event.target.value)}
-                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-                      />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md border border-accent/35 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
+                        Target IRR {targetIrrLabel}%
+                      </span>
                       <button
                         type="button"
                         className="btn-primary btn-work tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
                         onClick={applyTargetIrrPriceFix}
+                        disabled={targetIrrDecimal === null}
                       >
                         Apply this fix
                       </button>
