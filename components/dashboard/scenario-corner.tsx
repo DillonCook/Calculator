@@ -21,6 +21,8 @@ interface DealsVaultPanelProps {
   onDealNameChange: (dealName: string) => void;
   onListingUrlChange: (listingUrl: string) => void;
   onDelete: () => void;
+  compactLayout?: boolean;
+  defaultExpanded?: boolean;
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -41,7 +43,9 @@ export function DealsVaultPanel({
   onCreateNew,
   onDealNameChange,
   onListingUrlChange,
-  onDelete
+  onDelete,
+  compactLayout = false,
+  defaultExpanded = false
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -49,6 +53,7 @@ export function DealsVaultPanel({
   const [dialogValue, setDialogValue] = useState('');
   const [dialogListingValue, setDialogListingValue] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (defaultExpanded) return false;
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem(DEALS_VAULT_COLLAPSED_KEY) === '1';
   });
@@ -59,6 +64,10 @@ export function DealsVaultPanel({
     const timer = window.setTimeout(() => setDebouncedSearch(search), 120);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    if (defaultExpanded) setIsCollapsed(false);
+  }, [defaultExpanded]);
 
 
   useEffect(() => {
@@ -120,7 +129,7 @@ export function DealsVaultPanel({
       <summary className={`tap-feedback flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${isCollapsed ? 'mb-0' : 'mb-2'}`}>
         <div className="min-w-0 flex items-center gap-2">
           <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
-          <div className="hidden md:flex md:items-center md:gap-1.5">
+          <div className={`${compactLayout ? 'hidden' : 'hidden md:flex md:items-center md:gap-1.5'}`}>
             <span className="max-w-[220px] truncate rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
               Active: {activeDealName}
             </span>
@@ -130,7 +139,7 @@ export function DealsVaultPanel({
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Idle'}
           </span>
-          <div className="hidden md:flex md:items-center md:gap-1.5">
+          <div className={`${compactLayout ? 'hidden' : 'hidden md:flex md:items-center md:gap-1.5'}`}>
             {activeDealListingUrl ? (
               <button
                 type="button"
@@ -219,17 +228,17 @@ export function DealsVaultPanel({
                 {filteredDeals.length === 0 ? (
                   <p className="px-1 py-1.5 text-xs text-muted">No deals match this search.</p>
                 ) : (
-                  <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+                  <div className={compactLayout ? 'grid gap-2' : '-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1'}>
                     {filteredDeals.map((deal) => (
                       <button
                         key={deal.scenarioId}
                         type="button"
                         onClick={() => onActiveDealChange(deal.scenarioId)}
-                        className={`tap-feedback min-w-[190px] snap-start rounded-lg border px-3 py-2 text-left text-sm transition sm:min-w-[220px] ${
+                        className={`tap-feedback rounded-lg border px-3 py-2 text-left text-sm transition ${
                           deal.scenarioId === activeDealId
                             ? 'accent-edge'
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        }`}
+                        } ${compactLayout ? 'w-full min-w-0' : 'min-w-[190px] snap-start sm:min-w-[220px]'}`}
                       >
                         <p className="line-clamp-1 font-medium">{deal.dealName}</p>
                         <p className="text-xs text-muted">Updated {dateFormatter.format(new Date(deal.updatedAt))}</p>

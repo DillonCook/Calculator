@@ -1,27 +1,49 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
-import type { DealResult } from '@/lib/models/deal';
+import { useEffect, useId, useMemo, useState } from 'react';
+import type { DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 
-const rows: { key: keyof Omit<DealResult, 'masterSummary'>; label: string }[] = [
-  { key: 'purchase', label: 'Commercial' },
-  { key: 'longTerm', label: 'Long-Term Rental' },
-  { key: 'airbnb', label: 'Airbnb / STR' },
-  { key: 'padSplit', label: 'PadSplit' },
-  { key: 'brrrr', label: 'BRRRR' },
-  { key: 'flip', label: 'Flip' }
-];
+const strategyLabels: Record<StrategyKey, string> = {
+  purchase: 'Commercial',
+  longTerm: 'Long-Term Rental',
+  airbnb: 'Airbnb / STR',
+  padSplit: 'PadSplit',
+  brrrr: 'BRRRR',
+  flip: 'Flip'
+};
+const strategyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
 
 interface StrategyComparisonProps {
   data: DealResult;
+  defaultBoardOpen?: boolean;
+  visibleStrategies?: StrategyKey[];
 }
 
-export function StrategyComparison({ data }: StrategyComparisonProps) {
+export function StrategyComparison({
+  data,
+  defaultBoardOpen = true,
+  visibleStrategies
+}: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
-  const [isBoardOpen, setIsBoardOpen] = useState(true);
-  const maxCashFlow = Math.max(...rows.map((row) => data[row.key].monthlyCashFlow));
+  const [isBoardOpen, setIsBoardOpen] = useState(defaultBoardOpen);
+  const rows = useMemo(() => {
+    const selectedStrategies =
+      visibleStrategies && visibleStrategies.length > 0
+        ? strategyOrder.filter((strategy) => visibleStrategies.includes(strategy))
+        : strategyOrder;
+
+    return selectedStrategies.map((strategy) => ({
+      key: strategy,
+      label: strategyLabels[strategy]
+    }));
+  }, [visibleStrategies]);
+  const maxCashFlow = Math.max(...rows.map((row) => data[row.key].monthlyCashFlow), 0);
+
+  useEffect(() => {
+    setIsBoardOpen(defaultBoardOpen);
+  }, [defaultBoardOpen]);
 
   const equityRows = useMemo(() => {
     return rows.map((row) => {
@@ -46,7 +68,7 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
         multiple: invested > 0 ? equityModeled / invested : 0
       };
     });
-  }, [data]);
+  }, [data, rows]);
 
   const maxModeledEquity = Math.max(...equityRows.map((row) => Math.max(row.equityModeled, row.invested, 1)));
 
@@ -70,11 +92,11 @@ export function StrategyComparison({ data }: StrategyComparisonProps) {
         operatingMaxAbs
       };
     });
-  }, [data]);
+  }, [data, rows]);
 
   return (
     <>
-      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+      <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
         <button
           type="button"
           aria-expanded={isBoardOpen}
@@ -303,9 +325,9 @@ function ModelBar({ label, value, max, tone }: { label: string; value: number; m
 
 function CashFlowGraph({ points }: { points: { year: number; value: number }[] }) {
   const yAxisLabelId = useId();
-  const width = 560;
-  const height = 220;
-  const padding = 24;
+  const width = 100;
+  const height = 100;
+  const padding = 8;
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
@@ -333,7 +355,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
 
   const barGap = Math.max(points.length - 1, 1);
   const stepX = chartWidth / barGap;
-  const barWidth = Math.max(Math.min(stepX * 0.62, 34), 10);
+  const barWidth = Math.max(Math.min(stepX * 0.62, 6), 2.25);
 
   const bars = points.map((point, index) => {
     const xCenter = points.length <= 1 ? width / 2 : padding + index * stepX;
@@ -395,7 +417,7 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
                   y={bar.barTop}
                   width={barWidth}
                   height={bar.barHeight}
-                  rx="4"
+                  rx="1.4"
                   fill={bar.isPositive ? '#34d399' : '#fb7185'}
                   opacity={bar.year === 0 ? 0.85 : 1}
                 >
@@ -418,9 +440,9 @@ function CashFlowGraph({ points }: { points: { year: number; value: number }[] }
                 </rect>
                 <text
                   x={bar.x}
-                  y={height - 4}
+                  y={height - 3}
                   textAnchor="middle"
-                  className="fill-slate-400 text-[9px]"
+                  style={{ fill: '#94a3b8', fontSize: '4.4px' }}
                 >
                   {bar.year}
                 </text>

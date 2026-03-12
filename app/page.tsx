@@ -2,18 +2,20 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
+import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onboarding-tour';
 import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
-import { PwaInstallBanner, PWA_OPEN_INSTALL_EVENT } from '@/components/dashboard/pwa-install-banner';
+import { PwaInstallBanner, PWA_OPEN_INSTALL_EVENT, PWA_QUALIFY_INSTALL_EVENT } from '@/components/dashboard/pwa-install-banner';
+import { inputClass } from '@/components/dashboard/form-fields';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
@@ -42,8 +44,37 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 };
 
 const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+type CompactMode = 'inputs' | 'results' | 'compare';
+type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
+type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
+
 const isStrategyKey = (value: unknown): value is StrategyKey =>
   typeof value === 'string' && strategyKeyOrder.includes(value as StrategyKey);
+
+const compactModeLabels: Record<CompactMode, string> = {
+  inputs: 'Inputs',
+  results: 'Results',
+  compare: 'Compare'
+};
+const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
+  { id: 'cashToClose', label: 'Cash to Close' },
+  { id: 'capRate', label: 'Cap Rate' },
+  { id: 'cashOnCash', label: 'Cash on Cash' },
+  { id: 'dscr', label: 'DSCR' },
+  { id: 'roi', label: 'ROI' },
+  { id: 'irr', label: 'IRR' }
+];
+const defaultHeadlineMetricIds: [HeadlineMetricId, HeadlineMetricId] = ['cashToClose', 'irr'];
+const MOBILE_HEADLINE_METRICS_STORAGE_KEY = 'dealcooker-mobile-headline-metrics:v1';
+const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const compactStrategyDescriptions: Record<StrategyKey, string> = {
+  purchase: 'Commercial rent-roll underwriting',
+  longTerm: 'Traditional rental hold',
+  airbnb: 'Nightly stay income',
+  padSplit: 'Room-by-room cash flow',
+  brrrr: 'Refi and recycle capital',
+  flip: 'Renovate and exit'
+};
 
 const quickScanDetails: Record<StrategyKey, string[]> = {
   purchase: [
@@ -172,7 +203,7 @@ const normalizeLongTermTurnaroundDigestOrder = (value: unknown): LongTermTurnaro
 };
 
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
-const onboardingSteps: OnboardingStep[] = [
+const desktopOnboardingSteps: OnboardingStep[] = [
   {
     id: 'vault',
     title: 'Welcome to DealCooker',
@@ -197,6 +228,38 @@ const onboardingSteps: OnboardingStep[] = [
     id: 'irr',
     title: 'Use the IRR Stream',
     body: 'IRR factors in how long owners hold a property and the exit proceeds at sale. That gives you a true apples-to-apples comparison against other deals with different timelines.'
+  }
+];
+const mobileOnboardingSteps: OnboardingStep[] = [
+  {
+    id: 'mobileDeals',
+    title: 'Recent Deals Lives Here',
+    body: 'Use Recent deals to reopen saved scenarios on phone. That sheet is also where you duplicate or delete saved deals without hunting through desktop-style controls.'
+  },
+  {
+    id: 'mobileStrategy',
+    title: 'Strategy Is a Picker, Not a Tab Wall',
+    body: 'Tap the strategy row to open the mobile selector. Switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip without giving up screen space.'
+  },
+  {
+    id: 'mobileInputs',
+    title: 'Inputs Is the Starting Mode',
+    body: 'Phone workflow starts with quick-start deal inputs first. Fill the baseline here, then open the deeper core and strategy sections only when you need them.'
+  },
+  {
+    id: 'mobileResults',
+    title: 'Results Unlock After the Baseline',
+    body: 'Once the required inputs are in place, Results becomes your KPI and verdict workspace. More metrics, timeline, and show-work all branch from there.'
+  },
+  {
+    id: 'mobileCompare',
+    title: 'Compare Uses Multi-Select',
+    body: 'Compare is now a strategy filter for the master board. Pick the exits you want on screen, then use Compare all exits at a glance, Equity modeling, and Cash flow modeling.'
+  },
+  {
+    id: 'mobileActions',
+    title: 'Share, Print, and Sync Stay in Overflow',
+    body: 'The top-right actions button keeps mobile chrome compact. Open it for sharing, PDF export, install, authentication, and settings.'
   }
 ];
 
@@ -258,31 +321,29 @@ const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel 
     }
   };
 };
-
-const storedDeals = readDealsFromVault();
-const initialDeals =
-  storedDeals.length > 0
-    ? storedDeals
-    : (() => {
-        const payload = {
-          ...cloneDefaultDealPayload(),
-          purchase: {
-            ...defaultDealInput.purchase,
-            dealName: 'New Deal',
-            listingUrl: ''
-          }
-        };
-        const freshDeal = createDealInVault(payload, payload.purchase.dealName);
-        return saveDealToVault(freshDeal);
-      })();
-const initialActiveDeal = initialDeals[0];
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
 
 export default function HomePage() {
-  const [model, setModel] = useState(initialActiveDeal?.payload ?? defaultDealInput);
+  const [initialVaultState] = useState(() => {
+    const storedDeals = readDealsFromVault();
+    const nextDeals =
+      storedDeals.length > 0
+        ? storedDeals
+        : (() => {
+            const payload = buildNewDealPayload('New Deal');
+            const freshDeal = createDealInVault(payload, payload.purchase.dealName);
+            return saveDealToVault(freshDeal);
+          })();
+
+    return {
+      deals: nextDeals,
+      activeDeal: nextDeals[0] ?? null
+    };
+  });
+  const [model, setModel] = useState(initialVaultState.activeDeal?.payload ?? defaultDealInput);
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
-  const [deals, setDeals] = useState<ScenarioRecord[]>(initialDeals);
-  const [activeDealId, setActiveDealId] = useState(initialActiveDeal?.scenarioId ?? '');
+  const [deals, setDeals] = useState<ScenarioRecord[]>(initialVaultState.deals);
+  const [activeDealId, setActiveDealId] = useState(initialVaultState.activeDeal?.scenarioId ?? '');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
   const [isLightMode, setIsLightMode] = useState(false);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
@@ -302,12 +363,15 @@ export default function HomePage() {
     useState<LongTermTurnaroundDigestKey[]>(defaultLongTermTurnaroundDigestOrder);
   const [isLongTermTurnaroundOrderEditorOpen, setIsLongTermTurnaroundOrderEditorOpen] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
-  const [mobileInputView, setMobileInputView] = useState<'core' | 'strategy'>('core');
+  const [compactMode, setCompactMode] = useState<CompactMode>('inputs');
+  const [compactSheetView, setCompactSheetView] = useState<CompactSheetView>(null);
   const [isMobileCoreInputsMinimized, setIsMobileCoreInputsMinimized] = useState(false);
   const [isMobileStrategyInputsMinimized, setIsMobileStrategyInputsMinimized] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
+  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(strategyKeyOrder);
+  const [selectedHeadlineMetricIds, setSelectedHeadlineMetricIds] = useState<[HeadlineMetricId, HeadlineMetricId]>(defaultHeadlineMetricIds);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
@@ -341,6 +405,12 @@ export default function HomePage() {
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
+  const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactStrategyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactResultsNavButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactCompareNavButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactTimelineButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const result = useMemo(() => calculateDeal(model), [model]);
   const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
@@ -518,6 +588,202 @@ export default function HomePage() {
     const rawKind = item.rawKind ?? 'plain';
     return getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: rawKind, baseline: rawKind === 'ratio' ? 1 : 0 });
   };
+  const cashToCloseValue = useMemo(() => {
+    const { purchase } = model;
+
+    if (purchase.ownershipMode === 'owned') {
+      return Math.max(purchase.helocClosingCosts, 0);
+    }
+
+    return calculateCashToClose(
+      purchase.purchasePrice,
+      0,
+      purchase.downPaymentPercent,
+      purchase.closingCostPercent,
+      purchase.pointsPercent,
+      purchase.financingType,
+      purchase.helocAmount,
+      purchase.helocClosingCosts
+    );
+  }, [model]);
+  const compactReadiness = useMemo(() => {
+    const missing: string[] = [];
+    const hasDealName = model.purchase.dealName.trim().length > 0;
+    if (!hasDealName) missing.push('deal name');
+
+    if (model.purchase.ownershipMode === 'purchase') {
+      if (model.purchase.purchasePrice <= 0) missing.push('purchase price');
+      if (model.purchase.financingType === 'loan' && model.purchase.downPaymentPercent <= 0) missing.push('down payment');
+      if (model.purchase.financingType === 'loan' && model.purchase.interestRate <= 0) missing.push('interest rate');
+    }
+
+    if (activeStrategy === 'purchase') {
+      if (model.commercial.grossLeasableAreaSqft <= 0) missing.push('gross leasable area');
+      if (model.commercial.occupiedSqft <= 0) missing.push('leased area');
+      if (model.commercial.averageBaseRentPerSqftYear <= 0) missing.push('base rent');
+    }
+
+    if (activeStrategy === 'longTerm' && model.longTerm.grossRentMonthly <= 0) {
+      missing.push('gross rent');
+    }
+
+    if (activeStrategy === 'airbnb' && model.airbnb.adr <= 0) {
+      missing.push('ADR');
+    }
+
+    if (activeStrategy === 'padSplit') {
+      if (model.padSplit.rentableRooms <= 0) missing.push('rentable rooms');
+      if (model.padSplit.avgWeeklyRatePerRoom <= 0) missing.push('weekly rate');
+    }
+
+    if ((activeStrategy === 'brrrr' || activeStrategy === 'flip') && (model.purchase.arv <= 0) && !result[activeStrategy].saleProceeds) {
+      missing.push('ARV');
+    }
+
+    return {
+      ready: missing.length === 0,
+      missing
+    };
+  }, [activeStrategy, model, result]);
+  const compactUnlockSummary =
+    compactReadiness.missing.length > 0
+      ? `Finish ${compactReadiness.missing.slice(0, 3).join(', ')} to unlock Results and Compare.`
+      : null;
+  const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
+  const compactSortedDeals = useMemo(
+    () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [deals]
+  );
+  const compactCompareSelection = useMemo(
+    () => strategyKeyOrder.filter((strategy) => compactSelectedStrategies.includes(strategy)),
+    [compactSelectedStrategies]
+  );
+  const headlineMetricCards = useMemo(() => {
+    const cards: Record<HeadlineMetricId, ReactNode> = {
+      cashToClose: (
+        <KpiCard
+          label="Cash to Close"
+          value={currencyFormatter.format(cashToCloseValue)}
+          winner={activeStrategyLabels[activeStrategy]}
+          secondaryLabel="Total cash invested"
+          secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
+          definitions={[
+            {
+              term: 'Cash to Close',
+              description: 'Cash needed at closing only (down payment, closing costs, points, and HELOC close costs). Excludes rehab and one-time setup costs.'
+            },
+            {
+              term: 'Total cash invested',
+              description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
+            }
+          ]}
+        />
+      ),
+      capRate: (
+        <KpiCard
+          label="Cap Rate"
+          value={percentFormatter.format(activeOutput.capRate)}
+          numericValue={activeOutput.capRate}
+          numericValueKind="percent"
+          helper="Annual NOI / current property value"
+          winner={activeStrategyLabels[activeStrategy]}
+        />
+      ),
+      cashOnCash: (
+        <KpiCard
+          label="Cash on Cash"
+          value={percentFormatter.format(activeOutput.cashOnCashReturn)}
+          numericValue={activeOutput.cashOnCashReturn}
+          numericValueKind="percent"
+          helper="Annual cash flow / total cash invested"
+          winner={activeStrategyLabels[activeStrategy]}
+        />
+      ),
+      dscr: (
+        <KpiCard
+          label="DSCR"
+          value={activeOutput.dscr.toFixed(2)}
+          numericValue={activeOutput.dscr}
+          numericValueKind="ratio"
+          numericValueBaseline={1}
+          helper="NOI / annual debt service"
+          winner={activeStrategyLabels[activeStrategy]}
+        />
+      ),
+      roi: (
+        <KpiCard
+          label="ROI"
+          value={percentFormatter.format(activeOutput.roi)}
+          numericValue={activeOutput.roi}
+          numericValueKind="percent"
+          helper="Total profit / total cash invested"
+          winner={activeStrategyLabels[activeStrategy]}
+        />
+      ),
+      irr: (
+        <KpiCard
+          label="IRR"
+          value={percentFormatter.format(activeOutput.irr)}
+          numericValue={activeOutput.irr}
+          numericValueKind="percent"
+          helper="Discounted return from yearly cashflow timeline"
+          winner={activeStrategyLabels[activeStrategy]}
+          definitions={[
+            {
+              term: 'IRR (Internal Rate of Return)',
+              description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
+            },
+            {
+              term: 'Why it matters',
+              description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
+            }
+          ]}
+        />
+      )
+    };
+
+    return cards;
+  }, [activeOutput, activeStrategy, cashToCloseValue]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const rawValue = window.localStorage.getItem(MOBILE_HEADLINE_METRICS_STORAGE_KEY);
+    if (!rawValue) return;
+
+    try {
+      const parsedValue = JSON.parse(rawValue);
+      if (!Array.isArray(parsedValue) || parsedValue.length !== 2) return;
+      const [firstMetric, secondMetric] = parsedValue;
+      if (
+        headlineMetricOptions.some((option) => option.id === firstMetric) &&
+        headlineMetricOptions.some((option) => option.id === secondMetric) &&
+        firstMetric !== secondMetric
+      ) {
+        setSelectedHeadlineMetricIds([firstMetric, secondMetric]);
+      }
+    } catch {
+      // Ignore malformed stored KPI preferences.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(MOBILE_HEADLINE_METRICS_STORAGE_KEY, JSON.stringify(selectedHeadlineMetricIds));
+  }, [selectedHeadlineMetricIds]);
+
+  useEffect(() => {
+    setCompactSelectedStrategies((current) => {
+      const next = strategyKeyOrder.filter((strategy) => current.includes(strategy));
+      return next.length >= 2 ? next : strategyKeyOrder;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    if (compactReadiness.ready || compactMode === 'inputs') return;
+    setCompactMode('inputs');
+  }, [compactMode, compactReadiness.ready, isMobileViewport]);
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const quickScanPoints = quickScanDetails[activeStrategy];
   const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
@@ -565,25 +831,6 @@ export default function HomePage() {
       )}
     </div>
   );
-
-  const cashToCloseValue = useMemo(() => {
-    const { purchase } = model;
-
-    if (purchase.ownershipMode === 'owned') {
-      return Math.max(purchase.helocClosingCosts, 0);
-    }
-
-    return calculateCashToClose(
-      purchase.purchasePrice,
-      0,
-      purchase.downPaymentPercent,
-      purchase.closingCostPercent,
-      purchase.pointsPercent,
-      purchase.financingType,
-      purchase.helocAmount,
-      purchase.helocClosingCosts
-    );
-  }, [model]);
 
   const moveCommercialDigestItem = (fromIndex: number, toIndex: number) => {
     setCommercialDigestOrder((current) => {
@@ -684,6 +931,33 @@ export default function HomePage() {
     setModel(nextModel);
   };
 
+  const updateHeadlineMetricSelection = (slotIndex: 0 | 1, nextMetricId: HeadlineMetricId) => {
+    setSelectedHeadlineMetricIds((current) => {
+      const next: [HeadlineMetricId, HeadlineMetricId] = [...current] as [HeadlineMetricId, HeadlineMetricId];
+      const otherIndex: 0 | 1 = slotIndex === 0 ? 1 : 0;
+
+      if (next[otherIndex] === nextMetricId) {
+        next[otherIndex] = next[slotIndex];
+      }
+
+      next[slotIndex] = nextMetricId;
+      return next;
+    });
+  };
+
+  const toggleCompactCompareStrategy = (strategy: StrategyKey) => {
+    triggerHapticFeedback('light');
+    setCompactSelectedStrategies((current) => {
+      const isSelected = current.includes(strategy);
+      if (isSelected && current.length <= 2) {
+        return current;
+      }
+
+      const next = isSelected ? current.filter((entry) => entry !== strategy) : [...current, strategy];
+      return strategyKeyOrder.filter((entry) => next.includes(entry));
+    });
+  };
+
   const handleStrategyChange = (nextStrategy: StrategyKey) => {
     setActiveStrategy(nextStrategy);
     setIsCommercialOrderEditorOpen(false);
@@ -691,7 +965,8 @@ export default function HomePage() {
     setShowAllCommercialMobileOutputs(false);
     setShowAllLongTermTurnaroundMobileOutputs(false);
     if (isMobileViewport) {
-      setMobileInputView('strategy');
+      setCompactMode('inputs');
+      setCompactSheetView(null);
       setIsMobileCoreInputsMinimized(false);
       setIsMobileStrategyInputsMinimized(false);
     }
@@ -711,26 +986,33 @@ export default function HomePage() {
   };
 
   const resolveOnboardingTarget = () => {
-    const step = onboardingSteps[onboardingStepIndex];
+    const step = currentOnboardingSteps[onboardingStepIndex];
     if (!step) return null;
 
-    if (step.id === 'vault') return dealVaultRef.current;
-    if (step.id === 'signin') return getFirstVisibleElement(desktopAuthActionRef.current, authControlsRef.current);
+    if (step.id === 'mobileDeals') return compactDealsButtonRef.current;
+    if (step.id === 'mobileStrategy') return compactStrategyButtonRef.current;
+    if (step.id === 'mobileInputs') return mobileCoreSectionRef.current;
+    if (step.id === 'mobileResults') return compactResultsNavButtonRef.current;
+    if (step.id === 'mobileCompare') return compactCompareNavButtonRef.current;
+    if (step.id === 'mobileActions') return compactMenuButtonRef.current;
+    if (step.id === 'vault') return getFirstVisibleElement(compactMenuButtonRef.current, dealVaultRef.current);
+    if (step.id === 'signin') return getFirstVisibleElement(compactMenuButtonRef.current, desktopAuthActionRef.current, authControlsRef.current);
     if (step.id === 'core') return getFirstVisibleElement(mobileCoreSectionRef.current, desktopCoreSectionRef.current);
     if (step.id === 'strategy') return getFirstVisibleElement(mobileStrategyTabsRef.current, desktopStrategyTabsRef.current);
-    return irrStreamRef.current;
+    return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
   };
 
   const completeOnboarding = () => {
     setIsOnboardingOpen(false);
     setOnboardingStepIndex(0);
+    setCompactSheetView(null);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
     }
   };
 
   const goToNextOnboardingStep = () => {
-    if (onboardingStepIndex >= onboardingSteps.length - 1) {
+    if (onboardingStepIndex >= currentOnboardingSteps.length - 1) {
       completeOnboarding();
       return;
     }
@@ -926,7 +1208,7 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
 
     if (typeof window.matchMedia === 'function') {
-      const mediaQuery = window.matchMedia('(max-width: 767px)');
+      const mediaQuery = window.matchMedia('(max-width: 1023px)');
       const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
 
       updateViewport();
@@ -939,7 +1221,7 @@ export default function HomePage() {
       return () => mediaQuery.removeListener(updateViewport);
     }
 
-    const updateViewport = () => setIsMobileViewport(window.innerWidth <= 767);
+    const updateViewport = () => setIsMobileViewport(window.innerWidth <= 1023);
     updateViewport();
     window.addEventListener('resize', updateViewport);
     return () => window.removeEventListener('resize', updateViewport);
@@ -986,27 +1268,65 @@ export default function HomePage() {
   useEffect(() => {
     if (!isOnboardingOpen) return;
 
-    const step = onboardingSteps[onboardingStepIndex];
+    const step = currentOnboardingSteps[onboardingStepIndex];
     if (!step) return;
 
+    if (step.id === 'mobileDeals') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+    }
+
+    if (step.id === 'mobileStrategy') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+      setIsMobileCoreInputsMinimized(false);
+      setIsMobileStrategyInputsMinimized(false);
+    }
+
+    if (step.id === 'mobileInputs') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+      setIsMobileCoreInputsMinimized(false);
+      setIsMobileStrategyInputsMinimized(false);
+    }
+
+    if (step.id === 'mobileResults') {
+      setCompactSheetView(null);
+    }
+
+    if (step.id === 'mobileCompare') {
+      setCompactSheetView(null);
+    }
+
+    if (step.id === 'mobileActions') {
+      setCompactSheetView('menu');
+    }
+
     if (step.id === 'core') {
-      setMobileInputView('core');
+      setCompactMode('inputs');
       setIsMobileCoreInputsMinimized(false);
     }
 
     if (step.id === 'strategy') {
-      setMobileInputView('strategy');
+      setCompactMode('inputs');
       setIsMobileCoreInputsMinimized(false);
       setIsMobileStrategyInputsMinimized(false);
     }
 
     if (step.id === 'signin') {
       setIsAuthMenuOpen(false);
+      if (isMobileViewport) setCompactSheetView('menu');
     }
 
     if (step.id === 'irr') {
+      if (isMobileViewport) {
+        setCompactMode('results');
+        setCompactSheetView(null);
+      }
+
       const frame = window.requestAnimationFrame(() => {
-        irrStreamRef.current?.scrollIntoView({
+        const target = isMobileViewport ? compactTimelineButtonRef.current : irrStreamRef.current;
+        target?.scrollIntoView({
           behavior: prefersReducedMotion ? 'auto' : 'smooth',
           block: 'center',
           inline: 'nearest'
@@ -1015,7 +1335,7 @@ export default function HomePage() {
 
       return () => window.cancelAnimationFrame(frame);
     }
-  }, [isOnboardingOpen, onboardingStepIndex, prefersReducedMotion]);
+  }, [currentOnboardingSteps, isMobileViewport, isOnboardingOpen, onboardingStepIndex, prefersReducedMotion]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1155,6 +1475,34 @@ export default function HomePage() {
     });
   };
 
+  const qualifyInstallPrompt = () => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new Event(PWA_QUALIFY_INSTALL_EVENT));
+  };
+
+  const buildUniqueDealName = (requestedDealName: string, ignoredScenarioId?: string) => {
+    const baseName = requestedDealName.trim() || 'New Deal';
+    const normalizedNames = new Set(
+      deals
+        .filter((deal) => deal.scenarioId !== ignoredScenarioId)
+        .map((deal) => deal.dealName.toLowerCase())
+    );
+
+    if (!normalizedNames.has(baseName.toLowerCase())) {
+      return baseName;
+    }
+
+    let suffix = 2;
+    let candidateName = `${baseName} ${suffix}`;
+
+    while (normalizedNames.has(candidateName.toLowerCase())) {
+      suffix += 1;
+      candidateName = `${baseName} ${suffix}`;
+    }
+
+    return candidateName;
+  };
+
   const saveDealAs = (dealName: string, listingUrl: string) => {
     const nextPayload: DealInputModel = {
       ...model,
@@ -1171,6 +1519,7 @@ export default function HomePage() {
     setActiveDealId(record.scenarioId);
     queueScenarioPush(record);
     setSaveStatus('saved');
+    qualifyInstallPrompt();
   };
 
   const renameDeal = (dealName: string) => {
@@ -1189,18 +1538,11 @@ export default function HomePage() {
     setDeals(next);
     queueScenarioPush(updatedDeal);
     setSaveStatus('saved');
+    qualifyInstallPrompt();
   };
 
   const createNewDeal = (requestedDealName: string, listingUrl: string) => {
-    const normalizedNames = new Set(deals.map((deal) => deal.dealName.toLowerCase()));
-    let index = 1;
-    let candidateName = requestedDealName.trim() || 'New Deal';
-
-    while (normalizedNames.has(candidateName.toLowerCase())) {
-      index += 1;
-      candidateName = `${requestedDealName.trim() || 'New Deal'} ${index}`;
-    }
-
+    const candidateName = buildUniqueDealName(requestedDealName);
     const payload = buildNewDealPayload(candidateName, listingUrl.trim());
 
     const nextDeal = createDealInVault(payload, candidateName);
@@ -1211,6 +1553,30 @@ export default function HomePage() {
     setActiveStrategy(defaultNewDealStrategy);
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
+    qualifyInstallPrompt();
+  };
+
+  const duplicateScenario = (scenarioId: string) => {
+    const scenario = deals.find((entry) => entry.scenarioId === scenarioId);
+    if (!scenario) return;
+
+    const nextDealName = buildUniqueDealName(`${scenario.dealName} Copy`);
+    const duplicatedPayload: DealInputModel = {
+      ...scenario.payload,
+      purchase: {
+        ...scenario.payload.purchase,
+        dealName: nextDealName
+      }
+    };
+
+    const duplicatedDeal = createDealInVault(duplicatedPayload, nextDealName);
+    const nextDeals = saveDealToVault(duplicatedDeal);
+    setDeals(nextDeals);
+    setActiveDealId(duplicatedDeal.scenarioId);
+    setModel(duplicatedDeal.payload);
+    queueScenarioPush(duplicatedDeal);
+    setSaveStatus('saved');
+    qualifyInstallPrompt();
   };
 
   const handleDealNameChange = (dealName: string) => {
@@ -1246,10 +1612,9 @@ export default function HomePage() {
     loadScenario(scenario.payload, scenario.scenarioId);
   };
 
-  const removeScenario = () => {
-    if (!activeDeal) return;
+  const removeScenarioById = (scenarioId: string) => {
+    if (!deals.some((deal) => deal.scenarioId === scenarioId)) return;
 
-    const scenarioId = activeDeal.scenarioId;
     pendingUpsertIdsRef.current.delete(scenarioId);
     pendingDeleteIdsRef.current.add(scenarioId);
 
@@ -1271,9 +1636,16 @@ export default function HomePage() {
       setActiveStrategy(defaultNewDealStrategy);
       queueScenarioPush(nextDeal);
       setSaveStatus('saved');
+      qualifyInstallPrompt();
     } else {
       setDeals(next);
-      setActiveDealId('');
+      if (activeDealId === scenarioId) {
+        const nextActiveDeal = next[0];
+        setActiveDealId(nextActiveDeal?.scenarioId ?? '');
+        if (nextActiveDeal) {
+          setModel(nextActiveDeal.payload);
+        }
+      }
       setSaveStatus('idle');
     }
     void syncScenarioDelete(scenarioId);
@@ -1289,6 +1661,11 @@ export default function HomePage() {
         console.info('[DealVault Debug]', { mode: 'pending-delete-retained', scenarioId });
       }
     })();
+  };
+
+  const removeScenario = () => {
+    if (!activeDeal) return;
+    removeScenarioById(activeDeal.scenarioId);
   };
 
   const resolveListingDealName = useCallback(async () => null, []);
@@ -1307,6 +1684,7 @@ export default function HomePage() {
           await navigator.clipboard.writeText(shortUrl);
           triggerHapticFeedback('success');
           setShareFeedback({ tone: 'success', message: 'Copied share link.' });
+          qualifyInstallPrompt();
           return;
         } catch {
           setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: shortUrl });
@@ -1331,6 +1709,7 @@ export default function HomePage() {
       await navigator.clipboard.writeText(url);
       triggerHapticFeedback('success');
       setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
+      qualifyInstallPrompt();
     } catch {
       triggerHapticFeedback('medium');
       setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
@@ -1429,6 +1808,7 @@ export default function HomePage() {
     }
     setOnboardingStepIndex(0);
     setIsOnboardingOpen(true);
+    setCompactSheetView(null);
     setIsSettingsOpen(false);
     setIsAuthMenuOpen(false);
   };
@@ -1806,6 +2186,714 @@ export default function HomePage() {
     </div>
   );
 
+  const compactInputsView = (
+    <>
+      <section ref={mobileCoreSectionRef} className="panel-surface rounded-2xl p-3.5 shadow-soft">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-accent">Quick start</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-100">Enter the baseline first</h2>
+            <p className="mt-1 text-sm text-muted">
+              Deal identity, price, rehab, leverage, and strategy unlock the rest of the mobile analysis flow.
+            </p>
+          </div>
+          <span className="whitespace-nowrap rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-200">
+            {activeStrategyLabel}
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Deal name</span>
+            <input
+              className={inputClass}
+              value={model.purchase.dealName}
+              onChange={(event) => handleDealNameChange(event.target.value)}
+              placeholder="Deal title"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Listing URL</span>
+            <input
+              aria-label="Listing URL (Zillow, Redfin, etc.)"
+              className={inputClass}
+              value={model.purchase.listingUrl}
+              onChange={(event) => handleListingUrlChange(event.target.value)}
+              placeholder="Listing URL (optional)"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Purchase price</span>
+            <input
+              aria-label="Purchase price"
+              className={inputClass}
+              type="number"
+              value={model.purchase.purchasePrice}
+              onChange={(event) =>
+                updateModel((current) => ({
+                  ...current,
+                  purchase: { ...current.purchase, purchasePrice: Number(event.target.value || 0) }
+                }))
+              }
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Rehab budget</span>
+            <input
+              aria-label="Rehab budget"
+              className={inputClass}
+              type="number"
+              value={model.purchase.rehabBudget}
+              onChange={(event) =>
+                updateModel((current) => ({
+                  ...current,
+                  purchase: { ...current.purchase, rehabBudget: Number(event.target.value || 0) }
+                }))
+              }
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Down payment %</span>
+            <input
+              aria-label="Down payment %"
+              className={inputClass}
+              type="number"
+              step="0.01"
+              value={Number((model.purchase.downPaymentPercent * 100).toFixed(2))}
+              onChange={(event) =>
+                updateModel((current) => ({
+                  ...current,
+                  purchase: { ...current.purchase, downPaymentPercent: Number(event.target.value || 0) / 100 }
+                }))
+              }
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-muted">Interest rate %</span>
+            <input
+              aria-label="Interest rate %"
+              className={inputClass}
+              type="number"
+              step="0.01"
+              value={Number((model.purchase.interestRate * 100).toFixed(2))}
+              onChange={(event) =>
+                updateModel((current) => ({
+                  ...current,
+                  purchase: { ...current.purchase, interestRate: Number(event.target.value || 0) / 100 }
+                }))
+              }
+            />
+          </label>
+        </div>
+
+        {compactUnlockSummary ? (
+          <div className="mt-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-slate-100">
+            {compactUnlockSummary}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            Results and Compare are unlocked for this strategy.
+          </div>
+        )}
+      </section>
+
+      <DealInputPanel
+        value={model}
+        onChange={updateModel}
+        resolveListingDealName={resolveListingDealName}
+        defaultAdvancedOptionsOpen={false}
+        collapsible
+        collapsed={isMobileCoreInputsMinimized}
+        onToggleCollapsed={() => setIsMobileCoreInputsMinimized((prev) => !prev)}
+      />
+
+      <StrategyModuleInputs
+        active={activeStrategy}
+        model={model}
+        onChange={updateModel}
+        collapsible
+        collapsed={isMobileStrategyInputsMinimized}
+        onToggleCollapsed={() => setIsMobileStrategyInputsMinimized((prev) => !prev)}
+      />
+    </>
+  );
+
+  const compactResultsView = (
+    <>
+      <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft">
+        <div key={`strategy-headline-mobile-${activeStrategy}`} className="panel-swap space-y-4">
+          <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
+            {!isFlipStrategy ? (
+              <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
+                <div
+                  className="absolute inset-0 opacity-25"
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at 22% 24%, rgba(148, 186, 255, 0.2) 0.7px, transparent 1.3px), radial-gradient(circle at 72% 30%, rgba(164, 198, 255, 0.16) 0.5px, transparent 1.1px), radial-gradient(circle at 56% 76%, rgba(129, 170, 241, 0.12) 0.8px, transparent 1.5px)',
+                    backgroundSize: '92px 92px, 128px 128px, 146px 146px'
+                  }}
+                />
+                <svg
+                  key={`cashflow-ribbon-compact-${activeStrategy}-${cashFlowBarsAnimationKey}`}
+                  viewBox="0 0 100 40"
+                  className="cashflow-ribbon-mask absolute inset-x-0 bottom-0 h-[42%] w-full"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="cashflowBarPosGradCompact" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#5CCBFF" stopOpacity="0.56" />
+                      <stop offset="100%" stopColor="#1E4778" stopOpacity="0.08" />
+                    </linearGradient>
+                    <linearGradient id="cashflowBarNegGradCompact" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FF9A55" stopOpacity="0.5" />
+                      <stop offset="100%" stopColor="#5B2B16" stopOpacity="0.09" />
+                    </linearGradient>
+                  </defs>
+                  {monthlyCashFlowBarData.map((bar, index) => (
+                    <rect
+                      key={`${bar.key}-compact-${cashFlowBarsAnimationKey}`}
+                      x={bar.x}
+                      y={bar.y}
+                      width={bar.width}
+                      height={bar.height}
+                      rx={bar.width / 2}
+                      fill={bar.isNegative ? 'url(#cashflowBarNegGradCompact)' : 'url(#cashflowBarPosGradCompact)'}
+                      opacity={0.52}
+                    >
+                      {!prefersReducedMotion ? (
+                        <animate
+                          attributeName="height"
+                          from="0"
+                          to={String(bar.height)}
+                          dur="0.75s"
+                          begin={`${Math.min(index * 0.02, 0.32)}s`}
+                          fill="freeze"
+                        />
+                      ) : null}
+                      {!prefersReducedMotion ? (
+                        <animate
+                          attributeName="y"
+                          from="34"
+                          to={String(bar.y)}
+                          dur="0.75s"
+                          begin={`${Math.min(index * 0.02, 0.32)}s`}
+                          fill="freeze"
+                        />
+                      ) : null}
+                    </rect>
+                  ))}
+                </svg>
+              </div>
+            ) : null}
+
+            <div className="relative z-10 pr-16">
+              <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricTitle}</p>
+              <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p>
+              <p className="absolute right-0 top-0 whitespace-nowrap text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+            </div>
+
+            <div className="relative z-10 mt-3 flex flex-col gap-3">
+              <p
+                className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                data-testid="kpi-priority-metric"
+                style={priorityMetricNegativeStyle}
+              >
+                {currencyFormatter.format(priorityMetricValue)}
+              </p>
+
+              {supportsReserveToggle ? (
+                <div className="flex shrink-0 items-center">
+                  <div className="reserve-toggle-shell inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                      }}
+                      aria-pressed={includeReserves}
+                      className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                        includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                      }`}
+                    >
+                      Include reserves
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                      }}
+                      aria-pressed={!includeReserves}
+                      className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                        !includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                      }`}
+                    >
+                      Exclude reserves
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2">
+        {selectedHeadlineMetricIds.map((metricId) => (
+          <div key={metricId} className="min-w-0">
+            {headlineMetricCards[metricId]}
+          </div>
+        ))}
+      </section>
+
+      {activeStrategy === 'purchase' && commercialSummary ? (
+        <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-accent">Commercial dashboard</p>
+              <h3 className="text-base font-semibold">Pro underwriting signals</h3>
+            </div>
+            <div className="text-right text-[11px] text-muted">
+              <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
+              <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <DealWorkoutCard model={model} strategy={activeStrategy} onApply={applyDealWorkoutScenario} />
+      )}
+
+      <section className="grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() => setCompactSheetView('metrics')}
+          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
+        >
+          More metrics
+        </button>
+        <button
+          ref={compactTimelineButtonRef}
+          type="button"
+          onClick={() => setCompactSheetView('timeline')}
+          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
+        >
+          Timeline
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            setIsStrategyWorkOpen(true);
+          }}
+          className="btn-primary btn-work tap-feedback rounded-xl px-3 py-3 text-sm font-semibold"
+        >
+          Show work
+        </button>
+      </section>
+    </>
+  );
+
+  const compactCompareView = (
+    <>
+      <section aria-label="Compare strategy selection" className="panel-surface rounded-2xl p-4 shadow-soft">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-accent">Compare</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose the exits you want on the board</h2>
+            <p className="mt-1 text-sm text-muted">
+              Pick at least two strategies, then review the filtered master board with equity and cash flow modeling.
+            </p>
+          </div>
+          <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+            {compactCompareSelection.length} selected
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {strategyKeyOrder.map((strategy) => {
+            const isSelected = compactCompareSelection.includes(strategy);
+            return (
+              <button
+                key={`compare-selector-${strategy}`}
+                type="button"
+                onClick={() => toggleCompactCompareStrategy(strategy)}
+                aria-pressed={isSelected}
+                className={`tap-feedback rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                  isSelected ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{activeStrategyLabels[strategy]}</span>
+                  <span className="text-[11px] text-muted">{isSelected ? 'Included' : 'Hidden'}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-muted">Use at least two strategies. The board and both modeling views only show the strategies selected here.</p>
+      </section>
+
+      <StrategyComparison data={result} visibleStrategies={compactCompareSelection} />
+    </>
+  );
+
+  const compactSheets = (
+    <>
+      <MobileSheet open={compactSheetView === 'deals'} title="Deals" onClose={() => setCompactSheetView(null)}>
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Recent deals</p>
+                <p className="mt-1 text-sm text-slate-100">Open, duplicate, or delete saved scenarios without leaving the mobile workflow.</p>
+              </div>
+              <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+                {deals.length} total
+              </span>
+            </div>
+
+            {compactSortedDeals.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {compactSortedDeals.map((deal) => (
+                  <article
+                    key={`compact-recent-${deal.scenarioId}`}
+                    className={`rounded-xl border p-3 ${
+                      deal.scenarioId === activeDealId ? 'accent-edge' : 'border-white/10 bg-black/20'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        openRecentScenario(deal.scenarioId);
+                        setCompactSheetView(null);
+                      }}
+                      className="tap-feedback w-full text-left"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="line-clamp-1 text-sm font-medium text-slate-100">{deal.dealName}</p>
+                        <span className="shrink-0 text-[11px] text-muted">
+                          {compactDealDateFormatter.format(new Date(deal.updatedAt))}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {deal.scenarioId === activeDealId ? 'Current active deal' : 'Tap to open'}
+                      </p>
+                    </button>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => duplicateScenario(deal.scenarioId)}
+                        className="tap-feedback rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-100"
+                        aria-label={`Duplicate ${deal.dealName}`}
+                      >
+                        Duplicate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeScenarioById(deal.scenarioId)}
+                        className="tap-feedback rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100"
+                        aria-label={`Delete ${deal.dealName}`}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-xl border border-dashed border-white/15 bg-black/20 px-3 py-2 text-sm text-muted">
+                No saved deals yet. Start with a blank one and it will appear here.
+              </p>
+            )}
+          </section>
+        </div>
+      </MobileSheet>
+
+      <MobileSheet open={compactSheetView === 'strategy'} title="Choose strategy" onClose={() => setCompactSheetView(null)}>
+        <div className="space-y-3">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">Active strategy</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-100">{activeStrategyLabel}</h3>
+                <p className="mt-1 text-sm text-muted">{compactStrategyDescriptions[activeStrategy]}</p>
+              </div>
+              <span
+                className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${
+                  compactReadiness.ready
+                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
+                    : 'border-white/15 bg-black/20 text-slate-200'
+                }`}
+              >
+                {compactReadiness.ready ? 'Unlocked' : 'Needs inputs'}
+              </span>
+            </div>
+          </section>
+
+          <div className="space-y-2">
+            {strategyKeyOrder.map((strategy) => (
+              <button
+                key={`compact-strategy-sheet-${strategy}`}
+                type="button"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  handleStrategyChange(strategy);
+                  setCompactSheetView(null);
+                }}
+                className={`tap-feedback flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                  activeStrategy === strategy ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
+                }`}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
+                  <p className="mt-1 text-xs text-muted">{compactStrategyDescriptions[strategy]}</p>
+                </div>
+                <span className="shrink-0 text-xs text-muted">{activeStrategy === strategy ? 'Selected' : 'Switch'}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </MobileSheet>
+
+      <MobileSheet open={compactSheetView === 'menu'} title="Deal actions" onClose={() => setCompactSheetView(null)}>
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" onClick={shareCurrentDeal} className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold">
+              Send link
+            </button>
+            <button
+              type="button"
+              onClick={() => window.open(printToPdfUrl, '_blank', 'noopener,noreferrer')}
+              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
+            >
+              Print to PDF
+            </button>
+            {model.purchase.listingUrl ? (
+              <button
+                type="button"
+                onClick={() => window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer')}
+                className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
+              >
+                View listing
+              </button>
+            ) : null}
+            {!isPwaInstalled ? (
+              <button
+                type="button"
+                onClick={openInstallPromptFromSettings}
+                className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
+              >
+                Download the app
+              </button>
+            ) : null}
+          </div>
+
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Authentication</p>
+                <p className="mt-1 text-sm text-slate-100">{currentUser ? 'Cloud sync is active on this device.' : 'Sign in to sync scenarios across devices.'}</p>
+              </div>
+              {currentUser ? renderProfileAvatar() : null}
+            </div>
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={authBusy || !isSupabaseConfigured}
+                className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+              >
+                Sign out
+              </button>
+            ) : (
+              authMenuContent
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted">Settings</p>
+            {settingsMenuContent}
+          </section>
+        </div>
+      </MobileSheet>
+
+      <MobileSheet open={compactSheetView === 'metrics'} title="More metrics" onClose={() => setCompactSheetView(null)}>
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">Headline KPI selection</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[0, 1].map((slotIndex) => (
+                <label key={`headline-slot-${slotIndex}`} className="space-y-1">
+                  <span className="text-[11px] text-muted">Headline KPI {slotIndex + 1}</span>
+                  <select
+                    value={selectedHeadlineMetricIds[slotIndex as 0 | 1]}
+                    onChange={(event) => updateHeadlineMetricSelection(slotIndex as 0 | 1, event.target.value as HeadlineMetricId)}
+                    className={`${inputClass} bg-white/[0.03]`}
+                  >
+                    {headlineMetricOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-2">
+            {headlineMetricOptions.map((option) => (
+              <div key={`metric-sheet-${option.id}`} className="min-w-0">
+                {headlineMetricCards[option.id]}
+              </div>
+            ))}
+          </section>
+
+          {strategyQuickScan ? (
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Quick scan</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-100">{strategyQuickScan.title}</h3>
+              <p className="mt-1 text-sm text-muted">{strategyQuickScan.notes}</p>
+              <ul className="mt-3 space-y-2 text-sm text-slate-200">
+                {strategyQuickScan.points.map((point) => (
+                  <li key={point} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Commercial outputs</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {commercialDigestItems.map((item) => (
+                  <article key={`compact-metric-${item.key}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-100" style={getDigestMetricStyle(item)}>
+                      {item.value}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Long-term turnaround outputs</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {longTermTurnaroundDigestItems.map((item) => (
+                  <article key={`compact-lt-metric-${item.key}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-100" style={getDigestMetricStyle(item)}>
+                      {item.value}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </MobileSheet>
+
+      <MobileSheet open={compactSheetView === 'timeline'} title="Timeline" onClose={() => setCompactSheetView(null)}>
+        <TimelineCard
+          output={result[activeStrategy]}
+          assumptions={model.assumptions}
+          defaultOpen
+          onAssumptionsChange={(updates) => updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }))}
+        />
+      </MobileSheet>
+    </>
+  );
+
+  const compactShell = (
+    <>
+      <section ref={mobileStrategyTabsRef} className="sticky top-2 z-30 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
+        <button
+          ref={compactStrategyButtonRef}
+          type="button"
+          onClick={() => setCompactSheetView('strategy')}
+          className="tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left"
+          aria-label="Choose strategy"
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Strategy</p>
+            <p className="mt-1 whitespace-nowrap text-base font-semibold text-slate-100">{activeStrategyLabel}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-white/15 bg-black/20 px-2 py-1 text-[11px] text-muted sm:inline-flex">
+              Change
+            </span>
+            <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </button>
+      </section>
+
+      <section className="space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
+        {compactMode === 'inputs' ? compactInputsView : null}
+        {compactMode === 'results' ? compactResultsView : null}
+        {compactMode === 'compare' ? compactCompareView : null}
+      </section>
+
+      <nav
+        className="fixed inset-x-3 bottom-3 z-[120] rounded-2xl border border-white/10 bg-surface/95 p-2 shadow-soft backdrop-blur"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
+      >
+        <div className="grid grid-cols-3 gap-2">
+          {(['inputs', 'results', 'compare'] as CompactMode[]).map((mode) => {
+            const isLocked = mode !== 'inputs' && !compactReadiness.ready;
+            const isActive = compactMode === mode;
+
+            return (
+              <button
+                key={mode}
+                ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
+                type="button"
+                disabled={isLocked}
+                onClick={() => setCompactMode(mode)}
+                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                  isActive ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
+                } disabled:cursor-not-allowed disabled:opacity-45`}
+              >
+                {compactModeLabels[mode]}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {compactSheets}
+    </>
+  );
+
   return (
     <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-8${isLightMode ? ' theme-light' : ''}`}>
       <div
@@ -1817,6 +2905,82 @@ export default function HomePage() {
         }`}
       />
       <div className="mx-auto max-w-7xl space-y-5">
+        {isMobileViewport ? (
+          <header className="panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="brand-lockup" aria-label="DealCooker">
+                    <h1 className="brand-text leading-none">DealCooker</h1>
+                    <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
+                  </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
+                  <p className="mt-1 truncate text-base font-semibold text-slate-100">{model.purchase.dealName || 'New Deal'}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Ready'}
+                    {currentUser ? ' | Cloud active' : ' | Local only'}
+                  </p>
+                </div>
+                <button
+                  ref={compactMenuButtonRef}
+                  type="button"
+                  onClick={() => setCompactSheetView('menu')}
+                  className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
+                  aria-label="Open deal actions"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                    <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    createNewDeal('New Deal', '');
+                    setCompactMode('inputs');
+                    setCompactSheetView(null);
+                  }}
+                  className="btn-primary rounded-xl px-3 py-2.5 text-sm font-semibold"
+                >
+                  New deal
+                </button>
+                <button
+                  ref={compactDealsButtonRef}
+                  type="button"
+                  onClick={() => setCompactSheetView('deals')}
+                  className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
+                >
+                  Recent deals
+                </button>
+              </div>
+
+              {shareFeedback ? (
+                <div
+                  role="status"
+                  className={`rounded-xl border px-3 py-2 text-xs ${
+                    shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
+                  }`}
+                >
+                  <p>{shareFeedback.message}</p>
+                  {shareFeedback.fallbackUrl ? <p className="mt-1 break-all text-[11px]">{shareFeedback.fallbackUrl}</p> : null}
+                </div>
+              ) : null}
+
+              {syncFeedback ? (
+                <div className="rounded-xl border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100" role="status">
+                  {syncFeedback}
+                </div>
+              ) : null}
+
+              <PwaInstallBanner />
+            </div>
+          </header>
+        ) : null}
+
+        {!isMobileViewport ? (
         <header className="panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur">
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
@@ -2096,87 +3260,12 @@ export default function HomePage() {
 
           </div>
         </header>
-
-        {isMobileViewport ? (
-          <section className="space-y-3">
-          <div ref={mobileStrategyTabsRef}>
-            <StrategyTabs
-              active={activeStrategy}
-              onChange={handleStrategyChange}
-              quickScan={strategyQuickScan}
-            />
-          </div>
-          <div className="sticky top-2 z-30 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
-            <p className="text-xs uppercase tracking-wide text-muted">Input workspace</p>
-            <div className="mt-2 grid grid-cols-2 gap-2 max-[359px]:grid-cols-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileInputView('core');
-                  setIsMobileCoreInputsMinimized(false);
-                  setIsMobileStrategyInputsMinimized(false);
-                }}
-                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight transition ${
-                  mobileInputView === 'core' ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
-                }`}
-              >
-                Core Purchase, Financing, & Expenses
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileInputView('strategy');
-                  setIsMobileCoreInputsMinimized(false);
-                  setIsMobileStrategyInputsMinimized(false);
-                }}
-                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium leading-tight transition ${
-                  mobileInputView === 'strategy' ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
-                }`}
-              >
-                Strategy Inputs
-              </button>
-            </div>
-          </div>
-          <div ref={mobileCoreSectionRef} className="space-y-2">
-            <p className="text-xs text-muted">
-              {mobileInputView === 'core' ? 'Core Purchase, Financing, & Expenses' : `${activeStrategyLabel} Strategy Inputs`}
-            </p>
-            {mobileInputView === 'core' ? (
-              <DealInputPanel
-                value={model}
-                onChange={updateModel}
-                resolveListingDealName={resolveListingDealName}
-                defaultAdvancedOptionsOpen={Boolean(activeDealId)}
-                collapsible
-                collapsed={isMobileCoreInputsMinimized}
-                onToggleCollapsed={() => setIsMobileCoreInputsMinimized((prev) => !prev)}
-              />
-            ) : (
-              <StrategyModuleInputs
-                active={activeStrategy}
-                model={model}
-                onChange={updateModel}
-                collapsible
-                collapsed={isMobileStrategyInputsMinimized}
-                onToggleCollapsed={() => setIsMobileStrategyInputsMinimized((prev) => !prev)}
-              />
-            )}
-          </div>
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => {
-                triggerHapticFeedback('light');
-                setIsStrategyWorkOpen(true);
-              }}
-              className="btn-primary btn-work tap-feedback min-h-12 w-full max-w-sm rounded-xl px-4 py-3 text-base font-semibold leading-tight"
-            >
-              Show work
-            </button>
-          </div>
-          </section>
         ) : null}
 
+        {isMobileViewport ? compactShell : null}
+
+        {!isMobileViewport ? (
+        <>
         <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft">
           <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-2 lg:items-stretch">
             <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
@@ -2626,10 +3715,12 @@ export default function HomePage() {
             </div>
           ) : null}
         </div>
+        </>
+        ) : null}
       </div>
       <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
+          <p>(c) 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3 text-slate-300">
             <Link href="/legal" className="hover:text-white">Legal Center</Link>
             <Link href="/legal/terms" className="hover:text-white">Terms</Link>
@@ -2643,7 +3734,7 @@ export default function HomePage() {
 
       <OnboardingTour
         open={isOnboardingOpen}
-        steps={onboardingSteps}
+        steps={currentOnboardingSteps}
         stepIndex={onboardingStepIndex}
         getTargetElement={resolveOnboardingTarget}
         onBack={goToPreviousOnboardingStep}
@@ -2655,6 +3746,7 @@ export default function HomePage() {
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}
         output={activeOutput}
+        presentation={isMobileViewport ? 'sheet' : 'modal'}
         onClose={() => setIsStrategyWorkOpen(false)}
       />
     </main>

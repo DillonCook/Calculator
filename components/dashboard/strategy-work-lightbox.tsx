@@ -3,6 +3,7 @@
 import type { StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
+import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -24,6 +25,7 @@ interface StrategyWorkLightboxProps {
   activeStrategy: StrategyKey;
   output: StrategyOutput;
   onClose: () => void;
+  presentation?: 'modal' | 'sheet';
 }
 
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
@@ -363,10 +365,59 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
   );
 };
 
-export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: StrategyWorkLightboxProps) {
+export function StrategyWorkLightbox({
+  open,
+  activeStrategy,
+  output,
+  onClose,
+  presentation = 'modal'
+}: StrategyWorkLightboxProps) {
   if (!open) return null;
 
   const breakdown = output.calculationBreakdown;
+  const content = (
+    <>
+      {!breakdown ? (
+        <p className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {activeStrategy === 'brrrr' && breakdown.brrrrMeta ? (
+            <BrrrrFinancials breakdown={breakdown} output={output} />
+          ) : activeStrategy === 'flip' && breakdown.flipMeta ? (
+            <FlipFinancials breakdown={breakdown} />
+          ) : (
+            <div className="space-y-2">
+              <div className="hidden grid-cols-[1.2fr_1fr_1fr] gap-2 px-3 text-[11px] uppercase tracking-wide text-muted sm:grid">
+                <p>Line item</p>
+                <p className="text-right">Monthly</p>
+                <p className="text-right">Annual</p>
+              </div>
+              {breakdown.lines.map((line) => (
+                <Row key={line.key} line={line} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (presentation === 'sheet') {
+    return (
+      <MobileSheet open={open} title={`${strategyLabels[activeStrategy]} calculations`} onClose={onClose}>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
+            <h3 className="mt-1 text-lg font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
+            <p className="mt-1 text-sm text-muted">
+              Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.
+            </p>
+          </div>
+          {content}
+        </div>
+      </MobileSheet>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
@@ -382,28 +433,7 @@ export function StrategyWorkLightbox({ open, activeStrategy, output, onClose }: 
           </button>
         </div>
 
-        {!breakdown ? (
-          <p className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {activeStrategy === 'brrrr' && breakdown.brrrrMeta ? (
-              <BrrrrFinancials breakdown={breakdown} output={output} />
-            ) : activeStrategy === 'flip' && breakdown.flipMeta ? (
-              <FlipFinancials breakdown={breakdown} />
-            ) : (
-              <div className="space-y-2">
-                <div className="hidden grid-cols-[1.2fr_1fr_1fr] gap-2 px-3 text-[11px] uppercase tracking-wide text-muted sm:grid">
-                  <p>Line item</p>
-                  <p className="text-right">Monthly</p>
-                  <p className="text-right">Annual</p>
-                </div>
-                {breakdown.lines.map((line) => (
-                  <Row key={line.key} line={line} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {content}
       </div>
     </div>
   );

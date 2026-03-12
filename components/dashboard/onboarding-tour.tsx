@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export interface OnboardingStep {
-  id: 'vault' | 'signin' | 'core' | 'strategy' | 'irr';
+  id: string;
   title: string;
   body: string;
 }

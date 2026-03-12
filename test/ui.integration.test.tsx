@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -7,13 +7,171 @@ import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
+import { createScenarioRecord, writeScenarios } from '../lib/scenario-storage';
 
 
 const getStrategyButton = (label: string) => screen.getAllByRole('button', { name: label })[0];
+const setViewport = (width: number) => {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width
+  });
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes('max-width') ? width <= 1023 : false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false
+    })
+  });
+};
 
 describe('dashboard integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    setViewport(1280);
+    writeScenarios([
+      createScenarioRecord({
+        ...defaultDealInput,
+        purchase: { ...defaultDealInput.purchase, dealName: 'Test Seed Deal' }
+      })
+    ]);
+  });
+
+  it('starts blank when no scenarios are saved', () => {
+    window.localStorage.clear();
+    render(<HomePage />);
+
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
+    expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
+    expect(screen.getByLabelText('Gross rent / mo')).toHaveValue(0);
+    expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
+  });
+
+  it('uses the compact shell on mobile and unlocks results after required inputs', async () => {
+    window.localStorage.clear();
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const resultsButton = screen.getByRole('button', { name: 'Results' });
+    const compareButton = screen.getByRole('button', { name: 'Compare' });
+
+    expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent deals' })).toBeInTheDocument();
+    expect(resultsButton).toBeDisabled();
+    expect(compareButton).toBeDisabled();
+    expect(screen.getByText('Enter the baseline first')).toBeInTheDocument();
+
+    const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '285000');
+
+    const grossRent = screen.getAllByLabelText('Gross rent / mo')[0];
+    await user.clear(grossRent);
+    await user.type(grossRent, '2600');
+
+    expect(resultsButton).not.toBeDisabled();
+    expect(compareButton).not.toBeDisabled();
+
+    await user.click(resultsButton);
+    expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
+  });
+
+  it('opens recent deals from the compact header', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deals' });
+
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Test Seed Deal').length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole('button', { name: 'Duplicate Test Seed Deal' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete Test Seed Deal' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'New deal' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
+  });
+
+  it('duplicates and deletes saved deals from compact recent deals', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deals' });
+    await user.click(within(dialog).getByRole('button', { name: 'Duplicate Test Seed Deal' }));
+
+    expect(within(dialog).getAllByText('Test Seed Deal Copy').length).toBeGreaterThan(0);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete Test Seed Deal Copy' }));
+    expect(within(dialog).queryByText('Test Seed Deal Copy')).not.toBeInTheDocument();
+  });
+
+  it('opens compact deal actions from the overflow sheet', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal actions' });
+
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: 'Send link' }).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByRole('button', { name: 'Print to PDF' }).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
+  });
+
+  it('filters the mobile compare board with multi-select strategies', async () => {
+    window.localStorage.clear();
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '285000');
+
+    const grossRent = screen.getAllByLabelText('Gross rent / mo')[0];
+    await user.clear(grossRent);
+    await user.type(grossRent, '2600');
+
+    await user.click(screen.getByRole('button', { name: 'Compare' }));
+
+    const selection = screen.getByLabelText('Compare strategy selection');
+    const board = screen.getByLabelText('Strategy comparison board');
+
+    expect(within(board).getByText('Compare all exits at a glance')).toBeInTheDocument();
+    expect(within(board).getByText('Airbnb / STR')).toBeInTheDocument();
+
+    await user.click(within(selection).getByRole('button', { name: /Airbnb/i }));
+
+    expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();
+    expect(within(board).getByRole('button', { name: 'Equity modeling' })).toBeInTheDocument();
+    expect(within(board).getByRole('button', { name: 'Cash flow modeling' })).toBeInTheDocument();
   });
 
   it('shows a Commercial strategy tab and exposes strip-plaza underwriting inputs', async () => {

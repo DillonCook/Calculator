@@ -11,8 +11,11 @@ interface BeforeInstallPromptEvent extends Event {
 type InstallSurface = 'none' | 'prompt' | 'ios' | 'manual';
 
 const PWA_INSTALL_DISMISS_KEY = 'dealcooker-pwa-install-dismissed-at:v1';
+const PWA_INSTALL_VISIT_COUNT_KEY = 'dealcooker-pwa-install-visit-count:v1';
+const PWA_INSTALL_QUALIFIED_KEY = 'dealcooker-pwa-install-qualified:v1';
 const PWA_INSTALL_DISMISS_WINDOW_MS = 1000 * 60 * 60 * 24 * 14;
 export const PWA_OPEN_INSTALL_EVENT = 'dealcooker:pwa-open-install';
+export const PWA_QUALIFY_INSTALL_EVENT = 'dealcooker:pwa-qualify-install';
 
 const isStandaloneDisplayMode = () => {
   if (typeof window === 'undefined') return false;
@@ -43,6 +46,7 @@ export function PwaInstallBanner() {
   const [isInstallPromptDismissed, setIsInstallPromptDismissed] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isQualified, setIsQualified] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -51,6 +55,17 @@ export function PwaInstallBanner() {
     const dismissedAt = getDismissedAt();
     if (dismissedAt && Date.now() - dismissedAt < PWA_INSTALL_DISMISS_WINDOW_MS) {
       setIsInstallPromptDismissed(true);
+    }
+
+    const storedQualified = window.localStorage.getItem(PWA_INSTALL_QUALIFIED_KEY) === '1';
+    const rawVisitCount = window.localStorage.getItem(PWA_INSTALL_VISIT_COUNT_KEY);
+    const parsedVisitCount = Number.parseInt(rawVisitCount ?? '0', 10);
+    const nextVisitCount = Number.isFinite(parsedVisitCount) ? parsedVisitCount + 1 : 1;
+    const nextQualified = storedQualified || nextVisitCount >= 2;
+    window.localStorage.setItem(PWA_INSTALL_VISIT_COUNT_KEY, String(nextVisitCount));
+    if (nextQualified) {
+      window.localStorage.setItem(PWA_INSTALL_QUALIFIED_KEY, '1');
+      setIsQualified(true);
     }
 
     if (isIOSDevice() && !isStandaloneDisplayMode()) {
@@ -89,6 +104,13 @@ export function PwaInstallBanner() {
     };
 
     const handleOpenInstallRequest = () => {
+      try {
+        window.localStorage.setItem(PWA_INSTALL_QUALIFIED_KEY, '1');
+      } catch {
+        // Ignore storage failures (private mode / blocked storage).
+      }
+      setIsQualified(true);
+
       if (isStandaloneDisplayMode()) {
         setInstallSurface('none');
         setIsInstallPromptDismissed(true);
@@ -112,21 +134,33 @@ export function PwaInstallBanner() {
       setFeedback('Install prompt is not ready yet. Keep browsing, then try again from Settings.');
     };
 
+    const handleQualifiedInstallRequest = () => {
+      try {
+        window.localStorage.setItem(PWA_INSTALL_QUALIFIED_KEY, '1');
+      } catch {
+        // Ignore storage failures (private mode / blocked storage).
+      }
+      setIsQualified(true);
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
     window.addEventListener(PWA_OPEN_INSTALL_EVENT, handleOpenInstallRequest);
+    window.addEventListener(PWA_QUALIFY_INSTALL_EVENT, handleQualifiedInstallRequest);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener(PWA_OPEN_INSTALL_EVENT, handleOpenInstallRequest);
+      window.removeEventListener(PWA_QUALIFY_INSTALL_EVENT, handleQualifiedInstallRequest);
     };
   }, []);
 
   const shouldRender = useMemo(() => {
+    if (!isQualified) return false;
     if (isInstallPromptDismissed) return false;
     return installSurface !== 'none';
-  }, [installSurface, isInstallPromptDismissed]);
+  }, [installSurface, isInstallPromptDismissed, isQualified]);
 
   const dismissPrompt = () => {
     triggerHapticFeedback('light');
