@@ -55,7 +55,7 @@ const isStrategyKey = (value: unknown): value is StrategyKey =>
 const compactModeLabels: Record<CompactMode, string> = {
   inputs: 'Inputs',
   results: 'Results',
-  compare: 'Compare'
+  compare: 'Projections'
 };
 const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
   { id: 'cashToClose', label: 'Cash to Close' },
@@ -138,6 +138,7 @@ interface DigestItem<K extends string> {
 const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
 const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
 const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
+const SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
 const SETTINGS_LIGHT_MODE_STORAGE_KEY = 'dealcooker-light-mode:v1';
 const SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY = 'dealcooker-show-quick-scan:v1';
 const defaultCommercialDigestOrder: CommercialDigestKey[] = [
@@ -221,6 +222,11 @@ const normalizeLongTermTurnaroundDigestOrder = (value: unknown): LongTermTurnaro
 
   return normalized;
 };
+const normalizeProjectionStrategySelection = (value: unknown): StrategyKey[] => {
+  const input = Array.isArray(value) ? value : [];
+  const next = strategyKeyOrder.filter((strategy) => input.includes(strategy));
+  return next.length > 0 ? next : [...strategyKeyOrder];
+};
 
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const desktopOnboardingSteps: OnboardingStep[] = [
@@ -273,8 +279,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileCompare',
-    title: 'Compare Uses Multi-Select',
-    body: 'Compare is now a strategy filter for compact strategy cards. Pick the exits you want on screen, then scan KPIs, modeled equity, and cash-flow trend together inside each card.'
+    title: 'Projections Uses Strategy Picks',
+    body: 'Projections lets you select any 1 to 6 strategies at a time. Use the strategy buttons to include or remove cards, and set the default projection strategies for each new deal from Settings.'
   },
   {
     id: 'mobileActions',
@@ -342,6 +348,7 @@ const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel 
   };
 };
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
+const defaultProjectionStrategySelectionFallback: StrategyKey[] = [...strategyKeyOrder];
 
 export default function HomePage() {
   const [initialVaultState] = useState(() => {
@@ -365,6 +372,7 @@ export default function HomePage() {
   const [deals, setDeals] = useState<ScenarioRecord[]>(initialVaultState.deals);
   const [activeDealId, setActiveDealId] = useState(initialVaultState.activeDeal?.scenarioId ?? '');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
+  const [defaultProjectionStrategies, setDefaultProjectionStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
   const [isLightMode, setIsLightMode] = useState(false);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -390,7 +398,7 @@ export default function HomePage() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
-  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(strategyKeyOrder);
+  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
   const [compactDealsSearch, setCompactDealsSearch] = useState('');
   const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
@@ -680,10 +688,11 @@ export default function HomePage() {
     return compactSortedDeals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedCompactDealsSearch));
   }, [compactSortedDeals, normalizedCompactDealsSearch]);
   const displayedCompactDeals = normalizedCompactDealsSearch ? filteredCompactSortedDeals : recentCompactDeals;
-  const compactCompareSelection = useMemo(
-    () => strategyKeyOrder.filter((strategy) => compactSelectedStrategies.includes(strategy)),
+  const compactProjectionStrategies = useMemo(
+    () => normalizeProjectionStrategySelection(compactSelectedStrategies),
     [compactSelectedStrategies]
   );
+  const compactCompareSelection = compactProjectionStrategies;
   const headlineMetricCards = useMemo(() => {
     const cards: Record<HeadlineMetricId, ReactNode> = {
       cashToClose: (
@@ -791,10 +800,7 @@ export default function HomePage() {
   }, [headlineMetricOrder]);
 
   useEffect(() => {
-    setCompactSelectedStrategies((current) => {
-      const next = strategyKeyOrder.filter((strategy) => current.includes(strategy));
-      return next.length >= 2 ? next : strategyKeyOrder;
-    });
+    setCompactSelectedStrategies((current) => normalizeProjectionStrategySelection(current));
   }, []);
 
   useEffect(() => {
@@ -972,15 +978,36 @@ export default function HomePage() {
     updateModel((current) => ({ ...current, assumptions: { ...current.assumptions, ...updates } }));
   };
 
-  const toggleCompactCompareStrategy = (strategy: StrategyKey) => {
+  const toggleCompactProjectionStrategy = (strategy: StrategyKey) => {
     triggerHapticFeedback('light');
     setCompactSelectedStrategies((current) => {
-      const isSelected = current.includes(strategy);
-      if (isSelected && current.length <= 2) {
-        return current;
+      const normalizedCurrent = normalizeProjectionStrategySelection(current);
+      const isSelected = normalizedCurrent.includes(strategy);
+      if (isSelected && normalizedCurrent.length === 1) {
+        return normalizedCurrent;
       }
 
-      const next = isSelected ? current.filter((entry) => entry !== strategy) : [...current, strategy];
+      const next = isSelected
+        ? normalizedCurrent.filter((entry) => entry !== strategy)
+        : [...normalizedCurrent, strategy];
+
+      return strategyKeyOrder.filter((entry) => next.includes(entry));
+    });
+  };
+
+  const toggleDefaultProjectionStrategy = (strategy: StrategyKey) => {
+    triggerHapticFeedback('light');
+    setDefaultProjectionStrategies((current) => {
+      const normalizedCurrent = normalizeProjectionStrategySelection(current);
+      const isSelected = normalizedCurrent.includes(strategy);
+      if (isSelected && normalizedCurrent.length === 1) {
+        return normalizedCurrent;
+      }
+
+      const next = isSelected
+        ? normalizedCurrent.filter((entry) => entry !== strategy)
+        : [...normalizedCurrent, strategy];
+
       return strategyKeyOrder.filter((entry) => next.includes(entry));
     });
   };
@@ -1397,6 +1424,18 @@ export default function HomePage() {
       setDefaultNewDealStrategy(storedDefaultStrategy);
     }
 
+    const storedDefaultProjectionStrategies = window.localStorage.getItem(SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY);
+    if (storedDefaultProjectionStrategies) {
+      try {
+        const parsedProjectionStrategies = JSON.parse(storedDefaultProjectionStrategies);
+        const normalizedProjectionStrategies = normalizeProjectionStrategySelection(parsedProjectionStrategies);
+        setDefaultProjectionStrategies(normalizedProjectionStrategies);
+        setCompactSelectedStrategies(normalizedProjectionStrategies);
+      } catch {
+        // Ignore malformed projection strategy preferences.
+      }
+    }
+
     const storedLightMode = window.localStorage.getItem(SETTINGS_LIGHT_MODE_STORAGE_KEY);
     if (storedLightMode === '1') {
       setIsLightMode(true);
@@ -1427,6 +1466,13 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY, defaultNewDealStrategy);
   }, [defaultNewDealStrategy]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY,
+      JSON.stringify(normalizeProjectionStrategySelection(defaultProjectionStrategies))
+    );
+  }, [defaultProjectionStrategies]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(SETTINGS_LIGHT_MODE_STORAGE_KEY, isLightMode ? '1' : '0');
@@ -1572,6 +1618,7 @@ export default function HomePage() {
   const createNewDeal = (requestedDealName: string, listingUrl: string, options?: { openIdentityEditor?: boolean }) => {
     const candidateName = buildUniqueDealName(requestedDealName);
     const payload = buildNewDealPayload(candidateName, listingUrl.trim());
+    const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
 
     const nextDeal = createDealInVault(payload, candidateName);
     const next = saveDealToVault(nextDeal);
@@ -1579,6 +1626,7 @@ export default function HomePage() {
     setActiveDealId(nextDeal.scenarioId);
     setModel(nextDeal.payload);
     setActiveStrategy(defaultNewDealStrategy);
+    setCompactSelectedStrategies(nextProjectionStrategies);
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
@@ -1669,10 +1717,12 @@ export default function HomePage() {
       const payload = buildNewDealPayload('New Deal');
       const nextDeal = createDealInVault(payload, payload.purchase.dealName);
       const nextDeals = saveDealToVault(nextDeal);
+      const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
       setDeals(nextDeals);
       setActiveDealId(nextDeal.scenarioId);
       setModel(nextDeal.payload);
       setActiveStrategy(defaultNewDealStrategy);
+      setCompactSelectedStrategies(nextProjectionStrategies);
       queueScenarioPush(nextDeal);
       setSaveStatus('saved');
       qualifyInstallPrompt();
@@ -1859,6 +1909,7 @@ export default function HomePage() {
 
   const resetSettingsDefaults = () => {
     setDefaultNewDealStrategy(defaultNewDealStrategyFallback);
+    setDefaultProjectionStrategies(defaultProjectionStrategySelectionFallback);
     setIsLightMode(false);
     setIsQuickScanVisible(true);
   };
@@ -2161,6 +2212,31 @@ export default function HomePage() {
             </option>
           ))}
         </select>
+        <div className="space-y-2 pt-1">
+          <p className="text-[11px] text-muted">Default projections strategies</p>
+          <div className="grid grid-cols-2 gap-2">
+            {strategyKeyOrder.map((strategy) => {
+              const isSelected = defaultProjectionStrategies.includes(strategy);
+
+              return (
+                <button
+                  key={`settings-default-projection-${strategy}`}
+                  type="button"
+                  onClick={() => toggleDefaultProjectionStrategy(strategy)}
+                  aria-pressed={isSelected}
+                  className={`tap-feedback rounded-lg border px-2.5 py-2 text-left text-[11px] font-medium transition ${
+                    isSelected
+                      ? 'border-accent/55 bg-accent/12 text-accent'
+                      : 'border-white/10 bg-white/[0.03] text-slate-100 hover:border-white/20'
+                  }`}
+                >
+                  {activeStrategyLabels[strategy]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted">These chips appear in Projections for each new deal.</p>
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -2169,7 +2245,10 @@ export default function HomePage() {
           <span className="text-xs text-slate-100">Theme</span>
           <button
             type="button"
-            onClick={() => setIsLightMode((value) => !value)}
+            onClick={() => {
+              triggerHapticFeedback('light');
+              setIsLightMode((value) => !value);
+            }}
             className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
             aria-pressed={isLightMode}
           >
@@ -2180,7 +2259,10 @@ export default function HomePage() {
           <span className="text-xs text-slate-100">Quick scan</span>
           <button
             type="button"
-            onClick={() => setIsQuickScanVisible((value) => !value)}
+            onClick={() => {
+              triggerHapticFeedback('light');
+              setIsQuickScanVisible((value) => !value);
+            }}
             className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
             aria-pressed={isQuickScanVisible}
           >
@@ -2193,14 +2275,20 @@ export default function HomePage() {
         <p className="text-[11px] uppercase tracking-wide text-muted">Actions</p>
         <button
           type="button"
-          onClick={replayQuickTutorial}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            replayQuickTutorial();
+          }}
           className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
         >
           Replay quick tutorial
         </button>
         <button
           type="button"
-          onClick={resetOutputOrderingPreferences}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            resetOutputOrderingPreferences();
+          }}
           className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
         >
           Reset output ordering
@@ -2216,7 +2304,10 @@ export default function HomePage() {
         ) : null}
         <button
           type="button"
-          onClick={resetSettingsDefaults}
+          onClick={() => {
+            triggerHapticFeedback('medium');
+            resetSettingsDefaults();
+          }}
           className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
         >
           Reset settings defaults
@@ -2227,7 +2318,7 @@ export default function HomePage() {
 
   const dealIdentitySheet = (
     <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={() => setIsDealIdentityOpen(false)}>
-      <div className="space-y-4">
+      <div className="mobile-sheet-stack space-y-4">
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
           <div className="mb-3">
             <p className="text-xs uppercase tracking-[0.16em] text-muted">Header editor</p>
@@ -2530,7 +2621,10 @@ export default function HomePage() {
       <section className="grid grid-cols-3 gap-2">
         <button
           type="button"
-          onClick={() => setCompactSheetView('metrics')}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            setCompactSheetView('metrics');
+          }}
           disabled={!hasMoreMetricsContent}
           className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
         >
@@ -2539,7 +2633,10 @@ export default function HomePage() {
         <button
           ref={compactTimelineButtonRef}
           type="button"
-          onClick={() => setCompactSheetView('timeline')}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            setCompactSheetView('timeline');
+          }}
           className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
         >
           Timeline
@@ -2560,14 +2657,11 @@ export default function HomePage() {
 
   const compactCompareView = (
     <>
-      <section aria-label="Compare strategy selection" className="panel-surface rounded-2xl p-4 shadow-soft">
+      <section aria-label="Projections strategy selection" className="mobile-stagger-item panel-surface rounded-2xl p-4 shadow-soft">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-accent">Compare</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose the exits you want on the board</h2>
-            <p className="mt-1 text-sm text-muted">
-              Pick at least two strategies, then scan KPI, equity, and cash-flow context inside each filtered strategy card.
-            </p>
+            <p className="text-xs uppercase tracking-[0.16em] text-accent">Projections</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose strategies</h2>
           </div>
           <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
             {compactCompareSelection.length} selected
@@ -2575,17 +2669,18 @@ export default function HomePage() {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
-          {strategyKeyOrder.map((strategy) => {
+          {strategyKeyOrder.map((strategy, index) => {
             const isSelected = compactCompareSelection.includes(strategy);
             return (
               <button
-                key={`compare-selector-${strategy}`}
+                key={`projection-selector-${strategy}`}
                 type="button"
-                onClick={() => toggleCompactCompareStrategy(strategy)}
+                onClick={() => toggleCompactProjectionStrategy(strategy)}
                 aria-pressed={isSelected}
-                className={`tap-feedback rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                className={`tap-feedback mobile-stagger-item rounded-xl border px-3 py-2.5 text-left text-sm transition ${
                   isSelected ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
                 }`}
+                style={{ animationDelay: `${80 + index * 36}ms` }}
               >
                 <span className="font-medium">{activeStrategyLabels[strategy]}</span>
               </button>
@@ -2601,7 +2696,7 @@ export default function HomePage() {
   const compactSheets = (
     <>
       <MobileSheet open={compactSheetView === 'deals'} title="Deals" onClose={() => setCompactSheetView(null)}>
-        <div className="space-y-4">
+        <div className="mobile-sheet-stack space-y-4">
           <section className="flex h-[min(62dvh,540px)] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -2658,7 +2753,10 @@ export default function HomePage() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => duplicateScenario(deal.scenarioId)}
+                          onClick={() => {
+                            triggerHapticFeedback('light');
+                            duplicateScenario(deal.scenarioId);
+                          }}
                           className="tap-feedback rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-100"
                           aria-label={`Duplicate ${deal.dealName}`}
                         >
@@ -2666,7 +2764,10 @@ export default function HomePage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => removeScenarioById(deal.scenarioId)}
+                          onClick={() => {
+                            triggerHapticFeedback('medium');
+                            removeScenarioById(deal.scenarioId);
+                          }}
                           className="tap-feedback rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100"
                           aria-label={`Delete ${deal.dealName}`}
                         >
@@ -2691,7 +2792,7 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'strategy'} title="Choose strategy" onClose={() => setCompactSheetView(null)}>
-        <div className="space-y-3">
+        <div className="mobile-sheet-stack space-y-3">
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <p className="text-xs uppercase tracking-[0.16em] text-muted">Active strategy</p>
             <div className="mt-2 flex items-center justify-between gap-3">
@@ -2737,14 +2838,17 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'menu'} title="Deal actions" onClose={() => setCompactSheetView(null)}>
-        <div className="space-y-4">
+        <div className="mobile-sheet-stack space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <button type="button" onClick={shareCurrentDeal} className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold">
               Send link
             </button>
             <button
               type="button"
-              onClick={() => window.open(printToPdfUrl, '_blank', 'noopener,noreferrer')}
+              onClick={() => {
+                triggerHapticFeedback('light');
+                window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
+              }}
               className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
             >
               Print to PDF
@@ -2752,7 +2856,10 @@ export default function HomePage() {
             {model.purchase.listingUrl ? (
               <button
                 type="button"
-                onClick={() => window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer')}
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer');
+                }}
                 className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
               >
                 View listing
@@ -2799,7 +2906,7 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'metrics'} title="More metrics" onClose={() => setCompactSheetView(null)}>
-        <div className="space-y-4">
+        <div className="mobile-sheet-stack space-y-4">
           {!hasMoreMetricsContent ? (
             <section className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-3">
               <p className="text-sm text-muted">No additional scenario-specific metrics are available for this strategy right now.</p>
@@ -2857,7 +2964,9 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'timeline'} title="Timeline" onClose={() => setCompactSheetView(null)}>
-        <TimelineCard output={result[activeStrategy]} assumptions={model.assumptions} collapsible={false} summaryVariant="compact" />
+        <div className="mobile-stagger-item">
+          <TimelineCard output={result[activeStrategy]} assumptions={model.assumptions} collapsible={false} summaryVariant="compact" />
+        </div>
       </MobileSheet>
     </>
   );
@@ -2868,7 +2977,10 @@ export default function HomePage() {
         <button
           ref={compactStrategyButtonRef}
           type="button"
-          onClick={() => setCompactSheetView('strategy')}
+          onClick={() => {
+            triggerHapticFeedback('light');
+            setCompactSheetView('strategy');
+          }}
           className="tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left"
           aria-label="Choose strategy"
         >
@@ -2888,9 +3000,11 @@ export default function HomePage() {
       </section>
 
       <section className="space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
-        {compactMode === 'inputs' ? compactInputsView : null}
-        {compactMode === 'results' ? compactResultsView : null}
-        {compactMode === 'compare' ? compactCompareView : null}
+        <div key={`compact-mode-${compactMode}`} className="panel-swap space-y-4">
+          {compactMode === 'inputs' ? compactInputsView : null}
+          {compactMode === 'results' ? compactResultsView : null}
+          {compactMode === 'compare' ? compactCompareView : null}
+        </div>
       </section>
 
       <nav
@@ -2908,7 +3022,10 @@ export default function HomePage() {
                 ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
                 type="button"
                 disabled={isLocked}
-                onClick={() => setCompactMode(mode)}
+                onClick={() => {
+                  if (!isActive) triggerHapticFeedback('light');
+                  setCompactMode(mode);
+                }}
                 className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
                   isActive ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
                 } disabled:cursor-not-allowed disabled:opacity-45`}
@@ -2962,7 +3079,10 @@ export default function HomePage() {
                 <button
                   ref={compactMenuButtonRef}
                   type="button"
-                  onClick={() => setCompactSheetView('menu')}
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setCompactSheetView('menu');
+                  }}
                   className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
                   aria-label="Open deal actions"
                 >
@@ -2988,7 +3108,10 @@ export default function HomePage() {
                 <button
                   ref={compactDealsButtonRef}
                   type="button"
-                  onClick={() => setCompactSheetView('deals')}
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setCompactSheetView('deals');
+                  }}
                   className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
                 >
                   Recent deals

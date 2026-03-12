@@ -405,7 +405,7 @@ export function StrategyWorkLightbox({
   if (presentation === 'sheet') {
     return (
       <MobileSheet open={open} title={`${strategyLabels[activeStrategy]} calculations`} onClose={onClose}>
-        <div className="space-y-4">
+        <div className="mobile-sheet-stack space-y-4">
           <div>
             <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
             <h3 className="mt-1 text-lg font-semibold">{strategyLabels[activeStrategy]} calculations</h3>

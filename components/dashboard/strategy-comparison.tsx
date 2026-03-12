@@ -105,7 +105,7 @@ export function StrategyComparison({
 
   const inlineComparisonCards = (
     <div className="space-y-3">
-      {rows.map((row) => {
+      {rows.map((row, index) => {
         const output = data[row.key];
         const equityRow = equityRows.find((entry) => entry.key === row.key);
         const cashFlowRow = cashFlowRows.find((entry) => entry.key === row.key);
@@ -117,7 +117,8 @@ export function StrategyComparison({
         return (
           <article
             key={`inline-compare-${row.key}`}
-            className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(24,38,59,0.96),rgba(9,15,28,0.96))] p-3 shadow-soft"
+            className="mobile-stagger-item relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(24,38,59,0.96),rgba(9,15,28,0.96))] p-3 shadow-soft"
+            style={{ animationDelay: `${80 + index * 42}ms` }}
           >
             <div
               aria-hidden="true"
@@ -394,16 +395,6 @@ export function StrategyComparison({
     <>
       {inlineModelingViews ? (
         <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
-              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
-              <p className="mt-1 text-xs text-muted">Each card blends KPIs, modeled equity, and the operating cash-flow curve.</p>
-            </div>
-            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
-              {rows.length} exits
-            </span>
-          </div>
           {inlineComparisonCards}
         </section>
       ) : (

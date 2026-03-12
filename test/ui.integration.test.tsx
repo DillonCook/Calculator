@@ -41,6 +41,7 @@ const createSavedDeal = (dealName: string, updatedAt: string) =>
     },
     { createdAt: updatedAt, updatedAt }
   );
+const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
 
 describe('dashboard integration', () => {
   beforeEach(() => {
@@ -73,12 +74,12 @@ describe('dashboard integration', () => {
 
     const user = userEvent.setup();
     const resultsButton = screen.getByRole('button', { name: 'Results' });
-    const compareButton = screen.getByRole('button', { name: 'Compare' });
+    const projectionsButton = screen.getByRole('button', { name: 'Projections' });
 
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent deals' })).toBeInTheDocument();
     expect(resultsButton).toBeDisabled();
-    expect(compareButton).toBeDisabled();
+    expect(projectionsButton).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
 
     const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
@@ -90,7 +91,7 @@ describe('dashboard integration', () => {
     await user.type(grossRent, '2600');
 
     expect(resultsButton).not.toBeDisabled();
-    expect(compareButton).not.toBeDisabled();
+    expect(projectionsButton).not.toBeDisabled();
 
     await user.click(resultsButton);
     expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
@@ -240,7 +241,7 @@ describe('dashboard integration', () => {
     expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
   });
 
-  it('filters the mobile compare board with multi-select strategies', async () => {
+  it('allows selecting one to many projection strategies on mobile', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -256,23 +257,88 @@ describe('dashboard integration', () => {
     await user.clear(grossRent);
     await user.type(grossRent, '2600');
 
-    await user.click(screen.getByRole('button', { name: 'Compare' }));
+    await user.click(screen.getByRole('button', { name: 'Projections' }));
 
-    const selection = screen.getByLabelText('Compare strategy selection');
+    const selection = screen.getByLabelText('Projections strategy selection');
     const board = screen.getByLabelText('Strategy comparison board');
 
-    expect(within(board).getByText('Compare all exits at a glance')).toBeInTheDocument();
-    expect(within(board).getByText('Airbnb / STR')).toBeInTheDocument();
+    expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
 
     await user.click(within(selection).getByRole('button', { name: /Airbnb/i }));
-
     expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();
+
+    await user.click(within(selection).getByRole('button', { name: 'Commercial' }));
+    await user.click(within(selection).getByRole('button', { name: 'PadSplit' }));
+    await user.click(within(selection).getByRole('button', { name: 'BRRRR' }));
+    await user.click(within(selection).getByRole('button', { name: 'Flip' }));
+
+    expect(within(board).queryByText('Commercial')).not.toBeInTheDocument();
+    expect(within(board).queryByText('PadSplit')).not.toBeInTheDocument();
+    expect(within(board).queryByText('BRRRR')).not.toBeInTheDocument();
+    expect(within(board).queryByText('Flip')).not.toBeInTheDocument();
+    expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
+
+    await user.click(within(selection).getByRole('button', { name: 'Long-Term' }));
+
+    expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Equity modeling' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cash flow modeling' })).not.toBeInTheDocument();
     expect(screen.queryByText('Equity modeling by strategy')).not.toBeInTheDocument();
     expect(screen.queryByText('Cash flow modeling by strategy')).not.toBeInTheDocument();
     expect(within(board).getAllByText('Cash flow trend').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Cash-flow strength').length).toBeGreaterThan(0);
+  });
+
+  it('uses default projections strategies for each new mobile deal', async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem(DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY, JSON.stringify(['airbnb', 'flip']));
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '285000');
+
+    const grossRent = screen.getAllByLabelText('Gross rent / mo')[0];
+    await user.clear(grossRent);
+    await user.type(grossRent, '2600');
+
+    await user.click(screen.getByRole('button', { name: 'Projections' }));
+
+    let selection = screen.getByLabelText('Projections strategy selection');
+    let board = screen.getByLabelText('Strategy comparison board');
+    expect(within(selection).getByRole('button', { name: 'Airbnb' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Commercial' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Flip').length).toBeGreaterThan(0);
+    expect(within(board).queryByText('Commercial')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    const newDealPurchasePrice = screen.getAllByLabelText('Purchase price')[0];
+    await user.clear(newDealPurchasePrice);
+    await user.type(newDealPurchasePrice, '300000');
+
+    const newDealGrossRent = screen.getAllByLabelText('Gross rent / mo')[0];
+    await user.clear(newDealGrossRent);
+    await user.type(newDealGrossRent, '2400');
+
+    await user.click(screen.getByRole('button', { name: 'Projections' }));
+
+    selection = screen.getByLabelText('Projections strategy selection');
+    board = screen.getByLabelText('Strategy comparison board');
+    expect(within(selection).getByRole('button', { name: 'Airbnb' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Commercial' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Flip').length).toBeGreaterThan(0);
+    expect(within(board).queryByText('Commercial')).not.toBeInTheDocument();
   });
 
   it('shows timeline as a compact read-only reference on mobile', async () => {
