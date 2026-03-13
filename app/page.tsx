@@ -823,7 +823,7 @@ export default function HomePage() {
     {
       key: 'expenses' as const,
       label: 'Expenses',
-      summary: 'Taxes + variable'
+      summary: 'Taxes + ops'
     },
     {
       key: 'strategy' as const,
@@ -3085,8 +3085,8 @@ export default function HomePage() {
                       : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
                   }`}
                 >
-                  <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] leading-none">{section.label}</span>
-                  <span className={`mt-1 block max-w-full truncate text-[9px] leading-tight ${isActive ? 'text-slate-200' : 'text-muted'}`}>{section.summary}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] leading-none min-[390px]:text-[11px]">{section.label}</span>
+                  <span className={`mt-1 block max-w-full truncate text-[9px] leading-tight min-[390px]:text-[10px] ${isActive ? 'text-slate-200' : 'text-muted'}`}>{section.summary}</span>
                 </button>
               );
             })}
