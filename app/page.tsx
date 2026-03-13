@@ -1131,11 +1131,6 @@ export default function HomePage() {
     setIsLongTermTurnaroundOrderEditorOpen(false);
     setShowAllCommercialMobileOutputs(false);
     setShowAllLongTermTurnaroundMobileOutputs(false);
-    if (isMobileViewport) {
-      setCompactMode('inputs');
-      setCompactSheetView(null);
-      setCompactInputSection('strategy');
-    }
   };
 
   useEffect(() => {
