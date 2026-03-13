@@ -243,18 +243,23 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'core',
-    title: 'Start with Core Inputs',
-    body: 'Begin in Core Purchase, Financing, & Expenses. These values feed every strategy, so one clean baseline drives all downstream comparisons.'
+    title: 'Start with Core Purchase & Financing',
+    body: 'Begin here with purchase price, rehab, financing, and capital terms. This baseline feeds every strategy before you customize anything else.'
+  },
+  {
+    id: 'expenses',
+    title: 'Then Lock In Expenses',
+    body: 'Use Expenses for taxes, insurance, HOA or PMI, and variable costs. That gives every strategy the same operating baseline before comparing outcomes.'
   },
   {
     id: 'strategy',
-    title: 'Then Tune Each Strategy',
-    body: 'Tap a strategy tab, then edit Strategy Inputs for that exact plan. Each strategy keeps its own assumptions so you can compare outcomes side by side.'
+    title: 'Tune Strategy Inputs',
+    body: 'After picking a strategy, change only the assumptions unique to that plan. This is where rents, ADR, BRRRR timing, or flip-specific inputs diverge.'
   },
   {
     id: 'irr',
-    title: 'Use the IRR Stream',
-    body: 'IRR factors in how long owners hold a property and the projected sale proceeds at exit. That gives you a true apples-to-apples comparison against other deals with different timelines.'
+    title: 'Set IRR Inputs',
+    body: 'Hold years, growth, exit, and target IRR assumptions live here. These inputs shape the modeled timeline and make return comparisons more realistic.'
   }
 ];
 const mobileOnboardingSteps: OnboardingStep[] = [
@@ -269,9 +274,24 @@ const mobileOnboardingSteps: OnboardingStep[] = [
     body: 'Tap the strategy row to open the mobile selector. Switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip without giving up screen space.'
   },
   {
-    id: 'mobileInputs',
-    title: 'Inputs Is the Starting Mode',
-    body: 'Phone workflow keeps Core, Expenses, Strategy, and IRR separate, but you can jump between them from the sticky switcher without losing your place.'
+    id: 'mobileCore',
+    title: 'Core Purchase & Financing',
+    body: 'Start here with purchase price, rehab, financing, and capital terms. The sticky Inputs switcher lets you jump back here anytime.'
+  },
+  {
+    id: 'mobileExpenses',
+    title: 'Expenses Stays Separate',
+    body: 'Taxes, insurance, HOA or PMI, and variable costs live in Expenses. Keeping this section separate makes the operating baseline easier to review on phone.'
+  },
+  {
+    id: 'mobileStrategyInputs',
+    title: 'Strategy Inputs Shape the Plan',
+    body: 'Once a strategy is selected, edit only the inputs that are unique to that play. This is where long-term, Airbnb, BRRRR, and flip assumptions branch apart.'
+  },
+  {
+    id: 'mobileIrr',
+    title: 'IRR Inputs Control the Exit Story',
+    body: 'Hold years, growth, exit, and target IRR assumptions live here. These settings drive the modeled timeline and return comparisons.'
   },
   {
     id: 'mobileResults',
@@ -431,10 +451,16 @@ export default function HomePage() {
   const desktopAuthActionRef = useRef<HTMLDivElement | null>(null);
   const settingsControlsRef = useRef<HTMLDivElement | null>(null);
   const desktopSettingsControlsRef = useRef<HTMLDivElement | null>(null);
+  const compactInputsViewRef = useRef<HTMLDivElement | null>(null);
   const mobileCoreSectionRef = useRef<HTMLDivElement | null>(null);
+  const mobileExpensesSectionRef = useRef<HTMLDivElement | null>(null);
+  const mobileStrategyInputsRef = useRef<HTMLDivElement | null>(null);
+  const mobileIrrSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
-  const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
+  const desktopStrategyInputsRef = useRef<HTMLDivElement | null>(null);
+  const desktopIrrInputsRef = useRef<HTMLDivElement | null>(null);
+  const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactStrategyButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -677,6 +703,14 @@ export default function HomePage() {
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
+  const onboardingHighlightedCoreSection =
+    isOnboardingOpen && !isMobileViewport
+      ? currentOnboardingSteps[onboardingStepIndex]?.id === 'expenses'
+        ? 'expenses'
+        : currentOnboardingSteps[onboardingStepIndex]?.id === 'core'
+          ? 'purchaseFinancing'
+          : undefined
+      : undefined;
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -1061,8 +1095,8 @@ export default function HomePage() {
 
     if (typeof window === 'undefined') return;
     window.requestAnimationFrame(() => {
-      if (typeof mobileCoreSectionRef.current?.scrollIntoView !== 'function') return;
-      mobileCoreSectionRef.current.scrollIntoView({
+      if (typeof compactInputsViewRef.current?.scrollIntoView !== 'function') return;
+      compactInputsViewRef.current.scrollIntoView({
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'start'
       });
@@ -1088,14 +1122,19 @@ export default function HomePage() {
 
     if (step.id === 'mobileDeals') return compactDealsButtonRef.current;
     if (step.id === 'mobileStrategy') return compactStrategyButtonRef.current;
-    if (step.id === 'mobileInputs') return mobileCoreSectionRef.current;
+    if (step.id === 'mobileCore') return mobileCoreSectionRef.current;
+    if (step.id === 'mobileExpenses') return mobileExpensesSectionRef.current;
+    if (step.id === 'mobileStrategyInputs') return mobileStrategyInputsRef.current;
+    if (step.id === 'mobileIrr') return mobileIrrSectionRef.current;
     if (step.id === 'mobileResults') return compactResultsNavButtonRef.current;
     if (step.id === 'mobileCompare') return compactCompareNavButtonRef.current;
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
     if (step.id === 'vault') return getFirstVisibleElement(compactMenuButtonRef.current, dealVaultRef.current);
     if (step.id === 'signin') return getFirstVisibleElement(compactMenuButtonRef.current, desktopAuthActionRef.current, authControlsRef.current);
-    if (step.id === 'core') return getFirstVisibleElement(mobileCoreSectionRef.current, desktopCoreSectionRef.current);
-    if (step.id === 'strategy') return getFirstVisibleElement(mobileStrategyTabsRef.current, desktopStrategyTabsRef.current);
+    if (step.id === 'core') return desktopCoreSectionRef.current;
+    if (step.id === 'expenses') return desktopCoreSectionRef.current;
+    if (step.id === 'strategy') return desktopStrategyInputsRef.current;
+    if (step.id === 'irr') return desktopIrrInputsRef.current;
     return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
   };
 
@@ -1379,10 +1418,38 @@ export default function HomePage() {
       setCompactInputSection('strategy');
     }
 
-    if (step.id === 'mobileInputs') {
+    if (step.id === 'mobileCore') {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('core');
+    }
+
+    if (step.id === 'mobileExpenses') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+      setCompactInputSection('expenses');
+    }
+
+    if (step.id === 'mobileStrategyInputs') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+      setCompactInputSection('strategy');
+    }
+
+    if (step.id === 'mobileIrr') {
+      setCompactMode('inputs');
+      setCompactSheetView(null);
+      setCompactInputSection('irr');
+
+      const frame = window.requestAnimationFrame(() => {
+        mobileIrrSectionRef.current?.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      });
+
+      return () => window.cancelAnimationFrame(frame);
     }
 
     if (step.id === 'mobileResults') {
@@ -1402,6 +1469,11 @@ export default function HomePage() {
       setCompactInputSection('core');
     }
 
+    if (step.id === 'expenses') {
+      setCompactMode('inputs');
+      setCompactInputSection('expenses');
+    }
+
     if (step.id === 'strategy') {
       setCompactMode('inputs');
       setCompactInputSection('strategy');
@@ -1413,14 +1485,11 @@ export default function HomePage() {
     }
 
     if (step.id === 'irr') {
-      if (isMobileViewport) {
-        setCompactMode('results');
-        setCompactSheetView(null);
-      }
+      setCompactMode('inputs');
+      setCompactInputSection('irr');
 
       const frame = window.requestAnimationFrame(() => {
-        const target = isMobileViewport ? compactTimelineButtonRef.current : irrStreamRef.current;
-        target?.scrollIntoView({
+        desktopIrrInputsRef.current?.scrollIntoView({
           behavior: prefersReducedMotion ? 'auto' : 'smooth',
           block: 'center',
           inline: 'nearest'
@@ -2405,8 +2474,9 @@ export default function HomePage() {
   );
 
   const compactInputsView = (
-    <div ref={mobileCoreSectionRef} className="scroll-mt-28 space-y-4">
+    <div ref={compactInputsViewRef} className="scroll-mt-28 space-y-4">
       <div
+        ref={mobileCoreSectionRef}
         id="compact-input-panel-core"
         role="tabpanel"
         aria-labelledby="compact-input-tab-core"
@@ -2423,6 +2493,7 @@ export default function HomePage() {
       </div>
 
       <div
+        ref={mobileExpensesSectionRef}
         id="compact-input-panel-expenses"
         role="tabpanel"
         aria-labelledby="compact-input-tab-expenses"
@@ -2439,6 +2510,7 @@ export default function HomePage() {
       </div>
 
       <div
+        ref={mobileStrategyInputsRef}
         id="compact-input-panel-strategy"
         role="tabpanel"
         aria-labelledby="compact-input-tab-strategy"
@@ -2449,6 +2521,7 @@ export default function HomePage() {
       </div>
 
       <div
+        ref={mobileIrrSectionRef}
         id="compact-input-panel-irr"
         role="tabpanel"
         aria-labelledby="compact-input-tab-irr"
@@ -3881,7 +3954,7 @@ export default function HomePage() {
               </div>
             ) : null}
             {!isMobileViewport ? (
-              <section className="grid gap-3">
+              <section ref={desktopStrategyInputsRef} className="grid gap-3">
                 <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
               </section>
             ) : null}
@@ -3896,14 +3969,19 @@ export default function HomePage() {
           </div>
 
           {!isMobileViewport ? (
-            <div ref={desktopCoreSectionRef} className="space-y-4">
-              <DealInputPanel
-                value={model}
-                onChange={updateModel}
-                resolveListingDealName={resolveListingDealName}
-                defaultAdvancedOptionsOpen={Boolean(activeDealId)}
-              />
-              <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
+            <div className="space-y-4">
+              <div ref={desktopCoreSectionRef}>
+                <DealInputPanel
+                  value={model}
+                  onChange={updateModel}
+                  resolveListingDealName={resolveListingDealName}
+                  defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+                  preferredCoreSection={onboardingHighlightedCoreSection}
+                />
+              </div>
+              <div ref={desktopIrrInputsRef}>
+                <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
+              </div>
             </div>
           ) : null}
         </div>

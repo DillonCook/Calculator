@@ -17,6 +17,7 @@ interface DealInputPanelProps {
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   forcedCoreSection?: Exclude<CoreInputSection, 'known'>;
+  preferredCoreSection?: Exclude<CoreInputSection, 'known'>;
 }
 
 type CoreInputSection = 'purchaseFinancing' | 'expenses' | 'known';
@@ -524,7 +525,8 @@ export function DealInputPanel({
   collapsible = false,
   collapsed = false,
   onToggleCollapsed,
-  forcedCoreSection
+  forcedCoreSection,
+  preferredCoreSection
 }: DealInputPanelProps) {
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
@@ -670,7 +672,7 @@ export function DealInputPanel({
   const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
   const isPanelCollapsed = collapsible && collapsed;
-  const resolvedCoreSection = forcedCoreSection ?? activeCoreSection;
+  const resolvedCoreSection = forcedCoreSection ?? preferredCoreSection ?? activeCoreSection;
   const panelTitle = forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Core Purchase, Financing, & Expenses';
   const showOwnershipModeToggle = forcedCoreSection !== 'expenses';
   const showCoreSectionTabs = !forcedCoreSection;
