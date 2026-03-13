@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import { defaultDealInput, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
+import { defaultDealInput, normalizeDealUiState, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
 
 const SCENARIOS_TABLE = 'scenarios';
 
@@ -31,7 +31,8 @@ const normalizePayload = (payload: ScenarioRecord['payload'] | null | undefined)
     variableExpenses:
       Array.isArray(safePayload.variableExpenses) && safePayload.variableExpenses.length > 0
         ? safePayload.variableExpenses
-        : defaultDealInput.variableExpenses
+        : defaultDealInput.variableExpenses,
+    uiState: safePayload.uiState ? normalizeDealUiState(safePayload.uiState) : undefined
   };
 };
 

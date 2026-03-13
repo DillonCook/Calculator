@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -8,6 +8,7 @@ import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 import { createScenarioRecord, writeScenarios } from '../lib/scenario-storage';
+import { encodeDealToShareParam } from '../lib/share-link';
 
 
 const getStrategyButton = (label: string) => screen.getAllByRole('button', { name: label })[0];
@@ -184,7 +185,7 @@ describe('dashboard integration', () => {
     expect(within(dialog).getByDisplayValue('New Deal')).toBeInTheDocument();
   });
 
-  it('caps compact recent deals to the six most recent entries by default', async () => {
+  it('caps compact recent deals to the ten most recent entries by default', async () => {
     setViewport(390);
     writeScenarios([
       createSavedDeal('Recent Deal 1', '2026-01-08T12:00:00.000Z'),
@@ -194,7 +195,11 @@ describe('dashboard integration', () => {
       createSavedDeal('Recent Deal 5', '2026-01-04T12:00:00.000Z'),
       createSavedDeal('Recent Deal 6', '2026-01-03T12:00:00.000Z'),
       createSavedDeal('Recent Deal 7', '2026-01-02T12:00:00.000Z'),
-      createSavedDeal('Recent Deal 8', '2026-01-01T12:00:00.000Z')
+      createSavedDeal('Recent Deal 8', '2026-01-01T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 9', '2025-12-31T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 10', '2025-12-30T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 11', '2025-12-29T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 12', '2025-12-28T12:00:00.000Z')
     ]);
 
     render(<HomePage />);
@@ -205,11 +210,11 @@ describe('dashboard integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
 
-    expect(within(dialog).getAllByRole('button', { name: /Duplicate Recent Deal / })).toHaveLength(6);
+    expect(within(dialog).getAllByRole('button', { name: /Duplicate Recent Deal / })).toHaveLength(10);
     expect(within(dialog).getByText('Recent Deal 1')).toBeInTheDocument();
-    expect(within(dialog).getByText('Recent Deal 6')).toBeInTheDocument();
-    expect(within(dialog).queryByText('Recent Deal 7')).not.toBeInTheDocument();
-    expect(within(dialog).queryByText('Recent Deal 8')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Recent Deal 10')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Recent Deal 11')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Recent Deal 12')).not.toBeInTheDocument();
   });
 
   it('searches older deals from compact recent deals by name', async () => {
@@ -381,6 +386,83 @@ describe('dashboard integration', () => {
     expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Flip').length).toBeGreaterThan(0);
     expect(within(board).queryByText('Commercial')).not.toBeInTheDocument();
+  });
+
+  it('restores per-deal projection selections on mobile', async () => {
+    setViewport(390);
+    writeScenarios([
+      createScenarioRecord(
+        {
+          ...defaultDealInput,
+          purchase: { ...defaultDealInput.purchase, dealName: 'Projection Deal A' },
+          airbnb: { ...defaultDealInput.airbnb, adr: 180 },
+          uiState: {
+            activeStrategy: 'airbnb',
+            projectionStrategies: ['airbnb', 'flip']
+          }
+        },
+        { createdAt: '2026-01-08T12:00:00.000Z', updatedAt: '2026-01-08T12:00:00.000Z' }
+      ),
+      createScenarioRecord(
+        {
+          ...defaultDealInput,
+          purchase: { ...defaultDealInput.purchase, dealName: 'Projection Deal B' },
+          longTerm: { ...defaultDealInput.longTerm, grossRentMonthly: 2600 },
+          uiState: {
+            activeStrategy: 'longTerm',
+            projectionStrategies: ['purchase', 'longTerm']
+          }
+        },
+        { createdAt: '2026-01-07T12:00:00.000Z', updatedAt: '2026-01-07T12:00:00.000Z' }
+      )
+    ]);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Projections' }));
+
+    let selection = screen.getByLabelText('Projections strategy selection');
+    expect(within(selection).getByRole('button', { name: 'Airbnb' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Long-Term' })).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deals' });
+    await user.click(within(dialog).getAllByText('Projection Deal B')[0]);
+
+    await user.click(screen.getByRole('button', { name: 'Projections' }));
+
+    selection = screen.getByLabelText('Projections strategy selection');
+    expect(within(selection).getByRole('button', { name: 'Commercial' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Long-Term' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(selection).getByRole('button', { name: 'Airbnb' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(selection).getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('restores the shared active strategy on mobile import links', async () => {
+    window.localStorage.clear();
+    setViewport(390);
+
+    const encoded = encodeDealToShareParam({
+      ...defaultDealInput,
+      purchase: { ...defaultDealInput.purchase, dealName: 'Shared Airbnb Deal' },
+      uiState: {
+        activeStrategy: 'airbnb',
+        projectionStrategies: ['airbnb', 'flip']
+      }
+    });
+
+    window.history.replaceState({}, '', `/?s=${encoded}`);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    await waitFor(() => {
+      const strategyButton = screen.getByRole('button', { name: 'Choose strategy' });
+      expect(within(strategyButton).getByText('Airbnb')).toBeInTheDocument();
+    });
   });
 
   it('shows timeline as a compact read-only reference on mobile', async () => {

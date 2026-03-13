@@ -1,5 +1,5 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
-import { defaultDealInput, type DealInputModel, type ExpenseStrategyKey, type ScenarioRecord } from '@/lib/models/deal';
+import { defaultDealInput, normalizeDealUiState, type DealInputModel, type ExpenseStrategyKey, type ScenarioRecord } from '@/lib/models/deal';
 
 const MAX_SHARE_PARAM_LENGTH = 8000;
 const MAX_SHARE_JSON_LENGTH = 25000;
@@ -77,7 +77,8 @@ export const normalizeDealInput = (value: unknown): DealInputModel | null => {
     brrrr: { ...defaultDealInput.brrrr, ...brrrr },
     flip: { ...defaultDealInput.flip, ...flip },
     assumptions: { ...defaultDealInput.assumptions, ...assumptions },
-    variableExpenses: normalizeVariableExpenses(value.variableExpenses)
+    variableExpenses: normalizeVariableExpenses(value.variableExpenses),
+    uiState: value.uiState ? normalizeDealUiState(value.uiState) : undefined
   };
 };
 

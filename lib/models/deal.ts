@@ -3,10 +3,38 @@ export type FinancingType = 'cash' | 'loan';
 export type AmortizationType = 'PI' | 'IO';
 
 export type StrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip';
+export const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+export const isStrategyKey = (value: unknown): value is StrategyKey =>
+  typeof value === 'string' && strategyKeyOrder.includes(value as StrategyKey);
 
 export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
 
 export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
+
+export interface DealUiState {
+  activeStrategy: StrategyKey;
+  projectionStrategies: StrategyKey[];
+}
+
+export const defaultDealUiState: DealUiState = {
+  activeStrategy: 'purchase',
+  projectionStrategies: [...strategyKeyOrder]
+};
+
+export const normalizeProjectionStrategySelection = (value: unknown): StrategyKey[] => {
+  const input = Array.isArray(value) ? value : [];
+  const next = strategyKeyOrder.filter((strategy) => input.includes(strategy));
+  return next.length > 0 ? next : [...defaultDealUiState.projectionStrategies];
+};
+
+export const normalizeDealUiState = (value: unknown): DealUiState => {
+  const input = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+
+  return {
+    activeStrategy: isStrategyKey(input.activeStrategy) ? input.activeStrategy : defaultDealUiState.activeStrategy,
+    projectionStrategies: normalizeProjectionStrategySelection(input.projectionStrategies)
+  };
+};
 
 export interface PurchaseInputs {
   ownershipMode: 'purchase' | 'owned';
@@ -278,6 +306,7 @@ export interface DealInputModel {
   flip: FlipInputs;
   variableExpenses: VariableExpenseCategory[];
   assumptions: MasterAssumptions;
+  uiState?: DealUiState;
 }
 
 export interface StrategyOutput {

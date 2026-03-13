@@ -1,5 +1,5 @@
 import localforage from 'localforage';
-import { defaultDealInput, type DealInputModel } from '@/lib/models/deal';
+import { defaultDealInput, normalizeDealUiState, type DealInputModel } from '@/lib/models/deal';
 
 export interface DealRecord {
   id: string;
@@ -32,7 +32,8 @@ const normalizePayload = (payload: DealInputModel): DealInputModel => ({
   flip: { ...defaultDealInput.flip, ...payload.flip },
   assumptions: { ...defaultDealInput.assumptions, ...payload.assumptions },
   variableExpenses:
-    Array.isArray(payload.variableExpenses) && payload.variableExpenses.length > 0 ? payload.variableExpenses : defaultDealInput.variableExpenses
+    Array.isArray(payload.variableExpenses) && payload.variableExpenses.length > 0 ? payload.variableExpenses : defaultDealInput.variableExpenses,
+  uiState: payload.uiState ? normalizeDealUiState(payload.uiState) : undefined
 });
 
 const createId = () => {

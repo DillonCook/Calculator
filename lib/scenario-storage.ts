@@ -1,4 +1,4 @@
-import type { DealInputModel, ScenarioRecord } from '@/lib/models/deal';
+import { normalizeDealUiState, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
 import { defaultDealInput } from '@/lib/models/deal';
 
 const STORAGE_KEY = 'investor-command-center.scenarios.v1';
@@ -24,7 +24,8 @@ const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
     brrrr: { ...defaultDealInput.brrrr, ...payload.brrrr },
     flip: { ...defaultDealInput.flip, ...payload.flip },
     assumptions: { ...defaultDealInput.assumptions, ...payload.assumptions },
-    variableExpenses: Array.isArray(payload.variableExpenses) && payload.variableExpenses.length > 0 ? payload.variableExpenses : defaultDealInput.variableExpenses
+    variableExpenses: Array.isArray(payload.variableExpenses) && payload.variableExpenses.length > 0 ? payload.variableExpenses : defaultDealInput.variableExpenses,
+    uiState: payload.uiState ? normalizeDealUiState(payload.uiState) : undefined
   };
 };
 

@@ -22,7 +22,16 @@ import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToV
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
-import { defaultDealInput, type DealInputModel, type MasterAssumptions, type ScenarioRecord, type StrategyKey } from '@/lib/models/deal';
+import {
+  defaultDealInput,
+  isStrategyKey,
+  normalizeProjectionStrategySelection,
+  strategyKeyOrder,
+  type DealInputModel,
+  type MasterAssumptions,
+  type ScenarioRecord,
+  type StrategyKey
+} from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
@@ -44,14 +53,10 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
   flip: 'Flip'
 };
 
-const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
 type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
-
-const isStrategyKey = (value: unknown): value is StrategyKey =>
-  typeof value === 'string' && strategyKeyOrder.includes(value as StrategyKey);
 
 const compactModeLabels: Record<CompactMode, string> = {
   inputs: 'Inputs',
@@ -223,90 +228,85 @@ const normalizeLongTermTurnaroundDigestOrder = (value: unknown): LongTermTurnaro
 
   return normalized;
 };
-const normalizeProjectionStrategySelection = (value: unknown): StrategyKey[] => {
-  const input = Array.isArray(value) ? value : [];
-  const next = strategyKeyOrder.filter((strategy) => input.includes(strategy));
-  return next.length > 0 ? next : [...strategyKeyOrder];
-};
-
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
+const COMPACT_RECENT_DEALS_LIMIT = 10;
 const desktopOnboardingSteps: OnboardingStep[] = [
   {
     id: 'vault',
-    title: 'Welcome to DealCooker',
-    body: 'Thanks for being here. This Deal Vault is where you save, rename, and reload scenarios quickly so every deal stays organized.'
+    title: 'Your Deals Stay Here',
+    body: 'If you want to come back to a deal later, this is where you save it, rename it, and reopen it without starting over.'
   },
   {
     id: 'signin',
-    title: 'Sign In for Cross-Device Workflow',
-    body: 'Use Sign in in the top-right to connect your account. Signed-in deals sync across devices and let you create shorter share links for cleaner handoffs.'
+    title: 'Sign In to Pick Up Where You Left Off',
+    body: 'Use Sign in in the top-right if you want your saved deals on multiple devices. It also makes sharing a deal easier.'
   },
   {
     id: 'core',
-    title: 'Start with Core Purchase & Financing',
-    body: 'Begin here with purchase price, rehab, financing, and capital terms. This baseline feeds every strategy before you customize anything else.'
+    title: 'Start With the Purchase Basics',
+    body: 'Begin here with the price, rehab budget, financing, and cash needed to close. This gives the calculator the core details it needs first.'
   },
   {
     id: 'expenses',
-    title: 'Then Lock In Expenses',
-    body: 'Use Expenses for taxes, insurance, HOA or PMI, and variable costs. That gives every strategy the same operating baseline before comparing outcomes.'
+    title: 'Add the Ongoing Costs',
+    body: 'Next, enter taxes, insurance, HOA or PMI, and other operating costs so the monthly numbers reflect the real carrying expenses.'
   },
   {
     id: 'strategy',
-    title: 'Tune Strategy Inputs',
-    body: 'After picking a strategy, change only the assumptions unique to that plan. This is where rents, ADR, BRRRR timing, or flip-specific inputs diverge.'
+    title: 'Adjust the Strategy You Want to Test',
+    body: 'After you pick a strategy, update the numbers that are specific to that plan. This is where rent, nightly rate, refinance timing, or flip assumptions change.'
   },
   {
     id: 'irr',
-    title: 'Set IRR Inputs',
-    body: 'Hold years, growth, exit, and target IRR assumptions live here. These inputs shape the modeled timeline and make return comparisons more realistic.'
+    title: 'Set Your Hold and Exit Assumptions',
+    body: 'Use this section to decide how long you plan to hold the property and what happens when you exit. These choices shape the projected returns over time.'
   }
 ];
 const mobileOnboardingSteps: OnboardingStep[] = [
   {
     id: 'mobileDeals',
-    title: 'Recent Deals Lives Here',
-    body: 'Use Recent deals to reopen saved scenarios on phone. That sheet is also where you duplicate or delete saved deals without hunting through desktop-style controls.'
+    title: 'Your Saved Deals Are Here',
+    body: 'Tap Recent deals when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
   },
   {
     id: 'mobileStrategy',
-    title: 'Strategy Is a Picker, Not a Tab Wall',
-    body: 'Tap the strategy row to open the mobile selector. Switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip without giving up screen space.'
+    title: 'Pick the Strategy First',
+    body: 'Tap this strategy button to choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
   },
   {
     id: 'mobileCore',
-    title: 'Core Purchase & Financing',
-    body: 'Start here with purchase price, rehab, financing, and capital terms. The sticky Inputs switcher lets you jump back here anytime.'
+    title: 'Tap Core to Enter the Basics',
+    body: 'Start with Core when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
     id: 'mobileExpenses',
-    title: 'Expenses Stays Separate',
-    body: 'Taxes, insurance, HOA or PMI, and variable costs live in Expenses. Keeping this section separate makes the operating baseline easier to review on phone.'
+    title: 'Tap Expenses for Monthly Costs',
+    body: 'Open Expenses when you are ready to add taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
   },
   {
     id: 'mobileStrategyInputs',
-    title: 'Strategy Inputs Shape the Plan',
-    body: 'Once a strategy is selected, edit only the inputs that are unique to that play. This is where long-term, Airbnb, BRRRR, and flip assumptions branch apart.'
+    title: 'Tap Strategy for Plan-Specific Numbers',
+    body: 'Use Strategy after you choose your approach. That section holds the numbers that change based on the plan, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'mobileIrr',
-    title: 'IRR Inputs Control the Exit Story',
-    body: 'Hold years, growth, exit, and target IRR assumptions live here. These settings drive the modeled timeline and return comparisons.'
+    title: 'Tap IRR for Hold and Exit Settings',
+    body: 'Open IRR when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
   },
   {
     id: 'mobileResults',
-    title: 'Results Unlock After the Baseline',
-    body: 'Once the required inputs are in place, Results becomes your KPI and verdict workspace. More metrics, timeline, and show-work all branch from there.'
+    title: 'Results Shows the Deal Outcome',
+    body: 'Once you have entered enough information, tap Results to see the main numbers for the deal. This is where you check cash flow, returns, and the overall verdict.'
   },
   {
     id: 'mobileCompare',
-    title: 'Projections Uses Strategy Picks',
-    body: 'Projections lets you select any 1 to 6 strategies at a time. Use the strategy buttons to include or remove cards, and set the default projection strategies for each new deal from Settings.'
+    title: 'Use Projections to Model the Future',
+    body: 'Tap Projections to see how cash flow, equity, and returns could build over time. You can still view multiple strategies side by side, but this screen is mainly for projecting where each plan may lead.'
   },
   {
     id: 'mobileActions',
-    title: 'Share, Print, and Sync Stay in Overflow',
-    body: 'The top-right actions button keeps mobile chrome compact. Open it for sharing, PDF export, install, authentication, and settings.'
+    title: 'More Actions Live Here',
+    body: 'Use this menu for sharing, printing, signing in, installing the app, and changing settings. It keeps the main screen simple while the extra tools stay one tap away.'
   }
 ];
 
@@ -370,6 +370,8 @@ const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel 
 };
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
 const defaultProjectionStrategySelectionFallback: StrategyKey[] = [...strategyKeyOrder];
+const areStrategySelectionsEqual = (left: StrategyKey[], right: StrategyKey[]) =>
+  left.length === right.length && left.every((strategy, index) => strategy === right[index]);
 
 export default function HomePage() {
   const [initialVaultState] = useState(() => {
@@ -388,8 +390,13 @@ export default function HomePage() {
       activeDeal: nextDeals[0] ?? null
     };
   });
+  const initialActiveDealUiState = initialVaultState.activeDeal?.payload.uiState;
+  const hasInitialDealActiveStrategy = Boolean(initialActiveDealUiState?.activeStrategy);
+  const hasInitialDealProjectionStrategies = Array.isArray(initialActiveDealUiState?.projectionStrategies) && initialActiveDealUiState.projectionStrategies.length > 0;
   const [model, setModel] = useState(initialVaultState.activeDeal?.payload ?? defaultDealInput);
-  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
+  const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(
+    isStrategyKey(initialActiveDealUiState?.activeStrategy) ? initialActiveDealUiState.activeStrategy : defaultNewDealStrategyFallback
+  );
   const [deals, setDeals] = useState<ScenarioRecord[]>(initialVaultState.deals);
   const [activeDealId, setActiveDealId] = useState(initialVaultState.activeDeal?.scenarioId ?? '');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
@@ -418,7 +425,11 @@ export default function HomePage() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
-  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
+  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(
+    hasInitialDealProjectionStrategies
+      ? normalizeProjectionStrategySelection(initialActiveDealUiState?.projectionStrategies)
+      : defaultProjectionStrategySelectionFallback
+  );
   const [compactDealsSearch, setCompactDealsSearch] = useState('');
   const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
@@ -464,13 +475,44 @@ export default function HomePage() {
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactStrategyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactCoreInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactExpensesInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactStrategyInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const compactIrrInputButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactResultsNavButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactCompareNavButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const compactTimelineButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  const resolveDealUiState = useCallback(
+    (payload: DealInputModel) => ({
+      activeStrategy: isStrategyKey(payload.uiState?.activeStrategy) ? payload.uiState.activeStrategy : defaultNewDealStrategy,
+      projectionStrategies: payload.uiState?.projectionStrategies
+        ? normalizeProjectionStrategySelection(payload.uiState.projectionStrategies)
+        : normalizeProjectionStrategySelection(defaultProjectionStrategies)
+    }),
+    [defaultNewDealStrategy, defaultProjectionStrategies]
+  );
+
+  const attachDealUiState = useCallback(
+    (
+      payload: DealInputModel,
+      overrides?: {
+        activeStrategy?: StrategyKey;
+        projectionStrategies?: StrategyKey[];
+      }
+    ): DealInputModel => ({
+      ...payload,
+      uiState: {
+        activeStrategy: overrides?.activeStrategy ?? activeStrategy,
+        projectionStrategies: normalizeProjectionStrategySelection(overrides?.projectionStrategies ?? compactSelectedStrategies)
+      }
+    }),
+    [activeStrategy, compactSelectedStrategies]
+  );
+
   const result = useMemo(() => calculateDeal(model), [model]);
-  const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(model)), [model]);
+  const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(attachDealUiState(model))), [attachDealUiState, model]);
   const printToPdfUrl = useMemo(() => `/print?scenario=${exportPayload}&strategy=${activeStrategy}`, [activeStrategy, exportPayload]);
 
   const activeOutput = result[activeStrategy];
@@ -715,7 +757,7 @@ export default function HomePage() {
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
   );
-  const recentCompactDeals = useMemo(() => compactSortedDeals.slice(0, 6), [compactSortedDeals]);
+  const recentCompactDeals = useMemo(() => compactSortedDeals.slice(0, COMPACT_RECENT_DEALS_LIMIT), [compactSortedDeals]);
   const normalizedCompactDealsSearch = compactDealsSearch.trim().toLowerCase();
   const filteredCompactSortedDeals = useMemo(() => {
     if (!normalizedCompactDealsSearch) return compactSortedDeals;
@@ -1026,7 +1068,16 @@ export default function HomePage() {
   );
 
   const loadScenario = (payload: DealInputModel, dealId?: string) => {
-    setModel(payload);
+    const nextUiState = resolveDealUiState(payload);
+    setModel({
+      ...payload,
+      uiState: {
+        activeStrategy: nextUiState.activeStrategy,
+        projectionStrategies: nextUiState.projectionStrategies
+      }
+    });
+    setActiveStrategy(nextUiState.activeStrategy);
+    setCompactSelectedStrategies(nextUiState.projectionStrategies);
     if (dealId) setActiveDealId(dealId);
   };
 
@@ -1087,18 +1138,44 @@ export default function HomePage() {
     }
   };
 
-  const selectCompactInputSection = (section: CompactInputSection) => {
-    if (compactInputSection !== section) {
-      triggerHapticFeedback('light');
-      setCompactInputSection(section);
+  useEffect(() => {
+    const nextProjectionStrategies = normalizeProjectionStrategySelection(compactSelectedStrategies);
+    const currentProjectionStrategies = normalizeProjectionStrategySelection(model.uiState?.projectionStrategies);
+
+    if (model.uiState?.activeStrategy === activeStrategy && areStrategySelectionsEqual(currentProjectionStrategies, nextProjectionStrategies)) {
+      return;
     }
 
-    if (typeof window === 'undefined') return;
+    if (activeDealId) setSaveStatus('saving');
+    setModel((current) => ({
+      ...current,
+      uiState: {
+        activeStrategy,
+        projectionStrategies: nextProjectionStrategies
+      }
+    }));
+  }, [activeDealId, activeStrategy, compactSelectedStrategies, model.uiState]);
+
+  const selectCompactInputSection = (section: CompactInputSection) => {
+    if (compactInputSection === section) return;
+
+    const controlsTop = typeof window === 'undefined' ? null : mobileStrategyTabsRef.current?.getBoundingClientRect().top ?? null;
+
+    triggerHapticFeedback('light');
+    setCompactInputSection(section);
+
+    if (typeof window === 'undefined' || controlsTop === null) return;
+
     window.requestAnimationFrame(() => {
-      if (typeof compactInputsViewRef.current?.scrollIntoView !== 'function') return;
-      compactInputsViewRef.current.scrollIntoView({
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-        block: 'start'
+      const nextControlsTop = mobileStrategyTabsRef.current?.getBoundingClientRect().top;
+      if (typeof nextControlsTop !== 'number') return;
+
+      const delta = nextControlsTop - controlsTop;
+      if (Math.abs(delta) < 1) return;
+
+      window.scrollBy({
+        top: delta,
+        behavior: 'auto'
       });
     });
   };
@@ -1122,10 +1199,10 @@ export default function HomePage() {
 
     if (step.id === 'mobileDeals') return compactDealsButtonRef.current;
     if (step.id === 'mobileStrategy') return compactStrategyButtonRef.current;
-    if (step.id === 'mobileCore') return mobileCoreSectionRef.current;
-    if (step.id === 'mobileExpenses') return mobileExpensesSectionRef.current;
-    if (step.id === 'mobileStrategyInputs') return mobileStrategyInputsRef.current;
-    if (step.id === 'mobileIrr') return mobileIrrSectionRef.current;
+    if (step.id === 'mobileCore') return compactCoreInputButtonRef.current;
+    if (step.id === 'mobileExpenses') return compactExpensesInputButtonRef.current;
+    if (step.id === 'mobileStrategyInputs') return compactStrategyInputButtonRef.current;
+    if (step.id === 'mobileIrr') return compactIrrInputButtonRef.current;
     if (step.id === 'mobileResults') return compactResultsNavButtonRef.current;
     if (step.id === 'mobileCompare') return compactCompareNavButtonRef.current;
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
@@ -1137,6 +1214,30 @@ export default function HomePage() {
     if (step.id === 'irr') return desktopIrrInputsRef.current;
     return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
   };
+
+  const scrollMobileTutorialControlsIntoView = useCallback(() => {
+    const frame = window.requestAnimationFrame(() => {
+      mobileStrategyTabsRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+        inline: 'nearest'
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [prefersReducedMotion]);
+
+  const scrollMobileActionsButtonIntoView = useCallback(() => {
+    const frame = window.requestAnimationFrame(() => {
+      compactMenuButtonRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [prefersReducedMotion]);
 
   const completeOnboarding = () => {
     setIsOnboardingOpen(false);
@@ -1416,40 +1517,35 @@ export default function HomePage() {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('strategy');
+      return scrollMobileTutorialControlsIntoView();
     }
 
     if (step.id === 'mobileCore') {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('core');
+      return scrollMobileTutorialControlsIntoView();
     }
 
     if (step.id === 'mobileExpenses') {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('expenses');
+      return scrollMobileTutorialControlsIntoView();
     }
 
     if (step.id === 'mobileStrategyInputs') {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('strategy');
+      return scrollMobileTutorialControlsIntoView();
     }
 
     if (step.id === 'mobileIrr') {
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('irr');
-
-      const frame = window.requestAnimationFrame(() => {
-        mobileIrrSectionRef.current?.scrollIntoView({
-          behavior: prefersReducedMotion ? 'auto' : 'smooth',
-          block: 'center',
-          inline: 'nearest'
-        });
-      });
-
-      return () => window.cancelAnimationFrame(frame);
+      return scrollMobileTutorialControlsIntoView();
     }
 
     if (step.id === 'mobileResults') {
@@ -1461,7 +1557,8 @@ export default function HomePage() {
     }
 
     if (step.id === 'mobileActions') {
-      setCompactSheetView('menu');
+      setCompactSheetView(null);
+      return scrollMobileActionsButtonIntoView();
     }
 
     if (step.id === 'core') {
@@ -1498,7 +1595,7 @@ export default function HomePage() {
 
       return () => window.cancelAnimationFrame(frame);
     }
-  }, [currentOnboardingSteps, isMobileViewport, isOnboardingOpen, onboardingStepIndex, prefersReducedMotion]);
+  }, [currentOnboardingSteps, isMobileViewport, isOnboardingOpen, onboardingStepIndex, prefersReducedMotion, scrollMobileActionsButtonIntoView, scrollMobileTutorialControlsIntoView]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1530,6 +1627,9 @@ export default function HomePage() {
     const storedDefaultStrategy = window.localStorage.getItem(SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY);
     if (isStrategyKey(storedDefaultStrategy)) {
       setDefaultNewDealStrategy(storedDefaultStrategy);
+      if (!hasInitialDealActiveStrategy) {
+        setActiveStrategy(storedDefaultStrategy);
+      }
     }
 
     const storedDefaultProjectionStrategies = window.localStorage.getItem(SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY);
@@ -1538,7 +1638,9 @@ export default function HomePage() {
         const parsedProjectionStrategies = JSON.parse(storedDefaultProjectionStrategies);
         const normalizedProjectionStrategies = normalizeProjectionStrategySelection(parsedProjectionStrategies);
         setDefaultProjectionStrategies(normalizedProjectionStrategies);
-        setCompactSelectedStrategies(normalizedProjectionStrategies);
+        if (!hasInitialDealProjectionStrategies) {
+          setCompactSelectedStrategies(normalizedProjectionStrategies);
+        }
       } catch {
         // Ignore malformed projection strategy preferences.
       }
@@ -1557,7 +1659,7 @@ export default function HomePage() {
     } else if (storedQuickScanVisible === '1') {
       setIsQuickScanVisible(true);
     }
-  }, []);
+  }, [hasInitialDealActiveStrategy, hasInitialDealProjectionStrategies]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1687,7 +1789,7 @@ export default function HomePage() {
 
   const saveDealAs = (dealName: string, listingUrl: string) => {
     const nextPayload: DealInputModel = {
-      ...model,
+      ...attachDealUiState(model),
       purchase: {
         ...model.purchase,
         dealName,
@@ -1696,9 +1798,8 @@ export default function HomePage() {
     };
     const record = createDealInVault(nextPayload, dealName);
     const next = saveDealToVault(record);
-    setModel(record.payload);
     setDeals(next);
-    setActiveDealId(record.scenarioId);
+    loadScenario(record.payload, record.scenarioId);
     queueScenarioPush(record);
     setSaveStatus('saved');
     qualifyInstallPrompt();
@@ -1707,7 +1808,7 @@ export default function HomePage() {
   const renameDeal = (dealName: string) => {
     if (!activeDeal) return;
     const payload = {
-      ...model,
+      ...attachDealUiState(model),
       purchase: {
         ...model.purchase,
         dealName
@@ -1725,16 +1826,16 @@ export default function HomePage() {
 
   const createNewDeal = (requestedDealName: string, listingUrl: string, options?: { openIdentityEditor?: boolean }) => {
     const candidateName = buildUniqueDealName(requestedDealName);
-    const payload = buildNewDealPayload(candidateName, listingUrl.trim());
     const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
+    const payload = attachDealUiState(buildNewDealPayload(candidateName, listingUrl.trim()), {
+      activeStrategy: defaultNewDealStrategy,
+      projectionStrategies: nextProjectionStrategies
+    });
 
     const nextDeal = createDealInVault(payload, candidateName);
     const next = saveDealToVault(nextDeal);
     setDeals(next);
-    setActiveDealId(nextDeal.scenarioId);
-    setModel(nextDeal.payload);
-    setActiveStrategy(defaultNewDealStrategy);
-    setCompactSelectedStrategies(nextProjectionStrategies);
+    loadScenario(nextDeal.payload, nextDeal.scenarioId);
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
@@ -1759,8 +1860,7 @@ export default function HomePage() {
     const duplicatedDeal = createDealInVault(duplicatedPayload, nextDealName);
     const nextDeals = saveDealToVault(duplicatedDeal);
     setDeals(nextDeals);
-    setActiveDealId(duplicatedDeal.scenarioId);
-    setModel(duplicatedDeal.payload);
+    loadScenario(duplicatedDeal.payload, duplicatedDeal.scenarioId);
     queueScenarioPush(duplicatedDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
@@ -1823,14 +1923,17 @@ export default function HomePage() {
 
     if (next.length === 0) {
       const payload = buildNewDealPayload('New Deal');
-      const nextDeal = createDealInVault(payload, payload.purchase.dealName);
-      const nextDeals = saveDealToVault(nextDeal);
       const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
+      const nextDeal = createDealInVault(
+        attachDealUiState(payload, {
+          activeStrategy: defaultNewDealStrategy,
+          projectionStrategies: nextProjectionStrategies
+        }),
+        payload.purchase.dealName
+      );
+      const nextDeals = saveDealToVault(nextDeal);
       setDeals(nextDeals);
-      setActiveDealId(nextDeal.scenarioId);
-      setModel(nextDeal.payload);
-      setActiveStrategy(defaultNewDealStrategy);
-      setCompactSelectedStrategies(nextProjectionStrategies);
+      loadScenario(nextDeal.payload, nextDeal.scenarioId);
       queueScenarioPush(nextDeal);
       setSaveStatus('saved');
       qualifyInstallPrompt();
@@ -1838,9 +1941,10 @@ export default function HomePage() {
       setDeals(next);
       if (activeDealId === scenarioId) {
         const nextActiveDeal = next[0];
-        setActiveDealId(nextActiveDeal?.scenarioId ?? '');
         if (nextActiveDeal) {
-          setModel(nextActiveDeal.payload);
+          loadScenario(nextActiveDeal.payload, nextActiveDeal.scenarioId);
+        } else {
+          setActiveDealId('');
         }
       }
       setSaveStatus('idle');
@@ -1872,7 +1976,7 @@ export default function HomePage() {
       const { slug, error } = await createShortShareLink({
         ownerId: currentUser.id,
         scenarioId: activeDealId || undefined,
-        payloadSnapshot: model
+        payloadSnapshot: attachDealUiState(model)
       });
 
       if (!error && slug) {
@@ -1894,7 +1998,7 @@ export default function HomePage() {
       return;
     }
 
-    const encoded = encodeDealToShareParam(model);
+    const encoded = encodeDealToShareParam(attachDealUiState(model));
     if (!encoded) {
       setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
       return;
@@ -2119,11 +2223,8 @@ export default function HomePage() {
 
     if (mergedDeals.length > 0) {
       const nextActiveDeal = mergedDeals.find((scenario) => scenario.scenarioId === activeDealId) ?? mergedDeals[0];
-      if (nextActiveDeal && nextActiveDeal.scenarioId !== activeDealId) {
-        setActiveDealId(nextActiveDeal.scenarioId);
-        setModel(nextActiveDeal.payload);
-      } else if (nextActiveDeal) {
-        setModel(nextActiveDeal.payload);
+      if (nextActiveDeal) {
+        loadScenario(nextActiveDeal.payload, nextActiveDeal.scenarioId);
       }
     }
 
@@ -2237,8 +2338,7 @@ export default function HomePage() {
       const imported = createDealInVault(parsed, parsed.purchase.dealName);
       const nextDeals = saveDealToVault(imported);
       setDeals(nextDeals);
-      setModel(imported.payload);
-      setActiveDealId(imported.scenarioId);
+      loadScenario(imported.payload, imported.scenarioId);
       queueScenarioPush(imported);
     }, 0);
 
@@ -2535,11 +2635,7 @@ export default function HomePage() {
 
   const headlineMetricSection = (
     <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted">Core KPIs</p>
-          <p className="hidden text-[11px] text-muted sm:block">These stay on the results page. Reorder them anytime.</p>
-        </div>
+      <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
@@ -2759,40 +2855,6 @@ export default function HomePage() {
         />
       )}
 
-      <section className="grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('light');
-            setCompactSheetView('metrics');
-          }}
-          disabled={!hasMoreMetricsContent}
-          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          More metrics
-        </button>
-        <button
-          ref={compactTimelineButtonRef}
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('light');
-            setCompactSheetView('timeline');
-          }}
-          className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
-        >
-          Timeline
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('light');
-            setIsStrategyWorkOpen(true);
-          }}
-          className="btn-primary btn-work tap-feedback rounded-xl px-3 py-3 text-sm font-semibold"
-        >
-          Show work
-        </button>
-      </section>
     </>
   );
 
@@ -2866,7 +2928,7 @@ export default function HomePage() {
               value={compactDealsSearch}
               onChange={(event) => setCompactDealsSearch(event.target.value)}
             />
-            <p className="mt-2 text-xs text-muted">Showing your latest 6 deals. Search to find anything older.</p>
+            <p className="mt-2 text-xs text-muted">Showing your latest {COMPACT_RECENT_DEALS_LIMIT} deals. Search to find anything older.</p>
 
             {displayedCompactDeals.length > 0 ? (
               <div className="scrollbar-premium mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
@@ -2985,7 +3047,7 @@ export default function HomePage() {
         </div>
       </MobileSheet>
 
-      <MobileSheet open={compactSheetView === 'menu'} title="Deal actions" onClose={() => setCompactSheetView(null)}>
+      <MobileSheet open={compactSheetView === 'menu'} title="Settings" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <button type="button" onClick={shareCurrentDeal} className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold">
@@ -3137,6 +3199,43 @@ export default function HomePage() {
           </div>
         </button>
 
+        {compactMode === 'results' ? (
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setCompactSheetView('metrics');
+              }}
+              disabled={!hasMoreMetricsContent}
+              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              More metrics
+            </button>
+            <button
+              ref={compactTimelineButtonRef}
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setCompactSheetView('timeline');
+              }}
+              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setIsStrategyWorkOpen(true);
+              }}
+              className="btn-primary btn-work tap-feedback rounded-xl px-3 py-3 text-sm font-semibold"
+            >
+              Show work
+            </button>
+          </div>
+        ) : null}
+
         {compactMode === 'inputs' ? (
           <div role="tablist" aria-label="Input section selection" className="grid grid-cols-4 gap-2 max-[359px]:grid-cols-2">
             {compactInputSections.map((section) => {
@@ -3145,6 +3244,15 @@ export default function HomePage() {
               return (
                 <button
                   key={`compact-input-tab-${section.key}`}
+                  ref={
+                    section.key === 'core'
+                      ? compactCoreInputButtonRef
+                      : section.key === 'expenses'
+                        ? compactExpensesInputButtonRef
+                        : section.key === 'strategy'
+                          ? compactStrategyInputButtonRef
+                          : compactIrrInputButtonRef
+                  }
                   id={`compact-input-tab-${section.key}`}
                   type="button"
                   role="tab"

@@ -16,6 +16,10 @@ describe('compact share link payload', () => {
       longTerm: {
         ...defaultDealInput.longTerm,
         grossRentMonthly: 2950
+      },
+      uiState: {
+        activeStrategy: 'airbnb',
+        projectionStrategies: ['airbnb', 'flip']
       }
     };
 

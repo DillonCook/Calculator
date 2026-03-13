@@ -194,8 +194,7 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
             </div>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Mobile workspace</p>
-                <h2 className="mt-1 text-base font-semibold text-slate-100 sm:text-lg">{title}</h2>
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent sm:text-xs">{title}</h2>
               </div>
               <button
                 type="button"
