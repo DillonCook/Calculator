@@ -435,13 +435,16 @@ test('long-term turnaround mode computes stabilized outputs and show-work lines'
 });
 
 
-test('owned mode uses existing carrying costs instead of purchase underwriting debt inputs', () => {
+test('owned mode uses entered mortgage payment for debt service even when payoff inputs imply a higher payment', () => {
   const model = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
       ownershipMode: 'owned' as const,
       existingMortgageMonthly: 1650,
+      existingMortgageBalance: 240000,
+      existingMortgageRate: 0.0825,
+      existingMortgageRemainingYears: 15,
       existingTaxMonthly: 420,
       existingInsuranceMonthly: 180,
       financingType: 'cash' as const,
@@ -458,13 +461,81 @@ test('owned mode uses existing carrying costs instead of purchase underwriting d
   };
 
   const result = calculateDeal(model);
+  const impliedAmortizedPayment = calculateMonthlyPayment(
+    model.purchase.existingMortgageBalance,
+    model.purchase.existingMortgageRate,
+    model.purchase.existingMortgageRemainingYears
+  );
   const expectedDebtService = model.purchase.existingMortgageMonthly;
 
+  assert.ok(impliedAmortizedPayment > expectedDebtService);
   near(result.purchase.totalCashNeeded, 0);
   near(result.longTerm.calculationBreakdown?.debtServiceMonthly ?? 0, expectedDebtService);
+  near(result.purchase.calculationBreakdown?.debtServiceMonthly ?? 0, expectedDebtService);
+  near(result.longTerm.monthlyCashFlow, (result.longTerm.noiMonthly ?? 0) - expectedDebtService, 0.01);
   const fixedLine = result.longTerm.calculationBreakdown?.lines.find((line) => line.key === 'lt-fixed-costs');
 
   near(Math.abs(fixedLine?.monthly ?? 0), fixedCostsMonthly(model), 0.1);
+});
+
+test('owned mode projections use entered mortgage payment for cash flow and payoff inputs for sale proceeds', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned' as const,
+      financingType: 'cash' as const,
+      purchasePrice: 0,
+      existingMortgageMonthly: 1450,
+      existingMortgageBalance: 210000,
+      existingMortgageRate: 0.0675,
+      existingMortgageRemainingYears: 22,
+      arv: 335000
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 3100
+    }
+  };
+
+  const result = calculateDeal(model);
+  const yearOneOperatingCashFlow = result.longTerm.cashFlowTimeline[1];
+  const expectedYearOneOperatingCashFlow = ((result.longTerm.noiMonthly ?? 0) - model.purchase.existingMortgageMonthly) * 12;
+  const remainingPrimaryBalance = calculateRemainingBalance(
+    model.purchase.existingMortgageBalance,
+    model.purchase.existingMortgageRate,
+    model.purchase.existingMortgageRemainingYears,
+    model.assumptions.holdYears,
+    'PI'
+  );
+  const expectedSaleProceeds =
+    model.purchase.arv * Math.pow(1 + model.assumptions.annualAppreciationPercent, model.assumptions.holdYears) * (1 - model.assumptions.sellingCostPercent) -
+    remainingPrimaryBalance;
+
+  near(yearOneOperatingCashFlow, expectedYearOneOperatingCashFlow, 0.01);
+  near(result.longTerm.saleProceeds ?? 0, expectedSaleProceeds, 0.1);
+});
+
+test('owned mode does not infer debt service from payoff inputs when monthly payment is blank', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned' as const,
+      financingType: 'cash' as const,
+      purchasePrice: 0,
+      existingMortgageMonthly: 0,
+      existingMortgageBalance: 180000,
+      existingMortgageRate: 0.071,
+      existingMortgageRemainingYears: 20
+    }
+  };
+
+  const result = calculateDeal(model);
+
+  near(result.longTerm.calculationBreakdown?.debtServiceMonthly ?? 0, 0, 0.0001);
+  near(result.longTerm.monthlyCashFlow, result.longTerm.noiMonthly ?? 0, 0.01);
+  near(result.longTerm.cashFlowTimeline[1], (result.longTerm.noiMonthly ?? 0) * 12, 0.01);
 });
 
 test('purchase taxes and insurance are auto calculated but can be overridden', () => {

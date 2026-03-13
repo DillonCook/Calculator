@@ -91,22 +91,16 @@ const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput
 
   if (purchase.ownershipMode === 'owned') {
     const existingPrincipal = Math.max(purchase.existingMortgageBalance, 0);
+    const existingMonthlyPayment = Math.max(purchase.existingMortgageMonthly, 0);
 
-    if (existingPrincipal > 0) {
+    if (existingPrincipal > 0 || existingMonthlyPayment > 0) {
       debts.push({
         principal: existingPrincipal,
         annualRate: Math.max(purchase.existingMortgageRate, 0),
         termMonths: Math.max(purchase.existingMortgageRemainingYears, 1) * 12,
-        amortizationType: 'PI'
-      });
-    } else if (purchase.existingMortgageMonthly > 0) {
-      debts.push({
-        principal: 0,
-        annualRate: 0,
-        termMonths: Math.max(purchase.existingMortgageRemainingYears, 1) * 12,
         amortizationType: 'PI',
-        monthlyPaymentOverride: Math.max(purchase.existingMortgageMonthly, 0),
-        terminalBalanceOverride: 0
+        monthlyPaymentOverride: existingMonthlyPayment,
+        ...(existingPrincipal > 0 ? {} : { terminalBalanceOverride: 0 })
       });
     }
   } else if (purchase.financingType === 'loan') {

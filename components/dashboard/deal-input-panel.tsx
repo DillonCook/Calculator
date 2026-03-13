@@ -776,24 +776,27 @@ export function DealInputPanel({
                   ) : (
                     <>
                       <Input
-                        label="Existing mortgage payment / month"
+                        label="Mortgage payment / month"
                         type="number"
                         value={value.purchase.existingMortgageMonthly}
                         onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
                       />
+                      <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-muted sm:col-span-2">
+                        Monthly cash flow uses your payment above. Balance, rate, and term are only used to model payoff, equity, and projected sale proceeds.
+                      </div>
                       <Input
-                        label="Existing mortgage balance"
+                        label="Mortgage balance for projections"
                         type="number"
                         value={value.purchase.existingMortgageBalance}
                         onChange={(v) => update('purchase', 'existingMortgageBalance', Number(v))}
                       />
                       <PercentInput
-                        label="Existing mortgage rate %"
+                        label="Mortgage rate % for projections"
                         value={value.purchase.existingMortgageRate}
                         onChange={(v) => update('purchase', 'existingMortgageRate', v)}
                       />
                       <Input
-                        label="Existing mortgage term left (years)"
+                        label="Mortgage term left (years) for projections"
                         type="number"
                         value={value.purchase.existingMortgageRemainingYears}
                         onChange={(v) => update('purchase', 'existingMortgageRemainingYears', Number(v))}
