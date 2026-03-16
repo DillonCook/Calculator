@@ -438,6 +438,7 @@ export default function HomePage() {
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
+  const [isDesktopDealVaultOpen, setIsDesktopDealVaultOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
@@ -460,7 +461,7 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
-  const dealVaultRef = useRef<HTMLDivElement | null>(null);
+  const dealVaultRef = useRef<HTMLButtonElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
   const desktopAuthActionRef = useRef<HTMLDivElement | null>(null);
   const settingsControlsRef = useRef<HTMLDivElement | null>(null);
@@ -1825,25 +1826,6 @@ export default function HomePage() {
     qualifyInstallPrompt();
   };
 
-  const renameDeal = (dealName: string) => {
-    if (!activeDeal) return;
-    const payload = {
-      ...attachDealUiState(model),
-      purchase: {
-        ...model.purchase,
-        dealName
-      }
-    };
-
-    setModel(payload);
-    const updatedDeal = { ...activeDeal, dealName, payload, updatedAt: new Date().toISOString() };
-    const next = saveDealToVault(updatedDeal);
-    setDeals(next);
-    queueScenarioPush(updatedDeal);
-    setSaveStatus('saved');
-    qualifyInstallPrompt();
-  };
-
   const createNewDeal = (requestedDealName: string, listingUrl: string, options?: { openIdentityEditor?: boolean }) => {
     const candidateName = buildUniqueDealName(requestedDealName);
     const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
@@ -1918,13 +1900,28 @@ export default function HomePage() {
     setCompactSheetView(null);
     setIsAuthMenuOpen(false);
     setIsSettingsOpen(false);
+    setIsDesktopDealVaultOpen(false);
     setIsDealIdentityOpen(true);
+  };
+
+  const openDesktopDealVault = () => {
+    triggerHapticFeedback('light');
+    setCompactSheetView(null);
+    setIsAuthMenuOpen(false);
+    setIsSettingsOpen(false);
+    setIsDealIdentityOpen(false);
+    setIsDesktopDealVaultOpen(true);
   };
 
   const openRecentScenario = (scenarioId: string) => {
     const scenario = deals.find((entry) => entry.scenarioId === scenarioId);
     if (!scenario) return;
     loadScenario(scenario.payload, scenario.scenarioId);
+  };
+
+  const openDesktopVaultScenario = (scenarioId: string) => {
+    openRecentScenario(scenarioId);
+    setIsDesktopDealVaultOpen(false);
   };
 
   const removeScenarioById = (scenarioId: string) => {
@@ -2547,48 +2544,148 @@ export default function HomePage() {
   const dealIdentitySheet = (
     <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={() => setIsDealIdentityOpen(false)}>
       <div className="mobile-sheet-stack space-y-4">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="mb-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted">Header editor</p>
-            <h3 className="mt-1 text-base font-semibold text-slate-100">Deal name and listing link</h3>
-            <p className="mt-1 text-sm text-muted">Changes save to the active deal as you type.</p>
-          </div>
-
-          <div className="grid gap-3">
-            <label className="space-y-1">
-              <span className="text-[11px] text-muted">Deal name</span>
-              <input
-                className={inputClass}
-                value={model.purchase.dealName}
-                onChange={(event) => handleDealNameChange(event.target.value)}
-                placeholder="Deal title"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[11px] text-muted">Listing URL</span>
-              <input
-                aria-label="Listing URL (Zillow, Redfin, etc.)"
-                className={inputClass}
-                value={model.purchase.listingUrl}
-                onChange={(event) => handleListingUrlChange(event.target.value)}
-                placeholder="Listing URL (optional)"
-              />
-            </label>
-          </div>
-
-          {model.purchase.listingUrl ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <a
-                className="tap-feedback inline-flex min-h-9 items-center rounded-lg border border-accent/40 bg-accent/12 px-3 py-1.5 text-xs font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
-                href={normalizeListingUrl(model.purchase.listingUrl)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View listing link
-              </a>
+        {isMobileViewport ? (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mb-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Header editor</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-100">Deal name and listing link</h3>
+              <p className="mt-1 text-sm text-muted">Changes save to the active deal as you type.</p>
             </div>
-          ) : null}
-        </section>
+
+            <div className="grid gap-3">
+              <label className="space-y-1">
+                <span className="text-[11px] text-muted">Deal name</span>
+                <input
+                  className={inputClass}
+                  value={model.purchase.dealName}
+                  onChange={(event) => handleDealNameChange(event.target.value)}
+                  placeholder="Deal title"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] text-muted">Listing URL</span>
+                <input
+                  aria-label="Listing URL (Zillow, Redfin, etc.)"
+                  className={inputClass}
+                  value={model.purchase.listingUrl}
+                  onChange={(event) => handleListingUrlChange(event.target.value)}
+                  placeholder="Listing URL (optional)"
+                />
+              </label>
+            </div>
+
+            {model.purchase.listingUrl ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  className="tap-feedback inline-flex min-h-9 items-center rounded-lg border border-accent/40 bg-accent/12 px-3 py-1.5 text-xs font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
+                  href={normalizeListingUrl(model.purchase.listingUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View listing link
+                </a>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 lg:p-5">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(260px,0.92fr)] lg:items-start">
+              <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <div className="mb-4">
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold text-slate-100">Name and source link</h3>
+                    <p className="mt-1 max-w-[48ch] text-sm text-muted">
+                      This is the saved title and listing source for the active deal. Changes save automatically as you type.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <label className="space-y-1">
+                    <span className="text-[11px] text-muted">Deal name</span>
+                    <input
+                      className={inputClass}
+                      value={model.purchase.dealName}
+                      onChange={(event) => handleDealNameChange(event.target.value)}
+                      placeholder="Deal title"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] text-muted">Listing URL</span>
+                    <input
+                      aria-label="Listing URL (Zillow, Redfin, etc.)"
+                      className={inputClass}
+                      value={model.purchase.listingUrl}
+                      onChange={(event) => handleListingUrlChange(event.target.value)}
+                      placeholder="Listing URL (optional)"
+                    />
+                  </label>
+                </div>
+
+                <p className="mt-3 text-xs text-muted">
+                  Paste a Zillow or Redfin listing and DealCooker will auto-fill the deal name when the link includes an address slug.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <section className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-accent/90">Current snapshot</p>
+                  <h3 className="mt-1 truncate text-lg font-semibold text-slate-100">{activeDealDisplayName}</h3>
+                  <p className="mt-1 text-sm text-muted">Active strategy: {activeStrategyLabel}</p>
+                  <p className="mt-3 truncate text-xs text-slate-300/80">
+                    {model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : 'No listing link attached yet.'}
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Quick actions</p>
+                  <div className="mt-3 grid gap-2">
+                    {model.purchase.listingUrl ? (
+                      <a
+                        className="tap-feedback inline-flex min-h-10 items-center justify-center rounded-xl border border-accent/40 bg-accent/12 px-3 py-2 text-sm font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
+                        href={normalizeListingUrl(model.purchase.listingUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View listing link
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={shareCurrentDeal}
+                      className="btn-primary btn-link tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-medium"
+                    >
+                      Send link
+                    </button>
+                    <Link
+                      href={printToPdfUrl}
+                      className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-medium"
+                      target="_blank"
+                    >
+                      Print to PDF
+                    </Link>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+    </MobileSheet>
+  );
+
+  const desktopDealVaultSheet = (
+    <MobileSheet open={isDesktopDealVaultOpen} title="Deal Vault" onClose={() => setIsDesktopDealVaultOpen(false)}>
+      <div className="mobile-sheet-stack space-y-4">
+        <DealsVaultPanel
+          deals={deals}
+          activeDealId={activeDealId}
+          activeDealName={model.purchase.dealName}
+          onActiveDealChange={openDesktopVaultScenario}
+          onSaveAs={saveDealAs}
+          onCreateNew={createNewDeal}
+          onDelete={removeScenario}
+        />
       </div>
     </MobileSheet>
   );
@@ -3608,8 +3705,7 @@ export default function HomePage() {
                           className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
                           <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
-                            <circle cx="12" cy="13.28" r="2.7" />
+                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
                           </svg>
                         </button>
 
@@ -3653,19 +3749,42 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="w-full md:min-w-0 xl:max-w-[760px]">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:items-center md:justify-end md:gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:flex-wrap md:items-center md:justify-end md:gap-2">
                   <button
                     type="button"
                     onClick={openDealIdentityEditor}
-                    className="hidden min-w-[240px] max-w-[320px] flex-1 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left md:flex"
+                    className="hidden min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
                     aria-label="Edit active deal details"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs text-muted">Active deal</p>
-                      <p className="truncate text-sm font-medium text-slate-100">{activeDealDisplayName}</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal identity</p>
+                      <p className="mt-1 truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
+                      <p className="mt-1 truncate text-xs text-muted">
+                        {model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : 'Add the name or listing link for this deal.'}
+                      </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
                       Edit
+                    </span>
+                  </button>
+                  <button
+                    ref={dealVaultRef}
+                    type="button"
+                    onClick={openDesktopDealVault}
+                    className="hidden min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
+                    aria-label="Open deal vault"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal Vault</p>
+                      <p className="mt-1 truncate text-base font-semibold text-slate-100">
+                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-muted">
+                        Open recent scenarios, duplicate them, or create a fresh deal.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                      Open
                     </span>
                   </button>
                   <Link
@@ -3709,8 +3828,7 @@ export default function HomePage() {
                           className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
                           <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
-                            <circle cx="12" cy="13.28" r="2.7" />
+                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
                           </svg>
                         </button>
                         {isSettingsOpen ? (
@@ -3754,8 +3872,7 @@ export default function HomePage() {
                           className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                         >
                           <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M11.99 3.8a1 1 0 0 1 .98.8l.28 1.4c.18.06.36.14.53.22l1.22-.73a1 1 0 0 1 1.23.15l1.53 1.53a1 1 0 0 1 .15 1.22l-.73 1.22c.09.18.16.36.22.54l1.4.28a1 1 0 0 1 .8.98v2.16a1 1 0 0 1-.8.98l-1.4.28c-.06.19-.14.37-.22.54l.73 1.22a1 1 0 0 1-.15 1.22l-1.53 1.53a1 1 0 0 1-1.23.15l-1.22-.73c-.17.09-.35.16-.53.22l-.28 1.4a1 1 0 0 1-.98.8H9.83a1 1 0 0 1-.98-.8l-.28-1.4a4.88 4.88 0 0 1-.53-.22l-1.22.73a1 1 0 0 1-1.23-.15L4.06 19.6a1 1 0 0 1-.15-1.22l.73-1.22c-.08-.17-.16-.35-.22-.54l-1.4-.28a1 1 0 0 1-.8-.98V12.2a1 1 0 0 1 .8-.98l1.4-.28c.06-.19.14-.37.22-.54l-.73-1.22a1 1 0 0 1 .15-1.22L5.6 6.43a1 1 0 0 1 1.23-.15l1.22.73c.17-.08.35-.16.53-.22l.28-1.4a1 1 0 0 1 .98-.8h2.16Z" />
-                            <circle cx="12" cy="13.28" r="2.7" />
+                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
                           </svg>
                         </button>
                         {isSettingsOpen ? (
@@ -3791,26 +3908,6 @@ export default function HomePage() {
             ) : null}
 
             <PwaInstallBanner />
-
-            <div ref={dealVaultRef}>
-              <DealsVaultPanel
-                deals={deals}
-                activeDealId={activeDealId}
-                activeDealName={model.purchase.dealName}
-                activeDealListingValue={model.purchase.listingUrl}
-                activeDealListingUrl={model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : null}
-                printToPdfUrl={printToPdfUrl}
-                saveStatus={saveStatus}
-                onActiveDealChange={openRecentScenario}
-                onShareLink={shareCurrentDeal}
-                onSaveAs={saveDealAs}
-                onRename={renameDeal}
-                onCreateNew={createNewDeal}
-                onDealNameChange={handleDealNameChange}
-                onListingUrlChange={handleListingUrlChange}
-                onDelete={removeScenario}
-              />
-            </div>
 
           </div>
         </header>
@@ -4270,6 +4367,7 @@ export default function HomePage() {
       </footer>
 
       {dealIdentitySheet}
+      {desktopDealVaultSheet}
 
       <OnboardingTour
         open={isOnboardingOpen}

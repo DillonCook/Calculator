@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { RecentScenariosCarousel } from '@/components/dashboard/recent-scenarios-carousel';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 import type { ScenarioRecord } from '@/lib/models/deal';
 
@@ -9,54 +8,70 @@ interface DealsVaultPanelProps {
   deals: ScenarioRecord[];
   activeDealId: string;
   activeDealName: string;
-  activeDealListingValue: string;
-  activeDealListingUrl: string | null;
-  printToPdfUrl: string;
-  saveStatus: 'idle' | 'saving' | 'saved';
   onActiveDealChange: (id: string) => void;
-  onShareLink: () => void;
   onSaveAs: (dealName: string, listingUrl: string) => void;
-  onRename: (dealName: string) => void;
   onCreateNew: (dealName: string, listingUrl: string) => void;
-  onDealNameChange: (dealName: string) => void;
-  onListingUrlChange: (listingUrl: string) => void;
   onDelete: () => void;
-  compactLayout?: boolean;
-  defaultExpanded?: boolean;
+  onRequestClose?: () => void;
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-const DEALS_VAULT_COLLAPSED_KEY = 'deals-vault-collapsed';
+
+const formatListingSource = (url: string | null) => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
+
+function VaultActionButton({
+  ariaLabel,
+  title,
+  onClick,
+  disabled,
+  tone = 'default',
+  children
+}: {
+  ariaLabel: string;
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'default' | 'primary' | 'danger';
+  children: ReactNode;
+}) {
+  const className =
+    tone === 'primary'
+      ? 'btn-primary btn-vault tap-feedback min-h-10 w-10 rounded-lg text-sm font-semibold'
+      : tone === 'danger'
+        ? 'tap-feedback min-h-10 w-10 rounded-lg border border-red-500/45 bg-red-500/12 text-sm font-semibold text-red-100 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50'
+        : 'tap-feedback min-h-10 w-10 rounded-lg border border-white/10 bg-white/[0.03] text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+
+  return (
+    <button type="button" aria-label={ariaLabel} title={title} onClick={onClick} disabled={disabled} className={className}>
+      {children}
+    </button>
+  );
+}
 
 export function DealsVaultPanel({
   deals,
   activeDealId,
   activeDealName,
-  activeDealListingValue,
-  activeDealListingUrl,
-  printToPdfUrl,
-  saveStatus,
   onActiveDealChange,
-  onShareLink,
   onSaveAs,
-  onRename,
   onCreateNew,
-  onDealNameChange,
-  onListingUrlChange,
   onDelete,
-  compactLayout = false,
-  defaultExpanded = false
+  onRequestClose
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [dialogMode, setDialogMode] = useState<'saveAs' | 'rename' | 'create' | null>(null);
+  const [dialogMode, setDialogMode] = useState<'saveAs' | 'create' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
   const [dialogListingValue, setDialogListingValue] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (defaultExpanded) return false;
-    if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem(DEALS_VAULT_COLLAPSED_KEY) === '1';
-  });
 
   const activeDeal = useMemo(() => deals.find((deal) => deal.scenarioId === activeDealId), [deals, activeDealId]);
 
@@ -65,33 +80,34 @@ export function DealsVaultPanel({
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
-    if (defaultExpanded) setIsCollapsed(false);
-  }, [defaultExpanded]);
-
-
-  useEffect(() => {
-    window.localStorage.setItem(DEALS_VAULT_COLLAPSED_KEY, isCollapsed ? '1' : '0');
-  }, [isCollapsed]);
-
+  const sortedDeals = useMemo(
+    () => [...deals].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [deals]
+  );
   const normalizedSearch = debouncedSearch.trim().toLowerCase();
   const hasSearchQuery = normalizedSearch.length > 0;
 
   const filteredDeals = useMemo(() => {
-    if (!normalizedSearch) return [];
-    return deals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
-  }, [deals, normalizedSearch]);
+    if (!normalizedSearch) return sortedDeals;
+    return sortedDeals.filter((deal) => deal.dealName.toLowerCase().includes(normalizedSearch));
+  }, [normalizedSearch, sortedDeals]);
 
-  const openDialog = (mode: 'saveAs' | 'rename' | 'create') => {
+  const visibleDeals = hasSearchQuery ? filteredDeals : filteredDeals.slice(0, 10);
+  const hiddenRecentCount = hasSearchQuery ? 0 : Math.max(filteredDeals.length - visibleDeals.length, 0);
+
+  const openDialog = (mode: 'saveAs' | 'create') => {
     triggerHapticFeedback('light');
     setDialogMode(mode);
+
     if (mode === 'create') {
       setDialogValue('New Deal');
       setDialogListingValue('');
       return;
     }
-    setDialogValue(activeDeal?.dealName ?? activeDealName);
-    setDialogListingValue(activeDeal?.payload.purchase.listingUrl ?? activeDealListingValue);
+
+    const sourceDeal = activeDeal?.dealName ?? activeDealName;
+    setDialogValue(sourceDeal ? `${sourceDeal} Copy` : 'New Deal Copy');
+    setDialogListingValue(activeDeal?.payload.purchase.listingUrl ?? '');
   };
 
   const closeDialog = () => {
@@ -104,226 +120,171 @@ export function DealsVaultPanel({
     const name = dialogValue.trim();
     const listingUrl = dialogListingValue.trim();
     if (!name) return;
-    if (dialogMode === 'rename') onRename(name);
-    if (dialogMode === 'saveAs') onSaveAs(name, listingUrl);
+
     if (dialogMode === 'create') onCreateNew(name, listingUrl);
+    if (dialogMode === 'saveAs') onSaveAs(name, listingUrl);
     triggerHapticFeedback('success');
     closeDialog();
   };
 
-  const stopSummaryToggle = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
   return (
-    <details
-      className="rounded-xl border border-white/10 bg-white/5 p-2.5 sm:p-3"
-      open={!isCollapsed}
-      onToggle={(event) => {
-        const nextCollapsed = !(event.currentTarget as HTMLDetailsElement).open;
-        setIsCollapsed(nextCollapsed);
-        if (nextCollapsed) closeDialog();
-      }}
-    >
-      <summary className={`tap-feedback flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${isCollapsed ? 'mb-0' : 'mb-2'}`}>
-        <div className="min-w-0 flex items-center gap-2">
-          <p className="text-[11px] uppercase tracking-wider text-muted">Deals Vault</p>
-          <div className={`${compactLayout ? 'hidden' : 'hidden md:flex md:items-center md:gap-1.5'}`}>
-            <span className="max-w-[220px] truncate rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
-              Active: {activeDealName}
-            </span>
-          </div>
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 lg:p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-slate-100">Recent scenarios</h2>
+          <p className="max-w-[68ch] text-sm text-muted">
+            {hiddenRecentCount > 0
+              ? 'Showing the 10 most recent deals for quick switching. Search to reach the rest of the vault.'
+              : 'Switch into a saved scenario or create a fresh deal from here.'}
+          </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] text-muted">
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Idle'}
-          </span>
-          <div className={`${compactLayout ? 'hidden' : 'hidden md:flex md:items-center md:gap-1.5'}`}>
-            {activeDealListingUrl ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  stopSummaryToggle(event);
-                  window.open(activeDealListingUrl, '_blank', 'noopener,noreferrer');
-                }}
-                className="tap-feedback inline-flex min-h-7 items-center rounded-md border border-accent/40 bg-accent/12 px-2 text-[11px] font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
-              >
-                Listing Link
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={(event) => {
-                stopSummaryToggle(event);
-                window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
-              }}
-              className="btn-primary btn-pdf tap-feedback inline-flex min-h-7 items-center rounded-md px-2 text-[11px] font-medium"
-            >
-              Print to PDF
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                stopSummaryToggle(event);
-                onShareLink();
-              }}
-              className="btn-primary btn-link tap-feedback inline-flex min-h-7 items-center rounded-md px-2 text-[11px] font-medium"
-            >
-              Send link
-            </button>
-          </div>
-          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
-            {isCollapsed ? '+' : '-'}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-slate-200">
+            {deals.length} saved
           </span>
         </div>
-      </summary>
+      </div>
 
-      {isCollapsed ? (
-        <div className="mt-2 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-xs text-muted">
-          <p className="line-clamp-1">Active: <span className="text-slate-100">{activeDealName}</span></p>
-          <p className="mt-0.5">{deals.length} saved {deals.length === 1 ? 'scenario' : 'scenarios'}</p>
-        </div>
-      ) : (
-        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_160px] lg:items-start">
-          <div className="space-y-2">
-            <div className="rounded-xl border border-white/10 bg-black/15 p-2.5">
-              <p className="text-[11px] uppercase tracking-wider text-muted">Deal identity</p>
-              <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-[11px] text-muted">Deal name</span>
-                  <input
-                    className="h-9 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-                    value={activeDealName}
-                    onChange={(event) => onDealNameChange(event.target.value)}
-                    placeholder="Deal title"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[11px] text-muted">Listing URL (Zillow, Redfin, etc.)</span>
-                  <input
-                    aria-label="Listing URL (Zillow, Redfin, etc.)"
-                    className="h-9 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-                    value={activeDealListingValue}
-                    onChange={(event) => onListingUrlChange(event.target.value)}
-                    placeholder="Listing URL (optional)"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <label className="sr-only" htmlFor="deal-search">
-              Search deals
-            </label>
+      <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-3.5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <label className="block flex-1">
+            <span className="sr-only">Search deals</span>
             <input
-              id="deal-search"
               className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
               placeholder="Search deal name"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-
-            {hasSearchQuery ? (
-              <div className="rounded-xl border border-white/10 bg-black/10 p-2">
-                {filteredDeals.length === 0 ? (
-                  <p className="px-1 py-1.5 text-xs text-muted">No deals match this search.</p>
-                ) : (
-                  <div className={compactLayout ? 'grid gap-2' : '-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1'}>
-                    {filteredDeals.map((deal) => (
-                      <button
-                        key={deal.scenarioId}
-                        type="button"
-                        onClick={() => onActiveDealChange(deal.scenarioId)}
-                        className={`tap-feedback rounded-lg border px-3 py-2 text-left text-sm transition ${
-                          deal.scenarioId === activeDealId
-                            ? 'accent-edge'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        } ${compactLayout ? 'w-full min-w-0' : 'min-w-[190px] snap-start sm:min-w-[220px]'}`}
-                      >
-                        <p className="line-clamp-1 font-medium">{deal.dealName}</p>
-                        <p className="text-xs text-muted">Updated {dateFormatter.format(new Date(deal.updatedAt))}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            <RecentScenariosCarousel scenarios={deals} activeDealName={activeDealName} onOpen={onActiveDealChange} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              className="tap-feedback h-10 rounded-md border border-white/10 bg-white/[0.03] px-2 text-sm font-medium text-slate-200 transition-colors duration-150 hover:bg-white/10 hover:text-white"
-              onClick={() => openDialog('saveAs')}
-              type="button"
-              aria-label="Duplicate"
-              title="Duplicate"
-            >
-              ⧉
-            </button>
-            <button
-              className="tap-feedback h-10 rounded-md border border-white/10 px-2 text-sm font-medium"
-              onClick={() => openDialog('rename')}
-              type="button"
-              disabled={!activeDeal}
-              aria-label="Rename"
-              title="Rename"
-            >
-              ✎
-            </button>
-            <button
-              className="btn-primary btn-vault tap-feedback h-10 rounded-md px-2 text-sm font-semibold"
-              onClick={() => openDialog('create')}
-              type="button"
-              aria-label="Create"
-              title="Create"
-            >
+          </label>
+          <div className="flex items-center gap-2">
+            <VaultActionButton ariaLabel="Create new deal" title="New deal" onClick={() => openDialog('create')} tone="primary">
               +
-            </button>
-            <button
-              className="tap-feedback h-10 rounded-md border border-red-500/50 px-2 text-sm font-medium text-red-200"
-              onClick={onDelete}
-              type="button"
+            </VaultActionButton>
+            <VaultActionButton
+              ariaLabel="Duplicate active deal"
+              title="Duplicate active deal"
+              onClick={() => openDialog('saveAs')}
               disabled={!activeDeal}
-              aria-label="Delete"
-              title="Delete"
             >
-              ×
-            </button>
+              <svg viewBox="0 0 20 20" className="mx-auto h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                <rect x="7" y="5" width="8" height="9" rx="1.5" />
+                <path d="M5.5 11.5H5A1.5 1.5 0 0 1 3.5 10V5A1.5 1.5 0 0 1 5 3.5h5A1.5 1.5 0 0 1 11.5 5v.5" />
+              </svg>
+            </VaultActionButton>
+            <VaultActionButton
+              ariaLabel="Delete active deal"
+              title="Delete active deal"
+              onClick={onDelete}
+              disabled={!activeDeal}
+              tone="danger"
+            >
+              <svg viewBox="0 0 20 20" className="mx-auto h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                <path d="M4.5 6h11" strokeLinecap="round" />
+                <path d="M7.5 6V4.75A.75.75 0 0 1 8.25 4h3.5a.75.75 0 0 1 .75.75V6" />
+                <path d="M6.5 6l.55 8.1A1 1 0 0 0 8.05 15h3.9a1 1 0 0 0 1-.9L13.5 6" strokeLinecap="round" />
+                <path d="M8.5 8.5v4M11.5 8.5v4" strokeLinecap="round" />
+              </svg>
+            </VaultActionButton>
           </div>
+        </div>
 
-          {dialogMode ? (
-            <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5 lg:col-span-2">
-              <p className="text-xs uppercase tracking-wider text-muted">
-                {dialogMode === 'saveAs' ? 'Save as new deal' : dialogMode === 'create' ? 'Create new deal' : 'Rename deal'}
-              </p>
-              <input
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
-                value={dialogValue}
-                onChange={(event) => setDialogValue(event.target.value)}
-                placeholder="Deal name"
-              />
-              {dialogMode !== 'rename' ? (
+        {dialogMode ? (
+          <section className="mt-3 rounded-2xl border border-white/10 bg-[#122131]/92 p-3.5">
+            <p className="text-xs uppercase tracking-[0.16em] text-accent/90">
+              {dialogMode === 'create' ? 'Create new deal' : 'Duplicate active deal'}
+            </p>
+            <div className="mt-3 grid gap-2.5">
+              <label className="space-y-1">
+                <span className="text-[11px] text-muted">Deal name</span>
                 <input
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
+                  className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
+                  value={dialogValue}
+                  onChange={(event) => setDialogValue(event.target.value)}
+                  placeholder="Deal name"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] text-muted">Listing URL (optional)</span>
+                <input
+                  className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)]"
                   value={dialogListingValue}
                   onChange={(event) => setDialogListingValue(event.target.value)}
                   placeholder="Listing URL (optional)"
                 />
-              ) : null}
-              <div className="flex gap-2">
-                <button className="btn-primary btn-vault tap-feedback min-h-10 flex-1 rounded-lg px-3 text-sm font-medium" type="button" onClick={submitDialog}>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-primary btn-vault tap-feedback min-h-10 rounded-xl px-3 text-sm font-medium" type="button" onClick={submitDialog}>
                   Confirm
                 </button>
-                <button className="tap-feedback min-h-10 flex-1 rounded-lg border border-white/10 px-3 text-sm transition-colors duration-150 hover:bg-white/10" type="button" onClick={() => { triggerHapticFeedback('light'); closeDialog(); }}>
+                <button
+                  className="tap-feedback min-h-10 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10"
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    closeDialog();
+                  }}
+                >
                   Cancel
                 </button>
               </div>
             </div>
-          ) : null}
+          </section>
+        ) : null}
+
+        {hiddenRecentCount > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-200">
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">Search all {deals.length} saved deals</span>
+          </div>
+        ) : null}
+
+        <div className="scrollbar-premium mt-3 max-h-[28rem] overflow-y-auto pr-1">
+          {visibleDeals.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-center text-sm text-muted">
+              No deals match this search.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleDeals.map((deal) => {
+                const isActive = deal.scenarioId === activeDealId;
+                const listingSource = formatListingSource(deal.payload.purchase.listingUrl || null);
+
+                return (
+                  <button
+                    key={deal.scenarioId}
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      onActiveDealChange(deal.scenarioId);
+                      onRequestClose?.();
+                    }}
+                    className={`tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                      isActive ? 'accent-edge' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${
+                          isActive ? 'border-accent/35 bg-accent/12 text-accent' : 'border-white/10 bg-black/20 text-muted'
+                        }`}>
+                          {isActive ? 'Active' : 'Saved'}
+                        </span>
+                        <span className="text-[11px] text-muted">{dateFormatter.format(new Date(deal.updatedAt))}</span>
+                      </div>
+                      <p className="mt-1 truncate text-base font-semibold text-slate-100">{deal.dealName}</p>
+                      <p className="mt-1 truncate text-xs text-muted">
+                        {listingSource ? `Source: ${listingSource}` : 'No listing link attached'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-slate-200">
+                      Open
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
-    </details>
+      </div>
+    </section>
   );
 }

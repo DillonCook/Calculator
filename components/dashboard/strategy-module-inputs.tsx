@@ -407,9 +407,8 @@ export function StrategyModuleInputs({
           </span>
         </button>
       ) : (
-        <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mb-3">
           <h3 className="text-base font-semibold">Strategy Inputs</h3>
-          <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-muted">Updates results instantly</span>
         </div>
       )}
 

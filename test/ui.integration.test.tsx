@@ -631,6 +631,42 @@ describe('dashboard integration', () => {
     expect(within(board).queryByLabelText('Commercial projection card')).not.toBeInTheDocument();
   });
 
+  it('limits desktop deal vault quick switching to ten recent deals and searches older ones', async () => {
+    writeScenarios([
+      createSavedDeal('Recent Deal 1', '2026-01-08T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 2', '2026-01-07T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 3', '2026-01-06T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 4', '2026-01-05T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 5', '2026-01-04T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 6', '2026-01-03T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 7', '2026-01-02T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 8', '2026-01-01T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 9', '2025-12-31T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 10', '2025-12-30T12:00:00.000Z'),
+      createSavedDeal('Austin BRRRR', '2025-12-29T12:00:00.000Z'),
+      createSavedDeal('Miami Flip', '2025-12-28T12:00:00.000Z')
+    ]);
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+
+    expect(within(dialog).getByText('Recent Deal 1')).toBeInTheDocument();
+    expect(within(dialog).getByText('Recent Deal 10')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Austin BRRRR')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
+
+    const search = within(dialog).getByPlaceholderText('Search deal name');
+    await user.type(search, 'Austin');
+
+    await waitFor(() => {
+      expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
+      expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
+    });
+  });
+
   it('strategy work lightbox opens for active strategy and shows key rows', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -664,13 +700,16 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getAllByRole('button', { name: 'Duplicate' })[0]);
-    const dialogInput = screen.getByPlaceholderText('Deal name');
+    await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Duplicate active deal' }));
+    const dialogInput = within(dialog).getByPlaceholderText('Deal name');
     await user.clear(dialogInput);
     await user.type(dialogInput, 'Austin BRRRR');
-    await user.click(screen.getAllByRole('button', { name: 'Confirm' })[0]);
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 
-    expect(screen.getAllByRole('button', { name: /Austin BRRRR/i }).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByRole('button', { name: /Austin BRRRR/i }).length).toBeGreaterThan(0);
   });
 
 
@@ -708,14 +747,13 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    const listingInput = within(dialog).getByLabelText('Listing URL (Zillow, Redfin, etc.)');
     await user.clear(listingInput);
     await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
 
-    expect(screen.getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
-    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
-
-    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    expect(within(dialog).getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
 
     expect(within(dialog).getByRole('link', { name: 'View listing link' })).toHaveAttribute(
       'href',
@@ -728,10 +766,13 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const nameInput = screen.getByLabelText('Deal name');
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+
+    const nameInput = within(dialog).getByLabelText('Deal name');
     const originalName = (nameInput as HTMLInputElement).value;
 
-    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    const listingInput = within(dialog).getByLabelText('Listing URL (Zillow, Redfin, etc.)');
     await user.clear(listingInput);
     await user.type(listingInput, 'https://portal.onehome.com/en-US/share/2478045G14539');
 
@@ -739,17 +780,20 @@ describe('dashboard integration', () => {
       window.setTimeout(resolve, 700);
     });
 
-    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
+    expect(within(dialog).getByLabelText('Deal name')).toHaveValue(originalName);
   });
 
   it('does not auto-rename when listing url lacks an address slug', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    const nameInput = screen.getByLabelText('Deal name');
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+
+    const nameInput = within(dialog).getByLabelText('Deal name');
     const originalName = (nameInput as HTMLInputElement).value;
 
-    const listingInput = screen.getByLabelText('Listing URL (Zillow, Redfin, etc.)');
+    const listingInput = within(dialog).getByLabelText('Listing URL (Zillow, Redfin, etc.)');
     await user.clear(listingInput);
     await user.type(listingInput, 'https://www.redfin.com/FL/Tampa/overview');
 
@@ -757,7 +801,7 @@ describe('dashboard integration', () => {
       window.setTimeout(resolve, 700);
     });
 
-    expect(screen.getByLabelText('Deal name')).toHaveValue(originalName);
+    expect(within(dialog).getByLabelText('Deal name')).toHaveValue(originalName);
   });
 
   it('new deal action resets common underwriting fields to defaults', async () => {
@@ -772,8 +816,10 @@ describe('dashboard integration', () => {
     await user.clear(rehabBudget);
     await user.type(rehabBudget, '95000');
 
-    await user.click(screen.getAllByRole('button', { name: 'Create' })[0]);
-    await user.click(screen.getAllByRole('button', { name: 'Confirm' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+    await user.click(within(dialog).getByRole('button', { name: 'Create new deal' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
