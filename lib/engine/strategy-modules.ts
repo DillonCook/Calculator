@@ -85,6 +85,51 @@ const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrateg
   }, 0);
 };
 
+const getAcquisitionBasisPrice = (input: DealInputModel): number => {
+  const { purchase } = input;
+  return purchase.ownershipMode === 'owned' ? Math.max(purchase.ownedPurchasePrice, 0) : Math.max(purchase.purchasePrice, 0);
+};
+
+const getCurrentCashToClose = (input: DealInputModel): number => {
+  const { purchase } = input;
+
+  if (purchase.ownershipMode === 'owned') {
+    return Math.max(purchase.helocClosingCosts, 0);
+  }
+
+  return calculateCashToClose(
+    purchase.purchasePrice,
+    purchase.rehabBudget,
+    purchase.downPaymentPercent,
+    purchase.closingCostPercent,
+    purchase.pointsPercent,
+    purchase.financingType,
+    purchase.helocAmount,
+    purchase.helocClosingCosts
+  );
+};
+
+const getAcquisitionCapitalInvested = (input: DealInputModel): number => {
+  const { purchase } = input;
+
+  if (purchase.ownershipMode === 'owned') {
+    return (
+      Math.max(purchase.ownedMoneyDown, 0) +
+      Math.max(purchase.ownedAdditionalInvested, 0) +
+      Math.max(purchase.helocClosingCosts, 0)
+    );
+  }
+
+  return getCurrentCashToClose(input);
+};
+
+const getTotalProjectBasis = (input: DealInputModel, additionalCapital = 0): number => {
+  const ownedAdditionalCapital =
+    input.purchase.ownershipMode === 'owned' ? Math.max(input.purchase.ownedAdditionalInvested, 0) : 0;
+
+  return getAcquisitionBasisPrice(input) + ownedAdditionalCapital + Math.max(additionalCapital, 0);
+};
+
 const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput[] => {
   const { purchase } = input;
   const debts: TimelineDebtInput[] = [];
@@ -210,7 +255,7 @@ const buildLeveredTimeline = ({
   expenseGrowthRate,
   debts
 }: LeveredTimelineInput) => {
-  const { purchase, assumptions } = input;
+  const { assumptions } = input;
   const holdYears = Math.max(assumptions.holdYears, 0);
   const fullYears = Math.floor(holdYears);
   const partialYear = holdYears - fullYears;
@@ -219,7 +264,8 @@ const buildLeveredTimeline = ({
   const annualDebtService = debts.reduce((sum, debt) => sum + getDebtMonthlyPayment(debt) * 12, 0);
   const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
 
-  const baseValue = arv > 0 ? arv : purchase.purchasePrice;
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
+  const baseValue = arv > 0 ? arv : acquisitionBasisPrice;
   const terminalPropertyValue = holdYears > 0 ? baseValue * Math.pow(1 + assumptions.annualAppreciationPercent, holdYears) : baseValue;
   const saleProceeds = terminalPropertyValue * (1 - assumptions.sellingCostPercent) - remainingLoanBalance;
 
@@ -296,10 +342,11 @@ const calculateLongTermTurnaroundSummary = (
   const annualCashFlowPreTax = cashFlowPreTaxMonthly * 12;
   const rehabBudgetForStabilization = Math.max(turnaround.rehabBudgetForStabilization, 0);
   const totalCashInvested = purchaseCashNeeded + rehabBudgetForStabilization;
-  const capRate = input.purchase.purchasePrice === 0 ? 0 : annualNoi / input.purchase.purchasePrice;
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
+  const capRate = acquisitionBasisPrice <= 0 ? 0 : annualNoi / acquisitionBasisPrice;
   const cashOnCashReturn = totalCashInvested === 0 ? 0 : annualCashFlowPreTax / totalCashInvested;
   const impliedValueAtExitCap = annualNoi / exitRefiCapRatePercent;
-  const totalProjectBasis = input.purchase.purchasePrice + rehabBudgetForStabilization;
+  const totalProjectBasis = getTotalProjectBasis(input, rehabBudgetForStabilization);
   const capOnCost = totalProjectBasis <= 0 ? 0 : annualNoi / totalProjectBasis;
   const equityCreated = impliedValueAtExitCap - totalProjectBasis;
 
@@ -360,20 +407,8 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
 
   const { debtService, principal } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
-
-  const cashToClose =
-    purchase.ownershipMode === 'owned'
-      ? Math.max(purchase.helocClosingCosts, 0)
-      : calculateCashToClose(
-          purchase.purchasePrice,
-          purchase.rehabBudget,
-          purchase.downPaymentPercent,
-          purchase.closingCostPercent,
-          purchase.pointsPercent,
-          purchase.financingType,
-          purchase.helocAmount,
-          purchase.helocClosingCosts
-        );
+  const capitalInvested = getAcquisitionCapitalInvested(input);
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
 
   const grossLeasableAreaSqft = Math.max(commercial.grossLeasableAreaSqft, 0);
   const occupiedSqft = Math.min(Math.max(commercial.occupiedSqft, 0), grossLeasableAreaSqft);
@@ -408,7 +443,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   const annualCashFlow = monthlyCashFlow * 12;
   const timelineData = buildLeveredTimeline({
     input,
-    totalCashNeeded: cashToClose,
+    totalCashNeeded: capitalInvested,
     annualRevenueYear1: annualOccupiedGross,
     annualOperatingExpensesYear1: annualOperatingExpenses,
     arv: purchase.arv,
@@ -429,9 +464,9 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     monthlyCashFlow,
     monthlyCashFlowExcludingReserves: monthlyCashFlow + (annualTiReserve + annualLeasingReserve) / 12,
     annualCashFlow,
-    totalCashNeeded: cashToClose,
-    capRate: purchase.purchasePrice === 0 ? 0 : annualNoi / purchase.purchasePrice,
-    cashOnCashReturn: cashToClose === 0 ? 0 : annualCashFlow / cashToClose,
+    totalCashNeeded: capitalInvested,
+    capRate: acquisitionBasisPrice <= 0 ? 0 : annualNoi / acquisitionBasisPrice,
+    cashOnCashReturn: capitalInvested === 0 ? 0 : annualCashFlow / capitalInvested,
     dscr: calculateDscr(noiMonthly, debtService),
     roi: timelineData.roi,
     irr: timelineData.irr,
@@ -523,6 +558,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
     debts: buildAcquisitionTimelineDebts(input)
   });
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
   const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts);
   const stabilizedIncomeSourcesMonthly =
     (turnaroundSummary?.laundryIncomeMonthly ?? 0) +
@@ -568,7 +604,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     monthlyCashFlow: monthly,
     monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
-    capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
+    capRate: acquisitionBasisPrice <= 0 ? 0 : (noi * 12) / acquisitionBasisPrice,
     cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
     dscr: calculateDscr(noi, debtService),
     roi: timelineData.roi,
@@ -612,7 +648,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
 };
 
 export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
-  const { airbnb, purchase } = input;
+  const { airbnb } = input;
   const base = createBaseOutput('airbnb', 'Short-term rental model with cleaning and platform drag.');
 
   const occupiedNights = airbnb.nightsPerMonth * clampPercent(airbnb.occupancyPercent);
@@ -652,13 +688,14 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
     debts: buildAcquisitionTimelineDebts(input)
   });
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
 
   return {
     ...base,
     monthlyCashFlow: monthly,
     monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
-    capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
+    capRate: acquisitionBasisPrice <= 0 ? 0 : (noi * 12) / acquisitionBasisPrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     dscr: calculateDscr(noi, debtService),
     roi: timelineData.roi,
@@ -697,7 +734,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
 };
 
 export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
-  const { padSplit, purchase } = input;
+  const { padSplit } = input;
   const base = createBaseOutput('padSplit', 'Rent-by-room economics with platform and turn costs.');
 
   const legacyPadSplit = padSplit as DealInputModel['padSplit'] & { turnoverCostMonthly?: number };
@@ -770,13 +807,14 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
     debts: buildAcquisitionTimelineDebts(input)
   });
+  const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
 
   return {
     ...base,
     monthlyCashFlow: monthly,
     monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
     annualCashFlow: annual,
-    capRate: purchase.purchasePrice === 0 ? 0 : (noi * 12) / purchase.purchasePrice,
+    capRate: acquisitionBasisPrice <= 0 ? 0 : (noi * 12) / acquisitionBasisPrice,
     cashOnCashReturn: investedCapital === 0 ? 0 : annual / investedCapital,
     dscr: calculateDscr(noi, debtService),
     roi: timelineData.roi,

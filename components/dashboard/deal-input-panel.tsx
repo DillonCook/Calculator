@@ -776,13 +776,31 @@ export function DealInputPanel({
                   ) : (
                     <>
                       <Input
+                        label="Initial purchase price"
+                        type="number"
+                        value={value.purchase.ownedPurchasePrice}
+                        onChange={(v) => update('purchase', 'ownedPurchasePrice', Number(v))}
+                      />
+                      <Input
+                        label="Initial money down"
+                        type="number"
+                        value={value.purchase.ownedMoneyDown}
+                        onChange={(v) => update('purchase', 'ownedMoneyDown', Number(v))}
+                      />
+                      <Input
+                        label="Additional capital invested"
+                        type="number"
+                        value={value.purchase.ownedAdditionalInvested}
+                        onChange={(v) => update('purchase', 'ownedAdditionalInvested', Number(v))}
+                      />
+                      <Input
                         label="Mortgage payment / month"
                         type="number"
                         value={value.purchase.existingMortgageMonthly}
                         onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
                       />
                       <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-muted sm:col-span-2">
-                        Monthly cash flow uses your payment above. Balance, rate, and term are only used to model payoff, equity, and projected sale proceeds.
+                        Money down plus additional capital drive total invested, cash-on-cash, ROI, and IRR. Monthly cash flow uses your payment above, while balance, rate, and term model payoff, equity, and projected sale proceeds.
                       </div>
                       <Input
                         label="Mortgage balance for projections"

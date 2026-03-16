@@ -23,6 +23,7 @@ interface StrategyComparisonProps {
   defaultBoardOpen?: boolean;
   inlineModelingViews?: boolean;
   lockBoardOpen?: boolean;
+  hideHeader?: boolean;
   visibleStrategies?: StrategyKey[];
 }
 
@@ -33,6 +34,7 @@ export function StrategyComparison({
   defaultBoardOpen = true,
   inlineModelingViews = false,
   lockBoardOpen = false,
+  hideHeader = false,
   visibleStrategies
 }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
@@ -398,7 +400,7 @@ export function StrategyComparison({
         </section>
       ) : (
       <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-        {lockBoardOpen ? (
+        {!hideHeader && lockBoardOpen ? (
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
@@ -408,7 +410,7 @@ export function StrategyComparison({
               {rows.length} exits
             </span>
           </div>
-        ) : (
+        ) : !hideHeader ? (
           <button
             type="button"
             aria-expanded={isBoardOpen}
@@ -423,9 +425,9 @@ export function StrategyComparison({
               {isBoardOpen ? '-' : '+'}
             </span>
           </button>
-        )}
+        ) : null}
 
-        {lockBoardOpen ? (
+        {lockBoardOpen || hideHeader ? (
           boardContent
         ) : (
           <div className="panel-collapse" data-open={isBoardOpen}>

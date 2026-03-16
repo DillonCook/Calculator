@@ -4,6 +4,7 @@ import type { MasterAssumptions, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
+import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
 
 interface TimelineCardProps {
   output: StrategyOutput;
@@ -11,6 +12,8 @@ interface TimelineCardProps {
   defaultOpen?: boolean;
   collapsible?: boolean;
   summaryVariant?: 'cards' | 'compact';
+  onAssumptionsChange?: (updates: Partial<MasterAssumptions>) => void;
+  showTargetIrrInput?: boolean;
 }
 
 export function TimelineCard({
@@ -18,7 +21,9 @@ export function TimelineCard({
   assumptions,
   defaultOpen = true,
   collapsible = true,
-  summaryVariant = 'cards'
+  summaryVariant = 'cards',
+  onAssumptionsChange,
+  showTargetIrrInput = false
 }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
   const closeTooltipTimerRef = useRef<number | null>(null);
@@ -94,6 +99,7 @@ export function TimelineCard({
 
   const isExpanded = collapsible ? isOpen : true;
   const holdRangeLabel = `Years 0 - ${assumptions.holdYears}`;
+  const showEmbeddedAssumptions = Boolean(onAssumptionsChange) && summaryVariant === 'cards';
   const compactReferenceItems = [
     { label: 'Hold', value: `${assumptions.holdYears}y` },
     { label: 'NOI', value: percentFormatter.format(assumptions.noiGrowthPercent) },
@@ -103,8 +109,19 @@ export function TimelineCard({
 
   const timelineContent = (
     <>
+      {showEmbeddedAssumptions ? (
+        <div className="rounded-xl border border-white/10 bg-black/15 p-3 sm:p-4">
+          <AssumptionsPanel
+            assumptions={assumptions}
+            onChange={onAssumptionsChange!}
+            showTargetIrrInput={showTargetIrrInput}
+            variant="embedded"
+          />
+        </div>
+      ) : null}
+
       {summaryVariant === 'compact' ? (
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+        <div className={`${showEmbeddedAssumptions ? 'mt-4' : 'mt-3'} rounded-xl border border-white/10 bg-white/5 px-3 py-2.5`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
           </div>
@@ -117,7 +134,7 @@ export function TimelineCard({
           </div>
         </div>
       ) : (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`${showEmbeddedAssumptions ? 'mt-4' : 'mt-3'} grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
           <SummaryMetric label="Hold years" value={`${assumptions.holdYears}`} />
           <SummaryMetric label="NOI growth" value={percentFormatter.format(assumptions.noiGrowthPercent)} />
           <SummaryMetric label="Appreciation" value={percentFormatter.format(assumptions.annualAppreciationPercent)} />

@@ -769,92 +769,104 @@ export default function HomePage() {
     [compactSelectedStrategies]
   );
   const compactCompareSelection = compactProjectionStrategies;
-  const headlineMetricCards = useMemo(() => {
-    const cards: Record<HeadlineMetricId, ReactNode> = {
-      cashToClose: (
-        <KpiCard
-          label="Cash to Close"
-          value={currencyFormatter.format(cashToCloseValue)}
-          winner={activeStrategyLabels[activeStrategy]}
-          secondaryLabel="Total cash invested"
-          secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
-          definitions={[
-            {
-              term: 'Cash to Close',
-              description: 'Cash needed at closing only (down payment, closing costs, points, and HELOC close costs). Excludes rehab and one-time setup costs.'
-            },
-            {
-              term: 'Total cash invested',
-              description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
-            }
-          ]}
-        />
-      ),
-      capRate: (
-        <KpiCard
-          label="Cap Rate"
-          value={percentFormatter.format(activeOutput.capRate)}
-          numericValue={activeOutput.capRate}
-          numericValueKind="percent"
-          helper="Annual NOI / current property value"
-          winner={activeStrategyLabels[activeStrategy]}
-        />
-      ),
-      cashOnCash: (
-        <KpiCard
-          label="Cash on Cash"
-          value={percentFormatter.format(activeOutput.cashOnCashReturn)}
-          numericValue={activeOutput.cashOnCashReturn}
-          numericValueKind="percent"
-          helper="Annual cash flow / total cash invested"
-          winner={activeStrategyLabels[activeStrategy]}
-        />
-      ),
-      dscr: (
-        <KpiCard
-          label="DSCR"
-          value={activeOutput.dscr.toFixed(2)}
-          numericValue={activeOutput.dscr}
-          numericValueKind="ratio"
-          numericValueBaseline={1}
-          helper="NOI / annual debt service"
-          winner={activeStrategyLabels[activeStrategy]}
-        />
-      ),
-      roi: (
-        <KpiCard
-          label="ROI"
-          value={percentFormatter.format(activeOutput.roi)}
-          numericValue={activeOutput.roi}
-          numericValueKind="percent"
-          helper="Total profit / total cash invested"
-          winner={activeStrategyLabels[activeStrategy]}
-        />
-      ),
-      irr: (
-        <KpiCard
-          label="IRR"
-          value={percentFormatter.format(activeOutput.irr)}
-          numericValue={activeOutput.irr}
-          numericValueKind="percent"
-          helper="Discounted return from yearly cashflow timeline"
-          winner={activeStrategyLabels[activeStrategy]}
-          definitions={[
-            {
-              term: 'IRR (Internal Rate of Return)',
-              description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
-            },
-            {
-              term: 'Why it matters',
-              description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
-            }
-          ]}
-        />
-      )
-    };
-
-    return cards;
-  }, [activeOutput, activeStrategy, cashToCloseValue]);
+  const renderHeadlineMetricCard = (metricId: HeadlineMetricId, layout: 'default' | 'compact' = 'default'): ReactNode => {
+    switch (metricId) {
+      case 'cashToClose':
+        return (
+          <KpiCard
+            label="Cash to Close"
+            value={currencyFormatter.format(cashToCloseValue)}
+            winner={activeStrategyLabels[activeStrategy]}
+            secondaryLabel="Total cash invested"
+            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
+            definitions={[
+              {
+                term: 'Cash to Close',
+                description: 'Cash needed at closing only (down payment, closing costs, points, and HELOC close costs). Excludes rehab and one-time setup costs.'
+              },
+              {
+                term: 'Total cash invested',
+                description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
+              }
+            ]}
+            layout={layout}
+          />
+        );
+      case 'capRate':
+        return (
+          <KpiCard
+            label="Cap Rate"
+            value={percentFormatter.format(activeOutput.capRate)}
+            numericValue={activeOutput.capRate}
+            numericValueKind="percent"
+            helper="Annual NOI / current property value"
+            winner={activeStrategyLabels[activeStrategy]}
+            layout={layout}
+          />
+        );
+      case 'cashOnCash':
+        return (
+          <KpiCard
+            label="Cash on Cash"
+            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
+            numericValue={activeOutput.cashOnCashReturn}
+            numericValueKind="percent"
+            helper="Annual cash flow / total cash invested"
+            winner={activeStrategyLabels[activeStrategy]}
+            layout={layout}
+          />
+        );
+      case 'dscr':
+        return (
+          <KpiCard
+            label="DSCR"
+            value={activeOutput.dscr.toFixed(2)}
+            numericValue={activeOutput.dscr}
+            numericValueKind="ratio"
+            numericValueBaseline={1}
+            helper="NOI / annual debt service"
+            winner={activeStrategyLabels[activeStrategy]}
+            layout={layout}
+          />
+        );
+      case 'roi':
+        return (
+          <KpiCard
+            label="ROI"
+            value={percentFormatter.format(activeOutput.roi)}
+            numericValue={activeOutput.roi}
+            numericValueKind="percent"
+            helper="Total profit / total cash invested"
+            winner={activeStrategyLabels[activeStrategy]}
+            layout={layout}
+          />
+        );
+      case 'irr':
+        return (
+          <KpiCard
+            label="IRR"
+            value={percentFormatter.format(activeOutput.irr)}
+            numericValue={activeOutput.irr}
+            numericValueKind="percent"
+            helper="Discounted return from yearly cashflow timeline"
+            winner={activeStrategyLabels[activeStrategy]}
+            definitions={[
+              {
+                term: 'IRR (Internal Rate of Return)',
+                description: 'The annualized return that accounts for both cash-flow size and timing across the full hold period.'
+              },
+              {
+                term: 'Why it matters',
+                description: 'IRR helps compare deals with different timelines and exit profiles, so you can prioritize faster capital velocity and better risk-adjusted outcomes.'
+              }
+            ]}
+            layout={layout}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2679,9 +2691,123 @@ export default function HomePage() {
       <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
         {orderedHeadlineMetricIds.map((metricId) => (
           <div key={`headline-metric-${metricId}`} className="min-w-0 h-full [&>div]:h-full">
-            {headlineMetricCards[metricId]}
+            {renderHeadlineMetricCard(metricId)}
           </div>
         ))}
+      </div>
+    </section>
+  );
+
+  const desktopHeadlineMetricSection = (
+    <div className="border-t border-white/10 pt-3 lg:col-span-2">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Live KPI strip</p>
+          <p className="text-xs text-muted">Six fast reads for the active strategy while the workspace stays in view.</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">{activeStrategyLabel}</span>
+          <button
+            type="button"
+            onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
+            className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+          >
+            {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange KPIs'}
+          </button>
+        </div>
+      </div>
+
+      {isHeadlineMetricOrderEditorOpen ? (
+        <div className="mb-3 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+          {orderedHeadlineMetricIds.map((metricId, index) => {
+            const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
+
+            return (
+              <div key={`desktop-kpi-order-${metricId}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                <p className="truncate text-xs text-slate-200">
+                  {index + 1}. {metricLabel}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`Move ${metricLabel} up`}
+                    onClick={() => moveHeadlineMetricItem(index, index - 1)}
+                    disabled={index === 0}
+                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${metricLabel} down`}
+                    onClick={() => moveHeadlineMetricItem(index, index + 1)}
+                    disabled={index === orderedHeadlineMetricIds.length - 1}
+                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                  >
+                    Down
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+        {orderedHeadlineMetricIds.map((metricId) => (
+          <div key={`desktop-headline-metric-${metricId}`} className="min-w-0 h-full [&>div]:h-full">
+            {renderHeadlineMetricCard(metricId, 'compact')}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const desktopPerformanceDashboard = (
+    <section className="space-y-4">
+      <div className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(135deg,rgba(17,28,44,0.96),rgba(10,16,28,0.96))] p-4 shadow-soft">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Performance dashboard</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-100">IRR stream and strategy board</h2>
+            <p className="mt-1 text-sm text-muted">Read timing, capital velocity, and exit spread in one dashboard while keeping the underwriting controls open on the right.</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] text-muted">
+            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">{activeStrategyLabel}</span>
+            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">{`Years 0 - ${model.assumptions.holdYears}`}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2 px-1">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">IRR stream</p>
+              <p className="text-xs text-muted">Year-by-year cash flow timing and hold assumptions.</p>
+            </div>
+          </div>
+          <div ref={irrStreamRef}>
+            <TimelineCard
+              output={result[activeStrategy]}
+              assumptions={model.assumptions}
+              defaultOpen={Boolean(activeDealId)}
+              collapsible={false}
+              summaryVariant="compact"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2 px-1">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Master strategy board</p>
+              <p className="text-xs text-muted">Compare all exit paths without switching away from the live deal.</p>
+            </div>
+            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">{strategyKeyOrder.length} exits</span>
+          </div>
+          <StrategyComparison data={result} input={model} holdYears={model.assumptions.holdYears} lockBoardOpen hideHeader />
+        </div>
       </div>
     </section>
   );
@@ -3313,7 +3439,7 @@ export default function HomePage() {
   );
 
   return (
-    <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-8${isLightMode ? ' theme-light' : ''}`}>
+    <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
       <div
         aria-hidden="true"
         className={`pointer-events-none absolute inset-x-0 top-0 h-[340px] ${
@@ -3322,7 +3448,7 @@ export default function HomePage() {
             : 'bg-[radial-gradient(circle_at_top,rgba(244,150,58,0.28)_0%,rgba(115,150,202,0.12)_34%,transparent_72%)]'
         }`}
       />
-      <div className="mx-auto max-w-7xl space-y-5">
+      <div className="mx-auto max-w-[112rem] space-y-5">
         {isMobileViewport ? (
           <header className="panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur">
             <div className="space-y-3">
@@ -3534,7 +3660,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-              <div className="w-full md:min-w-0 lg:max-w-[560px]">
+              <div className="w-full md:min-w-0 xl:max-w-[760px]">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:items-center md:justify-end md:gap-2">
                   <button
                     type="button"
@@ -3702,8 +3828,8 @@ export default function HomePage() {
 
         {!isMobileViewport ? (
         <>
-        <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft">
-          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-2 lg:items-stretch">
+        <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
+          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)] lg:items-stretch">
             <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
@@ -3858,9 +3984,10 @@ export default function HomePage() {
                 onApply={applyDealWorkoutScenario}
               />
             )}
+
+            {desktopHeadlineMetricSection}
           </div>
         </section>
-        {headlineMetricSection}
         {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
           <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -4033,7 +4160,7 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:grid-cols-[1.2fr_1fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.24fr)_minmax(360px,0.92fr)] 2xl:grid-cols-[minmax(0,1.3fr)_minmax(390px,0.88fr)]">
           <div className="space-y-4">
             {!isMobileViewport ? (
               <div ref={desktopStrategyTabsRef}>
@@ -4056,19 +4183,7 @@ export default function HomePage() {
                 />
               </div>
             ) : null}
-            {!isMobileViewport ? (
-              <section ref={desktopStrategyInputsRef} className="grid gap-3">
-                <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
-              </section>
-            ) : null}
-            <div ref={irrStreamRef}>
-              <TimelineCard
-                output={result[activeStrategy]}
-                assumptions={model.assumptions}
-                defaultOpen={Boolean(activeDealId)}
-              />
-            </div>
-            <StrategyComparison data={result} input={model} holdYears={model.assumptions.holdYears} />
+            {desktopPerformanceDashboard}
           </div>
 
           {!isMobileViewport ? (
@@ -4082,6 +4197,9 @@ export default function HomePage() {
                   preferredCoreSection={onboardingHighlightedCoreSection}
                 />
               </div>
+              <section ref={desktopStrategyInputsRef} className="grid gap-3">
+                <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
+              </section>
               <div ref={desktopIrrInputsRef}>
                 <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
               </div>

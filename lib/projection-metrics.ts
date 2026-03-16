@@ -157,7 +157,9 @@ const getModeledSalePriceAtMonth = (strategy: StrategyOutput['strategy'], input:
 };
 
 const resolveBaseValue = (strategy: StrategyOutput['strategy'], input: DealInputModel) => {
-  const purchaseBaseValue = input.purchase.arv > 0 ? input.purchase.arv : input.purchase.purchasePrice;
+  const acquisitionBasisPrice =
+    input.purchase.ownershipMode === 'owned' ? Math.max(input.purchase.ownedPurchasePrice, 0) : Math.max(input.purchase.purchasePrice, 0);
+  const purchaseBaseValue = input.purchase.arv > 0 ? input.purchase.arv : acquisitionBasisPrice;
 
   if (strategy === 'longTerm') return input.longTerm.arvOverride && input.longTerm.arvOverride > 0 ? input.longTerm.arvOverride : purchaseBaseValue;
   if (strategy === 'airbnb') return input.airbnb.arvOverride && input.airbnb.arvOverride > 0 ? input.airbnb.arvOverride : purchaseBaseValue;

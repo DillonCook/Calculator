@@ -25,6 +25,7 @@ interface KpiCardProps {
   backgroundChart?: 'none' | 'cashflowBars';
   chartSeries?: number[];
   valueTestId?: string;
+  layout?: 'default' | 'compact';
 }
 
 interface ChartPoint {
@@ -99,8 +100,10 @@ export function KpiCard({
   definitions,
   backgroundChart = 'none',
   chartSeries,
-  valueTestId
+  valueTestId,
+  layout = 'default'
 }: KpiCardProps) {
+  const isCompact = layout === 'compact';
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const closeTooltipTimerRef = useRef<number | null>(null);
   const tooltipId = `kpi-tooltip-${slugify(label)}`;
@@ -211,7 +214,7 @@ export function KpiCard({
   );
 
   return (
-    <div className="relative min-w-0 overflow-visible rounded-2xl card-surface p-2.5 shadow-soft sm:p-4">
+    <div className={`relative min-w-0 overflow-visible card-surface shadow-soft ${isCompact ? 'rounded-xl p-2' : 'rounded-2xl p-2.5 sm:p-4'}`}>
       {backgroundChart === 'cashflowBars' ? (
         <div className="pointer-events-none absolute inset-0 z-0 select-none">
           <div
@@ -256,14 +259,14 @@ export function KpiCard({
         </div>
       ) : null}
       {definitions?.length ? (
-        <div ref={tooltipAnchorRef} className="absolute right-2.5 top-2.5 z-30 sm:right-3 sm:top-3">
+        <div ref={tooltipAnchorRef} className={`absolute z-30 ${isCompact ? 'right-1.5 top-1.5' : 'right-2.5 top-2.5 sm:right-3 sm:top-3'}`}>
           <button
             ref={tooltipTriggerRef}
             type="button"
             aria-label={`${label} definitions`}
             aria-expanded={isTooltipOpen}
             aria-controls={tooltipId}
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            className={`inline-flex items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${isCompact ? 'h-[1.1rem] w-[1.1rem]' : 'h-5 w-5'}`}
             onMouseEnter={openTooltip}
             onMouseLeave={scheduleCloseTooltip}
             onFocus={openTooltip}
@@ -310,19 +313,24 @@ export function KpiCard({
         </div>
       ) : null}
 
-      <div className="relative z-10 flex min-w-0 items-center gap-2 pr-6 sm:pr-7">
-        <p className="min-w-0 truncate text-[11px] uppercase tracking-wide text-muted sm:text-xs">{label}</p>
+      <div className={`relative z-10 flex min-w-0 items-center gap-2 ${isCompact ? 'pr-[1.125rem]' : 'pr-6 sm:pr-7'}`}>
+        <p className={`min-w-0 truncate uppercase tracking-wide text-muted ${isCompact ? 'text-[10px]' : 'text-[11px] sm:text-xs'}`}>{label}</p>
       </div>
 
       {winner ? (
-        <p className="relative z-10 mt-1 text-[11px] italic tracking-wide text-accent/90 sm:text-xs" aria-label={`${label} strategy context`}>
+        <p
+          className={`relative z-10 italic tracking-wide text-accent/90 ${isCompact ? 'mt-0.5 truncate text-[10px]' : 'mt-1 text-[11px] sm:text-xs'}`}
+          aria-label={`${label} strategy context`}
+        >
           {winner}
         </p>
       ) : null}
 
       <p
         ref={primaryValueRef}
-        className={`relative z-10 mt-1 text-[clamp(1rem,5.6vw,1.5rem)] font-semibold leading-tight sm:text-3xl md:text-4xl ${tone === 'success' ? 'text-emerald-300' : 'text-white'}`}
+        className={`relative z-10 font-semibold leading-tight ${tone === 'success' ? 'text-emerald-300' : 'text-white'} ${
+          isCompact ? 'mt-0.5 text-[clamp(0.9rem,1.4vw,1.22rem)] 2xl:text-[1.32rem]' : 'mt-1 text-[clamp(1rem,5.6vw,1.5rem)] sm:text-3xl md:text-4xl'
+        }`}
         data-testid={valueTestId ?? `kpi-${slugify(label)}`}
         style={negativeValueStyle}
       >
@@ -330,15 +338,19 @@ export function KpiCard({
       </p>
 
       {secondaryLabel && secondaryValue ? (
-        <div className="relative z-10 mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 sm:px-2.5 sm:py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted sm:text-[11px]">{secondaryLabel}</p>
-          <p ref={secondaryValueRef} className="text-xs font-semibold text-white sm:text-base" data-testid={`kpi-${slugify(secondaryLabel)}`}>
+        <div className={`relative z-10 rounded-lg border border-white/10 bg-white/[0.03] ${isCompact ? 'mt-1 px-2 py-1' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
+          <p className={`uppercase tracking-wide text-muted ${isCompact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'}`}>{secondaryLabel}</p>
+          <p
+            ref={secondaryValueRef}
+            className={`font-semibold text-white ${isCompact ? 'text-[11px]' : 'text-xs sm:text-base'}`}
+            data-testid={`kpi-${slugify(secondaryLabel)}`}
+          >
             {secondaryValue}
           </p>
         </div>
       ) : null}
 
-      {helper ? <p className="relative z-10 mt-2 text-[11px] text-muted sm:text-xs">{helper}</p> : null}
+      {helper ? <p className={`relative z-10 text-muted ${isCompact ? 'mt-0.5 text-[9px] leading-[1.35]' : 'mt-2 text-[11px] sm:text-xs'}`}>{helper}</p> : null}
     </div>
   );
 }

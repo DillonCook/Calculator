@@ -538,6 +538,85 @@ test('owned mode does not infer debt service from payoff inputs when monthly pay
   near(result.longTerm.cashFlowTimeline[1], (result.longTerm.noiMonthly ?? 0) * 12, 0.01);
 });
 
+test('owned mode uses explicit capital inputs for total invested and projection basis', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned' as const,
+      financingType: 'cash' as const,
+      purchasePrice: 0,
+      arv: 0,
+      ownedPurchasePrice: 265000,
+      ownedMoneyDown: 53000,
+      ownedAdditionalInvested: 18500,
+      helocClosingCosts: 2500,
+      existingMortgageMonthly: 1425,
+      existingMortgageBalance: 176000,
+      existingMortgageRate: 0.061,
+      existingMortgageRemainingYears: 24,
+      existingTaxMonthly: 260,
+      existingInsuranceMonthly: 110
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2950
+    }
+  };
+
+  const result = calculateDeal(model);
+  const expectedInvestedCapital =
+    model.purchase.ownedMoneyDown + model.purchase.ownedAdditionalInvested + model.purchase.helocClosingCosts;
+
+  near(result.purchase.totalCashNeeded, expectedInvestedCapital, 0.01);
+  near(result.longTerm.totalCashNeeded, expectedInvestedCapital, 0.01);
+  near(result.longTerm.cashOnCashReturn, result.longTerm.annualCashFlow / expectedInvestedCapital, 1e-9);
+  near(result.longTerm.cashFlowTimeline[0], -expectedInvestedCapital, 0.01);
+});
+
+test('owned mode uses original purchase price for cap rate and sale basis when current purchase price is blank', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned' as const,
+      financingType: 'cash' as const,
+      purchasePrice: 0,
+      arv: 0,
+      ownedPurchasePrice: 250000,
+      ownedMoneyDown: 50000,
+      ownedAdditionalInvested: 15000,
+      existingMortgageMonthly: 1200,
+      existingMortgageBalance: 160000,
+      existingMortgageRate: 0.058,
+      existingMortgageRemainingYears: 20
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2800
+    },
+    assumptions: {
+      ...defaultDealInput.assumptions,
+      annualAppreciationPercent: 0,
+      sellingCostPercent: 0.06
+    }
+  };
+
+  const result = calculateDeal(model);
+  const expectedCapRate = ((result.longTerm.noiMonthly ?? 0) * 12) / model.purchase.ownedPurchasePrice;
+  const remainingPrimaryBalance = calculateRemainingBalance(
+    model.purchase.existingMortgageBalance,
+    model.purchase.existingMortgageRate,
+    model.purchase.existingMortgageRemainingYears,
+    model.assumptions.holdYears,
+    'PI'
+  );
+  const expectedSaleProceeds = model.purchase.ownedPurchasePrice * (1 - model.assumptions.sellingCostPercent) - remainingPrimaryBalance;
+
+  near(result.longTerm.capRate, expectedCapRate, 1e-9);
+  near(result.longTerm.saleProceeds ?? 0, expectedSaleProceeds, 0.1);
+});
+
 test('purchase taxes and insurance are auto calculated but can be overridden', () => {
   const model = {
     ...defaultDealInput,

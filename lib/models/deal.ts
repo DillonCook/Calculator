@@ -59,6 +59,9 @@ export interface PurchaseInputs {
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
   pmiMonthly: number;
+  ownedPurchasePrice: number;
+  ownedMoneyDown: number;
+  ownedAdditionalInvested: number;
   existingMortgageMonthly: number;
   existingMortgageBalance: number;
   existingMortgageRate: number;
@@ -383,6 +386,9 @@ export const defaultDealInput: DealInputModel = {
     insuranceAnnualOverride: null,
     hoaMonthly: 0,
     pmiMonthly: 0,
+    ownedPurchasePrice: 0,
+    ownedMoneyDown: 0,
+    ownedAdditionalInvested: 0,
     existingMortgageMonthly: 0,
     existingMortgageBalance: 0,
     existingMortgageRate: 0.065,

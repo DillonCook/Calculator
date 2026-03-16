@@ -7,24 +7,30 @@ interface AssumptionsPanelProps {
   assumptions: MasterAssumptions;
   onChange: (updates: Partial<MasterAssumptions>) => void;
   showTargetIrrInput?: boolean;
+  variant?: 'panel' | 'embedded';
 }
 
 export function AssumptionsPanel({
   assumptions,
   onChange,
-  showTargetIrrInput = false
+  showTargetIrrInput = false,
+  variant = 'panel'
 }: AssumptionsPanelProps) {
+  const isEmbedded = variant === 'embedded';
+
   return (
-    <section className="rounded-2xl panel-surface p-3 shadow-soft sm:p-4">
-      <div className="mb-3">
-        <p className="text-xs uppercase tracking-[0.16em] text-accent">Exit assumptions</p>
-        <h3 className="mt-1 text-lg font-semibold text-slate-100">IRR and timeline inputs</h3>
-        <p className="mt-1 text-sm text-muted">
-          Set hold period and exit assumptions here so Results stays focused on outputs.
+    <section className={isEmbedded ? 'space-y-3' : 'rounded-2xl panel-surface p-3 shadow-soft sm:p-4'}>
+      <div className={isEmbedded ? 'space-y-1' : 'mb-3'}>
+        <p className={`uppercase tracking-[0.16em] ${isEmbedded ? 'text-[11px] text-muted' : 'text-xs text-accent'}`}>Exit assumptions</p>
+        <h3 className={`${isEmbedded ? 'text-base' : 'mt-1 text-lg'} font-semibold text-slate-100`}>IRR and timeline inputs</h3>
+        <p className="text-sm text-muted">
+          {isEmbedded
+            ? 'These settings feed the IRR stream and projected exit math for the active strategy.'
+            : 'Set hold period and exit assumptions here so Results stays focused on outputs.'}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={`grid gap-3 ${isEmbedded ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <Input
           label="Hold years"
           type="number"
