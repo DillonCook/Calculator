@@ -268,7 +268,7 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   {
     id: 'mobileDeals',
     title: 'Your Saved Deals Are Here',
-    body: 'Tap Recent deals when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
+    body: 'Tap Deal Vault when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
   },
   {
     id: 'mobileStrategy',
@@ -919,7 +919,7 @@ export default function HomePage() {
     {
       key: 'expenses' as const,
       label: 'Expenses',
-      summary: 'Taxes + ops'
+      summary: 'Variables'
     },
     {
       key: 'strategy' as const,
@@ -3023,7 +3023,7 @@ export default function HomePage() {
           <section className="flex h-[min(62dvh,540px)] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-muted">Recent deals</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal Vault</p>
                 <p className="mt-1 text-sm text-slate-100">Open, duplicate, or delete saved scenarios without leaving the mobile workflow.</p>
               </div>
               <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
@@ -3503,7 +3503,7 @@ export default function HomePage() {
                   }}
                   className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
                 >
-                  Recent deals
+                  Deal Vault
                 </button>
               </div>
 

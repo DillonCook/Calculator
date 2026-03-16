@@ -77,7 +77,7 @@ describe('dashboard integration', () => {
     const projectionsButton = screen.getByRole('button', { name: 'Projections' });
 
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Recent deals' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deal Vault' })).toBeInTheDocument();
     expect(resultsButton).toBeDisabled();
     expect(projectionsButton).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
 
@@ -205,7 +205,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
 
@@ -237,7 +237,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
     const search = within(dialog).getByPlaceholderText('Search deal name');
@@ -257,7 +257,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
     await user.click(within(dialog).getByRole('button', { name: 'Duplicate Test Seed Deal' }));
@@ -431,7 +431,7 @@ describe('dashboard integration', () => {
     expect(within(selection).getByRole('button', { name: 'Flip' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(selection).getByRole('button', { name: 'Long-Term' })).toHaveAttribute('aria-pressed', 'false');
 
-    await user.click(screen.getByRole('button', { name: 'Recent deals' }));
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
     const dialog = screen.getByRole('dialog', { name: 'Deals' });
     await user.click(within(dialog).getAllByText('Projection Deal B')[0]);
 
