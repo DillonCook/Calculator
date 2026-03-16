@@ -45,30 +45,32 @@ const QuickScanPanel = ({ quickScan }: { quickScan: NonNullable<StrategyTabsProp
 
 export function StrategyTabs({ active, onChange, quickScan, actionSlot }: StrategyTabsProps) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {quickScan ? <div key={`quick-scan-mobile-${quickScan.title}`} className="md:hidden"><QuickScanPanel quickScan={quickScan} /></div> : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          {strategies.map((strategy) => (
-            <button
-              key={strategy.key}
-              className={`tap-feedback btn-brand-profile btn-strategy-tab w-full px-4 py-2 text-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:w-auto ${
-                active === strategy.key
-                  ? 'btn-strategy-active'
-                  : ''
-              }`}
-              onClick={() => {
-                triggerHapticFeedback('light');
-                onChange(strategy.key);
-              }}
-              type="button"
-            >
-              {strategy.label}
-            </button>
-          ))}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
+        <div className="flex flex-wrap items-stretch gap-2">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {strategies.map((strategy) => (
+              <button
+                key={strategy.key}
+                className={`tap-feedback btn-brand-profile btn-strategy-tab min-h-[2.625rem] w-full px-4 py-2 text-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:w-auto ${
+                  active === strategy.key
+                    ? 'btn-strategy-active'
+                    : ''
+                }`}
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  onChange(strategy.key);
+                }}
+                type="button"
+              >
+                {strategy.label}
+              </button>
+            ))}
+          </div>
+          {actionSlot ? <div className="flex shrink-0 items-stretch">{actionSlot}</div> : null}
         </div>
-        {actionSlot ? <div className="shrink-0 self-start">{actionSlot}</div> : null}
       </div>
 
       {quickScan ? <div key={`quick-scan-desktop-${quickScan.title}`} className="hidden md:block"><QuickScanPanel quickScan={quickScan} /></div> : null}

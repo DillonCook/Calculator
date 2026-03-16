@@ -4277,18 +4277,18 @@ export default function HomePage() {
                   active={activeStrategy}
                   onChange={openDesktopStrategyWorkspace}
                   quickScan={strategyQuickScan}
-                  actionSlot={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHapticFeedback('light');
-                        setIsStrategyWorkOpen(true);
-                      }}
-                      className="btn-primary btn-work tap-feedback rounded-xl px-3 py-2 text-sm font-medium"
-                    >
-                      Show work
-                    </button>
-                  }
+                    actionSlot={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('light');
+                          setIsStrategyWorkOpen(true);
+                        }}
+                        className="btn-primary btn-work btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
+                      >
+                        Show work
+                      </button>
+                    }
                 />
               </div>
             ) : null}
@@ -4297,44 +4297,44 @@ export default function HomePage() {
 
           {!isMobileViewport ? (
             <div className="space-y-4 [overflow-anchor:none]">
-              <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
-                <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={desktopInputWorkspace === 'dealSetup'}
-                    onClick={() => setDesktopInputWorkspace('dealSetup')}
-                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      desktopInputWorkspace === 'dealSetup'
-                        ? 'btn-primary'
-                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
-                    }`}
-                  >
+                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
+                  <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={desktopInputWorkspace === 'dealSetup'}
+                      onClick={() => setDesktopInputWorkspace('dealSetup')}
+                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
+                        desktopInputWorkspace === 'dealSetup'
+                          ? 'btn-primary'
+                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                      }`}
+                    >
                     Deal setup
                   </button>
                   <button
-                    type="button"
-                    role="tab"
-                    aria-selected={desktopInputWorkspace === 'strategyInputs'}
-                    onClick={() => setDesktopInputWorkspace('strategyInputs')}
-                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      desktopInputWorkspace === 'strategyInputs'
-                        ? 'btn-primary'
-                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
-                    }`}
-                  >
+                      type="button"
+                      role="tab"
+                      aria-selected={desktopInputWorkspace === 'strategyInputs'}
+                      onClick={() => setDesktopInputWorkspace('strategyInputs')}
+                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
+                        desktopInputWorkspace === 'strategyInputs'
+                          ? 'btn-primary'
+                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                      }`}
+                    >
                     {`${activeStrategyLabel} inputs`}
                   </button>
                   <button
-                    type="button"
-                    role="tab"
-                    aria-selected={desktopInputWorkspace === 'expenses'}
-                    onClick={() => setDesktopInputWorkspace('expenses')}
-                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      desktopInputWorkspace === 'expenses'
-                        ? 'btn-primary'
-                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
-                    }`}
+                      type="button"
+                      role="tab"
+                      aria-selected={desktopInputWorkspace === 'expenses'}
+                      onClick={() => setDesktopInputWorkspace('expenses')}
+                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
+                        desktopInputWorkspace === 'expenses'
+                          ? 'btn-primary'
+                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                      }`}
                   >
                     Expenses
                   </button>
