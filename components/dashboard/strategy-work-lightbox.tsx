@@ -1,9 +1,12 @@
 'use client';
 
-import type { StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
+import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -24,8 +27,20 @@ interface StrategyWorkLightboxProps {
   open: boolean;
   activeStrategy: StrategyKey;
   output: StrategyOutput;
+  input: DealInputModel;
   onClose: () => void;
   presentation?: 'modal' | 'sheet';
+}
+
+type WorkBreakdownGroupKey = 'income' | 'expenses' | 'debtService' | 'result';
+
+interface WorkBreakdownGroup {
+  key: WorkBreakdownGroupKey;
+  title: string;
+  caption: string;
+  lines: StrategyCalculationLineItem[];
+  totalMonthly: number;
+  totalAnnual: number;
 }
 
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
@@ -47,6 +62,366 @@ const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
 );
 
 const formatFormulaMoney = (value: number) => (value < 0 ? `(${currencyFormatter.format(value)})` : currencyFormatter.format(value));
+
+const isResultLine = (line: StrategyCalculationLineItem) => /(^|[-\s])(noi|cash flow|net profit)([-\s]|$)/i.test(line.key) || /\bnoi\b|cash flow|net profit/i.test(line.label);
+
+const isDebtLine = (line: StrategyCalculationLineItem) => /debt-service|lender/i.test(line.key) || /debt service|lender costs/i.test(line.label);
+
+const isExpenseLine = (line: StrategyCalculationLineItem) =>
+  /fixed-costs|owner-expenses|variable-costs|variable-expenses|vacancy|maintenance|capex|management|turnover|placement|reserve|closing|concessions|tax|insurance|hoa|pmi/i.test(
+    `${line.key} ${line.label}`
+  );
+
+const isIncomeLine = (line: StrategyCalculationLineItem) =>
+  /rent|income|revenue|recovery|reimbursements|base-rent|room-revenue|gross/i.test(`${line.key} ${line.label}`);
+
+const isVariableExpenseLine = (line: StrategyCalculationLineItem) => /variable-costs|variable-expenses/i.test(`${line.key} ${line.label}`);
+
+const getLineDirection = (line: StrategyCalculationLineItem) => {
+  if (line.monthly !== 0) return line.monthly;
+  if (line.annual !== 0) return line.annual;
+  return 0;
+};
+
+const hasMeaningfulAmount = (line: StrategyCalculationLineItem) => Math.abs(line.monthly) > 0.005 || Math.abs(line.annual) > 0.005;
+
+const buildFixedCostLineItems = (input: DealInputModel) => {
+  const { purchase } = input;
+  const fixedItems: StrategyCalculationLineItem[] = [];
+  const maybePushFixedItem = (key: string, label: string, monthlyAmount: number) => {
+    if (!Number.isFinite(monthlyAmount) || monthlyAmount <= 0) return;
+    fixedItems.push({
+      key,
+      label,
+      monthly: -monthlyAmount,
+      annual: -(monthlyAmount * 12)
+    });
+  };
+
+  if (purchase.ownershipMode === 'owned') {
+    maybePushFixedItem('existing-tax', 'Property tax', purchase.existingTaxMonthly);
+    maybePushFixedItem('existing-insurance', 'Insurance', purchase.existingInsuranceMonthly);
+  } else {
+    const annualTax = purchase.propertyTaxAnnualOverride ?? purchase.purchasePrice * 0.017;
+    const annualInsurance = purchase.insuranceAnnualOverride ?? purchase.purchasePrice * 0.01;
+    maybePushFixedItem('property-tax', 'Property tax', annualTax / 12);
+    maybePushFixedItem('property-insurance', 'Insurance', annualInsurance / 12);
+  }
+
+  maybePushFixedItem('hoa', 'HOA', purchase.hoaMonthly);
+  maybePushFixedItem('pmi', 'PMI', purchase.pmiMonthly);
+
+  return fixedItems;
+};
+
+const buildVariableExpenseLineItems = (input: DealInputModel, activeStrategy: StrategyKey) => {
+  const supportedStrategies: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'flip'];
+  if (!supportedStrategies.includes(activeStrategy)) return [];
+
+  const expenseStrategy = activeStrategy as ExpenseStrategyKey;
+
+  return input.variableExpenses
+    .filter((expense) => expense.appliesTo[expenseStrategy] && Number.isFinite(expense.monthlyAmount) && expense.monthlyAmount > 0)
+    .map((expense, index) => {
+      const label = expense.label.trim() || `Variable expense ${index + 1}`;
+      return {
+        key: `variable-expense-${expense.key}`,
+        label,
+        monthly: -expense.monthlyAmount,
+        annual: -(expense.monthlyAmount * 12)
+      };
+    });
+};
+
+const expandWorkBreakdownLines = (lines: StrategyCalculationLineItem[], input: DealInputModel, activeStrategy: StrategyKey) => {
+  const fixedCostLines = buildFixedCostLineItems(input);
+  const variableExpenseLines = buildVariableExpenseLineItems(input, activeStrategy);
+
+  return lines.flatMap((line) => {
+    if (isVariableExpenseLine(line)) {
+      return variableExpenseLines.length > 0 ? variableExpenseLines : hasMeaningfulAmount(line) ? [line] : [];
+    }
+
+    if (!/fixed-costs/i.test(line.key) && !/fixed costs/i.test(line.label)) {
+      return hasMeaningfulAmount(line) ? [line] : [];
+    }
+
+    return fixedCostLines.length > 0 ? fixedCostLines : hasMeaningfulAmount(line) ? [line] : [];
+  });
+};
+
+const buildWorkBreakdownGroups = (lines: StrategyCalculationLineItem[], input: DealInputModel, activeStrategy: StrategyKey): WorkBreakdownGroup[] => {
+  const groups: Record<WorkBreakdownGroupKey, WorkBreakdownGroup> = {
+    income: {
+      key: 'income',
+      title: 'Income',
+      caption: 'Rent, reimbursements, and other inflows.',
+      lines: [],
+      totalMonthly: 0,
+      totalAnnual: 0
+    },
+    expenses: {
+      key: 'expenses',
+      title: 'Expenses',
+      caption: 'Owner-paid costs, reserves, and variable expenses.',
+      lines: [],
+      totalMonthly: 0,
+      totalAnnual: 0
+    },
+    debtService: {
+      key: 'debtService',
+      title: 'Debt service',
+      caption: 'Loan payments and lender carrying costs.',
+      lines: [],
+      totalMonthly: 0,
+      totalAnnual: 0
+    },
+    result: {
+      key: 'result',
+      title: 'Result',
+      caption: 'The rolled-up NOI and cash-flow outcome.',
+      lines: [],
+      totalMonthly: 0,
+      totalAnnual: 0
+    }
+  };
+
+  const normalizedLines = expandWorkBreakdownLines(lines, input, activeStrategy);
+
+  normalizedLines.forEach((line) => {
+    let groupKey: WorkBreakdownGroupKey;
+    if (isResultLine(line)) {
+      groupKey = 'result';
+    } else if (isDebtLine(line)) {
+      groupKey = 'debtService';
+    } else if (isExpenseLine(line)) {
+      groupKey = 'expenses';
+    } else if (isIncomeLine(line)) {
+      groupKey = 'income';
+    } else if (getLineDirection(line) < 0) {
+      groupKey = 'expenses';
+    } else {
+      groupKey = 'income';
+    }
+
+    groups[groupKey].lines.push(line);
+    groups[groupKey].totalMonthly += line.monthly;
+    groups[groupKey].totalAnnual += line.annual;
+  });
+
+  if (groups.income.lines.length === 0) {
+    const noiFallbackLines = groups.result.lines.filter((line) => /\bnoi\b/i.test(line.label));
+    if (noiFallbackLines.length > 0) {
+      groups.result.lines = groups.result.lines.filter((line) => !noiFallbackLines.includes(line));
+      noiFallbackLines.forEach((line) => {
+        groups.income.lines.push(line);
+        groups.income.totalMonthly += line.monthly;
+        groups.income.totalAnnual += line.annual;
+        groups.result.totalMonthly -= line.monthly;
+        groups.result.totalAnnual -= line.annual;
+      });
+    }
+  }
+
+  return (Object.keys(groups) as WorkBreakdownGroupKey[]).map((key) => groups[key]).filter((group) => group.lines.length > 0);
+};
+
+const BreakdownSummaryCard = ({
+  label,
+  monthlyValue,
+  annualValue,
+  emphasizeAsCost = false,
+  tooltip
+}: {
+  label: string;
+  monthlyValue: number;
+  annualValue: number;
+  emphasizeAsCost?: boolean;
+  tooltip?: ReactNode;
+}) => {
+  const valueStyle = emphasizeAsCost
+    ? getNegativeValueStyle(-Math.abs(monthlyValue), { kind: 'currency' })
+    : getNegativeValueStyle(monthlyValue, { kind: 'currency' });
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
+        <p>{label}</p>
+        {tooltip ? <SummaryCardTooltip label={label}>{tooltip}</SummaryCardTooltip> : null}
+      </div>
+      <p
+        className={`mt-1 text-lg font-semibold ${emphasizeAsCost ? 'text-slate-200' : monthlyValue >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+        style={valueStyle}
+      >
+        {currencyFormatter.format(monthlyValue)}/mo
+      </p>
+      <p className="mt-1 text-[11px] text-muted">{currencyFormatter.format(annualValue)}/yr</p>
+    </div>
+  );
+};
+
+const SummaryCardTooltip = ({ label, children }: { label: string; children: ReactNode }) => {
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const tooltipAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const { style: tooltipStyle } = useFloatingTooltipPosition({
+    open: isTooltipOpen,
+    anchorRef: tooltipButtonRef,
+    tooltipRef: tooltipPanelRef,
+    preferredPlacement: 'bottom',
+    maxWidth: 300,
+    offset: 8,
+    zIndex: 190
+  });
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current === null) return;
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTimer();
+    setIsTooltipOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsTooltipOpen(false);
+      closeTimerRef.current = null;
+    }, 90);
+  };
+
+  useEffect(() => {
+    if (!isTooltipOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (tooltipAnchorRef.current?.contains(target)) return;
+      if (tooltipPanelRef.current?.contains(target)) return;
+      setIsTooltipOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsTooltipOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isTooltipOpen]);
+
+  useEffect(
+    () => () => {
+      clearCloseTimer();
+    },
+    []
+  );
+
+  return (
+    <span ref={tooltipAnchorRef} className="relative inline-flex items-center normal-case tracking-normal">
+      <button
+        ref={tooltipButtonRef}
+        type="button"
+        aria-label={`More info about ${label}`}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        onMouseEnter={openTooltip}
+        onMouseLeave={scheduleCloseTooltip}
+        onFocus={openTooltip}
+        onBlur={scheduleCloseTooltip}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCloseTimer();
+          setIsTooltipOpen((prev) => !prev);
+        }}
+      >
+        i
+      </button>
+      {isTooltipOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={tooltipPanelRef}
+              role="dialog"
+              aria-modal="false"
+              className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
+              style={tooltipStyle}
+              onMouseEnter={openTooltip}
+              onMouseLeave={scheduleCloseTooltip}
+            >
+              {children}
+            </div>,
+            document.body
+          )
+        : null}
+    </span>
+  );
+};
+
+const BreakdownGroupSection = ({ group }: { group: WorkBreakdownGroup }) => {
+  const totalMonthlyDisplay = group.key === 'income' || group.key === 'result' ? group.totalMonthly : Math.abs(group.totalMonthly);
+  const totalAnnualDisplay = group.key === 'income' || group.key === 'result' ? group.totalAnnual : Math.abs(group.totalAnnual);
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">{group.title}</p>
+          <p className="mt-1 text-[11px] text-muted">{group.caption}</p>
+        </div>
+        <div className="text-right text-[11px] text-muted">
+          <p>{currencyFormatter.format(totalMonthlyDisplay)}/mo</p>
+          <p>{currencyFormatter.format(totalAnnualDisplay)}/yr</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {group.lines.map((line) => (
+          <Row key={line.key} line={line} />
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const buildDerivedGroup = (
+  group: WorkBreakdownGroup | undefined,
+  title: string,
+  caption: string,
+  lines: StrategyCalculationLineItem[]
+): WorkBreakdownGroup | null => {
+  if (!group || lines.length === 0) return null;
+
+  return {
+    ...group,
+    title,
+    caption,
+    lines,
+    totalMonthly: lines.reduce((sum, line) => sum + line.monthly, 0),
+    totalAnnual: lines.reduce((sum, line) => sum + line.annual, 0)
+  };
+};
+
+const TooltipLineList = ({ lines }: { lines: StrategyCalculationLineItem[] }) => (
+  <div className="space-y-1.5">
+    {lines.map((line) => (
+      <div key={line.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <span className="min-w-0 text-slate-200">{line.label}</span>
+        <span className="text-right text-slate-100">{currencyFormatter.format(Math.abs(line.monthly))}/mo</span>
+      </div>
+    ))}
+  </div>
+);
 
 const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<StrategyOutput['calculationBreakdown']>; output: StrategyOutput }) => {
   const meta = breakdown.brrrrMeta;
@@ -369,12 +744,40 @@ export function StrategyWorkLightbox({
   open,
   activeStrategy,
   output,
+  input,
   onClose,
   presentation = 'modal'
 }: StrategyWorkLightboxProps) {
   if (!open) return null;
 
   const breakdown = output.calculationBreakdown;
+  const groupedBreakdown = breakdown ? buildWorkBreakdownGroups(breakdown.lines, input, activeStrategy) : [];
+  const incomeGroup = groupedBreakdown.find((group) => group.key === 'income');
+  const expenseGroup = groupedBreakdown.find((group) => group.key === 'expenses');
+  const debtGroup = groupedBreakdown.find((group) => group.key === 'debtService');
+  const variableExpenseLines = expenseGroup?.lines.filter(isVariableExpenseLine) ?? [];
+  const coreExpenseLines = expenseGroup?.lines.filter((line) => !isVariableExpenseLine(line)) ?? [];
+  const incomeDetailGroup = buildDerivedGroup(incomeGroup, 'Income', 'Revenue and other inflows feeding the property.', incomeGroup?.lines ?? []);
+  const coreExpenseDetailGroup = buildDerivedGroup(
+    expenseGroup,
+    'Expenses',
+    'Taxes, insurance, owner-paid costs, and recurring operating expenses.',
+    coreExpenseLines
+  );
+  const variableExpenseDetailGroup = buildDerivedGroup(
+    expenseGroup,
+    'Variable expenses',
+    'Custom expense lines assigned to this strategy.',
+    variableExpenseLines
+  );
+  const hasLeftDetailColumn = Boolean(incomeDetailGroup || variableExpenseDetailGroup);
+  const monthlyOutOfPocket = Math.max(-output.monthlyCashFlow, 0);
+  const annualOutOfPocket = monthlyOutOfPocket * 12;
+  const monthlySurplus = Math.max(output.monthlyCashFlow, 0);
+  const annualSurplus = monthlySurplus * 12;
+  const monthlyIncomeTotal = Math.max(incomeGroup?.totalMonthly ?? 0, 0);
+  const monthlyExpenseTotal = Math.abs(expenseGroup?.totalMonthly ?? 0);
+  const monthlyDebtTotal = Math.abs(debtGroup?.totalMonthly ?? 0);
   const content = (
     <>
       {!breakdown ? (
@@ -386,15 +789,101 @@ export function StrategyWorkLightbox({
           ) : activeStrategy === 'flip' && breakdown.flipMeta ? (
             <FlipFinancials breakdown={breakdown} />
           ) : (
-            <div className="space-y-2">
-              <div className="hidden grid-cols-[1.2fr_1fr_1fr] gap-2 px-3 text-[11px] uppercase tracking-wide text-muted sm:grid">
-                <p>Line item</p>
-                <p className="text-right">Monthly</p>
-                <p className="text-right">Annual</p>
+            <div className="space-y-3">
+              <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 xl:grid-cols-4">
+                <BreakdownSummaryCard
+                  label="Income"
+                  monthlyValue={Math.max(incomeGroup?.totalMonthly ?? 0, 0)}
+                  annualValue={Math.max(incomeGroup?.totalAnnual ?? 0, 0)}
+                />
+                <BreakdownSummaryCard
+                  label="Expenses"
+                  monthlyValue={Math.abs(expenseGroup?.totalMonthly ?? 0)}
+                  annualValue={Math.abs(expenseGroup?.totalAnnual ?? 0)}
+                  emphasizeAsCost
+                  tooltip={
+                    expenseGroup?.lines?.length ? (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-white">Monthly operating expenses</p>
+                        <TooltipLineList lines={expenseGroup.lines} />
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-white/10 pt-2">
+                          <span className="text-slate-300">Total</span>
+                          <span className="text-slate-100">{currencyFormatter.format(monthlyExpenseTotal)}/mo</span>
+                        </div>
+                      </div>
+                    ) : (
+                      'No operating expense lines are currently modeled.'
+                    )
+                  }
+                />
+                <BreakdownSummaryCard
+                  label="Debt service"
+                  monthlyValue={Math.abs(debtGroup?.totalMonthly ?? 0)}
+                  annualValue={Math.abs(debtGroup?.totalAnnual ?? 0)}
+                  emphasizeAsCost
+                />
+                <BreakdownSummaryCard
+                  label={monthlyOutOfPocket > 0 ? 'Out of pocket' : 'Monthly surplus'}
+                  monthlyValue={monthlyOutOfPocket > 0 ? monthlyOutOfPocket : monthlySurplus}
+                  annualValue={monthlyOutOfPocket > 0 ? annualOutOfPocket : annualSurplus}
+                  emphasizeAsCost={monthlyOutOfPocket > 0}
+                  tooltip={
+                    monthlyOutOfPocket > 0 ? (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-white">Out-of-pocket math</p>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                          <span className="text-slate-300">Income</span>
+                          <span className="text-slate-100">{currencyFormatter.format(monthlyIncomeTotal)}/mo</span>
+                          <span className="text-slate-300">Expenses</span>
+                          <span className="text-slate-100">-{currencyFormatter.format(monthlyExpenseTotal)}/mo</span>
+                          <span className="text-slate-300">Debt service</span>
+                          <span className="text-slate-100">-{currencyFormatter.format(monthlyDebtTotal)}/mo</span>
+                        </div>
+                        <div className="border-t border-white/10 pt-2 text-slate-200">
+                          {currencyFormatter.format(monthlyIncomeTotal)} - {currencyFormatter.format(monthlyExpenseTotal)} - {currencyFormatter.format(monthlyDebtTotal)} ={' '}
+                          <span className="font-semibold text-white">-{currencyFormatter.format(monthlyOutOfPocket)}/mo</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-white">Monthly surplus math</p>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                          <span className="text-slate-300">Income</span>
+                          <span className="text-slate-100">{currencyFormatter.format(monthlyIncomeTotal)}/mo</span>
+                          <span className="text-slate-300">Expenses</span>
+                          <span className="text-slate-100">-{currencyFormatter.format(monthlyExpenseTotal)}/mo</span>
+                          <span className="text-slate-300">Debt service</span>
+                          <span className="text-slate-100">-{currencyFormatter.format(monthlyDebtTotal)}/mo</span>
+                        </div>
+                        <div className="border-t border-white/10 pt-2 text-slate-200">
+                          {currencyFormatter.format(monthlyIncomeTotal)} - {currencyFormatter.format(monthlyExpenseTotal)} - {currencyFormatter.format(monthlyDebtTotal)} ={' '}
+                          <span className="font-semibold text-white">{currencyFormatter.format(monthlySurplus)}/mo</span>
+                        </div>
+                      </div>
+                    )
+                  }
+                />
               </div>
-              {breakdown.lines.map((line) => (
-                <Row key={line.key} line={line} />
-              ))}
+
+              {monthlyOutOfPocket > 0 ? (
+                <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+                  You are covering <span className="font-semibold">{currencyFormatter.format(monthlyOutOfPocket)}/mo</span> out of pocket after income, operating expenses, and debt service.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                  The model clears all expenses and debt service with <span className="font-semibold">{currencyFormatter.format(monthlySurplus)}/mo</span> left over.
+                </div>
+              )}
+
+              <div className={hasLeftDetailColumn && coreExpenseDetailGroup ? 'grid gap-3 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] xl:items-start' : 'space-y-3'}>
+                {hasLeftDetailColumn ? (
+                  <div className="space-y-3 self-start">
+                    {incomeDetailGroup ? <BreakdownGroupSection group={incomeDetailGroup} /> : null}
+                    {variableExpenseDetailGroup ? <BreakdownGroupSection group={variableExpenseDetailGroup} /> : null}
+                  </div>
+                ) : null}
+                {coreExpenseDetailGroup ? <BreakdownGroupSection group={coreExpenseDetailGroup} /> : null}
+              </div>
             </div>
           )}
         </div>
@@ -420,7 +909,7 @@ export function StrategyWorkLightbox({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
+    <div className="fixed inset-0 z-[190] flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
       <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>

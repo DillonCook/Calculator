@@ -934,6 +934,10 @@ export default function HomePage() {
     }
   ];
   const activeDealDisplayName = model.purchase.dealName || 'New Deal';
+  const isHeaderModalOpen = isStrategyWorkOpen || isDealIdentityOpen || isDesktopDealVaultOpen || compactSheetView !== null;
+  const headerChromeMutedClass = isHeaderModalOpen
+    ? 'pointer-events-none select-none blur-[6px] opacity-30 saturate-[0.7] transition duration-200 ease-out'
+    : 'transition duration-200 ease-out';
   const quickScanPoints = quickScanDetails[activeStrategy];
   const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
   const orderedHeadlineMetricIds = normalizeHeadlineMetricOrder(headlineMetricOrder);
@@ -3539,7 +3543,7 @@ export default function HomePage() {
       />
       <div className="mx-auto max-w-[112rem] space-y-5">
         {isMobileViewport ? (
-          <header className="panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur">
+          <header className={`panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -3547,74 +3551,82 @@ export default function HomePage() {
                     <h1 className="brand-text leading-none">DealCooker</h1>
                     <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
                   </div>
+                  <div className={headerChromeMutedClass}>
+                    <button
+                      type="button"
+                      onClick={openDealIdentityEditor}
+                      className="tap-feedback mt-2 w-full max-w-[18rem] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+                      aria-label="Edit active deal details"
+                    >
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        <p className="truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
+                        <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                          Edit
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                <div className={headerChromeMutedClass}>
                   <button
+                    ref={compactMenuButtonRef}
                     type="button"
-                    onClick={openDealIdentityEditor}
-                    className="tap-feedback mt-2 w-full max-w-[18rem] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
-                    aria-label="Edit active deal details"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setCompactSheetView('menu');
+                    }}
+                    className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
+                    aria-label="Open deal actions"
                   >
-                    <p className="text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
-                    <div className="mt-1 flex items-center justify-between gap-3">
-                      <p className="truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
-                      <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
-                        Edit
-                      </span>
-                    </div>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
+                    </svg>
                   </button>
                 </div>
-                <button
-                  ref={compactMenuButtonRef}
-                  type="button"
-                  onClick={() => {
-                    triggerHapticFeedback('light');
-                    setCompactSheetView('menu');
-                  }}
-                  className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
-                  aria-label="Open deal actions"
-                >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                    <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                  </svg>
-                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHapticFeedback('light');
-                    createNewDeal('New Deal', '', { openIdentityEditor: true });
-                    setCompactMode('inputs');
-                    setCompactSheetView(null);
-                  }}
-                  className="btn-primary rounded-xl px-3 py-2.5 text-sm font-semibold"
-                >
-                  New deal
-                </button>
-                <button
-                  ref={compactDealsButtonRef}
-                  type="button"
-                  onClick={() => {
-                    triggerHapticFeedback('light');
-                    setCompactSheetView('deals');
-                  }}
-                  className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
-                >
-                  Deal Vault
-                </button>
-              </div>
-
-              {shareFeedback ? (
-                <div
-                  role="status"
-                  className={`rounded-xl border px-3 py-2 text-xs ${
-                    shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
-                  }`}
-                >
-                  <p>{shareFeedback.message}</p>
-                  {shareFeedback.fallbackUrl ? <p className="mt-1 break-all text-[11px]">{shareFeedback.fallbackUrl}</p> : null}
+              <div className={headerChromeMutedClass}>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      createNewDeal('New Deal', '', { openIdentityEditor: true });
+                      setCompactMode('inputs');
+                      setCompactSheetView(null);
+                    }}
+                    className="btn-primary rounded-xl px-3 py-2.5 text-sm font-semibold"
+                  >
+                    New deal
+                  </button>
+                  <button
+                    ref={compactDealsButtonRef}
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setCompactSheetView('deals');
+                    }}
+                    className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
+                  >
+                    Deal Vault
+                  </button>
                 </div>
-              ) : null}
+              </div>
+
+              <div className={headerChromeMutedClass}>
+                {shareFeedback ? (
+                  <div
+                    role="status"
+                    className={`rounded-xl border px-3 py-2 text-xs ${
+                      shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
+                    }`}
+                  >
+                    <p>{shareFeedback.message}</p>
+                    {shareFeedback.fallbackUrl ? <p className="mt-1 break-all text-[11px]">{shareFeedback.fallbackUrl}</p> : null}
+                  </div>
+                ) : null}
+              </div>
 
               {syncFeedback ? (
                 <div className="rounded-xl border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100" role="status">
@@ -3622,18 +3634,20 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              <PwaInstallBanner />
+              <div className={headerChromeMutedClass}>
+                <PwaInstallBanner />
+              </div>
             </div>
           </header>
         ) : null}
 
         {!isMobileViewport ? (
-        <header className="panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur">
+        <header className={`panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
           <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
               <div className="min-w-0 max-w-3xl">
                 <div className="space-y-2">
-                  <div ref={authControlsRef} className="flex w-full justify-end">
+                  <div ref={authControlsRef} className={`flex w-full justify-end ${headerChromeMutedClass}`}>
                     <div className="flex flex-row items-center justify-end gap-1.5">
                       {currentUser ? (
                         <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2 md:hidden">
@@ -3744,11 +3758,13 @@ export default function HomePage() {
                       <h1 className="brand-text leading-none">DealCooker</h1>
                       <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
                     </div>
-                    <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
+                    <div className={headerChromeMutedClass}>
+                      <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="w-full md:min-w-0 xl:max-w-[760px]">
+              <div className={`w-full md:min-w-0 xl:max-w-[760px] ${headerChromeMutedClass}`}>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:flex-wrap md:items-center md:justify-end md:gap-2">
                   <button
                     type="button"
@@ -3887,19 +3903,21 @@ export default function HomePage() {
               </div>
             </div>
 
-            {shareFeedback ? (
-              <div
-                role="status"
-                className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
-                  shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
-                }`}
-              >
-                <p>{shareFeedback.message}</p>
-                {shareFeedback.fallbackUrl ? (
-                  <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
-                ) : null}
-              </div>
-            ) : null}
+            <div className={headerChromeMutedClass}>
+              {shareFeedback ? (
+                <div
+                  role="status"
+                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
+                    shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
+                  }`}
+                >
+                  <p>{shareFeedback.message}</p>
+                  {shareFeedback.fallbackUrl ? (
+                    <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
             {syncFeedback ? (
               <div className="fixed inset-x-3 bottom-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:inset-x-auto sm:right-4 sm:text-sm" role="status">
@@ -3907,7 +3925,9 @@ export default function HomePage() {
               </div>
             ) : null}
 
-            <PwaInstallBanner />
+            <div className={headerChromeMutedClass}>
+              <PwaInstallBanner />
+            </div>
 
           </div>
         </header>
@@ -4343,7 +4363,6 @@ export default function HomePage() {
                   defaultAdvancedOptionsOpen={Boolean(activeDealId)}
                   forcedCoreSection="expenses"
                   contentViewportClassName={desktopInputViewportClassName}
-                  variableExpenseGridClassName="xl:grid-cols-2 min-[1850px]:grid-cols-3"
                 />
               </div>
             </div>
@@ -4382,6 +4401,7 @@ export default function HomePage() {
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}
         output={activeOutput}
+        input={model}
         presentation={isMobileViewport ? 'sheet' : 'modal'}
         onClose={() => setIsStrategyWorkOpen(false)}
       />

@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { DealInputModel, DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { getProjectionMetrics } from '@/lib/projection-metrics';
+import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -98,7 +100,6 @@ export function StrategyComparison({
         points,
         chartPoints,
         operatingMaxAbs,
-        exitLabel: projectionMetrics.exitLabel
       };
     });
   }, [data, holdYears, input, rows]);
@@ -191,10 +192,11 @@ export function StrategyComparison({
                     label="Break-even"
                     value={formatBreakEvenLabel(equityRow.paybackMonths)}
                     toneStyle={equityRow.paybackMonths !== null ? { color: '#86efac' } : { color: '#fde68a' }}
+                    tooltip="Break-even if selling accounts for the drag from selling costs, not just the cash you invested."
                   />
-                  <CompactMetric label="Multiple" value={`${equityRow.modeledMultiple.toFixed(2)}x`} />
+                  <CompactMetric label="Equity mult." value={`${equityRow.modeledMultiple.toFixed(2)}x`} />
                   <CompactMetric label="Exit Cash" value={currencyFormatter.format(equityRow.exitCashReturned)} />
-                  <CompactMetric label="Modeled exit" value={cashFlowRow.exitLabel} />
+                  <CompactMetric label="Debt svc / mo" value={currencyFormatter.format(output.calculationBreakdown?.debtServiceMonthly ?? 0)} />
                 </div>
               </section>
 
@@ -365,7 +367,7 @@ export function StrategyComparison({
               {row.exitLabel} <span className="ml-1 text-white">{currencyFormatter.format(row.exitCashReturned)}</span>
             </p>
             <p>
-              Modeled multiple <span className="ml-1 text-white">{row.modeledMultiple.toFixed(2)}x</span>
+              Equity mult. <span className="ml-1 text-white">{row.modeledMultiple.toFixed(2)}x</span>
             </p>
             <p>
               Hold <span className="ml-1 text-white">{formatHoldLabel(row.holdMonths)}</span>
@@ -532,14 +534,134 @@ export function StrategyComparison({
   );
 }
 
-function CompactMetric({ label, value, toneStyle }: { label: string; value: string; toneStyle?: CSSProperties }) {
+function CompactMetric({
+  label,
+  value,
+  toneStyle,
+  tooltip
+}: {
+  label: string;
+  value: string;
+  toneStyle?: CSSProperties;
+  tooltip?: string;
+}) {
   return (
     <article className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-muted">
+        <p>{label}</p>
+        {tooltip ? <MetricInfoTooltip label={label} tooltip={tooltip} /> : null}
+      </div>
       <p className="mt-1 break-words text-xs font-semibold text-slate-100" style={toneStyle}>
         {value}
       </p>
     </article>
+  );
+}
+
+function MetricInfoTooltip({ label, tooltip }: { label: string; tooltip: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
+  const { style: tooltipStyle } = useFloatingTooltipPosition({
+    open: isOpen,
+    anchorRef: tooltipButtonRef,
+    tooltipRef: tooltipPanelRef,
+    preferredPlacement: 'bottom',
+    maxWidth: 280,
+    offset: 8,
+    zIndex: 180
+  });
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current === null) return;
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTimer();
+    setIsOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsOpen(false);
+      closeTimerRef.current = null;
+    }, 90);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (tooltipButtonRef.current?.contains(target)) return;
+      if (tooltipPanelRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(
+    () => () => {
+      clearCloseTimer();
+    },
+    []
+  );
+
+  return (
+    <span className="relative inline-flex items-center normal-case tracking-normal">
+      <button
+        ref={tooltipButtonRef}
+        type="button"
+        aria-label={`More info about ${label}`}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        onMouseEnter={openTooltip}
+        onMouseLeave={scheduleCloseTooltip}
+        onFocus={openTooltip}
+        onBlur={scheduleCloseTooltip}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCloseTimer();
+          setIsOpen((prev) => !prev);
+        }}
+      >
+        i
+      </button>
+      {isOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={tooltipPanelRef}
+              role="dialog"
+              aria-modal="false"
+              className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
+              style={tooltipStyle}
+              onMouseEnter={openTooltip}
+              onMouseLeave={scheduleCloseTooltip}
+            >
+              {tooltip}
+            </div>,
+            document.body
+          )
+        : null}
+    </span>
   );
 }
 

@@ -20,7 +20,6 @@ interface DealInputPanelProps {
   preferredCoreSection?: Exclude<CoreInputSection, 'known'>;
   titleOverride?: string;
   contentViewportClassName?: string;
-  variableExpenseGridClassName?: string;
 }
 
 type CoreInputSection = 'purchaseFinancing' | 'expenses' | 'known';
@@ -532,8 +531,7 @@ export function DealInputPanel({
   forcedCoreSection,
   preferredCoreSection,
   titleOverride,
-  contentViewportClassName,
-  variableExpenseGridClassName
+  contentViewportClassName
 }: DealInputPanelProps) {
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
@@ -910,7 +908,7 @@ export function DealInputPanel({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Variable expenses</p>
-                      <p className="mt-1 text-[11px] text-muted">Build reusable expense cards and decide which operating strategies each one impacts.</p>
+                      <p className="mt-1 text-[11px] text-muted">Build reusable expenses and decide which operating strategies each one impacts.</p>
                     </div>
                     <button
                       type="button"
@@ -921,43 +919,44 @@ export function DealInputPanel({
                     </button>
                   </div>
 
-                  <div className={`mt-3 grid gap-3 ${variableExpenseGridClassName ?? ''}`}>
+                  <div className="mt-3 space-y-2.5">
                     {value.variableExpenses.map((expense, index) => {
                       const cadence = getExpenseCadence(expense.key);
                       const expenseLabel = expense.label.trim() || `Expense ${index + 1}`;
                       const selectedStrategyCount = (Object.values(expense.appliesTo) as boolean[]).filter(Boolean).length;
 
                       return (
-                        <article key={expense.key} className="flex h-full flex-col rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] uppercase tracking-[0.16em] text-muted">Expense</span>
+                        <article
+                          key={expense.key}
+                          className="rounded-[1.15rem] border border-white/10 bg-white/[0.04] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-3"
+                        >
+                          <div className="flex items-start gap-2">
+                            <label className="block min-w-0 flex-1">
+                              <input
+                                aria-label={`Expense label ${index + 1}`}
+                                className={`${inputClass} border-[#d66f42]/30 bg-white/[0.08] px-3 py-2 text-sm font-semibold text-[#f5875d] shadow-[0_0_0_1px_rgba(214,111,66,0.12)] placeholder:text-muted/80 sm:text-base`}
+                                type="text"
+                                value={expense.label}
+                                onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
+                                placeholder={`Expense ${index + 1}`}
+                              />
+                            </label>
                             <button
                               type="button"
                               onClick={() => removeVariableExpense(index)}
                               aria-label={`Delete expense ${expenseLabel}`}
-                              className="tap-feedback inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-rose-300/30 bg-rose-500/10 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                              className="tap-feedback inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg border border-rose-300/30 bg-rose-500/10 px-1.5 text-xs font-semibold leading-none text-rose-100 transition hover:bg-rose-500/20"
                             >
                               x
                             </button>
                           </div>
 
-                          <label className="mt-1 block">
-                            <input
-                              aria-label={`Expense label ${index + 1}`}
-                              className={`${inputClass} border-[#d66f42]/45 bg-white/[0.09] py-2 text-sm font-semibold text-[#ff8a5b] shadow-[0_0_0_1px_rgba(214,111,66,0.18)] placeholder:text-muted/80 sm:text-base`}
-                              type="text"
-                              value={expense.label}
-                              onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
-                              placeholder={`Expense ${index + 1}`}
-                            />
-                          </label>
-
-                          <div className="mt-2 grid gap-2">
-                            <label className="space-y-1">
+                          <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                            <label className="min-w-0 space-y-1">
                               <span className="text-[11px] text-muted">Amount</span>
                               <input
                                 aria-label={`${expenseLabel} amount`}
-                                className={`${inputClass} py-2 text-base [font-variant-numeric:tabular-nums] sm:text-lg`}
+                                className={`${inputClass} min-w-0 px-3 py-2 text-base [font-variant-numeric:tabular-nums] sm:text-lg`}
                                 type="number"
                                 value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
                                 onChange={(event) => {
@@ -970,7 +969,7 @@ export function DealInputPanel({
                               />
                             </label>
 
-                            <div>
+                            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                               <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-white/15 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
                                 {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
                                   const active = cadence === mode;
@@ -982,7 +981,7 @@ export function DealInputPanel({
                                       aria-pressed={active}
                                       aria-label={`${expenseLabel} ${mode} input cadence`}
                                       title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
-                                      className={`tap-feedback min-h-10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                                      className={`tap-feedback min-h-9 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
                                         active ? 'bg-cyan-300/15 text-cyan-100' : 'text-slate-300 hover:bg-white/[0.08]'
                                       } ${mode === 'annual' ? 'border-l border-white/15' : ''}`}
                                     >
@@ -991,15 +990,17 @@ export function DealInputPanel({
                                   );
                                 })}
                               </div>
+                              <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-0.5 text-[10px] text-muted">
+                                {selectedStrategyCount} selected
+                              </span>
                             </div>
                           </div>
 
-                          <div className="mt-2 flex-1 rounded-2xl border border-white/10 bg-black/20 p-2">
+                          <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/20 p-2">
                             <div className="mb-1.5 flex items-center justify-between gap-2">
-                              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Applies to strategies</p>
-                              <span className="text-[10px] text-muted">{selectedStrategyCount} selected</span>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Applies to</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-wrap gap-1.5">
                               {(Object.keys(strategyToggleLabels) as ExpenseStrategyKey[]).map((strategy) => {
                                 const active = expense.appliesTo[strategy];
                                 return (
@@ -1013,7 +1014,7 @@ export function DealInputPanel({
                                         appliesTo: { ...expense.appliesTo, [strategy]: !active }
                                       })
                                     }
-                                    className={`flex min-h-9 items-center justify-center rounded-xl border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                                    className={`flex min-h-8 items-center justify-center rounded-xl border px-2.5 py-1 text-[11px] font-medium transition ${
                                       active
                                         ? 'border-accent/70 bg-accent/20 text-accent'
                                         : 'border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06]'

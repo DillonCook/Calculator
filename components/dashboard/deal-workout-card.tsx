@@ -68,16 +68,11 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
           <p className="text-xs uppercase tracking-wider text-accent">Make the deal work</p>
           <h3 className="text-base font-semibold">Auto-adjust terms for this strategy</h3>
         </div>
-        <div className="text-right text-[11px] text-muted">
-          {strategy === 'flip' ? (
+        {strategy === 'flip' ? (
+          <div className="text-right text-[11px] text-muted">
             <p>Net proceeds: {currencyFormatter.format(recommendation.currentSaleProceeds)}</p>
-          ) : (
-            <>
-              <p>Cash flow: {currencyFormatter.format(recommendation.currentMonthlyCashFlow)}/mo</p>
-              <p>DSCR: {recommendation.currentDscr.toFixed(2)}</p>
-            </>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {recommendation.canWorkAlready ? (

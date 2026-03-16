@@ -674,11 +674,14 @@ describe('dashboard integration', () => {
     await user.click(getStrategyButton('PadSplit'));
     await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
 
-    expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
-    expect(screen.getByText('PadSplit calculations')).toBeInTheDocument();
-    expect(screen.getByText('Line item')).toBeInTheDocument();
-    expect(screen.getByText('Turnover / cleaning')).toBeInTheDocument();
-    expect(screen.getByText('Tenant placement fees')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Strategy Work Lightbox' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('PadSplit calculations')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Income').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('Expenses').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('Debt service').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText('Property tax')).toBeInTheDocument();
+    expect(within(dialog).getByText('Insurance')).toBeInTheDocument();
   });
 
   it('BRRRR show work exposes capital-in and refi math sections', async () => {
