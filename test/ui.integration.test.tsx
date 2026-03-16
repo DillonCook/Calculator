@@ -10,8 +10,8 @@ import { currencyFormatter, percentFormatter } from '../lib/formatters';
 import { createScenarioRecord, writeScenarios } from '../lib/scenario-storage';
 import { encodeDealToShareParam } from '../lib/share-link';
 
-
 const getStrategyButton = (label: string) => screen.getAllByRole('button', { name: label })[0];
+const getStrategyInputsWorkspace = () => screen.getByLabelText('Strategy inputs workspace');
 const setViewport = (width: number) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -62,7 +62,6 @@ describe('dashboard integration', () => {
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
-    expect(screen.getByLabelText('Gross rent / mo')).toHaveValue(0);
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
@@ -226,8 +225,12 @@ describe('dashboard integration', () => {
       createSavedDeal('Recent Deal 4', '2026-01-05T12:00:00.000Z'),
       createSavedDeal('Recent Deal 5', '2026-01-04T12:00:00.000Z'),
       createSavedDeal('Recent Deal 6', '2026-01-03T12:00:00.000Z'),
-      createSavedDeal('Austin BRRRR', '2026-01-02T12:00:00.000Z'),
-      createSavedDeal('Miami Flip', '2026-01-01T12:00:00.000Z')
+      createSavedDeal('Recent Deal 7', '2026-01-02T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 8', '2026-01-01T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 9', '2025-12-31T12:00:00.000Z'),
+      createSavedDeal('Recent Deal 10', '2025-12-30T12:00:00.000Z'),
+      createSavedDeal('Austin BRRRR', '2025-12-29T12:00:00.000Z'),
+      createSavedDeal('Miami Flip', '2025-12-28T12:00:00.000Z')
     ]);
 
     render(<HomePage />);
@@ -274,7 +277,7 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
 
-    const dialog = screen.getByRole('dialog', { name: 'Deal actions' });
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
 
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getAllByRole('button', { name: 'Send link' }).length).toBeGreaterThan(0);
@@ -496,12 +499,29 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('Commercial'));
+    const workspace = getStrategyInputsWorkspace();
 
-    const rentInput = screen.getAllByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })[0];
+    const rentInput = within(workspace).getByLabelText('Base rent ($/sq ft/year)', { selector: 'input' });
     await user.clear(rentInput);
     await user.type(rentInput, '30');
 
     expect(rentInput).toHaveValue(30);
+    expect(screen.queryByRole('dialog', { name: 'Strategy inputs' })).not.toBeInTheDocument();
+  });
+
+  it('edits desktop IRR assumptions directly from the timeline card', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(getStrategyButton('Flip'));
+    expect(within(getStrategyInputsWorkspace()).getByLabelText('Flip hold months')).toBeInTheDocument();
+
+    const holdYears = screen.getByLabelText('Hold years', { selector: 'input' });
+    await user.clear(holdYears);
+    await user.type(holdYears, '7');
+
+    expect(holdYears).toHaveValue(7);
+    expect(screen.getByText('Years 0 - 7')).toBeInTheDocument();
   });
 
   it('editing purchase price updates master cash-to-close KPI', async () => {
@@ -586,14 +606,29 @@ describe('dashboard integration', () => {
   });
 
 
-  it('equity modeling lightbox opens from strategy board', async () => {
+  it('desktop projections board keeps equity and cash flow modeling in one view', () => {
+    render(<HomePage />);
+    const board = screen.getByLabelText('Strategy comparison board');
+
+    expect(screen.getByText('Projections board')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Equity modeling' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cash flow modeling' })).not.toBeInTheDocument();
+    expect(within(board).getAllByText('Total Invested').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Modeled Exit').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Cash flow trend').length).toBeGreaterThan(0);
+  });
+
+  it('filters the desktop projections board per deal from local board controls', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
+    const board = screen.getByLabelText('Strategy comparison board');
 
-    await user.click(screen.getAllByRole('button', { name: 'Equity modeling' })[0]);
+    expect(within(board).getByLabelText('Commercial projection card')).toBeInTheDocument();
 
-    expect(screen.getByRole('dialog', { name: 'Equity Modeling Lightbox' })).toBeInTheDocument();
-    expect(screen.getByText('Equity modeling by strategy')).toBeInTheDocument();
+    const selection = screen.getByLabelText('Projections board strategy selection');
+    await user.click(within(selection).getByRole('button', { name: 'Commercial' }));
+
+    expect(within(board).queryByLabelText('Commercial projection card')).not.toBeInTheDocument();
   });
 
   it('strategy work lightbox opens for active strategy and shows key rows', async () => {
@@ -644,7 +679,7 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('Long-Term'));
-    const strategyArv = screen.getByLabelText('Long-Term ARV');
+    const strategyArv = within(getStrategyInputsWorkspace()).getByLabelText('Long-Term ARV');
 
     await user.clear(strategyArv);
     await user.type(strategyArv, '365000');
@@ -742,16 +777,18 @@ describe('dashboard integration', () => {
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
-    expect(screen.getByLabelText('Gross rent / mo')).toHaveValue(0);
 
     await user.click(getStrategyButton('Airbnb'));
-    expect(screen.getByLabelText('ADR')).toHaveValue(0);
+    let workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByLabelText('ADR')).toHaveValue(0);
 
     await user.click(getStrategyButton('PadSplit'));
-    expect(screen.getByLabelText('Weekly rate / room')).toHaveValue(0);
+    workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByLabelText('Weekly rate / room')).toHaveValue(0);
 
     await user.click(getStrategyButton('Commercial'));
-    expect(screen.getAllByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })[0]).toHaveValue(0);
+    workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })).toHaveValue(0);
 
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
@@ -796,23 +833,27 @@ describe('dashboard integration', () => {
     };
     const expectedLongTerm = calculateDeal(longTermOverrideModel).longTerm.monthlyCashFlow;
 
-    const annualRevenueInput = screen.getByLabelText('Annual revenue (optional)');
+    await user.click(getStrategyButton('Long-Term'));
+    let workspace = getStrategyInputsWorkspace();
+    const annualRevenueInput = within(workspace).getByLabelText('Annual revenue (optional)');
     await user.clear(annualRevenueInput);
     await user.type(annualRevenueInput, '72000');
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(expectedLongTerm));
 
     await user.click(getStrategyButton('Airbnb'));
-    expect(screen.getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
 
     await user.click(getStrategyButton('PadSplit'));
-    expect(screen.getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
   });
 
-  it('allows renaming and adding variable expenses', async () => {
+  it('allows renaming, filtering commercial expenses, and deleting variable expense rows', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Expenses' }));
+    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
 
     const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
     const firstLabel = screen.getByLabelText('Expense label 1');
@@ -820,10 +861,20 @@ describe('dashboard integration', () => {
     await user.type(firstLabel, 'Utilities Master');
     expect(screen.getByLabelText('Expense label 1')).toHaveValue('Utilities Master');
 
+    const commercialToggle = screen.getByRole('button', { name: 'Utilities Master applies to Commercial' });
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(commercialToggle);
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
+
     await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
 
     const afterCount = screen.getAllByLabelText(/Expense label/i).length;
     expect(afterCount).toBe(beforeCount + 1);
+
+    const deleteButtons = screen.getAllByRole('button', { name: /Delete expense/i });
+    await user.click(deleteButtons[deleteButtons.length - 1]);
+
+    expect(screen.getAllByLabelText(/Expense label/i).length).toBe(beforeCount);
   });
 
   it('print view link includes encoded scenario payload and selected strategy', async () => {

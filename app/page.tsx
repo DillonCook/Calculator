@@ -9,6 +9,7 @@ import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
 import { DealWorkoutCard } from '@/components/dashboard/deal-workout-card';
 import { DealsVaultPanel } from '@/components/dashboard/scenario-corner';
 import { StrategyComparison } from '@/components/dashboard/strategy-comparison';
+import { StrategyInputsWorkspace } from '@/components/dashboard/strategy-inputs-workspace';
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onboarding-tour';
@@ -56,6 +57,7 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
+type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 
 const compactModeLabels: Record<CompactMode, string> = {
@@ -404,6 +406,7 @@ export default function HomePage() {
   const [isLightMode, setIsLightMode] = useState(false);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [desktopInputWorkspace, setDesktopInputWorkspace] = useState<DesktopInputWorkspace>('dealSetup');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
     purchase: true,
@@ -468,9 +471,9 @@ export default function HomePage() {
   const mobileStrategyInputsRef = useRef<HTMLDivElement | null>(null);
   const mobileIrrSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
+  const desktopExpensesSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyInputsRef = useRef<HTMLDivElement | null>(null);
-  const desktopIrrInputsRef = useRef<HTMLDivElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -753,6 +756,11 @@ export default function HomePage() {
           ? 'purchaseFinancing'
           : undefined
       : undefined;
+
+  useEffect(() => {
+    if (!onboardingHighlightedCoreSection) return;
+    setDesktopInputWorkspace(onboardingHighlightedCoreSection === 'expenses' ? 'expenses' : 'dealSetup');
+  }, [onboardingHighlightedCoreSection]);
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -1145,6 +1153,11 @@ export default function HomePage() {
     setShowAllLongTermTurnaroundMobileOutputs(false);
   };
 
+  const openDesktopStrategyWorkspace = (nextStrategy: StrategyKey) => {
+    handleStrategyChange(nextStrategy);
+    setDesktopInputWorkspace('strategyInputs');
+  };
+
   useEffect(() => {
     const nextProjectionStrategies = normalizeProjectionStrategySelection(compactSelectedStrategies);
     const currentProjectionStrategies = normalizeProjectionStrategySelection(model.uiState?.projectionStrategies);
@@ -1215,10 +1228,10 @@ export default function HomePage() {
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
     if (step.id === 'vault') return getFirstVisibleElement(compactMenuButtonRef.current, dealVaultRef.current);
     if (step.id === 'signin') return getFirstVisibleElement(compactMenuButtonRef.current, desktopAuthActionRef.current, authControlsRef.current);
-    if (step.id === 'core') return desktopCoreSectionRef.current;
-    if (step.id === 'expenses') return desktopCoreSectionRef.current;
-    if (step.id === 'strategy') return desktopStrategyInputsRef.current;
-    if (step.id === 'irr') return desktopIrrInputsRef.current;
+    if (step.id === 'core') return getFirstVisibleElement(desktopCoreSectionRef.current, desktopExpensesSectionRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
+    if (step.id === 'expenses') return getFirstVisibleElement(desktopExpensesSectionRef.current, desktopCoreSectionRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
+    if (step.id === 'strategy') return getFirstVisibleElement(desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
+    if (step.id === 'irr') return irrStreamRef.current;
     return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
   };
 
@@ -1593,7 +1606,7 @@ export default function HomePage() {
       setCompactInputSection('irr');
 
       const frame = window.requestAnimationFrame(() => {
-        desktopIrrInputsRef.current?.scrollIntoView({
+        irrStreamRef.current?.scrollIntoView({
           behavior: prefersReducedMotion ? 'auto' : 'smooth',
           block: 'center',
           inline: 'nearest'
@@ -2700,21 +2713,14 @@ export default function HomePage() {
 
   const desktopHeadlineMetricSection = (
     <div className="border-t border-white/10 pt-3 lg:col-span-2">
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Live KPI strip</p>
-          <p className="text-xs text-muted">Six fast reads for the active strategy while the workspace stays in view.</p>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">{activeStrategyLabel}</span>
-          <button
-            type="button"
-            onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-            className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
-          >
-            {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange KPIs'}
-          </button>
-        </div>
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
+          className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+        >
+          {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange KPIs'}
+        </button>
       </div>
 
       {isHeadlineMetricOrderEditorOpen ? (
@@ -2762,52 +2768,38 @@ export default function HomePage() {
       </div>
     </div>
   );
+  const desktopInputViewportClassName =
+    'scrollbar-premium max-h-[min(58rem,calc(100vh-14rem))] overflow-y-auto pr-1 [overflow-anchor:none]';
+  const desktopWorkspaceShellClassName =
+    'grid gap-4 xl:grid-cols-[minmax(0,1.24fr)_minmax(360px,0.92fr)] 2xl:grid-cols-[minmax(0,1.3fr)_minmax(390px,0.88fr)]';
 
   const desktopPerformanceDashboard = (
-    <section className="space-y-4">
-      <div className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(135deg,rgba(17,28,44,0.96),rgba(10,16,28,0.96))] p-4 shadow-soft">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-3xl">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Performance dashboard</p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-100">IRR stream and strategy board</h2>
-            <p className="mt-1 text-sm text-muted">Read timing, capital velocity, and exit spread in one dashboard while keeping the underwriting controls open on the right.</p>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] text-muted">
-            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">{activeStrategyLabel}</span>
-            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">{`Years 0 - ${model.assumptions.holdYears}`}</span>
-          </div>
+    <section className="grid gap-4 xl:grid-cols-[minmax(340px,0.74fr)_minmax(0,1.26fr)] [overflow-anchor:none]">
+      <div className="space-y-2 [overflow-anchor:none]">
+        <div ref={irrStreamRef}>
+          <TimelineCard
+            output={result[activeStrategy]}
+            assumptions={model.assumptions}
+            defaultOpen={Boolean(activeDealId)}
+            collapsible={false}
+            summaryVariant="compact"
+            onAssumptionsChange={updateAssumptions}
+            showTargetIrrInput={showTargetIrrInput}
+          />
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-start justify-between gap-2 px-1">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">IRR stream</p>
-              <p className="text-xs text-muted">Year-by-year cash flow timing and hold assumptions.</p>
-            </div>
-          </div>
-          <div ref={irrStreamRef}>
-            <TimelineCard
-              output={result[activeStrategy]}
-              assumptions={model.assumptions}
-              defaultOpen={Boolean(activeDealId)}
-              collapsible={false}
-              summaryVariant="compact"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-start justify-between gap-2 px-1">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Master strategy board</p>
-              <p className="text-xs text-muted">Compare all exit paths without switching away from the live deal.</p>
-            </div>
-            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">{strategyKeyOrder.length} exits</span>
-          </div>
-          <StrategyComparison data={result} input={model} holdYears={model.assumptions.holdYears} lockBoardOpen hideHeader />
-        </div>
+      <div className="[overflow-anchor:none]">
+        <StrategyComparison
+          data={result}
+          input={model}
+          holdYears={model.assumptions.holdYears}
+          visibleStrategies={compactCompareSelection}
+          inlineModelingViews
+          lockBoardOpen
+          inlineHeaderCaption="Saved locally for this deal only."
+          onToggleVisibleStrategy={toggleCompactProjectionStrategy}
+        />
       </div>
     </section>
   );
@@ -4160,13 +4152,13 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.24fr)_minmax(360px,0.92fr)] 2xl:grid-cols-[minmax(0,1.3fr)_minmax(390px,0.88fr)]">
-          <div className="space-y-4">
+        <div className={desktopWorkspaceShellClassName}>
+          <div className="space-y-4 [overflow-anchor:none]">
             {!isMobileViewport ? (
               <div ref={desktopStrategyTabsRef}>
                 <StrategyTabs
                   active={activeStrategy}
-                  onChange={handleStrategyChange}
+                  onChange={openDesktopStrategyWorkspace}
                   quickScan={strategyQuickScan}
                   actionSlot={
                     <button
@@ -4187,21 +4179,75 @@ export default function HomePage() {
           </div>
 
           {!isMobileViewport ? (
-            <div className="space-y-4">
-              <div ref={desktopCoreSectionRef}>
+            <div className="space-y-4 [overflow-anchor:none]">
+              <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
+                <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopInputWorkspace === 'dealSetup'}
+                    onClick={() => setDesktopInputWorkspace('dealSetup')}
+                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
+                      desktopInputWorkspace === 'dealSetup'
+                        ? 'btn-primary'
+                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    Deal setup
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopInputWorkspace === 'strategyInputs'}
+                    onClick={() => setDesktopInputWorkspace('strategyInputs')}
+                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
+                      desktopInputWorkspace === 'strategyInputs'
+                        ? 'btn-primary'
+                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    {`${activeStrategyLabel} inputs`}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopInputWorkspace === 'expenses'}
+                    onClick={() => setDesktopInputWorkspace('expenses')}
+                    className={`tap-feedback rounded-xl px-3 py-2 text-sm font-medium transition ${
+                      desktopInputWorkspace === 'expenses'
+                        ? 'btn-primary'
+                        : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    Expenses
+                  </button>
+                </div>
+              </section>
+
+              <div ref={desktopCoreSectionRef} className={desktopInputWorkspace === 'dealSetup' ? 'block' : 'hidden'}>
                 <DealInputPanel
                   value={model}
                   onChange={updateModel}
                   resolveListingDealName={resolveListingDealName}
                   defaultAdvancedOptionsOpen={Boolean(activeDealId)}
-                  preferredCoreSection={onboardingHighlightedCoreSection}
+                  forcedCoreSection="purchaseFinancing"
+                  titleOverride="Deal Setup"
+                  contentViewportClassName={desktopInputViewportClassName}
                 />
               </div>
-              <section ref={desktopStrategyInputsRef} className="grid gap-3">
-                <StrategyModuleInputs active={activeStrategy} model={model} onChange={updateModel} />
-              </section>
-              <div ref={desktopIrrInputsRef}>
-                <AssumptionsPanel assumptions={model.assumptions} onChange={updateAssumptions} showTargetIrrInput={showTargetIrrInput} />
+              <div ref={desktopStrategyInputsRef} className={desktopInputWorkspace === 'strategyInputs' ? 'block' : 'hidden'}>
+                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} />
+              </div>
+              <div ref={desktopExpensesSectionRef} className={desktopInputWorkspace === 'expenses' ? 'block' : 'hidden'}>
+                <DealInputPanel
+                  value={model}
+                  onChange={updateModel}
+                  resolveListingDealName={resolveListingDealName}
+                  defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+                  forcedCoreSection="expenses"
+                  contentViewportClassName={desktopInputViewportClassName}
+                  variableExpenseGridClassName="xl:grid-cols-2 min-[1850px]:grid-cols-3"
+                />
               </div>
             </div>
           ) : null}
@@ -4234,7 +4280,6 @@ export default function HomePage() {
         onNext={goToNextOnboardingStep}
         onSkip={completeOnboarding}
       />
-
       <StrategyWorkLightbox
         open={isStrategyWorkOpen}
         activeStrategy={activeStrategy}

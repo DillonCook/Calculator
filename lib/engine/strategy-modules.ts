@@ -407,6 +407,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
 
   const { debtService, principal } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
+  const strategyVariableCosts = getVariableExpenseTotal(input, 'purchase');
   const capitalInvested = getAcquisitionCapitalInvested(input);
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
 
@@ -428,6 +429,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   const annualTiReserve = grossLeasableAreaSqft * Math.max(commercial.tenantImprovementsReservePerSqftYear, 0);
   const annualLeasingReserve = grossLeasableAreaSqft * Math.max(commercial.leasingCommissionsReservePerSqftYear, 0);
   const annualFixedCosts = fixedCosts * 12;
+  const annualVariableExpenses = strategyVariableCosts * 12;
   const annualOperatingExpenses =
     annualEconomicVacancyLoss +
     annualCreditLoss +
@@ -435,6 +437,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     annualNonRecoverableExpenses +
     annualTiReserve +
     annualLeasingReserve +
+    annualVariableExpenses +
     annualFixedCosts;
   const annualNoi =
     annualOccupiedGross - annualOperatingExpenses;
@@ -487,6 +490,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
         toLine('comm-non-recoverable', 'Non-recoverable OpEx', -(annualNonRecoverableExpenses / 12)),
         toLine('comm-ti', 'Tenant improvement reserve', -(annualTiReserve / 12)),
         toLine('comm-lc', 'Leasing commission reserve', -(annualLeasingReserve / 12)),
+        toLine('comm-variable-expenses', 'Variable expenses', -strategyVariableCosts),
         toLine('comm-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('comm-noi', 'NOI', noiMonthly),
         toLine('comm-debt-service', 'Debt service', -debtService),

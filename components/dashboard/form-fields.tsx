@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 export const inputClass =
-  'w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none placeholder:text-muted focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)] sm:px-3 sm:py-2 sm:text-sm';
+  'w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs outline-none placeholder:text-muted focus-visible:border-accent/75 focus-visible:shadow-[inset_0_0_0_1px_rgba(255,176,92,0.58)] sm:px-3 sm:py-2 sm:text-sm';
 
 const normalizeNumberString = (raw: string) => {
   const trimmed = raw.trim();

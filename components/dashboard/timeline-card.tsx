@@ -99,7 +99,7 @@ export function TimelineCard({
 
   const isExpanded = collapsible ? isOpen : true;
   const holdRangeLabel = `Years 0 - ${assumptions.holdYears}`;
-  const showEmbeddedAssumptions = Boolean(onAssumptionsChange) && summaryVariant === 'cards';
+  const showEmbeddedAssumptions = Boolean(onAssumptionsChange);
   const compactReferenceItems = [
     { label: 'Hold', value: `${assumptions.holdYears}y` },
     { label: 'NOI', value: percentFormatter.format(assumptions.noiGrowthPercent) },
@@ -110,37 +110,101 @@ export function TimelineCard({
   const timelineContent = (
     <>
       {showEmbeddedAssumptions ? (
-        <div className="rounded-xl border border-white/10 bg-black/15 p-3 sm:p-4">
-          <AssumptionsPanel
-            assumptions={assumptions}
-            onChange={onAssumptionsChange!}
-            showTargetIrrInput={showTargetIrrInput}
-            variant="embedded"
-          />
+        <div className="rounded-[1.45rem] border border-white/10 bg-[linear-gradient(145deg,rgba(14,24,40,0.96),rgba(9,16,29,0.96))] p-3 shadow-soft sm:p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">IRR stream</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-100 sm:text-xl">Hold and exit assumptions</h3>
+            </div>
+            <div ref={tooltipAnchorRef} className="relative flex shrink-0 items-center gap-2 self-start">
+              <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">{holdRangeLabel}</span>
+              <button
+                ref={tooltipTriggerRef}
+                type="button"
+                aria-label="IRR stream explanation"
+                aria-expanded={isIrrTooltipOpen}
+                onClick={() => {
+                  clearCloseTooltipTimer();
+                  setIsIrrTooltipOpen((prev) => !prev);
+                }}
+                onMouseEnter={openTooltip}
+                onMouseLeave={scheduleCloseTooltip}
+                onFocus={openTooltip}
+                onBlur={scheduleCloseTooltip}
+                className="tap-feedback inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted opacity-85 transition hover:border-accent/70 hover:text-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+              >
+                i
+              </button>
+
+              {isIrrTooltipOpen && typeof document !== 'undefined'
+                ? createPortal(
+                    <div
+                      ref={tooltipPanelRef}
+                      className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs leading-relaxed text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
+                      style={tooltipStyle}
+                      onClick={(event) => event.stopPropagation()}
+                      onMouseEnter={openTooltip}
+                      onMouseLeave={scheduleCloseTooltip}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
+                        <button
+                          type="button"
+                          className="tap-feedback rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setIsIrrTooltipOpen(false);
+                          }}
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <p>
+                        <span className="font-semibold text-white">Why IRR stream matters:</span> it captures the timing of every yearly cash flow and your projected sale proceeds,
+                        so two deals with the same total profit can rank very differently. IRR helps you spot faster capital velocity and lower hold-time risk.
+                      </p>
+                    </div>,
+                    document.body
+                  )
+                : null}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <AssumptionsPanel
+              assumptions={assumptions}
+              onChange={onAssumptionsChange!}
+              showTargetIrrInput={showTargetIrrInput}
+              variant="embedded"
+              hideHeader
+            />
+          </div>
         </div>
       ) : null}
 
-      {summaryVariant === 'compact' ? (
-        <div className={`${showEmbeddedAssumptions ? 'mt-4' : 'mt-3'} rounded-xl border border-white/10 bg-white/5 px-3 py-2.5`}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
+      {!showEmbeddedAssumptions ? (
+        summaryVariant === 'compact' ? (
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+              {compactReferenceItems.map((item) => (
+                <span key={item.label} className="rounded-full border border-white/10 bg-black/20 px-2 py-1">
+                  {item.label}: <span className="text-slate-100">{item.value}</span>
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
-            {compactReferenceItems.map((item) => (
-              <span key={item.label} className="rounded-full border border-white/10 bg-black/20 px-2 py-1">
-                {item.label}: <span className="text-slate-100">{item.value}</span>
-              </span>
-            ))}
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryMetric label="Hold years" value={`${assumptions.holdYears}`} />
+            <SummaryMetric label="NOI growth" value={percentFormatter.format(assumptions.noiGrowthPercent)} />
+            <SummaryMetric label="Appreciation" value={percentFormatter.format(assumptions.annualAppreciationPercent)} />
+            <SummaryMetric label="Selling cost" value={percentFormatter.format(assumptions.sellingCostPercent)} />
           </div>
-        </div>
-      ) : (
-        <div className={`${showEmbeddedAssumptions ? 'mt-4' : 'mt-3'} grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
-          <SummaryMetric label="Hold years" value={`${assumptions.holdYears}`} />
-          <SummaryMetric label="NOI growth" value={percentFormatter.format(assumptions.noiGrowthPercent)} />
-          <SummaryMetric label="Appreciation" value={percentFormatter.format(assumptions.annualAppreciationPercent)} />
-          <SummaryMetric label="Selling cost" value={percentFormatter.format(assumptions.sellingCostPercent)} />
-        </div>
-      )}
+        )
+      ) : null}
 
       <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
         {output.cashFlowTimeline.map((flow, index) => (
@@ -233,7 +297,7 @@ export function TimelineCard({
               : null}
           </div>
         </div>
-      ) : (
+      ) : !showEmbeddedAssumptions ? (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Cash Flow Timeline</p>
@@ -292,7 +356,7 @@ export function TimelineCard({
               : null}
           </div>
         </div>
-      )}
+      ) : null}
 
       {collapsible ? (
         <div className="panel-collapse" data-open={isExpanded}>

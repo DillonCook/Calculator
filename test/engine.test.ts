@@ -29,7 +29,7 @@ const fixedCostsMonthly = (input = defaultDealInput) => {
   return annualTax / 12 + annualInsurance / 12 + input.purchase.hoaMonthly + input.purchase.pmiMonthly;
 };
 
-const variableCostMonthly = (strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'flip', input = defaultDealInput) =>
+const variableCostMonthly = (strategy: 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'flip', input = defaultDealInput) =>
   input.variableExpenses.reduce((sum, entry) => (entry.appliesTo[strategy] ? sum + entry.monthlyAmount : sum), 0);
 
 const createProjectionOutput = (overrides: Partial<StrategyOutput>): StrategyOutput => ({
@@ -301,6 +301,27 @@ test('commercial strategy uses leased sq ft and $/sq ft assumptions for NOI and 
   near(result.purchase.monthlyCashFlow, noi - debt, 0.01);
   near(result.purchase.monthlyCashFlowExcludingReserves ?? 0, noi - debt + tiReserveMonthly + leasingReserveMonthly, 0.01);
   assert.ok(result.purchase.calculationBreakdown?.lines.some((line) => line.key === 'comm-base-rent'));
+});
+
+test('commercial strategy includes variable expenses when the commercial toggle is enabled', () => {
+  const model = {
+    ...defaultDealInput,
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) =>
+      expense.key === 'power'
+        ? {
+            ...expense,
+            monthlyAmount: 240,
+            appliesTo: { ...expense.appliesTo, purchase: true }
+          }
+        : expense
+    )
+  };
+
+  const baseResult = calculateDeal(defaultDealInput).purchase;
+  const result = calculateDeal(model).purchase;
+
+  near(baseResult.monthlyCashFlow - result.monthlyCashFlow, 240, 0.01);
+  assert.ok(result.calculationBreakdown?.lines.some((line) => line.key === 'comm-variable-expenses'));
 });
 
 test('long-term module includes base fixed and variable expenses', () => {
@@ -1272,9 +1293,9 @@ test('REI Calculator v2.15 parity fixture', () => {
       ownerExpensesMonthly: 820
     },
     variableExpenses: [
-      { key: 'lt', label: 'LT', monthlyAmount: 300, appliesTo: { longTerm: true, airbnb: false, padSplit: false, flip: false } },
-      { key: 'str', label: 'STR', monthlyAmount: 675, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
-      { key: 'ps', label: 'PS', monthlyAmount: 820, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } }
+      { key: 'lt', label: 'LT', monthlyAmount: 300, appliesTo: { purchase: false, longTerm: true, airbnb: false, padSplit: false, flip: false } },
+      { key: 'str', label: 'STR', monthlyAmount: 675, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: false, flip: false } },
+      { key: 'ps', label: 'PS', monthlyAmount: 820, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: true, flip: false } }
     ]
   };
 

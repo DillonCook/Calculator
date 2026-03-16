@@ -7,7 +7,7 @@ export const strategyKeyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb'
 export const isStrategyKey = (value: unknown): value is StrategyKey =>
   typeof value === 'string' && strategyKeyOrder.includes(value as StrategyKey);
 
-export type ExpenseStrategyKey = 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
+export type ExpenseStrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'flip';
 
 export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
@@ -492,17 +492,17 @@ export const defaultDealInput: DealInputModel = {
     sellerConcessions: 3000
   },
   variableExpenses: [
-    { key: 'power', label: 'Power', monthlyAmount: 300, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
-    { key: 'water', label: 'Water / Sewer', monthlyAmount: 180, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
-    { key: 'trash', label: 'Trash', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
-    { key: 'gas', label: 'Gas', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: true } },
-    { key: 'internet', label: 'Internet', monthlyAmount: 75, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
-    { key: 'pool', label: 'Pool Service', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: true, padSplit: false, flip: false } },
-    { key: 'lawn', label: 'Lawn Service', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: true, padSplit: true, flip: false } },
-    { key: 'licensing', label: 'Pest Control', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
-    { key: 'padsplit-cleaning', label: 'PadSplit Monthly Cleaning', monthlyAmount: 120, appliesTo: { longTerm: false, airbnb: false, padSplit: true, flip: false } },
-    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } },
-    { key: 'other-2', label: 'Other 2', monthlyAmount: 0, appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false } }
+    { key: 'power', label: 'Power', monthlyAmount: 300, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'water', label: 'Water / Sewer', monthlyAmount: 180, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'trash', label: 'Trash', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'gas', label: 'Gas', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: true } },
+    { key: 'internet', label: 'Internet', monthlyAmount: 75, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: false } },
+    { key: 'pool', label: 'Pool Service', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: false, flip: false } },
+    { key: 'lawn', label: 'Lawn Service', monthlyAmount: 120, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: false } },
+    { key: 'licensing', label: 'Pest Control', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'padsplit-cleaning', label: 'PadSplit Monthly Cleaning', monthlyAmount: 120, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: true, flip: false } },
+    { key: 'other', label: 'Other', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: false, flip: false } },
+    { key: 'other-2', label: 'Other 2', monthlyAmount: 0, appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: false, flip: false } }
   ],
   assumptions: {
     holdYears: 10,

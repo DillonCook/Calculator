@@ -17,6 +17,7 @@ const normalizeVariableExpenses = (value: unknown): DealInputModel['variableExpe
     .filter((entry): entry is Record<string, unknown> => isRecord(entry))
     .map((entry) => {
       const defaultApplies: Record<ExpenseStrategyKey, boolean> = {
+        purchase: false,
         longTerm: true,
         airbnb: true,
         padSplit: true,

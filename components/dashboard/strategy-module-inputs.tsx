@@ -10,6 +10,7 @@ interface StrategyModuleInputsProps {
   collapsible?: boolean;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  animateContent?: boolean;
 }
 
 export function StrategyModuleInputs({
@@ -18,7 +19,8 @@ export function StrategyModuleInputs({
   onChange,
   collapsible = false,
   collapsed = false,
-  onToggleCollapsed
+  onToggleCollapsed,
+  animateContent = true
 }: StrategyModuleInputsProps) {
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     onChange({ ...model, [section]: { ...model[section], [field]: nextValue } });
@@ -413,7 +415,7 @@ export function StrategyModuleInputs({
 
       <div className="panel-collapse" data-open={!collapsed}>
         <div className="panel-collapse-inner">
-          <div key={active} className="panel-swap">
+          <div key={animateContent ? active : 'strategy-inputs-static'} className={animateContent ? 'panel-swap' : ''}>
             {renderContent()}
           </div>
         </div>

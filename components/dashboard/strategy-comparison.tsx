@@ -25,6 +25,8 @@ interface StrategyComparisonProps {
   lockBoardOpen?: boolean;
   hideHeader?: boolean;
   visibleStrategies?: StrategyKey[];
+  inlineHeaderCaption?: string;
+  onToggleVisibleStrategy?: (strategy: StrategyKey) => void;
 }
 
 export function StrategyComparison({
@@ -35,7 +37,9 @@ export function StrategyComparison({
   inlineModelingViews = false,
   lockBoardOpen = false,
   hideHeader = false,
-  visibleStrategies
+  visibleStrategies,
+  inlineHeaderCaption,
+  onToggleVisibleStrategy
 }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
   const [isBoardOpen, setIsBoardOpen] = useState(lockBoardOpen ? true : defaultBoardOpen);
@@ -113,82 +117,94 @@ export function StrategyComparison({
         return (
           <article
             key={`inline-compare-${row.key}`}
-            className="mobile-stagger-item relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(24,38,59,0.96),rgba(9,15,28,0.96))] p-3 shadow-soft"
+            aria-label={`${row.label} projection card`}
+            className="panel-swap relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(145deg,rgba(23,38,58,0.98),rgba(8,15,27,0.98))] p-4 shadow-soft sm:p-5"
             style={{ animationDelay: `${80 + index * 42}ms` }}
           >
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-70"
+              className="pointer-events-none absolute inset-0 opacity-75"
               style={{
                 background:
-                  'radial-gradient(circle at 12% 18%, rgba(92, 203, 255, 0.18), transparent 34%), radial-gradient(circle at 86% 14%, rgba(244, 150, 58, 0.14), transparent 28%)'
+                  'radial-gradient(circle at 8% 18%, rgba(92, 203, 255, 0.18), transparent 28%), radial-gradient(circle at 88% 12%, rgba(244, 150, 58, 0.16), transparent 24%)'
               }}
             />
 
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted">{row.label}</p>
-                  <p
-                    className={`mt-1 text-2xl font-semibold tracking-tight ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
-                    style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
-                  >
-                    {currencyFormatter.format(output.monthlyCashFlow)}
-                    <span className="ml-1 text-xs font-medium text-muted">/mo</span>
-                  </p>
+            <div className="relative z-10 space-y-3 sm:space-y-4">
+              <section className="rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,14,24,0.36),rgba(8,14,24,0.68))] p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-accent/90">{row.label}</p>
+                    <p
+                      className={`mt-2 text-[2rem] font-semibold leading-none tracking-tight ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
+                      style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+                    >
+                      {currencyFormatter.format(output.monthlyCashFlow)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">Monthly operating result</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                      IRR {percentFormatter.format(output.irr)}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                      DSCR {output.dscr.toFixed(2)}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                      Hold {formatHoldLabel(equityRow.holdMonths)}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-right">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted">IRR</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-100" style={getNegativeValueStyle(output.irr, { kind: 'percent' })}>
-                    {percentFormatter.format(output.irr)}
-                  </p>
+                <div className="mt-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.16em] text-muted">
+                    <span>Cash-flow strength</span>
+                    <span>{isPositive ? 'Positive carry' : 'Negative carry'}</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-3">
-                <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
-                  <span>Cash-flow strength</span>
-                  <span>DSCR {output.dscr.toFixed(2)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
-                    style={{ width: `${barWidth}%` }}
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <CompactMetric
+                    label="CoC"
+                    value={percentFormatter.format(output.cashOnCashReturn)}
+                    toneStyle={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}
                   />
+                  <CompactMetric
+                    label="ROI"
+                    value={percentFormatter.format(output.roi)}
+                    toneStyle={getNegativeValueStyle(output.roi, { kind: 'percent' })}
+                  />
+                  <CompactMetric
+                    label="Cap"
+                    value={percentFormatter.format(output.capRate)}
+                    toneStyle={getNegativeValueStyle(output.capRate, { kind: 'percent' })}
+                  />
+                  <CompactMetric label="Cash to Close" value={currencyFormatter.format(data.masterSummary.cashToClose)} />
+                  <CompactMetric
+                    label="Break-even"
+                    value={formatBreakEvenLabel(equityRow.paybackMonths)}
+                    toneStyle={equityRow.paybackMonths !== null ? { color: '#86efac' } : { color: '#fde68a' }}
+                  />
+                  <CompactMetric label="Multiple" value={`${equityRow.modeledMultiple.toFixed(2)}x`} />
+                  <CompactMetric label="Exit Cash" value={currencyFormatter.format(equityRow.exitCashReturned)} />
+                  <CompactMetric label="Modeled exit" value={cashFlowRow.exitLabel} />
                 </div>
-              </div>
+              </section>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <CompactMetric
-                  label="CoC"
-                  value={percentFormatter.format(output.cashOnCashReturn)}
-                  toneStyle={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}
-                />
-                <CompactMetric
-                  label="ROI"
-                  value={percentFormatter.format(output.roi)}
-                  toneStyle={getNegativeValueStyle(output.roi, { kind: 'percent' })}
-                />
-                <CompactMetric
-                  label="Cap"
-                  value={percentFormatter.format(output.capRate)}
-                  toneStyle={getNegativeValueStyle(output.capRate, { kind: 'percent' })}
-                />
-                <CompactMetric
-                  label="Cash to Close"
-                  value={currencyFormatter.format(data.masterSummary.cashToClose)}
-                  toneStyle={undefined}
-                />
-              </div>
-
-              <div className="mt-3 grid gap-2 max-[359px]:grid-cols-1 sm:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-                <section className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+              <div className="grid gap-3 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <section className="rounded-[1.2rem] border border-white/10 bg-black/20 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Equity</p>
                       <p
-                        className={`mt-1 text-xs font-semibold ${equityRow.modeledProfit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
+                        className={`mt-1 text-sm font-semibold ${equityRow.modeledProfit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
                         style={getNegativeValueStyle(equityRow.modeledProfit, { kind: 'currency' })}
                       >
                         {equityRow.modeledProfit >= 0 ? '+' : ''}
@@ -196,14 +212,12 @@ export function StrategyComparison({
                       </p>
                     </div>
                     <div className="text-right text-[10px] text-muted">
-                      <p className="whitespace-nowrap">
-                        {currencyFormatter.format(equityRow.exitCashReturned)} {equityRow.exitLabel.toLowerCase()}
-                      </p>
+                      <p>{currencyFormatter.format(equityRow.exitCashReturned)} {equityRow.exitLabel.toLowerCase()}</p>
                       <p>{formatHoldLabel(equityRow.holdMonths)}</p>
                     </div>
                   </div>
 
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-3 space-y-2.5">
                     <ModelBar label="Total Invested" value={equityRow.totalInvested} max={maxModeledReturn} tone="invested" compact />
                     <ModelBar
                       label="Modeled Exit"
@@ -213,25 +227,13 @@ export function StrategyComparison({
                       compact
                     />
                   </div>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-muted">
-                    <span>
-                      Modeled multiple <span className="text-slate-100">{equityRow.modeledMultiple.toFixed(2)}x</span>
-                    </span>
-                    <span>
-                      Break-even if selling{' '}
-                      <span className={equityRow.paybackMonths !== null ? 'text-emerald-300' : 'text-amber-300'}>
-                        {formatBreakEvenLabel(equityRow.paybackMonths)}
-                      </span>
-                    </span>
-                  </div>
                 </section>
 
-                <section className="rounded-xl border border-white/10 bg-[#0a1326] p-2.5">
+                <section className="rounded-[1.2rem] border border-white/10 bg-[#091223] p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-200">Cash flow trend</p>
-                      <p className="mt-1 text-[10px] text-muted">Projected sale proceeds removed from the last period.</p>
+                      <p className="mt-1 text-[10px] text-muted">Operating cash flow only.</p>
                     </div>
                     <p className="text-[10px] text-muted">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
                   </div>
@@ -244,6 +246,8 @@ export function StrategyComparison({
       })}
     </div>
   );
+
+  const showInlineHeader = inlineModelingViews && (Boolean(onToggleVisibleStrategy) || Boolean(inlineHeaderCaption));
 
   const boardContent = (
     <div className="space-y-3">
@@ -394,17 +398,50 @@ export function StrategyComparison({
 
   return (
     <>
-      {inlineModelingViews ? (
-        <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-          {inlineComparisonCards}
-        </section>
-      ) : (
       <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
-        {!hideHeader && lockBoardOpen ? (
+        {inlineModelingViews ? (
+          showInlineHeader ? (
+            <div className="mb-4 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(18,31,49,0.82),rgba(8,15,27,0.94))] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Projections board</p>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-100">Compare modeled outcomes side by side</h2>
+                  {inlineHeaderCaption ? <p className="mt-1 text-xs text-muted">{inlineHeaderCaption}</p> : null}
+                </div>
+                <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+                  {rows.length} shown
+                </span>
+              </div>
+              {onToggleVisibleStrategy ? (
+                <div aria-label="Projections board strategy selection" role="group" className="mt-4 flex flex-wrap gap-2">
+                  {strategyOrder.map((strategy) => {
+                    const isSelected = rows.some((row) => row.key === strategy);
+
+                    return (
+                      <button
+                        key={`inline-board-strategy-${strategy}`}
+                        type="button"
+                        onClick={() => onToggleVisibleStrategy(strategy)}
+                        aria-pressed={isSelected}
+                        className={`tap-feedback rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                          isSelected
+                            ? 'border-accent/60 bg-accent/12 text-accent'
+                            : 'border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20'
+                        }`}
+                      >
+                        {strategyLabels[strategy]}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null
+        ) : !hideHeader && lockBoardOpen ? (
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
-              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
+              <p className="text-xs uppercase tracking-wider text-muted">Projections Board</p>
+              <h2 className="text-lg font-semibold sm:text-xl">Compare selected strategies at a glance</h2>
             </div>
             <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
               {rows.length} exits
@@ -418,8 +455,8 @@ export function StrategyComparison({
             onClick={() => setIsBoardOpen((prev) => !prev)}
           >
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Master Strategy Board</p>
-              <h2 className="text-lg font-semibold sm:text-xl">Compare all exits at a glance</h2>
+              <p className="text-xs uppercase tracking-wider text-muted">Projections Board</p>
+              <h2 className="text-lg font-semibold sm:text-xl">Compare selected strategies at a glance</h2>
             </div>
             <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
               {isBoardOpen ? '-' : '+'}
@@ -427,15 +464,14 @@ export function StrategyComparison({
           </button>
         ) : null}
 
-        {lockBoardOpen || hideHeader ? (
-          boardContent
+        {inlineModelingViews || lockBoardOpen || hideHeader ? (
+          inlineModelingViews ? inlineComparisonCards : boardContent
         ) : (
           <div className="panel-collapse" data-open={isBoardOpen}>
             <div className="panel-collapse-inner">{boardContent}</div>
           </div>
         )}
       </section>
-      )}
 
       {!inlineModelingViews && activeModal === 'equity' ? (
         <div
@@ -498,9 +534,9 @@ export function StrategyComparison({
 
 function CompactMetric({ label, value, toneStyle }: { label: string; value: string; toneStyle?: CSSProperties }) {
   return (
-    <article className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+    <article className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
       <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className="mt-1 text-xs font-semibold text-slate-100" style={toneStyle}>
+      <p className="mt-1 break-words text-xs font-semibold text-slate-100" style={toneStyle}>
         {value}
       </p>
     </article>

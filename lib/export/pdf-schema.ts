@@ -52,7 +52,7 @@ const formatCurrency = (value: number) => currencyFormatter.format(value);
 const getSelectedOutput = (result: DealResult, strategy: StrategyKey): StrategyOutput => result[strategy];
 
 const getVariableExpenseStrategy = (input: DealInputModel, selectedStrategy: StrategyKey): ExpenseStrategyKey | null => {
-  if (selectedStrategy === 'purchase') return null;
+  if (selectedStrategy === 'purchase') return 'purchase';
   if (selectedStrategy === 'brrrr') return input.brrrr.operatingStrategy;
   return selectedStrategy as ExpenseStrategyKey;
 };

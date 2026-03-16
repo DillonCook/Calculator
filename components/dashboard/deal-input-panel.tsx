@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
+import { Input, PercentInput, Select, inputClass } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
 
@@ -18,6 +18,9 @@ interface DealInputPanelProps {
   onToggleCollapsed?: () => void;
   forcedCoreSection?: Exclude<CoreInputSection, 'known'>;
   preferredCoreSection?: Exclude<CoreInputSection, 'known'>;
+  titleOverride?: string;
+  contentViewportClassName?: string;
+  variableExpenseGridClassName?: string;
 }
 
 type CoreInputSection = 'purchaseFinancing' | 'expenses' | 'known';
@@ -60,10 +63,11 @@ interface KnownAppliedEntry extends KnownOverlayAppliedEntry {
   target: KnownTarget;
 }
 
-const strategyLabels: Record<ExpenseStrategyKey, string> = {
-  longTerm: 'LT',
-  airbnb: 'STR',
-  padSplit: 'PS',
+const strategyToggleLabels: Record<ExpenseStrategyKey, string> = {
+  purchase: 'Commercial',
+  longTerm: 'Long-Term',
+  airbnb: 'Airbnb',
+  padSplit: 'PadSplit',
   flip: 'Flip'
 };
 
@@ -526,7 +530,10 @@ export function DealInputPanel({
   collapsed = false,
   onToggleCollapsed,
   forcedCoreSection,
-  preferredCoreSection
+  preferredCoreSection,
+  titleOverride,
+  contentViewportClassName,
+  variableExpenseGridClassName
 }: DealInputPanelProps) {
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
@@ -561,6 +568,10 @@ export function DealInputPanel({
     onChange({ ...value, variableExpenses: nextExpenses });
   };
 
+  const removeVariableExpense = (index: number) => {
+    onChange({ ...value, variableExpenses: value.variableExpenses.filter((_, currentIndex) => currentIndex !== index) });
+  };
+
   const addVariableExpense = () => {
     const existingKeys = new Set(value.variableExpenses.map((expense) => expense.key));
     let counter = value.variableExpenses.length + 1;
@@ -574,7 +585,7 @@ export function DealInputPanel({
       key: nextKey,
       label: `Custom Expense ${counter}`,
       monthlyAmount: 0,
-      appliesTo: { longTerm: false, airbnb: false, padSplit: false, flip: false }
+      appliesTo: { purchase: false, longTerm: false, airbnb: false, padSplit: false, flip: false }
     };
 
     onChange({ ...value, variableExpenses: [...value.variableExpenses, nextExpense] });
@@ -673,12 +684,12 @@ export function DealInputPanel({
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
   const isPanelCollapsed = collapsible && collapsed;
   const resolvedCoreSection = forcedCoreSection ?? preferredCoreSection ?? activeCoreSection;
-  const panelTitle = forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Core Purchase, Financing, & Expenses';
+  const panelTitle = titleOverride ?? (forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Deal Setup');
   const showOwnershipModeToggle = forcedCoreSection !== 'expenses';
   const showCoreSectionTabs = !forcedCoreSection;
 
   return (
-    <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
+    <section className={`rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
       {collapsible ? (
         <button
           type="button"
@@ -699,45 +710,46 @@ export function DealInputPanel({
 
       <div className="panel-collapse" data-open={!isPanelCollapsed}>
         <div className="panel-collapse-inner">
-          {showOwnershipModeToggle ? (
-            <button
-              type="button"
-              aria-pressed={isOwnedMode}
-              onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
-              className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
-                isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
-              }`}
-            >
-              {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
-            </button>
-          ) : null}
+          <div className={contentViewportClassName}>
+            {showOwnershipModeToggle ? (
+              <button
+                type="button"
+                aria-pressed={isOwnedMode}
+                onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
+                className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
+                  isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                }`}
+              >
+                {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
+              </button>
+            ) : null}
 
-          {showCoreSectionTabs ? (
-            <div className="mb-2.5 sm:mb-3">
-              <div className="grid grid-cols-2 gap-1.5">
-                {(['purchaseFinancing', 'expenses'] as CoreInputSection[]).map((section) => {
-                  const active = resolvedCoreSection === section;
-                  return (
-                    <button
-                      key={section}
-                      type="button"
-                      onClick={() => setActiveCoreSection(section)}
-                      aria-pressed={active}
-                      className={`tap-feedback min-h-9 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition sm:text-xs ${
-                        active ? 'btn-primary' : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
-                      }`}
-                    >
-                      {coreSectionMeta[section].title}
-                    </button>
-                  );
-                })}
+            {showCoreSectionTabs ? (
+              <div className="mb-2.5 sm:mb-3">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['purchaseFinancing', 'expenses'] as CoreInputSection[]).map((section) => {
+                    const active = resolvedCoreSection === section;
+                    return (
+                      <button
+                        key={section}
+                        type="button"
+                        onClick={() => setActiveCoreSection(section)}
+                        aria-pressed={active}
+                        className={`tap-feedback min-h-9 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition sm:text-xs ${
+                          active ? 'btn-primary' : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                        }`}
+                      >
+                        {coreSectionMeta[section].title}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <div className="space-y-2.5 sm:space-y-3">
-            {resolvedCoreSection === 'purchaseFinancing' ? (
-              <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+            <div className="space-y-2.5 sm:space-y-3">
+              {resolvedCoreSection === 'purchaseFinancing' ? (
+                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   {!isOwnedMode ? (
                     <>
@@ -852,11 +864,11 @@ export function DealInputPanel({
                     </div>
                   </Section>
                 </div>
-              </section>
-            ) : null}
+                </section>
+              ) : null}
 
-            {resolvedCoreSection === 'expenses' ? (
-              <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+              {resolvedCoreSection === 'expenses' ? (
+                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
                   <Input label="PMI monthly" type="number" value={value.purchase.pmiMonthly} onChange={(v) => update('purchase', 'pmiMonthly', Number(v))} />
@@ -894,108 +906,135 @@ export function DealInputPanel({
                   </div>
                 )}
 
-                <div className="mt-2.5 rounded-lg border border-white/10 bg-black/20 p-2 sm:mt-3 sm:p-2.5">
-                  <div className="mb-2 hidden grid-cols-[minmax(0,0.95fr)_max-content_90px_minmax(0,1.35fr)] gap-2 px-1 text-[11px] uppercase tracking-wider text-muted sm:grid">
-                    <span>Expense label</span>
-                    <span>Cadence</span>
-                    <span>Amount</span>
-                    <span>Applies to strategies</span>
+                <div className="mt-2.5 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,19,35,0.92),rgba(4,11,20,0.98))] p-3 sm:mt-3 sm:p-3.5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Variable expenses</p>
+                      <p className="mt-1 text-[11px] text-muted">Build reusable expense cards and decide which operating strategies each one impacts.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addVariableExpense}
+                      className="tap-feedback rounded-xl border border-white/20 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/[0.09]"
+                    >
+                      Add variable expense
+                    </button>
                   </div>
 
-                  <div className="space-y-1.5 sm:space-y-2">
+                  <div className={`mt-3 grid gap-3 ${variableExpenseGridClassName ?? ''}`}>
                     {value.variableExpenses.map((expense, index) => {
                       const cadence = getExpenseCadence(expense.key);
                       const expenseLabel = expense.label.trim() || `Expense ${index + 1}`;
+                      const selectedStrategyCount = (Object.values(expense.appliesTo) as boolean[]).filter(Boolean).length;
+
                       return (
-                        <div key={expense.key} className="rounded-md border border-white/10 bg-white/[0.03] p-2">
-                          <div className="grid gap-1.5 sm:grid-cols-[minmax(0,0.95fr)_max-content_90px_minmax(0,1.35fr)] sm:items-center sm:gap-2">
+                        <article key={expense.key} className="flex h-full flex-col rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] uppercase tracking-[0.16em] text-muted">Expense</span>
+                            <button
+                              type="button"
+                              onClick={() => removeVariableExpense(index)}
+                              aria-label={`Delete expense ${expenseLabel}`}
+                              className="tap-feedback inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-rose-300/30 bg-rose-500/10 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                            >
+                              x
+                            </button>
+                          </div>
+
+                          <label className="mt-1 block">
                             <input
                               aria-label={`Expense label ${index + 1}`}
-                              className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[11px] sm:text-xs"
+                              className={`${inputClass} border-[#d66f42]/45 bg-white/[0.09] py-2 text-sm font-semibold text-[#ff8a5b] shadow-[0_0_0_1px_rgba(214,111,66,0.18)] placeholder:text-muted/80 sm:text-base`}
                               type="text"
                               value={expense.label}
                               onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
                               placeholder={`Expense ${index + 1}`}
                             />
+                          </label>
 
-                            <div className="inline-flex w-fit justify-self-start overflow-hidden rounded-md border border-white/15 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
-                              {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
-                                const active = cadence === mode;
-                                return (
-                                  <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => setExpenseCadence(expense.key, mode)}
-                                    aria-pressed={active}
-                                    aria-label={`${expenseLabel} ${mode} input cadence`}
-                                    title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
-                                    className={`tap-feedback px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide transition ${
-                                      active ? 'bg-accent/25 text-accent' : 'text-slate-300 hover:bg-white/[0.08]'
-                                    } ${mode === 'annual' ? 'border-l border-white/15' : ''}`}
-                                  >
-                                    {mode === 'monthly' ? 'Mo' : 'Annual'}
-                                  </button>
-                                );
-                              })}
+                          <div className="mt-2 grid gap-2">
+                            <label className="space-y-1">
+                              <span className="text-[11px] text-muted">Amount</span>
+                              <input
+                                aria-label={`${expenseLabel} amount`}
+                                className={`${inputClass} py-2 text-base [font-variant-numeric:tabular-nums] sm:text-lg`}
+                                type="number"
+                                value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
+                                onChange={(event) => {
+                                  const rawValue = Number(event.target.value);
+                                  const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
+                                  updateVariableExpense(index, {
+                                    monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
+                                  });
+                                }}
+                              />
+                            </label>
+
+                            <div>
+                              <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-white/15 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
+                                {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
+                                  const active = cadence === mode;
+                                  return (
+                                    <button
+                                      key={mode}
+                                      type="button"
+                                      onClick={() => setExpenseCadence(expense.key, mode)}
+                                      aria-pressed={active}
+                                      aria-label={`${expenseLabel} ${mode} input cadence`}
+                                      title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
+                                      className={`tap-feedback min-h-10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                                        active ? 'bg-cyan-300/15 text-cyan-100' : 'text-slate-300 hover:bg-white/[0.08]'
+                                      } ${mode === 'annual' ? 'border-l border-white/15' : ''}`}
+                                    >
+                                      {mode === 'monthly' ? 'Per month' : 'Per year'}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
+                          </div>
 
-                            <input
-                              aria-label={`${expenseLabel} amount`}
-                              className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[11px] sm:text-xs"
-                              type="number"
-                              value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
-                              onChange={(event) => {
-                                const rawValue = Number(event.target.value);
-                                const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
-                                updateVariableExpense(index, {
-                                  monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
-                                });
-                              }}
-                            />
-
-                            <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
-                              {(Object.keys(strategyLabels) as ExpenseStrategyKey[]).map((strategy) => {
+                          <div className="mt-2 flex-1 rounded-2xl border border-white/10 bg-black/20 p-2">
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Applies to strategies</p>
+                              <span className="text-[10px] text-muted">{selectedStrategyCount} selected</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {(Object.keys(strategyToggleLabels) as ExpenseStrategyKey[]).map((strategy) => {
                                 const active = expense.appliesTo[strategy];
                                 return (
                                   <button
                                     key={strategy}
                                     type="button"
+                                    aria-label={`${expenseLabel} applies to ${strategyToggleLabels[strategy]}`}
                                     aria-pressed={active}
                                     onClick={() =>
                                       updateVariableExpense(index, {
                                         appliesTo: { ...expense.appliesTo, [strategy]: !active }
                                       })
                                     }
-                                    className={`flex min-h-7 items-center justify-center rounded-md border px-2 py-1 text-[11px] transition sm:min-h-0 sm:px-2.5 sm:py-1.5 sm:text-xs ${
+                                    className={`flex min-h-9 items-center justify-center rounded-xl border px-2.5 py-1.5 text-[11px] font-medium transition ${
                                       active
                                         ? 'border-accent/70 bg-accent/20 text-accent'
-                                        : 'border-white/10 bg-white/[0.02] text-muted'
+                                        : 'border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06]'
                                     }`}
                                   >
-                                    {strategyLabels[strategy]}
+                                    {strategyToggleLabels[strategy]}
                                   </button>
                                 );
                               })}
                             </div>
                           </div>
-                        </div>
+                        </article>
                       );
                     })}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={addVariableExpense}
-                    className="tap-feedback mt-2 rounded-md border border-white/20 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/[0.09]"
-                  >
-                    Add variable expense
-                  </button>
                 </div>
-              </section>
-            ) : null}
+                </section>
+              ) : null}
 
-            {resolvedCoreSection === 'known' ? (
-              <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+              {resolvedCoreSection === 'known' ? (
+                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
                 <div className="flex flex-col gap-2">
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-accent">Import</p>
@@ -1110,8 +1149,9 @@ export function DealInputPanel({
                   )}
                 </div>
                 {knownFeedback ? <p className="mt-2 text-[11px] text-accent">{knownFeedback}</p> : null}
-              </section>
-            ) : null}
+                </section>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
