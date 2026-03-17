@@ -2898,7 +2898,6 @@ export default function HomePage() {
           visibleStrategies={compactCompareSelection}
           inlineModelingViews
           lockBoardOpen
-          inlineHeaderCaption="Saved locally for this deal only."
           onToggleVisibleStrategy={toggleCompactProjectionStrategy}
         />
       </div>
@@ -4346,7 +4345,7 @@ export default function HomePage() {
                   value={model}
                   onChange={updateModel}
                   resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+                  defaultAdvancedOptionsOpen={false}
                   forcedCoreSection="purchaseFinancing"
                   titleOverride="Deal Setup"
                   contentViewportClassName={desktopInputViewportClassName}
@@ -4360,7 +4359,7 @@ export default function HomePage() {
                   value={model}
                   onChange={updateModel}
                   resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={Boolean(activeDealId)}
+                  defaultAdvancedOptionsOpen={false}
                   forcedCoreSection="expenses"
                   contentViewportClassName={desktopInputViewportClassName}
                 />

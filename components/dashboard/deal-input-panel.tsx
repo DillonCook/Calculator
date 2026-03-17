@@ -524,7 +524,7 @@ export function DealInputPanel({
   onKnownOverlayModelChange,
   onKnownOverlayEntriesChange,
   knownOverlayScopeKey,
-  defaultAdvancedOptionsOpen = true,
+  defaultAdvancedOptionsOpen = false,
   collapsible = false,
   collapsed = false,
   onToggleCollapsed,

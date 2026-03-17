@@ -27,7 +27,6 @@ interface StrategyComparisonProps {
   lockBoardOpen?: boolean;
   hideHeader?: boolean;
   visibleStrategies?: StrategyKey[];
-  inlineHeaderCaption?: string;
   onToggleVisibleStrategy?: (strategy: StrategyKey) => void;
 }
 
@@ -40,7 +39,6 @@ export function StrategyComparison({
   lockBoardOpen = false,
   hideHeader = false,
   visibleStrategies,
-  inlineHeaderCaption,
   onToggleVisibleStrategy
 }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
@@ -249,7 +247,7 @@ export function StrategyComparison({
     </div>
   );
 
-  const showInlineHeader = inlineModelingViews && (Boolean(onToggleVisibleStrategy) || Boolean(inlineHeaderCaption));
+  const showInlineHeader = inlineModelingViews && Boolean(onToggleVisibleStrategy);
 
   const boardContent = (
     <div className="space-y-3">
@@ -404,15 +402,11 @@ export function StrategyComparison({
         {inlineModelingViews ? (
           showInlineHeader ? (
             <div className="mb-4 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(18,31,49,0.82),rgba(8,15,27,0.94))] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Projections board</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-100">Compare modeled outcomes side by side</h2>
-                  {inlineHeaderCaption ? <p className="mt-1 text-xs text-muted">{inlineHeaderCaption}</p> : null}
                 </div>
-                <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
-                  {rows.length} shown
-                </span>
               </div>
               {onToggleVisibleStrategy ? (
                 <div aria-label="Projections board strategy selection" role="group" className="mt-4 flex flex-wrap gap-2">

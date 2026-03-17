@@ -65,6 +65,17 @@ describe('dashboard integration', () => {
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
+  it('keeps Advanced Options collapsed by default in desktop inputs', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
+
+    expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('uses the compact shell on mobile and unlocks results after required inputs', async () => {
     window.localStorage.clear();
     setViewport(390);
@@ -489,8 +500,9 @@ describe('dashboard integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Timeline' });
 
-    expect(within(dialog).getByText('Years 0 - 10')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'IRR stream explanation' })).toBeInTheDocument();
     expect(within(dialog).getByText('Internal Rate of Return Assumptions')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Years 0 - \d+/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Hold years')).not.toBeInTheDocument();
   });
 
@@ -521,7 +533,8 @@ describe('dashboard integration', () => {
     await user.type(holdYears, '7');
 
     expect(holdYears).toHaveValue(7);
-    expect(screen.getByText('Years 0 - 7')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'IRR stream explanation' })).toBeInTheDocument();
+    expect(screen.queryByText(/Years 0 - \d+/)).not.toBeInTheDocument();
   });
 
   it('editing purchase price updates master cash-to-close KPI', async () => {
@@ -611,6 +624,8 @@ describe('dashboard integration', () => {
     const board = screen.getByLabelText('Strategy comparison board');
 
     expect(screen.getByText('Projections board')).toBeInTheDocument();
+    expect(screen.queryByText('Saved locally for this deal only.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ shown$/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Equity modeling' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cash flow modeling' })).not.toBeInTheDocument();
     expect(within(board).getAllByText('Total Invested').length).toBeGreaterThan(0);
