@@ -13,6 +13,7 @@ type InstallSurface = 'none' | 'prompt' | 'ios' | 'manual';
 const PWA_INSTALL_DISMISS_KEY = 'dealcooker-pwa-install-dismissed-at:v1';
 const PWA_INSTALL_VISIT_COUNT_KEY = 'dealcooker-pwa-install-visit-count:v1';
 const PWA_INSTALL_QUALIFIED_KEY = 'dealcooker-pwa-install-qualified:v1';
+const PWA_INSTALL_COMPLETED_KEY = 'dealcooker-pwa-install-completed:v1';
 const PWA_INSTALL_DISMISS_WINDOW_MS = 1000 * 60 * 60 * 24 * 14;
 export const PWA_OPEN_INSTALL_EVENT = 'dealcooker:pwa-open-install';
 export const PWA_QUALIFY_INSTALL_EVENT = 'dealcooker:pwa-qualify-install';
@@ -27,6 +28,12 @@ const isIOSDevice = () => {
   if (typeof window === 'undefined') return false;
   const userAgent = window.navigator.userAgent.toLowerCase();
   return /iphone|ipad|ipod/.test(userAgent);
+};
+
+const isSafariBrowser = () => {
+  if (typeof window === 'undefined') return false;
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  return /safari/.test(userAgent) && !/crios|fxios|edgios|opios|mercury/.test(userAgent);
 };
 
 const getDismissedAt = () => {
@@ -47,12 +54,21 @@ export function PwaInstallBanner() {
   const [isInstalling, setIsInstalling] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isQualified, setIsQualified] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const dismissedAt = getDismissedAt();
+    const completedInstall = window.localStorage.getItem(PWA_INSTALL_COMPLETED_KEY) === '1';
+    const standaloneMode = isStandaloneDisplayMode();
+    if (completedInstall || standaloneMode) {
+      setIsInstalled(true);
+      setIsInstallPromptDismissed(true);
+      return;
+    }
+
     if (dismissedAt && Date.now() - dismissedAt < PWA_INSTALL_DISMISS_WINDOW_MS) {
       setIsInstallPromptDismissed(true);
     }
@@ -100,6 +116,12 @@ export function PwaInstallBanner() {
     const handleAppInstalled = () => {
       deferredPromptRef.current = null;
       setInstallSurface('none');
+      setIsInstalled(true);
+      try {
+        window.localStorage.setItem(PWA_INSTALL_COMPLETED_KEY, '1');
+      } catch {
+        // Ignore storage failures (private mode / blocked storage).
+      }
       setFeedback('DealCooker is now installed on this device.');
     };
 
@@ -113,6 +135,7 @@ export function PwaInstallBanner() {
 
       if (isStandaloneDisplayMode()) {
         setInstallSurface('none');
+        setIsInstalled(true);
         setIsInstallPromptDismissed(true);
         return;
       }
@@ -157,10 +180,11 @@ export function PwaInstallBanner() {
   }, []);
 
   const shouldRender = useMemo(() => {
+    if (isInstalled) return false;
     if (!isQualified) return false;
     if (isInstallPromptDismissed) return false;
     return installSurface !== 'none';
-  }, [installSurface, isInstallPromptDismissed, isQualified]);
+  }, [installSurface, isInstallPromptDismissed, isInstalled, isQualified]);
 
   const dismissPrompt = () => {
     triggerHapticFeedback('light');
@@ -200,16 +224,26 @@ export function PwaInstallBanner() {
     }
   };
 
+  const showIosInstructions = () => {
+    triggerHapticFeedback('light');
+    setFeedback(
+      isSafariBrowser()
+        ? 'Tap Share in Safari, then Add to Home Screen.'
+        : 'Open dealcooker.app in Safari, then tap Share → Add to Home Screen.',
+    );
+  };
+
   if (!shouldRender) return null;
 
   const title = 'Download the app!';
   const description =
     installSurface === 'ios'
-      ? 'In Safari, tap Share and choose Add to Home Screen for the full app experience.'
+      ? 'iPhone install works through Safari. Use Share → Add to Home Screen for full app mode.'
       : installSurface === 'manual'
         ? 'Install prompt is not available yet in this browser session.'
         : 'Install for fast launch, full-screen mode, and offline access.';
-  const installLabel = isInstalling ? 'Installing...' : 'Download the app!';
+  const installLabel =
+    installSurface === 'ios' ? 'How to install' : isInstalling ? 'Installing...' : 'Download the app!';
 
   return (
     <>
@@ -236,16 +270,14 @@ export function PwaInstallBanner() {
           </button>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          {installSurface === 'prompt' ? (
-            <button
-              type="button"
-              onClick={installApp}
-              disabled={isInstalling}
-              className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-65"
-            >
-              {installLabel}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={installSurface === 'prompt' ? installApp : installSurface === 'ios' ? showIosInstructions : undefined}
+            disabled={installSurface === 'manual' || isInstalling}
+            className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-65"
+          >
+            {installLabel}
+          </button>
           <button
             type="button"
             onClick={dismissPrompt}
@@ -269,16 +301,14 @@ export function PwaInstallBanner() {
             {feedback ? <p className="mt-2 text-[11px] text-accent sm:text-xs">{feedback}</p> : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {installSurface === 'prompt' ? (
-              <button
-                type="button"
-                onClick={installApp}
-                disabled={isInstalling}
-                className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold sm:min-h-10 sm:text-sm disabled:opacity-65"
-              >
-                {installLabel}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={installSurface === 'prompt' ? installApp : installSurface === 'ios' ? showIosInstructions : undefined}
+              disabled={installSurface === 'manual' || isInstalling}
+              className="btn-primary btn-vault tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold sm:min-h-10 sm:text-sm disabled:opacity-65"
+            >
+              {installLabel}
+            </button>
             <button
               type="button"
               onClick={dismissPrompt}
