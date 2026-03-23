@@ -106,7 +106,7 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send link' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Print to PDF' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'View listing' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View listing' })).toBeDisabled();
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);

@@ -3567,7 +3567,7 @@ export default function HomePage() {
           <header className={`panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="brand-lockup" aria-label="DealCooker">
                     <h1 className="brand-text leading-none">DealCooker</h1>
                     <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
@@ -3576,10 +3576,10 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={openDealIdentityEditor}
-                      className="tap-feedback mt-2 w-full max-w-[18rem] rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+                      className="tap-feedback mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
                       aria-label="Edit active deal details"
                     >
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Active deal</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Current Deal</p>
                       <div className="mt-1 flex items-center justify-between gap-3">
                         <p className="truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
                         <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
@@ -3661,154 +3661,152 @@ export default function HomePage() {
         ) : null}
 
         {!isMobileViewport ? (
-        <header className={`panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
-          <div className="space-y-4">
-            <div ref={authControlsRef} className={`flex w-full items-start justify-end ${headerChromeMutedClass}`}>
-              <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
-                {currentUser ? (
-                  <>
-                    <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
-                      Cloud: Active
-                    </span>
-                    {renderProfileAvatar({ label: signedInAvatarLabel })}
-                    <button
-                      type="button"
-                      onClick={signOut}
-                      disabled={authBusy || !isSupabaseConfigured}
-                      className="btn-primary btn-auth btn-auth-top tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium disabled:opacity-60"
-                    >
-                      Sign out
-                    </button>
-                  </>
-                ) : (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSettingsOpen(false);
-                        setIsAuthMenuOpen((value) => !value);
-                      }}
-                      aria-expanded={isAuthMenuOpen}
-                      aria-controls="auth-menu-desktop"
-                      className="btn-signin-trigger tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium"
-                    >
-                      Sign in
-                    </button>
-                    {isAuthMenuOpen ? (
-                      <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                        {authMenuContent}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-                <div ref={desktopSettingsControlsRef} className="relative">
-                  <button
-                    type="button"
-                    aria-label="Open settings"
-                    aria-expanded={isSettingsOpen}
-                    aria-controls="settings-menu-desktop"
-                    onClick={() => {
-                      setIsAuthMenuOpen(false);
-                      setIsSettingsOpen((value) => !value);
-                    }}
-                    className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                      <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                  {isSettingsOpen ? (
-                    <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                      {settingsMenuContent}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.55fr)] xl:items-start">
-              <div className="min-w-0 max-w-3xl">
+        <header className={`panel-surface relative z-[70] rounded-2xl px-5 py-3 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
                 <div className="brand-lockup" aria-label="DealCooker">
                   <h1 className="brand-text leading-none">DealCooker</h1>
                   <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
                 </div>
-                <div className={headerChromeMutedClass}>
-                  <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
-                </div>
               </div>
-              <div className={`min-w-0 ${headerChromeMutedClass}`}>
-                <div className="flex flex-wrap items-stretch justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={launchNewDeal}
-                    className="btn-primary inline-flex min-h-[74px] shrink-0 items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold"
-                  >
-                    New deal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openDealIdentityEditor}
-                    className="min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
-                    aria-label="Edit active deal details"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal identity</p>
-                      <p className="mt-1 truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
-                      <p className="mt-1 truncate text-xs text-muted">
-                        {model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : 'Add the name or listing link for this deal.'}
-                      </p>
+
+              <div ref={authControlsRef} className={`flex shrink-0 justify-end ${headerChromeMutedClass}`}>
+                <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
+                  {currentUser ? (
+                    <>
+                      <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                        Cloud: Active
+                      </span>
+                      {renderProfileAvatar({ label: signedInAvatarLabel })}
+                      <button
+                        type="button"
+                        onClick={signOut}
+                        disabled={authBusy || !isSupabaseConfigured}
+                        className="btn-primary btn-auth btn-auth-top tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium disabled:opacity-60"
+                      >
+                        Sign out
+                      </button>
+                    </>
+                  ) : (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSettingsOpen(false);
+                          setIsAuthMenuOpen((value) => !value);
+                        }}
+                        aria-expanded={isAuthMenuOpen}
+                        aria-controls="auth-menu-desktop"
+                        className="btn-signin-trigger tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium"
+                      >
+                        Sign in
+                      </button>
+                      {isAuthMenuOpen ? (
+                        <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                          {authMenuContent}
+                        </div>
+                      ) : null}
                     </div>
-                    <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
-                      Edit
-                    </span>
-                  </button>
-                  <div className="flex min-h-[74px] min-w-[250px] flex-1 flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3">
+                  )}
+                  <div ref={desktopSettingsControlsRef} className="relative">
                     <button
                       type="button"
-                      onClick={shareCurrentDeal}
-                      className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:text-sm"
+                      aria-label="Open settings"
+                      aria-expanded={isSettingsOpen}
+                      aria-controls="settings-menu-desktop"
+                      onClick={() => {
+                        setIsAuthMenuOpen(false);
+                        setIsSettingsOpen((value) => !value);
+                      }}
+                      className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
                     >
-                      Send link
+                      <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                        <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
+                      </svg>
                     </button>
-                    <Link
-                      href={printToPdfUrl}
-                      className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:text-sm"
-                      target="_blank"
-                    >
-                      Print to PDF
-                    </Link>
-                    {model.purchase.listingUrl ? (
-                      <Link
-                        href={normalizeListingUrl(model.purchase.listingUrl)}
-                        className="tap-feedback inline-flex min-h-10 items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-white/25 hover:bg-white/[0.06] sm:text-sm"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View listing
-                      </Link>
+                    {isSettingsOpen ? (
+                      <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                        {settingsMenuContent}
+                      </div>
                     ) : null}
                   </div>
-                  <button
-                    ref={dealVaultRef}
-                    type="button"
-                    onClick={openDesktopDealVault}
-                    className="min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
-                    aria-label="Open deal vault"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal Vault</p>
-                      <p className="mt-1 truncate text-base font-semibold text-slate-100">
-                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-muted">
-                        Open recent scenarios, duplicate them, or create a fresh deal.
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
-                      Open
-                    </span>
-                  </button>
                 </div>
+              </div>
+            </div>
+
+            <div className={`min-w-0 ${headerChromeMutedClass}`}>
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={launchNewDeal}
+                  className="btn-primary inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold"
+                >
+                  New deal
+                </button>
+                <button
+                  type="button"
+                  onClick={openDealIdentityEditor}
+                  className="flex min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-left"
+                  aria-label="Edit active deal details"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Current Deal</p>
+                    <p className="truncate text-sm font-semibold text-slate-100">{activeDealDisplayName}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                    Edit
+                  </span>
+                </button>
+                <button
+                  ref={dealVaultRef}
+                  type="button"
+                  onClick={openDesktopDealVault}
+                  className="flex min-w-[210px] max-w-[250px] shrink-0 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-left"
+                  aria-label="Open deal vault"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Deal Vault</p>
+                    <p className="truncate text-sm font-semibold text-slate-100">
+                      {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                    Open
+                  </span>
+                </button>
+                {model.purchase.listingUrl ? (
+                  <Link
+                    href={normalizeListingUrl(model.purchase.listingUrl)}
+                    className="tap-feedback inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/25 hover:bg-white/[0.06]"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View listing
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-muted/80 opacity-70"
+                  >
+                    View listing
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={shareCurrentDeal}
+                  className="btn-primary btn-link inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
+                >
+                  Send link
+                </button>
+                <Link
+                  href={printToPdfUrl}
+                  className="btn-primary btn-pdf inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
+                  target="_blank"
+                >
+                  Print to PDF
+                </Link>
               </div>
             </div>
 
