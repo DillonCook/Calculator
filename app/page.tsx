@@ -983,12 +983,22 @@ export default function HomePage() {
     return 'ME';
   }, [currentUser]);
 
-  const renderProfileAvatar = () => (
-    <div className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10" aria-label="Profile photo">
+  const signedInAvatarLabel = useMemo(() => {
+    const email = currentUser?.email?.trim();
+    return email ? `Signed in as ${email}` : 'Signed in';
+  }, [currentUser]);
+
+  const renderProfileAvatar = (options?: { sizeClassName?: string; textClassName?: string; label?: string }) => (
+    <div
+      className={`${options?.sizeClassName ?? 'h-8 w-8'} overflow-hidden rounded-full border border-white/20 bg-white/10`}
+      aria-label={options?.label ?? 'Profile photo'}
+    >
       {profileImageUrl ? (
         <img src={profileImageUrl} alt="Signed-in user profile photo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-100">{profileFallbackLabel}</div>
+        <div className={`flex h-full w-full items-center justify-center font-semibold text-slate-100 ${options?.textClassName ?? 'text-[10px]'}`}>
+          {profileFallbackLabel}
+        </div>
       )}
     </div>
   );
@@ -1915,6 +1925,16 @@ export default function HomePage() {
     setIsSettingsOpen(false);
     setIsDealIdentityOpen(false);
     setIsDesktopDealVaultOpen(true);
+  };
+
+  const launchNewDeal = () => {
+    triggerHapticFeedback('light');
+    setCompactSheetView(null);
+    setIsAuthMenuOpen(false);
+    setIsSettingsOpen(false);
+    setIsDesktopDealVaultOpen(false);
+    createNewDeal('New Deal', '', { openIdentityEditor: true });
+    setCompactMode('inputs');
   };
 
   const openRecentScenario = (scenarioId: string) => {
@@ -3294,9 +3314,11 @@ export default function HomePage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Authentication</p>
-                <p className="mt-1 text-sm text-slate-100">{currentUser ? 'Cloud sync is active on this device.' : 'Sign in to sync scenarios across devices.'}</p>
+                <p className="mt-1 text-sm text-slate-100">
+                  {currentUser ? (currentUser.email ? `Signed in as ${currentUser.email}` : 'Signed in on this device.') : 'Sign in to sync scenarios across devices.'}
+                </p>
               </div>
-              {currentUser ? renderProfileAvatar() : null}
+              {currentUser ? renderProfileAvatar({ label: signedInAvatarLabel }) : null}
             </div>
             {currentUser ? (
               <button
@@ -3568,20 +3590,23 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className={headerChromeMutedClass}>
-                  <button
-                    ref={compactMenuButtonRef}
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      setCompactSheetView('menu');
-                    }}
-                    className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
-                    aria-label="Open deal actions"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                      <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {currentUser ? renderProfileAvatar({ sizeClassName: 'h-9 w-9', textClassName: 'text-[11px]', label: signedInAvatarLabel }) : null}
+                    <button
+                      ref={compactMenuButtonRef}
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setCompactSheetView('menu');
+                      }}
+                      className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
+                      aria-label="Open deal actions"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                        <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -3589,12 +3614,7 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      createNewDeal('New Deal', '', { openIdentityEditor: true });
-                      setCompactMode('inputs');
-                      setCompactSheetView(null);
-                    }}
+                    onClick={launchNewDeal}
                     className="btn-primary rounded-xl px-3 py-2.5 text-sm font-semibold"
                   >
                     New deal
@@ -3642,133 +3662,93 @@ export default function HomePage() {
 
         {!isMobileViewport ? (
         <header className={`panel-surface relative z-[70] rounded-2xl p-5 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-              <div className="min-w-0 max-w-3xl">
-                <div className="space-y-2">
-                  <div ref={authControlsRef} className={`flex w-full justify-end ${headerChromeMutedClass}`}>
-                    <div className="flex flex-row items-center justify-end gap-1.5">
-                      {currentUser ? (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap sm:gap-2 md:hidden">
-                          <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent sm:whitespace-nowrap sm:text-[11px]">
-                            Cloud: Active
-                          </span>
-                          {renderProfileAvatar()}
-                          <button
-                            type="button"
-                            onClick={signOut}
-                            disabled={authBusy || !isSupabaseConfigured}
-                            className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:hidden sm:text-xs disabled:opacity-60"
-                          >
-                            Sign out
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="relative md:hidden">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsSettingsOpen(false);
-                              setIsAuthMenuOpen((value) => !value);
-                            }}
-                            aria-expanded={isAuthMenuOpen}
-                            aria-controls="auth-menu"
-                            className="btn-signin-trigger tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs"
-                          >
-                            Sign in
-                          </button>
-                          {isAuthMenuOpen ? (
-                            <>
-                              <div id="auth-menu" className="absolute right-0 top-10 z-[135] hidden w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
-                                {authMenuContent}
-                              </div>
-                              <div className="fixed inset-0 z-[140] overflow-y-auto bg-black/45 p-4 sm:hidden" onClick={() => setIsAuthMenuOpen(false)}>
-                                <div
-                                  className="scrollbar-premium mx-auto mt-16 max-h-[calc(100dvh-4rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur"
-                                  style={{ WebkitOverflowScrolling: 'touch' }}
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <div className="mb-2 flex justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => setIsAuthMenuOpen(false)}
-                                      className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
-                                    >
-                                      Close
-                                    </button>
-                                  </div>
-                                  {authMenuContent}
-                                </div>
-                              </div>
-                            </>
-                          ) : null}
-                        </div>
-                      )}
-
-                      <div ref={settingsControlsRef} className="relative md:hidden">
-                        <button
-                          type="button"
-                          aria-label="Open settings"
-                          aria-expanded={isSettingsOpen}
-                          aria-controls="settings-menu-mobile"
-                          onClick={() => {
-                            setIsAuthMenuOpen(false);
-                            setIsSettingsOpen((value) => !value);
-                          }}
-                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                          </svg>
-                        </button>
-
-                        {isSettingsOpen ? (
-                          <>
-                            <div id="settings-menu-mobile" className="absolute right-0 top-10 z-[136] hidden w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur sm:block">
-                              {settingsMenuContent}
-                            </div>
-                            <div className="fixed inset-0 z-[141] overflow-y-auto bg-black/45 p-4 sm:hidden" onClick={() => setIsSettingsOpen(false)}>
-                              <div
-                                className="scrollbar-premium mx-auto mt-14 max-h-[calc(100dvh-4rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur"
-                                style={{ WebkitOverflowScrolling: 'touch' }}
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <div className="mb-2 flex items-center justify-between">
-                                  <p className="text-sm font-semibold text-slate-100">Settings</p>
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsSettingsOpen(false)}
-                                    className="rounded-md border border-white/15 px-2 py-1 text-[11px] text-muted"
-                                  >
-                                    Close
-                                  </button>
-                                </div>
-                                {settingsMenuContent}
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
+          <div className="space-y-4">
+            <div ref={authControlsRef} className={`flex w-full items-start justify-end ${headerChromeMutedClass}`}>
+              <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
+                {currentUser ? (
+                  <>
+                    <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                      Cloud: Active
+                    </span>
+                    {renderProfileAvatar({ label: signedInAvatarLabel })}
+                    <button
+                      type="button"
+                      onClick={signOut}
+                      disabled={authBusy || !isSupabaseConfigured}
+                      className="btn-primary btn-auth btn-auth-top tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium disabled:opacity-60"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingsOpen(false);
+                        setIsAuthMenuOpen((value) => !value);
+                      }}
+                      aria-expanded={isAuthMenuOpen}
+                      aria-controls="auth-menu-desktop"
+                      className="btn-signin-trigger tap-feedback min-h-9 rounded-full px-3.5 py-1 text-xs font-medium"
+                    >
+                      Sign in
+                    </button>
+                    {isAuthMenuOpen ? (
+                      <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                        {authMenuContent}
                       </div>
-                    </div>
+                    ) : null}
                   </div>
-
-                  <div className="min-w-0">
-                    <div className="brand-lockup" aria-label="DealCooker">
-                      <h1 className="brand-text leading-none">DealCooker</h1>
-                      <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                )}
+                <div ref={desktopSettingsControlsRef} className="relative">
+                  <button
+                    type="button"
+                    aria-label="Open settings"
+                    aria-expanded={isSettingsOpen}
+                    aria-controls="settings-menu-desktop"
+                    onClick={() => {
+                      setIsAuthMenuOpen(false);
+                      setIsSettingsOpen((value) => !value);
+                    }}
+                    className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  {isSettingsOpen ? (
+                    <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                      {settingsMenuContent}
                     </div>
-                    <div className={headerChromeMutedClass}>
-                      <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
-                    </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
-              <div className={`w-full md:min-w-0 xl:max-w-[760px] ${headerChromeMutedClass}`}>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] md:flex md:flex-wrap md:items-center md:justify-end md:gap-2">
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.55fr)] xl:items-start">
+              <div className="min-w-0 max-w-3xl">
+                <div className="brand-lockup" aria-label="DealCooker">
+                  <h1 className="brand-text leading-none">DealCooker</h1>
+                  <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                </div>
+                <div className={headerChromeMutedClass}>
+                  <p className="mt-1 max-w-[44ch] text-sm leading-relaxed text-muted">Create addictive, pro-grade real estate strategy snapshots in seconds with instant cash flow, DSCR, ROI, and IRR intelligence.</p>
+                </div>
+              </div>
+              <div className={`min-w-0 ${headerChromeMutedClass}`}>
+                <div className="flex flex-wrap items-stretch justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={launchNewDeal}
+                    className="btn-primary inline-flex min-h-[74px] shrink-0 items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold"
+                  >
+                    New deal
+                  </button>
                   <button
                     type="button"
                     onClick={openDealIdentityEditor}
-                    className="hidden min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
+                    className="min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
                     aria-label="Edit active deal details"
                   >
                     <div className="min-w-0">
@@ -3782,11 +3762,37 @@ export default function HomePage() {
                       Edit
                     </span>
                   </button>
+                  <div className="flex min-h-[74px] min-w-[250px] flex-1 flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={shareCurrentDeal}
+                      className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:text-sm"
+                    >
+                      Send link
+                    </button>
+                    <Link
+                      href={printToPdfUrl}
+                      className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:text-sm"
+                      target="_blank"
+                    >
+                      Print to PDF
+                    </Link>
+                    {model.purchase.listingUrl ? (
+                      <Link
+                        href={normalizeListingUrl(model.purchase.listingUrl)}
+                        className="tap-feedback inline-flex min-h-10 items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-white/25 hover:bg-white/[0.06] sm:text-sm"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View listing
+                      </Link>
+                    ) : null}
+                  </div>
                   <button
                     ref={dealVaultRef}
                     type="button"
                     onClick={openDesktopDealVault}
-                    className="hidden min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
+                    className="min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left md:flex"
                     aria-label="Open deal vault"
                   >
                     <div className="min-w-0">
@@ -3802,102 +3808,6 @@ export default function HomePage() {
                       Open
                     </span>
                   </button>
-                  <Link
-                    href={printToPdfUrl}
-                    className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm md:hidden"
-                    target="_blank"
-                  >
-                    Print to PDF
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={shareCurrentDeal}
-                    className="btn-primary btn-link min-h-10 rounded-xl px-3 py-1.5 text-xs font-medium sm:min-h-11 sm:px-4 sm:py-2 sm:text-sm md:hidden"
-                  >
-                    Send link
-                  </button>
-                  {currentUser ? (
-                    <div ref={desktopAuthActionRef} className="hidden md:flex md:items-center md:justify-end md:gap-2">
-                      <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
-                        Cloud: Active
-                      </span>
-                      {renderProfileAvatar()}
-                      <button
-                        type="button"
-                        onClick={signOut}
-                        disabled={authBusy || !isSupabaseConfigured}
-                        className="btn-primary btn-auth btn-auth-top tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs disabled:opacity-60"
-                      >
-                        Sign out
-                      </button>
-                      <div ref={desktopSettingsControlsRef} className="relative">
-                        <button
-                          type="button"
-                          aria-label="Open settings"
-                          aria-expanded={isSettingsOpen}
-                          aria-controls="settings-menu-desktop"
-                          onClick={() => {
-                            setIsAuthMenuOpen(false);
-                            setIsSettingsOpen((value) => !value);
-                          }}
-                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                          </svg>
-                        </button>
-                        {isSettingsOpen ? (
-                          <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                            {settingsMenuContent}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : (
-                    <div ref={desktopAuthActionRef} className="hidden md:flex md:items-center md:justify-end md:gap-2">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsSettingsOpen(false);
-                            setIsAuthMenuOpen((value) => !value);
-                          }}
-                          aria-expanded={isAuthMenuOpen}
-                          aria-controls="auth-menu-desktop"
-                          className="btn-signin-trigger tap-feedback min-h-8 rounded-full px-3 py-1 text-[11px] font-medium md:min-h-9 md:px-3.5 md:text-xs"
-                        >
-                          Sign in
-                        </button>
-                        {isAuthMenuOpen ? (
-                          <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                            {authMenuContent}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div ref={desktopSettingsControlsRef} className="relative">
-                        <button
-                          type="button"
-                          aria-label="Open settings"
-                          aria-expanded={isSettingsOpen}
-                          aria-controls="settings-menu-desktop"
-                          onClick={() => {
-                            setIsAuthMenuOpen(false);
-                            setIsSettingsOpen((value) => !value);
-                          }}
-                          className="btn-settings tap-feedback inline-flex h-8 w-8 items-center justify-center rounded-full"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                            <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
-                          </svg>
-                        </button>
-                        {isSettingsOpen ? (
-                          <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
-                            {settingsMenuContent}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

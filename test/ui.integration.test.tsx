@@ -1,6 +1,48 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const authMockState = vi.hoisted(() => ({
+  user: null as
+    | null
+    | {
+        id: string;
+        email?: string;
+        user_metadata?: {
+          avatar_url?: string;
+          picture?: string;
+        };
+      }
+}));
+
+vi.mock('../lib/supabaseClient', () => ({
+  isSupabaseConfigured: true,
+  getSupabaseClient: () => ({
+    auth: {
+      getSession: async () => ({
+        data: {
+          session: authMockState.user ? { user: authMockState.user } : null
+        }
+      }),
+      onAuthStateChange: () => ({
+        data: {
+          subscription: {
+            unsubscribe: () => undefined
+          }
+        }
+      }),
+      signInWithOAuth: async () => ({ error: null }),
+      signUp: async () => ({ error: null }),
+      signOut: async () => ({ error: null })
+    }
+  })
+}));
+
+vi.mock('../lib/cloud-scenarios-sync', () => ({
+  fetchSupabaseScenarios: async () => ({ scenarios: [], error: null }),
+  upsertSupabaseScenario: async () => null,
+  deleteSupabaseScenario: async () => null
+}));
 
 import HomePage from '../app/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
@@ -46,6 +88,7 @@ const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection
 
 describe('dashboard integration', () => {
   beforeEach(() => {
+    authMockState.user = null;
     window.localStorage.clear();
     setViewport(1280);
     writeScenarios([
@@ -60,6 +103,10 @@ describe('dashboard integration', () => {
     window.localStorage.clear();
     render(<HomePage />);
 
+    expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send link' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Print to PDF' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View listing' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
@@ -193,6 +240,34 @@ describe('dashboard integration', () => {
 
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByDisplayValue('New Deal')).toBeInTheDocument();
+  });
+
+  it('shows the signed-in profile icon next to mobile settings without cloud-status copy', async () => {
+    setViewport(390);
+    authMockState.user = {
+      id: 'user-1',
+      email: 'agent@example.com',
+      user_metadata: {
+        avatar_url: 'https://example.com/avatar.png'
+      }
+    };
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    await waitFor(() => {
+      const actions = screen.getByRole('button', { name: 'Open deal actions' }).parentElement;
+      expect(actions).not.toBeNull();
+      if (actions) {
+        expect(within(actions).getByLabelText('Signed in as agent@example.com')).toBeInTheDocument();
+      }
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    expect(screen.getByText('Signed in as agent@example.com')).toBeInTheDocument();
+    expect(screen.queryByText('Cloud sync is active on this device.')).not.toBeInTheDocument();
   });
 
   it('caps compact recent deals to the ten most recent entries by default', async () => {
@@ -774,6 +849,10 @@ describe('dashboard integration', () => {
     expect(within(dialog).getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
 
     expect(within(dialog).getByRole('link', { name: 'View listing link' })).toHaveAttribute(
+      'href',
+      'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
+    );
+    expect(screen.getByRole('link', { name: 'View listing' })).toHaveAttribute(
       'href',
       'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
     );
