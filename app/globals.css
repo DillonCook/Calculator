@@ -636,7 +636,7 @@ html {
 .brand-text {
   display: inline-block;
   font-weight: 800;
-  font-size: clamp(2rem, 5.6vw, 3rem);
+  font-size: clamp(2.2rem, 6.16vw, 3.3rem);
   letter-spacing: -0.03em;
   line-height: 1;
   background: linear-gradient(120deg, #dfe9ff 0%, #7caef8 19%, #3f87d6 37%, #53c4dd 50%, #3f87d6 63%, #84b4f8 78%, #f39a3f 91%, #ff722e 100%);
