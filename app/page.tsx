@@ -234,34 +234,49 @@ const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const COMPACT_RECENT_DEALS_LIMIT = 10;
 const desktopOnboardingSteps: OnboardingStep[] = [
   {
-    id: 'vault',
-    title: 'Your Deals Stay Here',
-    body: 'If you want to come back to a deal later, this is where you save it, rename it, and reopen it without starting over.'
+    id: 'desktopDeals',
+    title: 'Your Saved Deals Are Here',
+    body: 'Click Deal Vault when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
   },
   {
-    id: 'signin',
-    title: 'Sign In to Pick Up Where You Left Off',
-    body: 'Use Sign in in the top-right if you want your saved deals on multiple devices. It also makes sharing a deal easier.'
+    id: 'desktopStrategy',
+    title: 'Pick the Strategy First',
+    body: 'Use these strategy tabs to choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
   },
   {
-    id: 'core',
-    title: 'Start With the Purchase Basics',
-    body: 'Begin here with the price, rehab budget, financing, and cash needed to close. This gives the calculator the core details it needs first.'
+    id: 'desktopCore',
+    title: 'Click Deal Setup to Enter the Basics',
+    body: 'Start with Deal setup when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
-    id: 'expenses',
-    title: 'Add the Ongoing Costs',
-    body: 'Next, enter taxes, insurance, HOA or PMI, and other operating costs so the monthly numbers reflect the real carrying expenses.'
+    id: 'desktopExpenses',
+    title: 'Click Expenses for Monthly Costs',
+    body: 'Open Expenses when you are ready to add taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
   },
   {
-    id: 'strategy',
-    title: 'Adjust the Strategy You Want to Test',
-    body: 'After you pick a strategy, update the numbers that are specific to that plan. This is where rent, nightly rate, refinance timing, or flip assumptions change.'
+    id: 'desktopStrategyInputs',
+    title: 'Click Strategy Inputs for Plan-Specific Numbers',
+    body: 'Use this workspace after you choose your approach. That is where the numbers change based on the plan, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
-    id: 'irr',
-    title: 'Set Your Hold and Exit Assumptions',
-    body: 'Use this section to decide how long you plan to hold the property and what happens when you exit. These choices shape the projected returns over time.'
+    id: 'desktopIrr',
+    title: 'Timeline and IRR Live Here',
+    body: 'Use this section when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
+  },
+  {
+    id: 'desktopResults',
+    title: 'Results Stay Visible Here',
+    body: 'As you update the deal, this dashboard keeps the main numbers in view. This is where you check cash flow, returns, and the overall verdict without switching screens.'
+  },
+  {
+    id: 'desktopCompare',
+    title: 'Use Projections to Model the Future',
+    body: 'This area shows how cash flow, equity, and returns could build over time. You can compare multiple strategies side by side while staying on the same page.'
+  },
+  {
+    id: 'desktopActions',
+    title: 'Desktop Actions Live Up Top',
+    body: 'Use the header actions for sharing, printing, signing in, and changing settings. Desktop keeps those extra tools visible instead of placing them behind a single menu.'
   }
 ];
 const mobileOnboardingSteps: OnboardingStep[] = [
@@ -462,6 +477,7 @@ export default function HomePage() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const dealVaultRef = useRef<HTMLButtonElement | null>(null);
+  const desktopHeaderActionsRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
   const desktopAuthActionRef = useRef<HTMLDivElement | null>(null);
   const settingsControlsRef = useRef<HTMLDivElement | null>(null);
@@ -473,8 +489,13 @@ export default function HomePage() {
   const mobileIrrSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopExpensesSectionRef = useRef<HTMLDivElement | null>(null);
+  const desktopResultsSectionRef = useRef<HTMLElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyInputsRef = useRef<HTMLDivElement | null>(null);
+  const desktopCompareSectionRef = useRef<HTMLDivElement | null>(null);
+  const desktopDealSetupButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopStrategyInputsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopExpensesButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -749,19 +770,21 @@ export default function HomePage() {
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
-  const onboardingHighlightedCoreSection =
+  const onboardingDesktopWorkspace =
     isOnboardingOpen && !isMobileViewport
-      ? currentOnboardingSteps[onboardingStepIndex]?.id === 'expenses'
+      ? currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopExpenses'
         ? 'expenses'
-        : currentOnboardingSteps[onboardingStepIndex]?.id === 'core'
-          ? 'purchaseFinancing'
+        : currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopCore'
+          ? 'dealSetup'
+          : currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopStrategyInputs'
+            ? 'strategyInputs'
           : undefined
       : undefined;
 
   useEffect(() => {
-    if (!onboardingHighlightedCoreSection) return;
-    setDesktopInputWorkspace(onboardingHighlightedCoreSection === 'expenses' ? 'expenses' : 'dealSetup');
-  }, [onboardingHighlightedCoreSection]);
+    if (!onboardingDesktopWorkspace) return;
+    setDesktopInputWorkspace(onboardingDesktopWorkspace);
+  }, [onboardingDesktopWorkspace]);
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -1215,20 +1238,20 @@ export default function HomePage() {
     });
   };
 
-  const isElementVisible = (element: HTMLElement | null) => {
+  const isElementVisible = useCallback((element: HTMLElement | null) => {
     if (!element) return false;
     if (typeof window === 'undefined') return true;
 
     const styles = window.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     return styles.display !== 'none' && styles.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-  };
+  }, []);
 
-  const getFirstVisibleElement = (...elements: Array<HTMLElement | null>) => {
+  const getFirstVisibleElement = useCallback((...elements: Array<HTMLElement | null>) => {
     return elements.find((element) => isElementVisible(element)) ?? elements.find(Boolean) ?? null;
-  };
+  }, [isElementVisible]);
 
-  const resolveOnboardingTarget = () => {
+  const resolveOnboardingTarget = useCallback(() => {
     const step = currentOnboardingSteps[onboardingStepIndex];
     if (!step) return null;
 
@@ -1241,14 +1264,21 @@ export default function HomePage() {
     if (step.id === 'mobileResults') return compactResultsNavButtonRef.current;
     if (step.id === 'mobileCompare') return compactCompareNavButtonRef.current;
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
-    if (step.id === 'vault') return getFirstVisibleElement(compactMenuButtonRef.current, dealVaultRef.current);
-    if (step.id === 'signin') return getFirstVisibleElement(compactMenuButtonRef.current, desktopAuthActionRef.current, authControlsRef.current);
-    if (step.id === 'core') return getFirstVisibleElement(desktopCoreSectionRef.current, desktopExpensesSectionRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
-    if (step.id === 'expenses') return getFirstVisibleElement(desktopExpensesSectionRef.current, desktopCoreSectionRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
-    if (step.id === 'strategy') return getFirstVisibleElement(desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
-    if (step.id === 'irr') return irrStreamRef.current;
+    if (step.id === 'desktopDeals') return dealVaultRef.current;
+    if (step.id === 'desktopStrategy') return desktopStrategyTabsRef.current;
+    if (step.id === 'desktopCore') return getFirstVisibleElement(desktopDealSetupButtonRef.current, desktopCoreSectionRef.current);
+    if (step.id === 'desktopExpenses') return getFirstVisibleElement(desktopExpensesButtonRef.current, desktopExpensesSectionRef.current);
+    if (step.id === 'desktopStrategyInputs') {
+      return getFirstVisibleElement(desktopStrategyInputsButtonRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
+    }
+    if (step.id === 'desktopIrr') return irrStreamRef.current;
+    if (step.id === 'desktopResults') return desktopResultsSectionRef.current;
+    if (step.id === 'desktopCompare') return desktopCompareSectionRef.current;
+    if (step.id === 'desktopActions') {
+      return getFirstVisibleElement(desktopHeaderActionsRef.current, desktopAuthActionRef.current, desktopSettingsControlsRef.current);
+    }
     return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
-  };
+  }, [currentOnboardingSteps, getFirstVisibleElement, onboardingStepIndex]);
 
   const scrollMobileTutorialControlsIntoView = useCallback(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1596,41 +1626,44 @@ export default function HomePage() {
       return scrollMobileActionsButtonIntoView();
     }
 
-    if (step.id === 'core') {
-      setCompactMode('inputs');
-      setCompactInputSection('core');
-    }
-
-    if (step.id === 'expenses') {
-      setCompactMode('inputs');
-      setCompactInputSection('expenses');
-    }
-
-    if (step.id === 'strategy') {
-      setCompactMode('inputs');
-      setCompactInputSection('strategy');
-    }
-
-    if (step.id === 'signin') {
+    if (step.id === 'desktopActions') {
       setIsAuthMenuOpen(false);
-      if (isMobileViewport) setCompactSheetView('menu');
+      setIsSettingsOpen(false);
     }
 
-    if (step.id === 'irr') {
-      setCompactMode('inputs');
-      setCompactInputSection('irr');
+    if (
+      step.id === 'desktopDeals' ||
+      step.id === 'desktopStrategy' ||
+      step.id === 'desktopCore' ||
+      step.id === 'desktopExpenses' ||
+      step.id === 'desktopStrategyInputs' ||
+      step.id === 'desktopIrr' ||
+      step.id === 'desktopResults' ||
+      step.id === 'desktopCompare' ||
+      step.id === 'desktopActions'
+    ) {
+      const block = step.id === 'desktopActions' ? 'nearest' : 'center';
 
       const frame = window.requestAnimationFrame(() => {
-        irrStreamRef.current?.scrollIntoView({
+        resolveOnboardingTarget()?.scrollIntoView({
           behavior: prefersReducedMotion ? 'auto' : 'smooth',
-          block: 'center',
+          block,
           inline: 'nearest'
         });
       });
 
       return () => window.cancelAnimationFrame(frame);
     }
-  }, [currentOnboardingSteps, isMobileViewport, isOnboardingOpen, onboardingStepIndex, prefersReducedMotion, scrollMobileActionsButtonIntoView, scrollMobileTutorialControlsIntoView]);
+  }, [
+    currentOnboardingSteps,
+    isMobileViewport,
+    isOnboardingOpen,
+    onboardingStepIndex,
+    prefersReducedMotion,
+    resolveOnboardingTarget,
+    scrollMobileActionsButtonIntoView,
+    scrollMobileTutorialControlsIntoView
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2910,7 +2943,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="[overflow-anchor:none]">
+      <div ref={desktopCompareSectionRef} className="[overflow-anchor:none]">
         <StrategyComparison
           data={result}
           input={model}
@@ -3672,7 +3705,7 @@ export default function HomePage() {
               </div>
 
               <div className={`min-w-0 flex-1 ${headerChromeMutedClass}`}>
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-2">
+              <div ref={desktopHeaderActionsRef} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-2">
                 <button
                   type="button"
                   onClick={launchNewDeal}
@@ -3843,7 +3876,7 @@ export default function HomePage() {
 
         {!isMobileViewport ? (
         <>
-        <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
+        <section ref={desktopResultsSectionRef} className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
           <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)] lg:items-stretch">
             <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
               {!isFlipStrategy ? (
@@ -4206,6 +4239,7 @@ export default function HomePage() {
                 <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
                   <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
                     <button
+                      ref={desktopDealSetupButtonRef}
                       type="button"
                       role="tab"
                       aria-selected={desktopInputWorkspace === 'dealSetup'}
@@ -4219,6 +4253,7 @@ export default function HomePage() {
                     Deal setup
                   </button>
                   <button
+                      ref={desktopStrategyInputsButtonRef}
                       type="button"
                       role="tab"
                       aria-selected={desktopInputWorkspace === 'strategyInputs'}
@@ -4232,6 +4267,7 @@ export default function HomePage() {
                     {`${activeStrategyLabel} inputs`}
                   </button>
                   <button
+                      ref={desktopExpensesButtonRef}
                       type="button"
                       role="tab"
                       aria-selected={desktopInputWorkspace === 'expenses'}
