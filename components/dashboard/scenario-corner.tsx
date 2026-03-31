@@ -10,8 +10,8 @@ interface DealsVaultPanelProps {
   activeDealName: string;
   onActiveDealChange: (id: string) => void;
   onSaveAs: (dealName: string, listingUrl: string) => void;
-  onCreateNew: (dealName: string, listingUrl: string) => void;
-  onDelete: () => void;
+  onCreateNew: () => void;
+  onDeleteDeal: (scenarioId: string) => void;
   onRequestClose?: () => void;
 }
 
@@ -64,12 +64,12 @@ export function DealsVaultPanel({
   onActiveDealChange,
   onSaveAs,
   onCreateNew,
-  onDelete,
+  onDeleteDeal,
   onRequestClose
 }: DealsVaultPanelProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [dialogMode, setDialogMode] = useState<'saveAs' | 'create' | null>(null);
+  const [dialogMode, setDialogMode] = useState<'saveAs' | null>(null);
   const [dialogValue, setDialogValue] = useState('');
   const [dialogListingValue, setDialogListingValue] = useState('');
 
@@ -95,15 +95,9 @@ export function DealsVaultPanel({
   const visibleDeals = hasSearchQuery ? filteredDeals : filteredDeals.slice(0, 10);
   const hiddenRecentCount = hasSearchQuery ? 0 : Math.max(filteredDeals.length - visibleDeals.length, 0);
 
-  const openDialog = (mode: 'saveAs' | 'create') => {
+  const openDialog = (mode: 'saveAs') => {
     triggerHapticFeedback('light');
     setDialogMode(mode);
-
-    if (mode === 'create') {
-      setDialogValue('New Deal');
-      setDialogListingValue('');
-      return;
-    }
 
     const sourceDeal = activeDeal?.dealName ?? activeDealName;
     setDialogValue(sourceDeal ? `${sourceDeal} Copy` : 'New Deal Copy');
@@ -121,7 +115,6 @@ export function DealsVaultPanel({
     const listingUrl = dialogListingValue.trim();
     if (!name) return;
 
-    if (dialogMode === 'create') onCreateNew(name, listingUrl);
     if (dialogMode === 'saveAs') onSaveAs(name, listingUrl);
     triggerHapticFeedback('success');
     closeDialog();
@@ -157,7 +150,7 @@ export function DealsVaultPanel({
             />
           </label>
           <div className="flex items-center gap-2">
-            <VaultActionButton ariaLabel="Create new deal" title="New deal" onClick={() => openDialog('create')} tone="primary">
+            <VaultActionButton ariaLabel="Create new deal" title="New deal" onClick={onCreateNew} tone="primary">
               +
             </VaultActionButton>
             <VaultActionButton
@@ -171,28 +164,12 @@ export function DealsVaultPanel({
                 <path d="M5.5 11.5H5A1.5 1.5 0 0 1 3.5 10V5A1.5 1.5 0 0 1 5 3.5h5A1.5 1.5 0 0 1 11.5 5v.5" />
               </svg>
             </VaultActionButton>
-            <VaultActionButton
-              ariaLabel="Delete active deal"
-              title="Delete active deal"
-              onClick={onDelete}
-              disabled={!activeDeal}
-              tone="danger"
-            >
-              <svg viewBox="0 0 20 20" className="mx-auto h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                <path d="M4.5 6h11" strokeLinecap="round" />
-                <path d="M7.5 6V4.75A.75.75 0 0 1 8.25 4h3.5a.75.75 0 0 1 .75.75V6" />
-                <path d="M6.5 6l.55 8.1A1 1 0 0 0 8.05 15h3.9a1 1 0 0 0 1-.9L13.5 6" strokeLinecap="round" />
-                <path d="M8.5 8.5v4M11.5 8.5v4" strokeLinecap="round" />
-              </svg>
-            </VaultActionButton>
           </div>
         </div>
 
         {dialogMode ? (
           <section className="mt-3 rounded-2xl border border-white/10 bg-[#122131]/92 p-3.5">
-            <p className="text-xs uppercase tracking-[0.16em] text-accent/90">
-              {dialogMode === 'create' ? 'Create new deal' : 'Duplicate active deal'}
-            </p>
+            <p className="text-xs uppercase tracking-[0.16em] text-accent/90">Duplicate active deal</p>
             <div className="mt-3 grid gap-2.5">
               <label className="space-y-1">
                 <span className="text-[11px] text-muted">Deal name</span>
@@ -249,36 +226,57 @@ export function DealsVaultPanel({
                 const listingSource = formatListingSource(deal.payload.purchase.listingUrl || null);
 
                 return (
-                  <button
+                  <div
                     key={deal.scenarioId}
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      onActiveDealChange(deal.scenarioId);
-                      onRequestClose?.();
-                    }}
                     className={`tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
                       isActive ? 'accent-edge' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
                     }`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${
-                          isActive ? 'border-accent/35 bg-accent/12 text-accent' : 'border-white/10 bg-black/20 text-muted'
-                        }`}>
-                          {isActive ? 'Active' : 'Saved'}
-                        </span>
-                        <span className="text-[11px] text-muted">{dateFormatter.format(new Date(deal.updatedAt))}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        onActiveDealChange(deal.scenarioId);
+                        onRequestClose?.();
+                      }}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                      aria-label={`Open ${deal.dealName}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${
+                            isActive ? 'border-accent/35 bg-accent/12 text-accent' : 'border-white/10 bg-black/20 text-muted'
+                          }`}>
+                            {isActive ? 'Active' : 'Saved'}
+                          </span>
+                          <span className="text-[11px] text-muted">{dateFormatter.format(new Date(deal.updatedAt))}</span>
+                        </div>
+                        <p className="mt-1 truncate text-base font-semibold text-slate-100">{deal.dealName}</p>
+                        <p className="mt-1 truncate text-xs text-muted">
+                          {listingSource ? `Source: ${listingSource}` : 'No listing link attached'}
+                        </p>
                       </div>
-                      <p className="mt-1 truncate text-base font-semibold text-slate-100">{deal.dealName}</p>
-                      <p className="mt-1 truncate text-xs text-muted">
-                        {listingSource ? `Source: ${listingSource}` : 'No listing link attached'}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-slate-200">
-                      Open
-                    </span>
-                  </button>
+                      <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M7.5 4.5 12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <VaultActionButton
+                      ariaLabel={`Delete ${deal.dealName}`}
+                      title={`Delete ${deal.dealName}`}
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        onDeleteDeal(deal.scenarioId);
+                      }}
+                      tone="danger"
+                    >
+                      <svg viewBox="0 0 20 20" className="mx-auto h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M4.5 6h11" strokeLinecap="round" />
+                        <path d="M7.5 6V4.75A.75.75 0 0 1 8.25 4h3.5a.75.75 0 0 1 .75.75V6" />
+                        <path d="M6.5 6l.55 8.1A1 1 0 0 0 8.05 15h3.9a1 1 0 0 0 1-.9L13.5 6" strokeLinecap="round" />
+                        <path d="M8.5 8.5v4M11.5 8.5v4" strokeLinecap="round" />
+                      </svg>
+                    </VaultActionButton>
+                  </div>
                 );
               })}
             </div>

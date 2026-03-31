@@ -112,6 +112,51 @@ describe('dashboard integration', () => {
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
+  it('merges desktop current deal info into the deal vault launcher and opens a blank new deal from the header', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const vaultButton = screen.getByRole('button', { name: 'Open deal vault' });
+    expect(within(vaultButton).getByText('Test Seed Deal')).toBeInTheDocument();
+    expect(within(vaultButton).getByText('1 saved deal')).toBeInTheDocument();
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    const rehabBudget = screen.getByLabelText('Rehab budget');
+
+    await user.clear(purchasePrice);
+    await user.type(purchasePrice, '415000');
+    await user.clear(rehabBudget);
+    await user.type(rehabBudget, '95000');
+
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Deal name')).toHaveValue('');
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
+    expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
+  });
+
+  it('discards an untouched blank new deal when the identity modal is closed', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    const vaultButton = screen.getByRole('button', { name: 'Open deal vault' });
+    expect(vaultButton).toHaveTextContent('Test Seed Deal');
+    expect(vaultButton).toHaveTextContent('1 saved deal');
+
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Deal identity' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('Test Seed Deal');
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('1 saved deal');
+  });
+
   it('keeps Advanced Options collapsed by default in desktop inputs', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -239,7 +284,7 @@ describe('dashboard integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
 
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByDisplayValue('New Deal')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Deal name')).toHaveValue('');
   });
 
   it('shows the signed-in profile icon next to mobile settings without cloud-status copy', async () => {
@@ -757,6 +802,29 @@ describe('dashboard integration', () => {
     });
   });
 
+  it('deletes a deal directly from its desktop vault row without opening it first', async () => {
+    writeScenarios([
+      createSavedDeal('Current Deal', '2026-01-08T12:00:00.000Z'),
+      createSavedDeal('Austin BRRRR', '2026-01-07T12:00:00.000Z'),
+      createSavedDeal('Miami Flip', '2026-01-06T12:00:00.000Z')
+    ]);
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('Current Deal');
+
+    await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete Austin BRRRR' }));
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Austin BRRRR')).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('Current Deal');
+  });
+
   it('strategy work lightbox opens for active strategy and shows key rows', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -914,9 +982,16 @@ describe('dashboard integration', () => {
     await user.type(rehabBudget, '95000');
 
     await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
-    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
-    await user.click(within(dialog).getByRole('button', { name: 'Create new deal' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    const vaultDialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+    await user.click(within(vaultDialog).getByRole('button', { name: 'Create new deal' }));
+
+    const identityDialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    expect(identityDialog).toBeInTheDocument();
+    expect(within(identityDialog).getByLabelText('Deal name')).toHaveValue('');
+    const dealName = within(identityDialog).getByLabelText('Deal name');
+    await user.clear(dealName);
+    await user.type(dealName, 'Austin BRRRR');
+    await user.click(within(identityDialog).getByRole('button', { name: 'Close' }));
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);

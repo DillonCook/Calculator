@@ -476,6 +476,7 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
+  const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; scenarioId: string } | null>(null);
   const dealVaultRef = useRef<HTMLButtonElement | null>(null);
   const desktopHeaderActionsRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
@@ -1873,8 +1874,13 @@ export default function HomePage() {
     qualifyInstallPrompt();
   };
 
-  const createNewDeal = (requestedDealName: string, listingUrl: string, options?: { openIdentityEditor?: boolean }) => {
-    const candidateName = buildUniqueDealName(requestedDealName);
+  const createNewDeal = (
+    requestedDealName: string,
+    listingUrl: string,
+    options?: { openIdentityEditor?: boolean; preserveBlankIdentity?: boolean }
+  ) => {
+    const shouldPreserveBlankIdentity = options?.preserveBlankIdentity && requestedDealName.trim().length === 0 && listingUrl.trim().length === 0;
+    const candidateName = shouldPreserveBlankIdentity ? '' : buildUniqueDealName(requestedDealName);
     const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
     const payload = attachDealUiState(buildNewDealPayload(candidateName, listingUrl.trim()), {
       activeStrategy: defaultNewDealStrategy,
@@ -1891,6 +1897,8 @@ export default function HomePage() {
     if (options?.openIdentityEditor) {
       setIsDealIdentityOpen(true);
     }
+
+    return nextDeal;
   };
 
   const duplicateScenario = (scenarioId: string) => {
@@ -1966,8 +1974,60 @@ export default function HomePage() {
     setIsAuthMenuOpen(false);
     setIsSettingsOpen(false);
     setIsDesktopDealVaultOpen(false);
-    createNewDeal('New Deal', '', { openIdentityEditor: true });
+    const nextDeal = createNewDeal('', '', { openIdentityEditor: true, preserveBlankIdentity: true });
+    pendingNewDealDraftRef.current = {
+      initialDealName: nextDeal.dealName,
+      previousDealId: activeDealId,
+      scenarioId: nextDeal.scenarioId
+    };
     setCompactMode('inputs');
+    setDesktopInputWorkspace('dealSetup');
+  };
+
+  const closeDealIdentityEditor = () => {
+    const pendingDraft = pendingNewDealDraftRef.current;
+    const isUntouchedDraft =
+      pendingDraft &&
+      activeDealId === pendingDraft.scenarioId &&
+      (model.purchase.dealName.trim().length === 0 || model.purchase.dealName.trim() === pendingDraft.initialDealName) &&
+      model.purchase.listingUrl.trim().length === 0;
+
+    if (isUntouchedDraft) {
+      pendingUpsertIdsRef.current.delete(pendingDraft.scenarioId);
+      pendingDeleteIdsRef.current.add(pendingDraft.scenarioId);
+
+      if (pushTimerRef.current && queuedPushScenarioIdRef.current === pendingDraft.scenarioId) {
+        window.clearTimeout(pushTimerRef.current);
+        pushTimerRef.current = null;
+        queuedPushScenarioIdRef.current = null;
+      }
+
+      const nextDeals = removeDealFromVault(pendingDraft.scenarioId);
+      setDeals(nextDeals);
+
+      const previousDeal = nextDeals.find((deal) => deal.scenarioId === pendingDraft.previousDealId) ?? nextDeals[0] ?? null;
+      if (previousDeal) {
+        loadScenario(previousDeal.payload, previousDeal.scenarioId);
+      } else {
+        setActiveDealId('');
+      }
+
+      setSaveStatus('idle');
+      void (async () => {
+        const ok = await syncScenarioDelete(pendingDraft.scenarioId);
+        if (ok) {
+          pendingDeleteIdsRef.current.delete(pendingDraft.scenarioId);
+          return;
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[DealVault Debug]', { mode: 'pending-delete-retained', scenarioId: pendingDraft.scenarioId });
+        }
+      })();
+    }
+
+    pendingNewDealDraftRef.current = null;
+    setIsDealIdentityOpen(false);
   };
 
   const openRecentScenario = (scenarioId: string) => {
@@ -2036,11 +2096,6 @@ export default function HomePage() {
         console.info('[DealVault Debug]', { mode: 'pending-delete-retained', scenarioId });
       }
     })();
-  };
-
-  const removeScenario = () => {
-    if (!activeDeal) return;
-    removeScenarioById(activeDeal.scenarioId);
   };
 
   const resolveListingDealName = useCallback(async () => null, []);
@@ -2599,7 +2654,7 @@ export default function HomePage() {
   );
 
   const dealIdentitySheet = (
-    <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={() => setIsDealIdentityOpen(false)}>
+    <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={closeDealIdentityEditor}>
       <div className="mobile-sheet-stack space-y-4">
         {isMobileViewport ? (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -2740,8 +2795,8 @@ export default function HomePage() {
           activeDealName={model.purchase.dealName}
           onActiveDealChange={openDesktopVaultScenario}
           onSaveAs={saveDealAs}
-          onCreateNew={createNewDeal}
-          onDelete={removeScenario}
+          onCreateNew={launchNewDeal}
+          onDeleteDeal={removeScenarioById}
         />
       </div>
     </MobileSheet>
@@ -3713,37 +3768,34 @@ export default function HomePage() {
                 >
                   New deal
                 </button>
-                <button
-                  type="button"
-                  onClick={openDealIdentityEditor}
-                  className="flex min-w-[260px] max-w-[360px] flex-1 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-left"
-                  aria-label="Edit active deal details"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Current Deal</p>
-                    <p className="truncate text-sm font-semibold text-slate-100">{activeDealDisplayName}</p>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                <div className="flex min-w-[340px] max-w-[430px] flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
+                  <button
+                    ref={dealVaultRef}
+                    type="button"
+                    onClick={openDesktopDealVault}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left"
+                    aria-label="Open deal vault"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Deal Vault</p>
+                      <p className="truncate text-sm font-semibold text-slate-100">{activeDealDisplayName}</p>
+                      <p className="truncate text-[11px] text-muted">
+                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                      </p>
+                    </div>
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M7.5 4.5 12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openDealIdentityEditor}
+                    className="tap-feedback inline-flex min-h-full shrink-0 items-center justify-center border-l border-white/10 bg-black/15 px-3 text-sm font-medium text-slate-100 transition hover:bg-white/[0.08]"
+                    aria-label="Edit active deal details"
+                  >
                     Edit
-                  </span>
-                </button>
-                <button
-                  ref={dealVaultRef}
-                  type="button"
-                  onClick={openDesktopDealVault}
-                  className="flex min-w-[210px] max-w-[250px] shrink-0 items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-left"
-                  aria-label="Open deal vault"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Deal Vault</p>
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
-                    Open
-                  </span>
-                </button>
+                  </button>
+                </div>
                 {model.purchase.listingUrl ? (
                   <Link
                     href={normalizeListingUrl(model.purchase.listingUrl)}
