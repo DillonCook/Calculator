@@ -63,8 +63,8 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
     <main className="print-shell min-h-screen bg-surface px-3 py-4 sm:px-6 print:bg-white print:p-0">
       <PrintActions documentTitle={printDocumentTitle} />
 
-      <article className="print-report mx-auto max-w-5xl overflow-hidden rounded-2xl border border-slate-300 bg-white text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
-        <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] px-4 py-4 sm:px-6 print:px-4 print:py-3">
+      <article className="print-report mx-auto max-w-5xl overflow-hidden rounded-2xl border text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
+        <header className="print-report-header px-4 py-4 sm:px-6 print:px-4 print:py-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] print:grid-cols-[minmax(0,1fr)_auto]">
             <div>
               <h1 className="text-2xl font-semibold leading-tight text-slate-900 sm:text-[1.7rem]">{report.title}</h1>
@@ -111,7 +111,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
 
 function MetaChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-300 bg-white/85 px-2.5 py-1.5">
+    <div className="print-meta-chip rounded-md border px-2.5 py-1.5">
       <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
       <p className="max-w-[30ch] truncate text-[11px] font-semibold text-slate-900 print:max-w-[26ch]">{value}</p>
     </div>
@@ -120,7 +120,7 @@ function MetaChip({ label, value }: { label: string; value: string }) {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 shadow-[0_1px_0_rgba(2,8,20,0.04)] print:shadow-none">
+    <div className="print-metric-card rounded-lg border px-2.5 py-2 print:shadow-none">
       <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-0.5 text-base font-semibold leading-tight text-slate-900 sm:text-lg print:text-[13px]">{value}</p>
     </div>
@@ -145,7 +145,7 @@ function ReportSectionCard({
       <h2 className="mb-1.5 text-[13px] font-semibold text-slate-900 sm:text-[15px]">{title}</h2>
       <div className={`grid gap-2 ${columns.length > 1 ? 'md:grid-cols-2 print:grid-cols-2' : ''}`}>
         {columns.map((columnRows, columnIndex) => (
-          <div key={`${title}-col-${columnIndex}`} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div key={`${title}-col-${columnIndex}`} className="print-section-box">
             {columnRows.map((row, rowIndex) => (
               <div
                 key={`${row.label}-${rowIndex}`}
@@ -156,7 +156,7 @@ function ReportSectionCard({
                 <span className="text-slate-600">{row.label}</span>
                 {row.href ? (
                   <a
-                    className="max-w-[26ch] truncate text-right font-semibold text-blue-700 underline decoration-blue-500/50 underline-offset-2 print:max-w-[24ch]"
+                    className="print-link max-w-[26ch] truncate text-right font-semibold underline underline-offset-2 print:max-w-[24ch]"
                     href={row.href}
                     target="_blank"
                     rel="noreferrer"

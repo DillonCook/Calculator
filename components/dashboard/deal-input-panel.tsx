@@ -682,18 +682,18 @@ export function DealInputPanel({
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
   const isPanelCollapsed = collapsible && collapsed;
   const resolvedCoreSection = forcedCoreSection ?? preferredCoreSection ?? activeCoreSection;
-  const panelTitle = titleOverride ?? (forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Deal Setup');
+  const panelTitle = titleOverride ?? (forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Purchase');
   const showOwnershipModeToggle = forcedCoreSection !== 'expenses';
   const showCoreSectionTabs = !forcedCoreSection;
 
   return (
-    <section className={`rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
+    <section className={`section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
       {collapsible ? (
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-expanded={!collapsed}
-          className="tap-feedback mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+          className="tap-feedback section-inner mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left"
         >
           <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
@@ -715,7 +715,7 @@ export function DealInputPanel({
                 aria-pressed={isOwnedMode}
                 onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
                 className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
-                  isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                  isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'section-action section-action-input text-white'
                 }`}
               >
                 {isOwnedMode ? 'Switch to Purchase Mode' : 'I Already Own This Property'}
@@ -734,7 +734,7 @@ export function DealInputPanel({
                         onClick={() => setActiveCoreSection(section)}
                         aria-pressed={active}
                         className={`tap-feedback min-h-9 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition sm:text-xs ${
-                          active ? 'btn-primary' : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                          active ? 'btn-primary' : 'section-action section-action-input text-slate-200'
                         }`}
                       >
                         {coreSectionMeta[section].title}
@@ -747,7 +747,7 @@ export function DealInputPanel({
 
             <div className="space-y-2.5 sm:space-y-3">
               {resolvedCoreSection === 'purchaseFinancing' ? (
-                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+                <section className="section-inner rounded-xl p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   {!isOwnedMode ? (
                     <>
@@ -771,7 +771,7 @@ export function DealInputPanel({
                           ]}
                         />
                       ) : (
-                        <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-muted">
+                        <div className="section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted">
                           Cash mode selected. Debt service from purchase loan is excluded.
                         </div>
                       )}
@@ -809,7 +809,7 @@ export function DealInputPanel({
                         value={value.purchase.existingMortgageMonthly}
                         onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
                       />
-                      <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-muted sm:col-span-2">
+                      <div className="section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted sm:col-span-2">
                         Money down plus additional capital drive total invested, cash-on-cash, ROI, and IRR. Monthly cash flow uses your payment above, while balance, rate, and term model payoff, equity, and projected sale proceeds.
                       </div>
                       <Input
@@ -866,7 +866,7 @@ export function DealInputPanel({
               ) : null}
 
               {resolvedCoreSection === 'expenses' ? (
-                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+                <section className="section-inner rounded-xl p-2.5 sm:p-3">
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
                   <Input label="PMI monthly" type="number" value={value.purchase.pmiMonthly} onChange={(v) => update('purchase', 'pmiMonthly', Number(v))} />
@@ -904,16 +904,16 @@ export function DealInputPanel({
                   </div>
                 )}
 
-                <div className="mt-2.5 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,19,35,0.92),rgba(4,11,20,0.98))] p-3 sm:mt-3 sm:p-3.5">
+                <div className="section-inner mt-2.5 rounded-[1.35rem] p-3 sm:mt-3 sm:p-3.5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Variable expenses</p>
+                      <p className="section-eyebrow-analysis text-[11px] uppercase tracking-[0.16em]">Variable expenses</p>
                       <p className="mt-1 text-[11px] text-muted">Build reusable expenses and decide which operating strategies each one impacts.</p>
                     </div>
                     <button
                       type="button"
                       onClick={addVariableExpense}
-                      className="tap-feedback rounded-xl border border-white/20 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/[0.09]"
+                      className="tap-feedback section-action section-action-analysis rounded-xl px-3 py-2 text-xs font-semibold text-slate-100"
                     >
                       Add variable expense
                     </button>
@@ -928,13 +928,13 @@ export function DealInputPanel({
                       return (
                         <article
                           key={expense.key}
-                          className="rounded-[1.15rem] border border-white/10 bg-white/[0.04] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-3"
+                          className="section-inner rounded-[1.15rem] p-2.5 sm:p-3"
                         >
                           <div className="flex items-start gap-2">
                             <label className="block min-w-0 flex-1">
                               <input
                                 aria-label={`Expense label ${index + 1}`}
-                                className={`${inputClass} border-[#d66f42]/30 bg-white/[0.08] px-3 py-2 text-sm font-semibold text-[#f5875d] shadow-[0_0_0_1px_rgba(214,111,66,0.12)] placeholder:text-muted/80 sm:text-base`}
+                                className={`${inputClass} input-accent-label px-3 py-2 text-sm font-semibold placeholder:text-muted/80 sm:text-base`}
                                 type="text"
                                 value={expense.label}
                                 onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
@@ -970,7 +970,7 @@ export function DealInputPanel({
                             </label>
 
                             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                              <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-white/15 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
+                              <div className="section-inner-muted grid grid-cols-2 overflow-hidden rounded-xl">
                                 {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
                                   const active = cadence === mode;
                                   return (
@@ -996,7 +996,7 @@ export function DealInputPanel({
                             </div>
                           </div>
 
-                          <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/20 p-2">
+                          <div className="section-inner-muted mt-2.5 rounded-2xl p-2">
                             <div className="mb-1.5 flex items-center justify-between gap-2">
                               <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Applies to</p>
                             </div>
@@ -1017,7 +1017,7 @@ export function DealInputPanel({
                                     className={`flex min-h-8 items-center justify-center rounded-xl border px-2.5 py-1 text-[11px] font-medium transition ${
                                       active
                                         ? 'border-accent/70 bg-accent/20 text-accent'
-                                        : 'border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06]'
+                                        : 'section-action text-slate-200'
                                     }`}
                                   >
                                     {strategyToggleLabels[strategy]}
@@ -1035,10 +1035,10 @@ export function DealInputPanel({
               ) : null}
 
               {resolvedCoreSection === 'known' ? (
-                <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+                <section className="section-inner rounded-xl p-2.5 sm:p-3">
                 <div className="flex flex-col gap-2">
                   <div>
-                    <p className="text-[11px] uppercase tracking-wider text-accent">Import</p>
+                    <p className="section-eyebrow-analysis text-[11px] uppercase tracking-wider">Import</p>
                     <h3 className="text-sm font-semibold text-slate-100 sm:text-base">Import T12/P&L</h3>
                     <p className="text-[11px] text-muted">
                       Paste T12/P&L rows, preview auto-mapping, then apply imported values in analysis.
@@ -1060,7 +1060,7 @@ export function DealInputPanel({
                 />
                 <p className="mt-1 text-[11px] text-muted">All pasted P&L values are treated as annual totals.</p>
 
-                <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
+                <div className="section-inner-muted mt-2 rounded-lg p-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
                     <p>Parsed Rows: {knownPreviewRows.length}</p>
                     <p>Mapped: {mappedKnownRows.length}</p>
@@ -1168,12 +1168,12 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
   }, [defaultOpen]);
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+    <section className="section-inner rounded-xl p-2.5 sm:p-3">
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        className="tap-feedback flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm"
+        className="tap-feedback section-inner-muted flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm"
       >
         <span>{title}</span>
         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/20 px-1.5 text-xs font-semibold text-slate-200 transition-transform duration-200">

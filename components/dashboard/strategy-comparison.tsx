@@ -117,7 +117,7 @@ export function StrategyComparison({
           <article
             key={`inline-compare-${row.key}`}
             aria-label={`${row.label} projection card`}
-            className="panel-swap relative overflow-hidden rounded-[1.55rem] border border-white/10 bg-[linear-gradient(145deg,rgba(23,38,58,0.98),rgba(8,15,27,0.98))] p-4 shadow-soft sm:p-5"
+            className="panel-swap section-shell section-shell-projection relative overflow-hidden rounded-[1.55rem] p-4 shadow-soft sm:p-5"
             style={{ animationDelay: `${80 + index * 42}ms` }}
           >
             <div
@@ -130,7 +130,7 @@ export function StrategyComparison({
             />
 
             <div className="relative z-10 space-y-3 sm:space-y-4">
-              <section className="rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,14,24,0.36),rgba(8,14,24,0.68))] p-3.5">
+              <section className="section-inner rounded-[1.25rem] p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-accent/90">{row.label}</p>
@@ -199,10 +199,10 @@ export function StrategyComparison({
               </section>
 
               <div className="grid gap-3 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <section className="rounded-[1.2rem] border border-white/10 bg-black/20 p-3">
+                <section className="section-inner rounded-[1.2rem] p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Equity</p>
+                      <p className="section-eyebrow-analysis text-[10px] uppercase tracking-[0.16em]">Equity</p>
                       <p
                         className={`mt-1 text-sm font-semibold ${equityRow.modeledProfit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
                         style={getNegativeValueStyle(equityRow.modeledProfit, { kind: 'currency' })}
@@ -229,10 +229,10 @@ export function StrategyComparison({
                   </div>
                 </section>
 
-                <section className="rounded-[1.2rem] border border-white/10 bg-[#091223] p-3">
+                <section className="section-inner rounded-[1.2rem] p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-200">Cash flow trend</p>
+                      <p className="section-eyebrow-projection text-[10px] uppercase tracking-[0.16em]">Cash flow trend</p>
                       <p className="mt-1 text-[10px] text-muted">Operating cash flow only.</p>
                     </div>
                     <p className="text-[10px] text-muted">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
@@ -256,14 +256,14 @@ export function StrategyComparison({
           <button
             type="button"
             onClick={() => setActiveModal('equity')}
-            className="tap-feedback rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/20"
+            className="tap-feedback section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs font-medium text-accent"
           >
             Equity modeling
           </button>
           <button
             type="button"
             onClick={() => setActiveModal('cashflow')}
-            className="tap-feedback rounded-lg border border-cyan-300/50 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
+            className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs font-medium section-eyebrow-projection"
           >
             Cash flow modeling
           </button>
@@ -278,7 +278,7 @@ export function StrategyComparison({
         return (
           <div
             key={row.key}
-            className={`rounded-xl border p-3 ${isPositive ? 'border-white/10 bg-white/5' : 'border-white/10 bg-white/5'}`}
+            className="section-inner rounded-xl p-3"
           >
             <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <p className="min-w-0 text-sm font-medium">{row.label}</p>
@@ -335,7 +335,7 @@ export function StrategyComparison({
   const equityModelingContent = (
     <div className="grid gap-3 sm:grid-cols-2">
       {equityRows.map((row) => (
-        <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div key={row.key} className="section-inner rounded-xl p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
             <p
@@ -385,7 +385,7 @@ export function StrategyComparison({
   const cashFlowModelingContent = (
     <div className="grid gap-3 sm:grid-cols-2">
       {cashFlowRows.map((row) => (
-        <div key={row.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div key={row.key} className="section-inner rounded-xl p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
             <p className="text-xs text-muted">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
@@ -398,13 +398,13 @@ export function StrategyComparison({
 
   return (
     <>
-      <section aria-label="Strategy comparison board" className="min-w-0 max-w-full overflow-hidden rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+      <section aria-label="Strategy comparison board" className="section-shell section-shell-projection min-w-0 max-w-full overflow-hidden rounded-2xl p-3 shadow-soft sm:p-5">
         {inlineModelingViews ? (
           showInlineHeader ? (
-            <div className="mb-4 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(18,31,49,0.82),rgba(8,15,27,0.94))] p-4">
+            <div className="section-inner mb-4 rounded-[1.35rem] p-4">
               <div>
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-accent">Projections board</p>
+                  <p className="section-eyebrow-projection text-[11px] uppercase tracking-[0.16em]">Projections board</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-100">Compare modeled outcomes side by side</h2>
                 </div>
               </div>
@@ -419,10 +419,10 @@ export function StrategyComparison({
                         type="button"
                         onClick={() => onToggleVisibleStrategy(strategy)}
                         aria-pressed={isSelected}
-                        className={`tap-feedback rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                        className={`tap-feedback rounded-full px-3 py-1.5 text-[11px] font-medium transition ${
                           isSelected
-                            ? 'border-accent/60 bg-accent/12 text-accent'
-                            : 'border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20'
+                            ? 'btn-selector btn-selector-board btn-selector-projection btn-selector-active text-white'
+                            : 'btn-selector btn-selector-board btn-selector-projection text-slate-200'
                         }`}
                       >
                         {strategyLabels[strategy]}
@@ -434,7 +434,7 @@ export function StrategyComparison({
             </div>
           ) : null
         ) : !hideHeader && lockBoardOpen ? (
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left">
+          <div className="section-inner mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 text-left">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted">Projections Board</p>
               <h2 className="text-lg font-semibold sm:text-xl">Compare selected strategies at a glance</h2>
@@ -447,7 +447,7 @@ export function StrategyComparison({
           <button
             type="button"
             aria-expanded={isBoardOpen}
-            className={`tap-feedback flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
+            className={`tap-feedback section-inner flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
             onClick={() => setIsBoardOpen((prev) => !prev)}
           >
             <div>
@@ -471,22 +471,22 @@ export function StrategyComparison({
 
       {!inlineModelingViews && activeModal === 'equity' ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm"
+          className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Equity Modeling Lightbox"
         >
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
+          <div className="section-shell section-shell-projection max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase tracking-wider text-accent">Master Summary</p>
+                <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Master Summary</p>
                 <h3 className="text-xl font-semibold">Equity modeling by strategy</h3>
                 <p className="text-xs text-muted">Modeled Exit combines hold-period cash flow with projected sale proceeds. Break-even if selling tests the earliest month a sale would return your total invested capital.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="tap-feedback rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
+                className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
               >
                 Close
               </button>
@@ -499,22 +499,22 @@ export function StrategyComparison({
 
       {!inlineModelingViews && activeModal === 'cashflow' ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm"
+          className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Cash Flow Modeling Lightbox"
         >
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
+          <div className="section-shell section-shell-projection max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase tracking-wider text-cyan-200">Master Summary</p>
+                <p className="section-eyebrow-projection text-xs uppercase tracking-wider">Master Summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
                 <p className="text-xs text-muted">Cash-flow-only view removes the exit event from the final period so you can read operating performance on its own.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="tap-feedback rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10"
+                className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
               >
                 Close
               </button>
@@ -540,7 +540,7 @@ function CompactMetric({
   tooltip?: string;
 }) {
   return (
-    <article className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+    <article className="section-inner min-w-0 rounded-lg px-2 py-1.5">
       <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-muted">
         <p>{label}</p>
         {tooltip ? <MetricInfoTooltip label={label} tooltip={tooltip} /> : null}
@@ -625,7 +625,7 @@ function MetricInfoTooltip({ label, tooltip }: { label: string; tooltip: string 
         ref={tooltipButtonRef}
         type="button"
         aria-label={`More info about ${label}`}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="info-trigger inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold"
         onMouseEnter={openTooltip}
         onMouseLeave={scheduleCloseTooltip}
         onFocus={openTooltip}
@@ -645,7 +645,7 @@ function MetricInfoTooltip({ label, tooltip }: { label: string; tooltip: string 
               ref={tooltipPanelRef}
               role="dialog"
               aria-modal="false"
-              className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
+              className="tooltip-surface rounded-md p-2 text-[11px] leading-relaxed"
               style={tooltipStyle}
               onMouseEnter={openTooltip}
               onMouseLeave={scheduleCloseTooltip}

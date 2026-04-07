@@ -92,7 +92,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
             ref={tooltipButtonRef}
             type="button"
             aria-label={`More info about ${label}`}
-            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            className="info-trigger inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold"
             onMouseEnter={openTooltip}
             onMouseLeave={scheduleCloseTooltip}
             onFocus={openTooltip}
@@ -112,7 +112,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
                   ref={tooltipPanelRef}
                   role="dialog"
                   aria-modal="false"
-                  className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
+                  className="tooltip-surface rounded-md p-2 text-[11px] leading-relaxed"
                   style={tooltipStyle}
                   onMouseEnter={openTooltip}
                   onMouseLeave={scheduleCloseTooltip}

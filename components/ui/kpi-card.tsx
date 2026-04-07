@@ -266,7 +266,7 @@ export function KpiCard({
             aria-label={`${label} definitions`}
             aria-expanded={isTooltipOpen}
             aria-controls={tooltipId}
-            className={`inline-flex items-center justify-center rounded-full border border-white/20 bg-slate-900 text-[10px] font-semibold text-slate-200 transition hover:border-accent/70 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${isCompact ? 'h-[1.1rem] w-[1.1rem]' : 'h-5 w-5'}`}
+            className={`info-trigger inline-flex items-center justify-center rounded-full text-[10px] font-semibold ${isCompact ? 'h-[1.1rem] w-[1.1rem]' : 'h-5 w-5'}`}
             onMouseEnter={openTooltip}
             onMouseLeave={scheduleCloseTooltip}
             onFocus={openTooltip}
@@ -286,7 +286,7 @@ export function KpiCard({
                   id={tooltipId}
                   role="dialog"
                   aria-modal="false"
-                  className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
+                  className="tooltip-surface rounded-xl p-3 text-xs"
                   style={tooltipStyle}
                   onMouseEnter={openTooltip}
                   onMouseLeave={scheduleCloseTooltip}
@@ -295,7 +295,7 @@ export function KpiCard({
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
                     <button
                       type="button"
-                      className="rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                      className="tooltip-close rounded-md px-2 py-0.5 text-[11px]"
                       onClick={() => setIsTooltipOpen(false)}
                     >
                       Close
@@ -314,7 +314,7 @@ export function KpiCard({
       ) : null}
 
       <div className={`relative z-10 flex min-w-0 items-center gap-2 ${isCompact ? 'pr-[1.125rem]' : 'pr-6 sm:pr-7'}`}>
-        <p className={`min-w-0 truncate uppercase tracking-wide text-muted ${isCompact ? 'text-[10px]' : 'text-[11px] sm:text-xs'}`}>{label}</p>
+        <p className={`min-w-0 truncate font-semibold uppercase leading-tight tracking-[0.08em] text-muted ${isCompact ? 'text-[clamp(0.95rem,1.6vw,1.14rem)]' : 'text-[clamp(1rem,1.95vw,1.26rem)] sm:text-[1.12rem]'}`}>{label}</p>
       </div>
 
       {winner ? (
@@ -329,7 +329,7 @@ export function KpiCard({
       <p
         ref={primaryValueRef}
         className={`relative z-10 font-semibold leading-tight ${tone === 'success' ? 'text-emerald-300' : 'text-white'} ${
-          isCompact ? 'mt-0.5 text-[clamp(0.9rem,1.4vw,1.22rem)] 2xl:text-[1.32rem]' : 'mt-1 text-[clamp(1rem,5.6vw,1.5rem)] sm:text-3xl md:text-4xl'
+          isCompact ? 'mt-0.5 text-[clamp(1.22rem,2.1vw,1.72rem)] 2xl:text-[1.9rem]' : 'mt-1 text-[clamp(1.4rem,7vw,2.3rem)] sm:text-[2.7rem] md:text-[3.35rem]'
         }`}
         data-testid={valueTestId ?? `kpi-${slugify(label)}`}
         style={negativeValueStyle}
@@ -338,11 +338,11 @@ export function KpiCard({
       </p>
 
       {secondaryLabel && secondaryValue ? (
-        <div className={`relative z-10 rounded-lg border border-white/10 bg-white/[0.03] ${isCompact ? 'mt-1 px-2 py-1' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
+        <div className={`section-inner relative z-10 rounded-lg ${isCompact ? 'mt-1 px-2 py-1' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
           <p className={`uppercase tracking-wide text-muted ${isCompact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'}`}>{secondaryLabel}</p>
           <p
             ref={secondaryValueRef}
-            className={`font-semibold text-white ${isCompact ? 'text-[11px]' : 'text-xs sm:text-base'}`}
+            className={`font-semibold text-white ${isCompact ? 'text-xs' : 'text-sm sm:text-[1.05rem]'}`}
             data-testid={`kpi-${slugify(secondaryLabel)}`}
           >
             {secondaryValue}

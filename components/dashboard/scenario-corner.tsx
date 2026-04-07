@@ -48,7 +48,7 @@ function VaultActionButton({
       ? 'btn-primary btn-vault tap-feedback min-h-10 w-10 rounded-lg text-sm font-semibold'
       : tone === 'danger'
         ? 'tap-feedback min-h-10 w-10 rounded-lg border border-red-500/45 bg-red-500/12 text-sm font-semibold text-red-100 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50'
-        : 'tap-feedback min-h-10 w-10 rounded-lg border border-white/10 bg-white/[0.03] text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+        : 'tap-feedback section-action section-action-utility min-h-10 w-10 rounded-lg text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50';
 
   return (
     <button type="button" aria-label={ariaLabel} title={title} onClick={onClick} disabled={disabled} className={className}>
@@ -121,7 +121,7 @@ export function DealsVaultPanel({
   };
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 lg:p-5">
+    <section className="section-shell section-shell-utility rounded-3xl p-4 lg:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold text-slate-100">Recent scenarios</h2>
@@ -138,7 +138,7 @@ export function DealsVaultPanel({
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-3.5">
+      <div className="section-inner mt-4 rounded-2xl p-3.5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <label className="block flex-1">
             <span className="sr-only">Search deals</span>
@@ -168,8 +168,8 @@ export function DealsVaultPanel({
         </div>
 
         {dialogMode ? (
-          <section className="mt-3 rounded-2xl border border-white/10 bg-[#122131]/92 p-3.5">
-            <p className="text-xs uppercase tracking-[0.16em] text-accent/90">Duplicate active deal</p>
+          <section className="section-inner mt-3 rounded-2xl p-3.5">
+            <p className="section-eyebrow-utility text-xs uppercase tracking-[0.16em]">Duplicate active deal</p>
             <div className="mt-3 grid gap-2.5">
               <label className="space-y-1">
                 <span className="text-[11px] text-muted">Deal name</span>
@@ -194,7 +194,7 @@ export function DealsVaultPanel({
                   Confirm
                 </button>
                 <button
-                  className="tap-feedback min-h-10 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10"
+                  className="tap-feedback section-action section-action-utility min-h-10 rounded-xl px-3 text-sm text-slate-200"
                   type="button"
                   onClick={() => {
                     triggerHapticFeedback('light');
@@ -216,7 +216,7 @@ export function DealsVaultPanel({
 
         <div className="scrollbar-premium mt-3 max-h-[28rem] overflow-y-auto pr-1">
           {visibleDeals.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-center text-sm text-muted">
+            <div className="section-inner rounded-xl border-dashed px-4 py-6 text-center text-sm text-muted">
               No deals match this search.
             </div>
           ) : (
@@ -229,7 +229,7 @@ export function DealsVaultPanel({
                   <div
                     key={deal.scenarioId}
                     className={`tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
-                      isActive ? 'accent-edge' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
+                      isActive ? 'accent-edge accent-edge-utility' : 'section-inner hover:bg-white/[0.08]'
                     }`}
                   >
                     <button

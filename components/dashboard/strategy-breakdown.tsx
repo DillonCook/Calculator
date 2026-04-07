@@ -118,7 +118,7 @@ function Metric({
             </p>
             {secondaryTooltip ? (
               <span
-                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 text-[10px] text-muted"
+                className="info-trigger inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px]"
                 title={secondaryTooltip}
                 aria-label={secondaryTooltip}
               >

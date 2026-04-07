@@ -250,12 +250,12 @@ export function PwaInstallBanner() {
       <section
         role="region"
         aria-label="Install DealCooker"
-        className="fixed inset-x-2 z-[170] rounded-2xl border border-accent/45 bg-[linear-gradient(140deg,rgba(20,36,56,0.98),rgba(21,47,74,0.96),rgba(20,35,48,0.98))] p-3 shadow-soft sm:hidden"
+        className="section-shell section-shell-utility fixed inset-x-2 z-[170] rounded-2xl p-3 shadow-soft sm:hidden"
         style={{ top: 'max(env(safe-area-inset-top), 0.5rem)' }}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Install for free</p>
+            <p className="section-eyebrow-utility text-[10px] uppercase tracking-[0.16em]">Install for free</p>
             <h2 className="mt-1 text-sm font-semibold text-slate-100">{title}</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>
             {feedback ? <p className="mt-2 text-[11px] text-accent">{feedback}</p> : null}
@@ -264,7 +264,7 @@ export function PwaInstallBanner() {
             type="button"
             onClick={dismissPrompt}
             aria-label="Dismiss install prompt"
-            className="tap-feedback inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/20 bg-white/[0.03] text-slate-300 hover:border-accent/55 hover:text-accent"
+            className="tap-feedback section-action section-action-utility inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-300"
           >
             X
           </button>
@@ -281,7 +281,7 @@ export function PwaInstallBanner() {
           <button
             type="button"
             onClick={dismissPrompt}
-            className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent"
+            className="tap-feedback section-action section-action-utility min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-200"
           >
             Not now
           </button>
@@ -291,11 +291,11 @@ export function PwaInstallBanner() {
       <section
         role="region"
         aria-label="Install DealCooker"
-        className="hidden rounded-2xl border border-accent/35 bg-[linear-gradient(140deg,rgba(20,36,56,0.92),rgba(21,47,74,0.82),rgba(20,35,48,0.94))] p-3 shadow-soft sm:block sm:p-4"
+        className="section-shell section-shell-utility hidden rounded-2xl p-3 shadow-soft sm:block sm:p-4"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-accent">Premium install mode</p>
+            <p className="section-eyebrow-utility text-[10px] uppercase tracking-[0.16em]">Premium install mode</p>
             <h2 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">{title}</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted sm:text-sm">{description}</p>
             {feedback ? <p className="mt-2 text-[11px] text-accent sm:text-xs">{feedback}</p> : null}
@@ -312,7 +312,7 @@ export function PwaInstallBanner() {
             <button
               type="button"
               onClick={dismissPrompt}
-              className="tap-feedback min-h-9 rounded-lg border border-white/20 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-accent/55 hover:text-accent sm:min-h-10 sm:text-sm"
+              className="tap-feedback section-action section-action-utility min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-200 sm:min-h-10 sm:text-sm"
             >
               Maybe later
             </button>

@@ -49,7 +49,7 @@ export function StrategyModuleInputs({
     if (active === 'purchase') {
       return (
         <div className="space-y-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-muted">
+          <div className="section-inner rounded-xl p-3 text-sm text-muted">
             <p>Underwrite retail and strip-plaza deals with leased sq ft and annual $/sq ft rents.</p>
             <p className="mt-1 text-xs text-slate-300">
               Physical occupancy by leased area: <span className="font-semibold text-slate-100">{commercialOccupancyPercent.toFixed(1)}%</span>
@@ -143,7 +143,7 @@ export function StrategyModuleInputs({
     if (active === 'longTerm') {
       return (
         <div className="space-y-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="section-inner rounded-xl p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-slate-100">Buying this deal to turn it around?</p>
@@ -156,7 +156,7 @@ export function StrategyModuleInputs({
                 className={`tap-feedback inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                   model.longTerm.turnaround.enabled
                     ? 'btn-primary'
-                    : 'border border-white/15 bg-white/[0.03] text-slate-200 hover:bg-white/[0.08]'
+                    : 'section-action section-action-input text-slate-200'
                 }`}
               >
                 {model.longTerm.turnaround.enabled ? 'Turnaround On' : 'Turnaround Off'}
@@ -186,9 +186,9 @@ export function StrategyModuleInputs({
           </div>
 
           {model.longTerm.turnaround.enabled ? (
-            <section className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <section className="section-inner rounded-xl p-3">
               <div className="mb-2">
-                <p className="text-xs uppercase tracking-wide text-accent">Stabilize Scenario (12-Month Underwrite)</p>
+                <p className="section-eyebrow-analysis text-xs uppercase tracking-wide">Stabilize Scenario (12-Month Underwrite)</p>
                 <p className="text-xs text-muted">Estimate year-one turnaround performance and value creation after repositioning.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -198,7 +198,7 @@ export function StrategyModuleInputs({
                   value={model.longTerm.turnaround.stabilizedGrossRentMonthly}
                   onChange={(v) => updateLongTermTurnaround('stabilizedGrossRentMonthly', Number(v))}
                 />
-                <div className="sm:col-span-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                <div className="section-inner-muted sm:col-span-2 rounded-lg p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-200">Additional Income (Monthly)</p>
                   <p className="mb-2 text-[11px] text-muted">Group ancillary unit and property income in one place.</p>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -393,22 +393,22 @@ export function StrategyModuleInputs({
   };
 
   return (
-    <section className="rounded-2xl panel-surface p-3.5 shadow-soft sm:p-5">
+    <section className="section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5">
       {collapsible ? (
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-expanded={!collapsed}
-          className="tap-feedback mb-2 flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+          className="tap-feedback section-inner mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left"
         >
-          <h3 className="text-base font-semibold">Strategy Inputs</h3>
+          <h3 className="text-base font-semibold">Rents</h3>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
             {collapsed ? '+' : '-'}
           </span>
         </button>
       ) : (
         <div className="mb-3">
-          <h3 className="text-base font-semibold">Strategy Inputs</h3>
+          <h3 className="text-base font-semibold">Rents</h3>
         </div>
       )}
 

@@ -44,7 +44,7 @@ interface WorkBreakdownGroup {
 }
 
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
-  <div className="grid grid-cols-1 gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs sm:grid-cols-[1.2fr_1fr_1fr] sm:gap-2 sm:text-sm">
+  <div className="section-inner grid grid-cols-1 gap-1.5 rounded-lg px-3 py-2 text-xs sm:grid-cols-[1.2fr_1fr_1fr] sm:gap-2 sm:text-sm">
     <p className="text-slate-100">{line.label}</p>
     <p
       className={`text-left sm:text-right ${line.monthly >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
@@ -244,7 +244,7 @@ const BreakdownSummaryCard = ({
     : getNegativeValueStyle(monthlyValue, { kind: 'currency' });
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="section-inner rounded-xl p-3">
       <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted">
         <p>{label}</p>
         {tooltip ? <SummaryCardTooltip label={label}>{tooltip}</SummaryCardTooltip> : null}
@@ -334,7 +334,7 @@ const SummaryCardTooltip = ({ label, children }: { label: string; children: Reac
         ref={tooltipButtonRef}
         type="button"
         aria-label={`More info about ${label}`}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[9px] font-semibold text-slate-200 transition hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="info-trigger inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold"
         onMouseEnter={openTooltip}
         onMouseLeave={scheduleCloseTooltip}
         onFocus={openTooltip}
@@ -354,7 +354,7 @@ const SummaryCardTooltip = ({ label, children }: { label: string; children: Reac
               ref={tooltipPanelRef}
               role="dialog"
               aria-modal="false"
-              className="rounded-md border border-[#304661] bg-[#0b1629] p-2 text-[11px] leading-relaxed text-slate-100 shadow-[0_10px_24px_rgba(3,9,18,0.62)]"
+              className="tooltip-surface rounded-md p-2 text-[11px] leading-relaxed"
               style={tooltipStyle}
               onMouseEnter={openTooltip}
               onMouseLeave={scheduleCloseTooltip}
@@ -373,7 +373,7 @@ const BreakdownGroupSection = ({ group }: { group: WorkBreakdownGroup }) => {
   const totalAnnualDisplay = group.key === 'income' || group.key === 'result' ? group.totalAnnual : Math.abs(group.totalAnnual);
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+    <section className="section-inner rounded-xl p-3">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted">{group.title}</p>
@@ -459,7 +459,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="section-inner grid gap-2 rounded-xl p-3 sm:grid-cols-2 xl:grid-cols-3">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Invested at purchase</p>
           <p className="text-lg font-semibold text-slate-100">{currencyFormatter.format(meta.investedAtPurchase)}</p>
@@ -507,7 +507,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Cash invested before refi</p>
           {upfrontRows.length === 0 ? (
             <p className="text-sm text-muted">No upfront BRRRR capital items beyond holding costs.</p>
@@ -531,7 +531,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
           </div>
         </div>
 
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Holding costs ({holdingMonths} mo)</p>
           {holdingRows.length === 0 ? (
             <p className="text-sm text-muted">No modeled holding costs before refi.</p>
@@ -553,7 +553,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Refi math</p>
           <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
             <p className="text-slate-100">BRRRR ARV</p>
@@ -587,7 +587,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
           ) : null}
         </div>
 
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Post-refi operating math</p>
           <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
             <p className="text-slate-100">Operating model</p>
@@ -618,7 +618,7 @@ const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<Strateg
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <div className="section-inner rounded-xl p-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Cash left in deal formula</p>
         <p className="mt-1 text-sm text-slate-200">
           {formatFormulaMoney(meta.investedAtPurchase)} - {formatFormulaMoney(meta.cashBackAtRefiNet)} ={' '}
@@ -661,7 +661,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
 
   return (
     <div className="space-y-3"> 
-      <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="section-inner grid gap-2 rounded-xl p-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Sale price</p>
           <p className="text-lg font-semibold text-emerald-300">{currencyFormatter.format(meta.salePrice)}</p>
@@ -688,7 +688,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">One-time costs</p>
           {costItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
@@ -700,7 +700,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
           ))}
         </div>
 
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div className="section-inner space-y-2 rounded-xl p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">Holding costs ({holdingMonths} mo)</p>
           {holdingItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[1fr_auto_auto] gap-2 text-sm">
@@ -724,7 +724,7 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+      <div className="section-inner rounded-xl p-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Net profit formula</p>
         <p className="mt-1 text-sm text-slate-200">
           {currencyFormatter.format(meta.salePrice)} - {currencyFormatter.format(totalCosts)} ={' '}
@@ -781,7 +781,7 @@ export function StrategyWorkLightbox({
   const content = (
     <>
       {!breakdown ? (
-        <p className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
+        <p className="section-inner rounded-lg p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
       ) : (
         <div className="space-y-3">
           {activeStrategy === 'brrrr' && breakdown.brrrrMeta ? (
@@ -790,7 +790,7 @@ export function StrategyWorkLightbox({
             <FlipFinancials breakdown={breakdown} />
           ) : (
             <div className="space-y-3">
-              <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="section-inner grid gap-2 rounded-xl p-3 sm:grid-cols-2 xl:grid-cols-4">
                 <BreakdownSummaryCard
                   label="Income"
                   monthlyValue={Math.max(incomeGroup?.totalMonthly ?? 0, 0)}
@@ -896,7 +896,7 @@ export function StrategyWorkLightbox({
       <MobileSheet open={open} title={`${strategyLabels[activeStrategy]} calculations`} onClose={onClose}>
         <div className="mobile-sheet-stack space-y-4">
           <div>
-            <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
+            <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
             <h3 className="mt-1 text-lg font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
             <p className="mt-1 text-sm text-muted">
               Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.
@@ -909,15 +909,15 @@ export function StrategyWorkLightbox({
   }
 
   return (
-    <div className="fixed inset-0 z-[190] flex items-center justify-center bg-[#040814]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl panel-surface p-5 shadow-soft">
+    <div className="lightbox-backdrop fixed inset-0 z-[190] flex items-center justify-center p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
+      <div className="section-shell section-shell-analysis max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl p-5 shadow-soft">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wider text-accent">Show your work</p>
+            <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
             <h3 className="text-xl font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
             <p className="text-sm text-muted">Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs text-muted">
             Close
           </button>
         </div>

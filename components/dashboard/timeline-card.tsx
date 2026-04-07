@@ -121,7 +121,7 @@ export function TimelineCard({
         onMouseLeave={scheduleCloseTooltip}
         onFocus={openTooltip}
         onBlur={scheduleCloseTooltip}
-        className="tap-feedback inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/[0.03] text-[10px] font-semibold text-muted opacity-85 transition hover:border-accent/70 hover:text-accent hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="info-trigger tap-feedback inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold opacity-85"
       >
         i
       </button>
@@ -130,7 +130,7 @@ export function TimelineCard({
         ? createPortal(
             <div
               ref={tooltipPanelRef}
-              className="rounded-xl border border-[#304661] bg-[#0b1629] p-3 text-xs leading-relaxed text-slate-100 shadow-[0_12px_28px_rgba(3,10,20,0.68)]"
+              className="tooltip-surface rounded-xl p-3 text-xs leading-relaxed"
               style={tooltipStyle}
               onClick={(event) => event.stopPropagation()}
               onMouseEnter={openTooltip}
@@ -140,7 +140,7 @@ export function TimelineCard({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
                 <button
                   type="button"
-                  className="tap-feedback rounded-md border border-white/15 px-2 py-0.5 text-[11px] text-slate-200"
+                  className="tooltip-close tap-feedback rounded-md px-2 py-0.5 text-[11px]"
                   onClick={(event) => {
                     event.stopPropagation();
                     setIsIrrTooltipOpen(false);
@@ -162,10 +162,10 @@ export function TimelineCard({
   const timelineContent = (
     <>
       {showEmbeddedAssumptions ? (
-        <div className="relative rounded-[1.45rem] border border-white/10 bg-[linear-gradient(145deg,rgba(14,24,40,0.96),rgba(9,16,29,0.96))] p-3 shadow-soft sm:p-4">
+        <div className="section-inner relative rounded-[1.45rem] p-3 shadow-soft sm:p-4">
           <div className="pr-12 sm:pr-14">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200">IRR stream</p>
+              <p className="section-eyebrow-projection text-[11px] uppercase tracking-[0.16em]">IRR stream</p>
               <h3 className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-100 sm:text-base md:text-lg">Hold and exit assumptions</h3>
             </div>
           </div>
@@ -185,7 +185,7 @@ export function TimelineCard({
 
       {!showEmbeddedAssumptions ? (
         summaryVariant === 'compact' ? (
-          <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <div className="section-inner mt-3 rounded-xl px-3 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
             </div>
@@ -209,7 +209,7 @@ export function TimelineCard({
 
       <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
         {output.cashFlowTimeline.map((flow, index) => (
-          <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2 text-sm">
+          <div key={index} className="section-inner rounded-lg p-2 text-sm">
             <p className="text-xs text-muted">Year {index}</p>
             <p
               className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
@@ -224,13 +224,13 @@ export function TimelineCard({
   );
 
   return (
-    <section className="min-w-0 max-w-full overflow-visible rounded-2xl panel-surface p-3 shadow-soft sm:p-5">
+    <section className="section-shell section-shell-projection min-w-0 max-w-full overflow-visible rounded-2xl p-3 shadow-soft sm:p-5">
       {collapsible ? (
         <div
           role="button"
           tabIndex={0}
           aria-expanded={isExpanded}
-          className={`tap-feedback relative flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 pr-12 sm:pr-14 ${isExpanded ? 'mb-4' : 'mb-0'}`}
+          className={`tap-feedback section-inner relative flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 pr-12 sm:pr-14 ${isExpanded ? 'mb-4' : 'mb-0'}`}
           onClick={() => setIsOpen((prev) => !prev)}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -250,7 +250,7 @@ export function TimelineCard({
           {renderIrrTooltipControl('absolute right-3 top-2.5 z-10 sm:right-3 sm:top-3')}
         </div>
       ) : !showEmbeddedAssumptions ? (
-        <div className="relative mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 pr-12 sm:pr-14">
+        <div className="section-inner relative mb-4 rounded-xl px-3 py-2 pr-12 sm:pr-14">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Cash Flow Timeline</p>
             <h3 className="text-lg font-semibold sm:text-xl">IRR Stream</h3>
@@ -272,7 +272,7 @@ export function TimelineCard({
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+    <article className="section-inner rounded-lg px-3 py-2">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
     </article>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
@@ -37,6 +38,7 @@ import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scen
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 import { createShortShareLink } from '@/lib/share-links';
+import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle, type NegativeValueKind } from '@/lib/negative-value-color';
@@ -245,8 +247,8 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopCore',
-    title: 'Click Deal Setup to Enter the Basics',
-    body: 'Start with Deal setup when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
+    title: 'Click Purchase to Enter the Basics',
+    body: 'Start with Purchase when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
     id: 'desktopExpenses',
@@ -255,8 +257,8 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopStrategyInputs',
-    title: 'Click Strategy Inputs for Plan-Specific Numbers',
-    body: 'Use this workspace after you choose your approach. That is where the numbers change based on the plan, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Click Rents for Plan-Specific Numbers',
+    body: 'Use Rents after you choose your approach. That is where the income and plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'desktopIrr',
@@ -302,8 +304,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileStrategyInputs',
-    title: 'Tap Strategy for Plan-Specific Numbers',
-    body: 'Use Strategy after you choose your approach. That section holds the numbers that change based on the plan, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Tap Rents for Plan-Specific Numbers',
+    body: 'Use Rents after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'mobileIrr',
@@ -326,6 +328,146 @@ const mobileOnboardingSteps: OnboardingStep[] = [
     body: 'Use this menu for sharing, printing, signing in, installing the app, and changing settings. It keeps the main screen simple while the extra tools stay one tap away.'
   }
 ];
+
+function ReserveModeTooltip({ strategy, includeReserves }: { strategy: StrategyKey; includeReserves: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const closeTooltipTimerRef = useRef<number | null>(null);
+  const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
+  const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
+  const { style: tooltipStyle } = useFloatingTooltipPosition({
+    open: isOpen,
+    anchorRef: tooltipTriggerRef,
+    tooltipRef: tooltipPanelRef,
+    preferredPlacement: 'bottom',
+    maxWidth: 320,
+    offset: 10,
+    zIndex: 190
+  });
+
+  const reserveLabel = strategy === 'purchase' ? 'TI and leasing reserves' : 'maintenance and CapEx reserves';
+  const includeCopy =
+    strategy === 'purchase'
+      ? 'Include reserves subtracts TI and leasing reserves for a more conservative strip-plaza cash flow view.'
+      : 'Include reserves subtracts maintenance and CapEx reserves for a more conservative monthly cash flow view.';
+  const excludeCopy =
+    strategy === 'purchase'
+      ? 'Exclude reserves shows operating cash flow before TI and leasing reserves are held back.'
+      : 'Exclude reserves shows operating cash flow before maintenance and CapEx reserves are held back.';
+
+  const clearCloseTooltipTimer = () => {
+    if (closeTooltipTimerRef.current === null) return;
+    window.clearTimeout(closeTooltipTimerRef.current);
+    closeTooltipTimerRef.current = null;
+  };
+
+  const openTooltip = () => {
+    clearCloseTooltipTimer();
+    setIsOpen(true);
+  };
+
+  const scheduleCloseTooltip = () => {
+    clearCloseTooltipTimer();
+    closeTooltipTimerRef.current = window.setTimeout(() => {
+      setIsOpen(false);
+      closeTooltipTimerRef.current = null;
+    }, 90);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (tooltipAnchorRef.current?.contains(target)) return;
+      if (tooltipPanelRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(
+    () => () => {
+      clearCloseTooltipTimer();
+    },
+    []
+  );
+
+  return (
+    <div ref={tooltipAnchorRef} className="inline-flex">
+      <button
+        ref={tooltipTriggerRef}
+        type="button"
+        aria-label="Reserve mode explanation"
+        aria-expanded={isOpen}
+        onClick={(event) => {
+          event.stopPropagation();
+          clearCloseTooltipTimer();
+          setIsOpen((prev) => !prev);
+        }}
+        onMouseEnter={openTooltip}
+        onMouseLeave={scheduleCloseTooltip}
+        onFocus={openTooltip}
+        onBlur={scheduleCloseTooltip}
+        className="info-trigger tap-feedback inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold opacity-85"
+      >
+        i
+      </button>
+
+      {isOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={tooltipPanelRef}
+              className="tooltip-surface rounded-xl p-3 text-xs leading-relaxed"
+              style={tooltipStyle}
+              onClick={(event) => event.stopPropagation()}
+              onMouseEnter={openTooltip}
+              onMouseLeave={scheduleCloseTooltip}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">Reserve mode</p>
+                <button
+                  type="button"
+                  className="tooltip-close tap-feedback rounded-md px-2 py-0.5 text-[11px]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsOpen(false);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+              <p className="mb-2 text-slate-200">
+                Current mode: <span className="font-semibold text-white">{includeReserves ? 'Include reserves' : 'Exclude reserves'}</span>
+              </p>
+              <p className="mb-2 text-slate-200">
+                <span className="font-semibold text-white">Include reserves:</span> {includeCopy}
+              </p>
+              <p className="text-slate-200">
+                <span className="font-semibold text-white">Exclude reserves:</span> {excludeCopy}
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">Reserve category: {reserveLabel}</p>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
 
 
 
@@ -948,7 +1090,7 @@ export default function HomePage() {
     },
     {
       key: 'strategy' as const,
-      label: 'Strategy',
+      label: 'Rents',
       summary: activeStrategyLabel
     },
     {
@@ -986,12 +1128,7 @@ export default function HomePage() {
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
   const priorityMetricTitle = isFlipStrategy ? 'Net Sale Proceeds' : 'Monthly Cash Flow';
-  const priorityMetricSubtitle =
-    activeStrategy === 'purchase'
-      ? 'Includes TI and leasing reserves for conservative strip-plaza underwriting'
-      : isFlipStrategy
-        ? 'Projected one-time proceeds after rehab, sale costs, and carry costs'
-        : 'Includes maintenance and CapEx reserves for a conservative monthly cash flow view';
+  const priorityMetricSubtitle = isFlipStrategy ? 'Projected one-time proceeds after rehab, sale costs, and carry costs' : null;
   const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
 
   const profileImageUrl = useMemo(() => {
@@ -2526,10 +2663,10 @@ export default function HomePage() {
   );
 
   const settingsMenuContent = (
-    <div className="space-y-3">
+    <div className="settings-panel space-y-3">
       <div className="space-y-1.5">
-        <p className="text-[11px] uppercase tracking-wide text-muted">New Deal Defaults</p>
-        <label className="text-[11px] text-muted" htmlFor="settings-default-strategy">
+        <p className="settings-section-kicker text-[11px] uppercase tracking-wide">New Deal Defaults</p>
+        <label className="settings-section-label text-[11px]" htmlFor="settings-default-strategy">
           Default strategy
         </label>
         <select
@@ -2541,7 +2678,7 @@ export default function HomePage() {
               setDefaultNewDealStrategy(nextStrategy);
             }
           }}
-          className="settings-select w-full rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-2 text-xs text-slate-100 outline-none focus:border-accent/70"
+          className="settings-select w-full rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-2 text-xs outline-none focus:border-accent/70"
         >
           {strategyKeyOrder.map((strategy) => (
             <option key={strategy} value={strategy}>
@@ -2550,7 +2687,7 @@ export default function HomePage() {
           ))}
         </select>
         <div className="space-y-2 pt-1">
-          <p className="text-[11px] text-muted">Default projections strategies</p>
+          <p className="settings-section-label text-[11px]">Default projections strategies</p>
           <div className="grid grid-cols-2 gap-2">
             {strategyKeyOrder.map((strategy) => {
               const isSelected = defaultProjectionStrategies.includes(strategy);
@@ -2563,8 +2700,8 @@ export default function HomePage() {
                   aria-pressed={isSelected}
                   className={`tap-feedback rounded-lg border px-2.5 py-2 text-left text-[11px] font-medium transition ${
                     isSelected
-                      ? 'border-accent/55 bg-accent/12 text-accent'
-                      : 'border-white/10 bg-white/[0.03] text-slate-100 hover:border-white/20'
+                      ? 'settings-chip-active'
+                      : 'section-action section-action-utility settings-action-button'
                   }`}
                 >
                   {activeStrategyLabels[strategy]}
@@ -2572,35 +2709,35 @@ export default function HomePage() {
               );
             })}
           </div>
-          <p className="text-[10px] text-muted">These chips appear in Projections for each new deal.</p>
+          <p className="settings-section-label text-[10px]">These chips appear in Projections for each new deal.</p>
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-[11px] uppercase tracking-wide text-muted">Appearance</p>
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
-          <span className="text-xs text-slate-100">Theme</span>
+        <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Appearance</p>
+        <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+          <span className="settings-row-label text-xs">Theme</span>
           <button
             type="button"
             onClick={() => {
               triggerHapticFeedback('light');
               setIsLightMode((value) => !value);
             }}
-            className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
+            className="tap-feedback section-action section-action-utility settings-action-button rounded-md px-2 py-1 text-[11px] font-semibold"
             aria-pressed={isLightMode}
           >
             {isLightMode ? 'Light mode' : 'Dark mode'}
           </button>
         </div>
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
-          <span className="text-xs text-slate-100">Quick scan</span>
+        <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+          <span className="settings-row-label text-xs">Quick scan</span>
           <button
             type="button"
             onClick={() => {
               triggerHapticFeedback('light');
               setIsQuickScanVisible((value) => !value);
             }}
-            className="tap-feedback rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold text-slate-100 hover:border-accent/60 hover:text-accent"
+            className="tap-feedback section-action section-action-utility settings-action-button rounded-md px-2 py-1 text-[11px] font-semibold"
             aria-pressed={isQuickScanVisible}
           >
             {isQuickScanVisible ? 'Shown' : 'Hidden'}
@@ -2609,14 +2746,14 @@ export default function HomePage() {
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-[11px] uppercase tracking-wide text-muted">Actions</p>
+        <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Actions</p>
         <button
           type="button"
           onClick={() => {
             triggerHapticFeedback('light');
             replayQuickTutorial();
           }}
-          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
         >
           Replay quick tutorial
         </button>
@@ -2626,7 +2763,7 @@ export default function HomePage() {
             triggerHapticFeedback('light');
             resetOutputOrderingPreferences();
           }}
-          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
         >
           Reset output ordering
         </button>
@@ -2634,7 +2771,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={openInstallPromptFromSettings}
-            className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
           >
             Download the app!
           </button>
@@ -2645,7 +2782,7 @@ export default function HomePage() {
             triggerHapticFeedback('medium');
             resetSettingsDefaults();
           }}
-          className="tap-feedback w-full rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-2 text-left text-xs font-medium text-slate-100 hover:border-accent/55 hover:bg-accent/10"
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
         >
           Reset settings defaults
         </button>
@@ -2657,7 +2794,7 @@ export default function HomePage() {
     <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={closeDealIdentityEditor}>
       <div className="mobile-sheet-stack space-y-4">
         {isMobileViewport ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="section-shell section-shell-utility rounded-2xl p-3">
             <div className="mb-3">
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Header editor</p>
               <h3 className="mt-1 text-base font-semibold text-slate-100">Deal name and listing link</h3>
@@ -2689,20 +2826,24 @@ export default function HomePage() {
             {model.purchase.listingUrl ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <a
-                  className="tap-feedback inline-flex min-h-9 items-center rounded-lg border border-accent/40 bg-accent/12 px-3 py-1.5 text-xs font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
+                  className="tap-feedback btn-listing-active inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium"
                   href={normalizeListingUrl(model.purchase.listingUrl)}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  View listing link
+                  <span>View listing link</span>
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                    <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                  </svg>
                 </a>
               </div>
             ) : null}
           </section>
         ) : (
-          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 lg:p-5">
+          <section className="section-shell section-shell-utility rounded-3xl p-4 lg:p-5">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(260px,0.92fr)] lg:items-start">
-              <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+              <div className="section-inner rounded-2xl p-4">
                 <div className="mb-4">
                   <div className="min-w-0">
                     <h3 className="text-lg font-semibold text-slate-100">Name and source link</h3>
@@ -2740,8 +2881,8 @@ export default function HomePage() {
               </div>
 
               <div className="space-y-3">
-                <section className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent/90">Current snapshot</p>
+                <section className="section-inner rounded-2xl p-4">
+                  <p className="section-eyebrow-utility text-xs uppercase tracking-[0.16em]">Current snapshot</p>
                   <h3 className="mt-1 truncate text-lg font-semibold text-slate-100">{activeDealDisplayName}</h3>
                   <p className="mt-1 text-sm text-muted">Active strategy: {activeStrategyLabel}</p>
                   <p className="mt-3 truncate text-xs text-slate-300/80">
@@ -2749,17 +2890,21 @@ export default function HomePage() {
                   </p>
                 </section>
 
-                <section className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <section className="section-inner rounded-2xl p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-muted">Quick actions</p>
                   <div className="mt-3 grid gap-2">
                     {model.purchase.listingUrl ? (
                       <a
-                        className="tap-feedback inline-flex min-h-10 items-center justify-center rounded-xl border border-accent/40 bg-accent/12 px-3 py-2 text-sm font-medium text-accent hover:border-accent/65 hover:bg-accent/20"
+                        className="tap-feedback section-action section-action-utility btn-listing-active inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-100"
                         href={normalizeListingUrl(model.purchase.listingUrl)}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        View listing link
+                        <span>View listing link</span>
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                          <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                        </svg>
                       </a>
                     ) : null}
                     <button
@@ -2863,24 +3008,24 @@ export default function HomePage() {
   );
 
   const headlineMetricSection = (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+    <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
       <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-          className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+          className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
         >
           {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Reorder'}
         </button>
       </div>
 
       {isHeadlineMetricOrderEditorOpen ? (
-        <div className="mb-3 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+        <div className="section-inner mb-3 space-y-1 rounded-lg p-2">
           {orderedHeadlineMetricIds.map((metricId, index) => {
             const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
 
             return (
-              <div key={`kpi-order-${metricId}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+              <div key={`kpi-order-${metricId}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                 <p className="truncate text-xs text-slate-200">
                   {index + 1}. {metricLabel}
                 </p>
@@ -2921,24 +3066,24 @@ export default function HomePage() {
   );
 
   const desktopHeadlineMetricSection = (
-    <div className="border-t border-white/10 pt-3 lg:col-span-2">
-      <div className="mb-2 flex justify-end">
+    <div className="relative border-t border-white/10 pt-3 lg:col-span-2">
+      <div className="absolute right-0 top-0 z-10 -translate-y-1/2">
         <button
           type="button"
           onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-          className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+          className="section-action section-action-projection rounded-full px-3 py-1.5 text-[11px] font-medium text-slate-200"
         >
           {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange KPIs'}
         </button>
       </div>
 
       {isHeadlineMetricOrderEditorOpen ? (
-        <div className="mb-3 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+        <div className="section-inner mb-3 space-y-1 rounded-lg p-2">
           {orderedHeadlineMetricIds.map((metricId, index) => {
             const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
 
             return (
-              <div key={`desktop-kpi-order-${metricId}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+              <div key={`desktop-kpi-order-${metricId}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                 <p className="truncate text-xs text-slate-200">
                   {index + 1}. {metricLabel}
                 </p>
@@ -3014,9 +3159,9 @@ export default function HomePage() {
 
   const compactResultsView = (
     <>
-      <section className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft">
+      <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div key={`strategy-headline-mobile-${activeStrategy}`} className="panel-swap space-y-4">
-          <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
+          <div className="section-inner relative isolate overflow-hidden rounded-xl p-3 sm:p-4">
             {!isFlipStrategy ? (
               <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                 <div
@@ -3081,14 +3226,17 @@ export default function HomePage() {
             ) : null}
 
             <div className="relative z-10 pr-16">
-              <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricTitle}</p>
-              <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p>
-              <p className="absolute right-0 top-0 whitespace-nowrap text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              <div className="flex items-center gap-2">
+                <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">{priorityMetricTitle}</p>
+                {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
+              </div>
+              {priorityMetricSubtitle ? <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p> : null}
+              <p className="section-eyebrow-projection absolute right-0 top-0 whitespace-nowrap text-xs italic tracking-wide">{activeStrategyLabel}</p>
             </div>
 
             <div className="relative z-10 mt-3 flex flex-col gap-3">
               <p
-                className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
                 data-testid="kpi-priority-metric"
                 style={priorityMetricNegativeStyle}
               >
@@ -3135,10 +3283,10 @@ export default function HomePage() {
       {headlineMetricSection}
 
       {activeStrategy === 'purchase' && commercialSummary ? (
-        <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
+        <section className="section-shell section-shell-analysis rounded-2xl p-3.5 sm:p-4">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs uppercase tracking-wider text-accent">Commercial dashboard</p>
+              <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Commercial dashboard</p>
               <h3 className="text-base font-semibold">Pro underwriting signals</h3>
             </div>
             <div className="text-right text-[11px] text-muted">
@@ -3147,19 +3295,19 @@ export default function HomePage() {
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+            <div className="section-inner rounded-lg p-2.5">
               <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
               </p>
             </div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+            <div className="section-inner rounded-lg p-2.5">
               <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
               </p>
             </div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+            <div className="section-inner rounded-lg p-2.5">
               <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
@@ -3181,10 +3329,10 @@ export default function HomePage() {
 
   const compactCompareView = (
     <>
-      <section aria-label="Projections strategy selection" className="mobile-stagger-item panel-surface rounded-2xl p-4 shadow-soft">
+      <section aria-label="Projections strategy selection" className="mobile-stagger-item section-shell section-shell-projection rounded-2xl p-4 shadow-soft">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-accent">Projections</p>
+            <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">Projections</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose strategies</h2>
           </div>
           <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
@@ -3201,8 +3349,8 @@ export default function HomePage() {
                 type="button"
                 onClick={() => toggleCompactProjectionStrategy(strategy)}
                 aria-pressed={isSelected}
-                className={`tap-feedback mobile-stagger-item rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                  isSelected ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
+                className={`tap-feedback mobile-stagger-item rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                  isSelected ? 'btn-selector btn-selector-board btn-selector-projection btn-selector-active text-white' : 'btn-selector btn-selector-board btn-selector-projection text-slate-200'
                 }`}
                 style={{ animationDelay: `${80 + index * 36}ms` }}
               >
@@ -3228,7 +3376,7 @@ export default function HomePage() {
     <>
       <MobileSheet open={compactSheetView === 'deals'} title="Deals" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-4">
-          <section className="flex h-[min(62dvh,540px)] flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="section-shell section-shell-utility flex h-[min(62dvh,540px)] flex-col rounded-2xl p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal Vault</p>
@@ -3258,7 +3406,7 @@ export default function HomePage() {
                     <article
                       key={`compact-recent-${deal.scenarioId}`}
                       className={`rounded-xl border p-3 ${
-                        deal.scenarioId === activeDealId ? 'accent-edge' : 'border-white/10 bg-black/20'
+                        deal.scenarioId === activeDealId ? 'accent-edge accent-edge-utility' : 'section-inner'
                       }`}
                     >
                       <button
@@ -3288,7 +3436,7 @@ export default function HomePage() {
                             triggerHapticFeedback('light');
                             duplicateScenario(deal.scenarioId);
                           }}
-                          className="tap-feedback rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-100"
+                          className="tap-feedback section-action section-action-utility rounded-lg px-3 py-2 text-sm font-medium text-slate-100"
                           aria-label={`Duplicate ${deal.dealName}`}
                         >
                           Duplicate
@@ -3311,7 +3459,7 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="mt-3 flex min-h-0 flex-1 items-center">
-                <p className="w-full rounded-xl border border-dashed border-white/15 bg-black/20 px-3 py-2 text-sm text-muted">
+                <p className="section-inner w-full rounded-xl border-dashed px-3 py-2 text-sm text-muted">
                   {compactDealsSearch.trim()
                     ? 'No deals match this search.'
                     : 'No saved deals yet. Start with a blank one and it will appear here.'}
@@ -3324,7 +3472,7 @@ export default function HomePage() {
 
       <MobileSheet open={compactSheetView === 'strategy'} title="Choose strategy" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-3">
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="section-shell section-shell-input rounded-2xl p-3">
             <p className="text-xs uppercase tracking-[0.16em] text-muted">Active strategy</p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <div>
@@ -3353,15 +3501,15 @@ export default function HomePage() {
                   handleStrategyChange(strategy);
                   setCompactSheetView(null);
                 }}
-                className={`tap-feedback flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                  activeStrategy === strategy ? 'accent-edge' : 'border-white/10 bg-white/[0.03] text-slate-200'
+                className={`tap-feedback flex w-full items-start justify-between gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                  activeStrategy === strategy ? 'btn-selector btn-selector-input btn-selector-active text-white' : 'btn-selector btn-selector-input text-slate-200'
                 }`}
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
-                  <p className="mt-1 text-xs text-muted">{compactStrategyDescriptions[strategy]}</p>
+                  <p className={`mt-1 text-xs ${activeStrategy === strategy ? 'text-slate-200/85' : 'text-muted'}`}>{compactStrategyDescriptions[strategy]}</p>
                 </div>
-                <span className="shrink-0 text-xs text-muted">{activeStrategy === strategy ? 'Selected' : 'Switch'}</span>
+                <span className={`shrink-0 text-xs ${activeStrategy === strategy ? 'text-slate-100/85' : 'text-muted'}`}>{activeStrategy === strategy ? 'Selected' : 'Switch'}</span>
               </button>
             ))}
           </div>
@@ -3380,8 +3528,8 @@ export default function HomePage() {
                 triggerHapticFeedback('light');
                 window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
               }}
-              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
-            >
+                className="tap-feedback section-action section-action-utility rounded-xl px-4 py-3 text-sm font-medium text-slate-100"
+              >
               Print to PDF
             </button>
             {model.purchase.listingUrl ? (
@@ -3391,14 +3539,18 @@ export default function HomePage() {
                   triggerHapticFeedback('light');
                   window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer');
                 }}
-                className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100"
+                className="tap-feedback section-action section-action-utility btn-listing-active inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-slate-100"
               >
-                View listing
+                <span>View listing</span>
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                  <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                </svg>
               </button>
             ) : null}
           </div>
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="section-shell section-shell-utility rounded-2xl p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Authentication</p>
@@ -3422,7 +3574,7 @@ export default function HomePage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <section className="settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
             <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted">Settings</p>
             {settingsMenuContent}
           </section>
@@ -3432,14 +3584,14 @@ export default function HomePage() {
       <MobileSheet open={compactSheetView === 'metrics'} title="More metrics" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-4">
           {!hasMoreMetricsContent ? (
-            <section className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-3">
+            <section className="section-inner rounded-2xl border-dashed p-3">
               <p className="text-sm text-muted">No additional scenario-specific metrics are available for this strategy right now.</p>
             </section>
           ) : null}
 
           {strategyQuickScan ? (
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted">Quick scan</p>
+            <section className="section-shell section-shell-analysis rounded-2xl p-3">
+              <p className="section-eyebrow-analysis text-xs uppercase tracking-[0.16em]">Quick scan</p>
               <h3 className="mt-1 text-base font-semibold text-slate-100">{strategyQuickScan.title}</h3>
               <p className="mt-1 text-sm text-muted">{strategyQuickScan.notes}</p>
               <ul className="mt-3 space-y-2 text-sm text-slate-200">
@@ -3454,11 +3606,11 @@ export default function HomePage() {
           ) : null}
 
           {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <section className="section-shell section-shell-analysis rounded-2xl p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Commercial outputs</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {commercialDigestItems.map((item) => (
-                  <article key={`compact-metric-${item.key}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                  <article key={`compact-metric-${item.key}`} className="section-inner rounded-xl px-3 py-2">
                     <p className="text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100" style={getDigestMetricStyle(item)}>
                       {item.value}
@@ -3470,11 +3622,11 @@ export default function HomePage() {
           ) : null}
 
           {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <section className="section-shell section-shell-analysis rounded-2xl p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Long-term turnaround outputs</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {longTermTurnaroundDigestItems.map((item) => (
-                  <article key={`compact-lt-metric-${item.key}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                  <article key={`compact-lt-metric-${item.key}`} className="section-inner rounded-xl px-3 py-2">
                     <p className="text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100" style={getDigestMetricStyle(item)}>
                       {item.value}
@@ -3497,7 +3649,7 @@ export default function HomePage() {
 
   const compactShell = (
     <>
-      <section ref={mobileStrategyTabsRef} className="sticky top-2 z-30 space-y-2 rounded-2xl border border-white/10 bg-surface/90 p-2 backdrop-blur">
+      <section ref={mobileStrategyTabsRef} className="section-shell section-shell-input sticky top-2 z-30 space-y-2 rounded-2xl p-2 backdrop-blur">
         <button
           ref={compactStrategyButtonRef}
           type="button"
@@ -3505,7 +3657,7 @@ export default function HomePage() {
             triggerHapticFeedback('light');
             setCompactSheetView('strategy');
           }}
-          className="tap-feedback flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left"
+          className="tap-feedback section-inner flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
           aria-label="Choose strategy"
         >
           <div className="min-w-0">
@@ -3531,7 +3683,7 @@ export default function HomePage() {
                 setCompactSheetView('metrics');
               }}
               disabled={!hasMoreMetricsContent}
-              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              className="tap-feedback section-action section-action-projection rounded-xl px-3 py-3 text-sm font-medium text-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
             >
               More metrics
             </button>
@@ -3542,7 +3694,7 @@ export default function HomePage() {
                 triggerHapticFeedback('light');
                 setCompactSheetView('timeline');
               }}
-              className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-sm font-medium text-slate-100"
+              className="tap-feedback section-action section-action-projection rounded-xl px-3 py-3 text-sm font-medium text-slate-100"
             >
               Timeline
             </button>
@@ -3552,7 +3704,7 @@ export default function HomePage() {
                 triggerHapticFeedback('light');
                 setIsStrategyWorkOpen(true);
               }}
-              className="btn-primary btn-work tap-feedback rounded-xl px-3 py-3 text-sm font-semibold"
+              className="btn-primary btn-spotlight tap-feedback rounded-xl px-3 py-3 text-sm font-semibold"
             >
               Show work
             </button>
@@ -3583,10 +3735,10 @@ export default function HomePage() {
                   aria-controls={`compact-input-panel-${section.key}`}
                   tabIndex={isActive ? 0 : -1}
                   onClick={() => selectCompactInputSection(section.key)}
-                  className={`tap-feedback flex min-h-[3.5rem] flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition ${
+                  className={`tap-feedback flex min-h-[3.5rem] flex-col items-center justify-center rounded-xl px-2 py-2 text-center transition ${
                     isActive
-                      ? 'accent-edge bg-accent/10 text-slate-100'
-                      : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]'
+                      ? 'btn-selector btn-selector-input btn-selector-active text-slate-100'
+                      : 'btn-selector btn-selector-input text-slate-200'
                   }`}
                 >
                   <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] leading-none min-[390px]:text-[11px]">{section.label}</span>
@@ -3607,7 +3759,7 @@ export default function HomePage() {
       </section>
 
       <nav
-        className="fixed inset-x-3 bottom-3 z-[120] rounded-2xl border border-white/10 bg-surface/95 p-2 shadow-soft backdrop-blur"
+        className="section-shell section-shell-input fixed inset-x-3 bottom-3 z-[120] rounded-2xl p-2 shadow-soft backdrop-blur"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
       >
         <div className="grid grid-cols-3 gap-2">
@@ -3626,7 +3778,7 @@ export default function HomePage() {
                   setCompactMode(mode);
                 }}
                 className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  isActive ? 'btn-primary' : 'border border-white/15 bg-white/[0.03] text-slate-200'
+                  isActive ? 'btn-primary' : 'section-action section-action-input text-slate-200'
                 } disabled:cursor-not-allowed disabled:opacity-45`}
               >
                 {compactModeLabels[mode]}
@@ -3644,15 +3796,15 @@ export default function HomePage() {
     <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-x-0 top-0 h-[340px] ${
+        className={`pointer-events-none absolute inset-0 ${
           isLightMode
-            ? 'bg-[radial-gradient(circle_at_top,rgba(245,146,58,0.18)_0%,rgba(62,132,208,0.08)_30%,transparent_72%)]'
-            : 'bg-[radial-gradient(circle_at_top,rgba(244,150,58,0.28)_0%,rgba(115,150,202,0.12)_34%,transparent_72%)]'
+            ? 'bg-[linear-gradient(135deg,rgba(243,151,76,0.22)_0%,rgba(243,151,76,0.1)_16%,rgba(118,167,222,0.08)_42%,transparent_76%)]'
+            : 'bg-[linear-gradient(135deg,rgba(244,145,48,0.26)_0%,rgba(244,145,48,0.12)_18%,rgba(92,150,220,0.1)_44%,transparent_78%)]'
         }`}
       />
       <div className="mx-auto max-w-[112rem] space-y-5">
         {isMobileViewport ? (
-          <header className={`panel-surface relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
+          <header className={`app-header-shell section-shell section-shell-utility relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -3664,13 +3816,13 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={openDealIdentityEditor}
-                      className="tap-feedback mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left"
+                      className="tap-feedback section-inner mt-2 w-full rounded-xl px-3 py-2 text-left"
                       aria-label="Edit active deal details"
                     >
                       <p className="text-xs uppercase tracking-[0.16em] text-muted">Current Deal</p>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <p className="truncate text-base font-semibold text-slate-100">{activeDealDisplayName}</p>
-                        <span className="shrink-0 rounded-full border border-white/15 bg-black/20 px-2 py-0.5 text-[11px] text-slate-200">
+                        <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
+                        <span className="header-deal-chip shrink-0 rounded-full px-2 py-0.5 text-[11px]">
                           Edit
                         </span>
                       </div>
@@ -3687,7 +3839,7 @@ export default function HomePage() {
                         triggerHapticFeedback('light');
                         setCompactSheetView('menu');
                       }}
-                      className="tap-feedback inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100"
+                      className="tap-feedback section-action section-action-utility inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-100"
                       aria-label="Open deal actions"
                     >
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
@@ -3714,7 +3866,7 @@ export default function HomePage() {
                       triggerHapticFeedback('light');
                       setCompactSheetView('deals');
                     }}
-                    className="tap-feedback rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-slate-100"
+                    className="tap-feedback section-action section-action-utility rounded-xl px-3 py-2.5 text-sm font-medium text-slate-100"
                   >
                     Deal Vault
                   </button>
@@ -3749,7 +3901,7 @@ export default function HomePage() {
         ) : null}
 
         {!isMobileViewport ? (
-        <header className={`panel-surface relative z-[70] rounded-2xl px-5 py-3 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
+        <header className={`app-header-shell section-shell section-shell-utility relative z-[110] overflow-visible rounded-2xl px-5 py-3 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
           <div className="space-y-2">
             <div className="flex items-start gap-4">
               <div className="min-w-0">
@@ -3760,7 +3912,7 @@ export default function HomePage() {
               </div>
 
               <div className={`min-w-0 flex-1 ${headerChromeMutedClass}`}>
-              <div ref={desktopHeaderActionsRef} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-2">
+              <div ref={desktopHeaderActionsRef} className="section-inner relative overflow-visible flex flex-wrap items-center gap-2 rounded-xl px-2 py-2">
                 <button
                   type="button"
                   onClick={launchNewDeal}
@@ -3768,7 +3920,7 @@ export default function HomePage() {
                 >
                   New deal
                 </button>
-                <div className="flex min-w-[340px] max-w-[430px] flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
+                <div className="section-inner flex min-w-[340px] max-w-[430px] flex-1 items-stretch overflow-hidden rounded-xl">
                   <button
                     ref={dealVaultRef}
                     type="button"
@@ -3777,9 +3929,9 @@ export default function HomePage() {
                     aria-label="Open deal vault"
                   >
                     <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Deal Vault</p>
-                      <p className="truncate text-sm font-semibold text-slate-100">{activeDealDisplayName}</p>
-                      <p className="truncate text-[11px] text-muted">
+                      <p className="header-deal-meta text-[10px] uppercase tracking-[0.14em]">Deal Vault</p>
+                      <p className="header-deal-name truncate text-sm font-semibold">{activeDealDisplayName}</p>
+                      <p className="header-deal-meta truncate text-[11px]">
                         {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
                       </p>
                     </div>
@@ -3790,7 +3942,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={openDealIdentityEditor}
-                    className="tap-feedback inline-flex min-h-full shrink-0 items-center justify-center border-l border-white/10 bg-black/15 px-3 text-sm font-medium text-slate-100 transition hover:bg-white/[0.08]"
+                    className="header-deal-edit tap-feedback section-action section-action-utility inline-flex min-h-full shrink-0 items-center justify-center border-l border-white/10 px-3 text-sm font-medium"
                     aria-label="Edit active deal details"
                   >
                     Edit
@@ -3799,17 +3951,21 @@ export default function HomePage() {
                 {model.purchase.listingUrl ? (
                   <Link
                     href={normalizeListingUrl(model.purchase.listingUrl)}
-                    className="tap-feedback inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/25 hover:bg-white/[0.06]"
+                    className="tap-feedback section-action section-action-utility btn-listing-active inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-100"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    View listing
+                    <span>View listing</span>
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                    </svg>
                   </Link>
                 ) : (
                   <button
                     type="button"
                     disabled
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-medium text-muted/80 opacity-70"
+                    className="section-action inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-muted/80 opacity-70"
                   >
                     View listing
                   </button>
@@ -3828,11 +3984,11 @@ export default function HomePage() {
                 >
                   Print to PDF
                 </Link>
-                <div ref={authControlsRef} className="ml-auto flex shrink-0 justify-end">
+                <div ref={authControlsRef} className="relative ml-auto flex shrink-0 justify-end overflow-visible">
                   <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
                     {currentUser ? (
                       <>
-                        <span className="inline-flex shrink-0 items-center rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                        <span className="header-status-badge inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                           Cloud: Active
                         </span>
                         {renderProfileAvatar({ label: signedInAvatarLabel })}
@@ -3860,13 +4016,13 @@ export default function HomePage() {
                           Sign in
                         </button>
                         {isAuthMenuOpen ? (
-                          <div id="auth-menu-desktop" className="absolute right-0 top-12 z-[136] w-72 rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                        <div id="auth-menu-desktop" className="section-shell section-shell-utility absolute right-0 top-12 z-[136] w-72 rounded-xl p-3 shadow-soft backdrop-blur">
                             {authMenuContent}
                           </div>
                         ) : null}
                       </div>
                     )}
-                    <div ref={desktopSettingsControlsRef} className="relative">
+                    <div ref={desktopSettingsControlsRef} className="relative overflow-visible">
                       <button
                         type="button"
                         aria-label="Open settings"
@@ -3883,7 +4039,7 @@ export default function HomePage() {
                         </svg>
                       </button>
                       {isSettingsOpen ? (
-                        <div id="settings-menu-desktop" className="absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl border border-white/15 bg-surface/95 p-3 shadow-soft backdrop-blur">
+                        <div id="settings-menu-desktop" className="settings-menu-shell section-shell section-shell-utility absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl p-3 shadow-soft backdrop-blur">
                           {settingsMenuContent}
                         </div>
                       ) : null}
@@ -3928,9 +4084,9 @@ export default function HomePage() {
 
         {!isMobileViewport ? (
         <>
-        <section ref={desktopResultsSectionRef} className="accent-edge isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
+        <section ref={desktopResultsSectionRef} className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
           <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)] lg:items-stretch">
-            <div className="relative isolate overflow-hidden rounded-xl border border-white/10 bg-[#17263a]/88 p-3 sm:p-4">
+            <div className="section-inner relative isolate overflow-hidden rounded-xl p-3 sm:p-4">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                   <div
@@ -3993,15 +4149,20 @@ export default function HomePage() {
                   </svg>
                 </div>
               ) : null}
-              <div className="relative z-10 pr-20">
-                <p className="text-xs uppercase tracking-[0.16em] text-accent">{priorityMetricTitle}</p>
-                <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p>
-                <p className="absolute right-0 top-0 text-xs italic tracking-wide text-accent/90">{activeStrategyLabel}</p>
+              <div className="relative z-10 pr-20 sm:pr-24">
+                <div className="flex items-center gap-2">
+                  <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">{priorityMetricTitle}</p>
+                  {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
+                </div>
+                {priorityMetricSubtitle ? <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p> : null}
+                <div className="absolute right-0 top-0">
+                  <p className="section-eyebrow-projection text-xs italic tracking-wide">{activeStrategyLabel}</p>
+                </div>
               </div>
 
               <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <p
-                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'text-emerald-300' : 'text-white'}`}
+                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
                   data-testid="kpi-priority-metric"
                   style={priorityMetricNegativeStyle}
                 >
@@ -4044,10 +4205,10 @@ export default function HomePage() {
             </div>
 
             {activeStrategy === 'purchase' && commercialSummary ? (
-              <section className="rounded-2xl border border-white/10 bg-[#17263a]/88 p-3.5 sm:p-4">
+              <section className="section-shell section-shell-analysis rounded-2xl p-3.5 sm:p-4">
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-accent">Commercial dashboard</p>
+                    <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Commercial dashboard</p>
                     <h3 className="text-base font-semibold">Pro underwriting signals</h3>
                   </div>
                   <div className="text-right text-[11px] text-muted">
@@ -4056,19 +4217,19 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                  <div className="section-inner rounded-lg p-2.5">
                     <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
                     </p>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                  <div className="section-inner rounded-lg p-2.5">
                     <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
                     </p>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                  <div className="section-inner rounded-lg p-2.5">
                     <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
@@ -4089,7 +4250,7 @@ export default function HomePage() {
           </div>
         </section>
         {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+          <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted">Commercial outputs</p>
@@ -4098,15 +4259,15 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setIsCommercialOrderEditorOpen((prev) => !prev)}
-                className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
               >
                 {isCommercialOrderEditorOpen ? 'Done' : 'Reorder'}
               </button>
             </div>
             {isCommercialOrderEditorOpen ? (
-              <div className="mb-2 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+              <div className="section-inner mb-2 space-y-1 rounded-lg p-2">
                 {commercialDigestItems.map((item, index) => (
-                  <div key={`order-${item.key}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                  <div key={`order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                     <p className="truncate text-xs text-slate-200">
                       {index + 1}. {item.label}
                     </p>
@@ -4137,7 +4298,7 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-1.5 sm:hidden">
               {mobileCommercialDigestItems.map((item) => (
-                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5">
+                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2 py-1.5">
                   <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
@@ -4152,7 +4313,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowAllCommercialMobileOutputs((prev) => !prev)}
-                className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+                className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
               >
                 {showAllCommercialMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
               </button>
@@ -4160,7 +4321,7 @@ export default function HomePage() {
 
             <div className="hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-5">
               {commercialDigestItems.map((item) => (
-                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2.5 py-2">
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
@@ -4174,27 +4335,27 @@ export default function HomePage() {
           </section>
         ) : null}
         {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 shadow-soft">
+          <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted">Long-term turnaround outputs</p>
                 <p className="hidden text-[11px] text-muted sm:block">12-month stabilization snapshot for multifamily turnaround decisions</p>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">Stabilized</span>
+                <span className="section-tag section-tag-analysis">Stabilized</span>
                 <button
                   type="button"
                   onClick={() => setIsLongTermTurnaroundOrderEditorOpen((prev) => !prev)}
-                  className="rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                  className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
                 >
                   {isLongTermTurnaroundOrderEditorOpen ? 'Done' : 'Reorder'}
                 </button>
               </div>
             </div>
             {isLongTermTurnaroundOrderEditorOpen ? (
-              <div className="mb-2 space-y-1 rounded-lg border border-white/10 bg-black/20 p-2">
+              <div className="section-inner mb-2 space-y-1 rounded-lg p-2">
                 {longTermTurnaroundDigestItems.map((item, index) => (
-                  <div key={`lt-order-${item.key}`} className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                  <div key={`lt-order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                     <p className="truncate text-xs text-slate-200">
                       {index + 1}. {item.label}
                     </p>
@@ -4224,7 +4385,7 @@ export default function HomePage() {
             ) : null}
             <div className="grid grid-cols-2 gap-1.5 sm:hidden">
               {mobileLongTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5">
+                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2 py-1.5">
                   <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
@@ -4239,14 +4400,14 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowAllLongTermTurnaroundMobileOutputs((prev) => !prev)}
-                className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.02] px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+                className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
               >
                 {showAllLongTermTurnaroundMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
               </button>
             ) : null}
             <div className="hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-4">
               {longTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2.5 py-2">
                   <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
@@ -4275,7 +4436,7 @@ export default function HomePage() {
                           triggerHapticFeedback('light');
                           setIsStrategyWorkOpen(true);
                         }}
-                        className="btn-primary btn-work btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
+                        className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
                       >
                         Show work
                       </button>
@@ -4288,7 +4449,7 @@ export default function HomePage() {
 
           {!isMobileViewport ? (
             <div className="space-y-4 [overflow-anchor:none]">
-                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 shadow-soft">
+                <section className="section-shell section-shell-input rounded-2xl p-2 shadow-soft">
                   <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
                     <button
                       ref={desktopDealSetupButtonRef}
@@ -4298,11 +4459,11 @@ export default function HomePage() {
                       onClick={() => setDesktopInputWorkspace('dealSetup')}
                       className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
                         desktopInputWorkspace === 'dealSetup'
-                          ? 'btn-primary'
-                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
+                          : 'btn-selector btn-selector-input text-slate-200'
                       }`}
                     >
-                    Deal setup
+                    Purchase
                   </button>
                   <button
                       ref={desktopStrategyInputsButtonRef}
@@ -4312,11 +4473,11 @@ export default function HomePage() {
                       onClick={() => setDesktopInputWorkspace('strategyInputs')}
                       className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
                         desktopInputWorkspace === 'strategyInputs'
-                          ? 'btn-primary'
-                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
+                          : 'btn-selector btn-selector-input text-slate-200'
                       }`}
                     >
-                    {`${activeStrategyLabel} inputs`}
+                    Rents
                   </button>
                   <button
                       ref={desktopExpensesButtonRef}
@@ -4326,8 +4487,8 @@ export default function HomePage() {
                       onClick={() => setDesktopInputWorkspace('expenses')}
                       className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
                         desktopInputWorkspace === 'expenses'
-                          ? 'btn-primary'
-                          : 'border border-white/15 bg-white/[0.02] text-slate-200 hover:bg-white/[0.05]'
+                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
+                          : 'btn-selector btn-selector-input text-slate-200'
                       }`}
                   >
                     Expenses
@@ -4342,7 +4503,7 @@ export default function HomePage() {
                   resolveListingDealName={resolveListingDealName}
                   defaultAdvancedOptionsOpen={false}
                   forcedCoreSection="purchaseFinancing"
-                  titleOverride="Deal Setup"
+                  titleOverride="Purchase"
                   contentViewportClassName={desktopInputViewportClassName}
                 />
               </div>
@@ -4365,9 +4526,9 @@ export default function HomePage() {
         </>
         ) : null}
       </div>
-      <footer className="rounded-2xl border border-white/10 bg-panel/60 p-4 text-xs text-muted">
+      <footer className="section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>(c) 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
+          <p>&copy; 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3 text-slate-300">
             <Link href="/legal" className="hover:text-white">Legal Center</Link>
             <Link href="/legal/terms" className="hover:text-white">Terms</Link>

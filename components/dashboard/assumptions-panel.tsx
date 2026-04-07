@@ -21,13 +21,13 @@ export function AssumptionsPanel({
   const isEmbedded = variant === 'embedded';
   const eyebrow = isEmbedded ? 'IRR assumptions' : 'Exit assumptions';
   const heading = isEmbedded ? 'Hold and exit settings' : 'IRR and timeline inputs';
-  const fieldShellClass = isEmbedded ? 'rounded-xl border border-white/10 bg-white/[0.04] p-2.5' : '';
+  const fieldShellClass = isEmbedded ? 'section-inner rounded-xl p-2.5' : '';
 
   return (
-    <section className={isEmbedded ? 'space-y-3' : 'rounded-2xl panel-surface p-3 shadow-soft sm:p-4'}>
+    <section className={isEmbedded ? 'space-y-3' : 'section-shell section-shell-projection rounded-2xl p-3 shadow-soft sm:p-4'}>
       {!hideHeader ? (
         <div className={isEmbedded ? 'space-y-1' : 'mb-3'}>
-          <p className={`uppercase tracking-[0.16em] ${isEmbedded ? 'text-[11px] text-muted' : 'text-xs text-accent'}`}>{eyebrow}</p>
+          <p className={`uppercase tracking-[0.16em] ${isEmbedded ? 'text-[11px] text-muted' : 'section-eyebrow-projection text-xs'}`}>{eyebrow}</p>
           <h3 className={`${isEmbedded ? 'text-base' : 'mt-1 text-lg'} font-semibold text-slate-100`}>{heading}</h3>
           <p className="text-sm text-muted">
             {isEmbedded
