@@ -11,6 +11,7 @@ interface StrategyModuleInputsProps {
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   animateContent?: boolean;
+  variant?: 'panel' | 'embedded';
 }
 
 export function StrategyModuleInputs({
@@ -20,8 +21,15 @@ export function StrategyModuleInputs({
   collapsible = false,
   collapsed = false,
   onToggleCollapsed,
-  animateContent = true
+  animateContent = true,
+  variant = 'panel'
 }: StrategyModuleInputsProps) {
+  const isEmbedded = variant === 'embedded';
+  const infoShellClassName = isEmbedded ? 'workbench-note' : 'section-inner rounded-xl p-3 text-sm text-muted';
+  const inlineCalloutClassName = isEmbedded ? 'workbench-note' : 'section-inner rounded-xl p-3';
+  const inlineSubsectionClassName = isEmbedded ? 'workbench-subsection' : 'section-inner rounded-xl p-3';
+  const inlineMutedPanelClassName = isEmbedded ? 'workbench-note sm:col-span-2' : 'section-inner-muted sm:col-span-2 rounded-lg p-3';
+
   const update = <T extends keyof DealInputModel, K extends keyof DealInputModel[T]>(section: T, field: K, nextValue: DealInputModel[T][K]) => {
     onChange({ ...model, [section]: { ...model[section], [field]: nextValue } });
   };
@@ -49,7 +57,7 @@ export function StrategyModuleInputs({
     if (active === 'purchase') {
       return (
         <div className="space-y-3">
-          <div className="section-inner rounded-xl p-3 text-sm text-muted">
+          <div className={infoShellClassName}>
             <p>Underwrite retail and strip-plaza deals with leased sq ft and annual $/sq ft rents.</p>
             <p className="mt-1 text-xs text-slate-300">
               Physical occupancy by leased area: <span className="font-semibold text-slate-100">{commercialOccupancyPercent.toFixed(1)}%</span>
@@ -143,7 +151,7 @@ export function StrategyModuleInputs({
     if (active === 'longTerm') {
       return (
         <div className="space-y-3">
-          <div className="section-inner rounded-xl p-3">
+          <div className={inlineCalloutClassName}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-slate-100">Buying this deal to turn it around?</p>
@@ -186,9 +194,9 @@ export function StrategyModuleInputs({
           </div>
 
           {model.longTerm.turnaround.enabled ? (
-            <section className="section-inner rounded-xl p-3">
+            <section className={inlineSubsectionClassName}>
               <div className="mb-2">
-                <p className="section-eyebrow-analysis text-xs uppercase tracking-wide">Stabilize Scenario (12-Month Underwrite)</p>
+                <p className="dashboard-kicker">Stabilize scenario (12-month underwrite)</p>
                 <p className="text-xs text-muted">Estimate year-one turnaround performance and value creation after repositioning.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -198,8 +206,8 @@ export function StrategyModuleInputs({
                   value={model.longTerm.turnaround.stabilizedGrossRentMonthly}
                   onChange={(v) => updateLongTermTurnaround('stabilizedGrossRentMonthly', Number(v))}
                 />
-                <div className="section-inner-muted sm:col-span-2 rounded-lg p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-200">Additional Income (Monthly)</p>
+                <div className={inlineMutedPanelClassName}>
+                  <p className="dashboard-kicker">Additional income (monthly)</p>
                   <p className="mb-2 text-[11px] text-muted">Group ancillary unit and property income in one place.</p>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <Input
@@ -393,13 +401,13 @@ export function StrategyModuleInputs({
   };
 
   return (
-    <section className="section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5">
+    <section className={isEmbedded ? 'workbench-panel' : 'section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5'}>
       {collapsible ? (
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-expanded={!collapsed}
-          className="tap-feedback section-inner mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left"
+          className={isEmbedded ? 'tap-feedback workbench-section-toggle' : 'tap-feedback section-inner mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left'}
         >
           <h3 className="text-base font-semibold">Rents</h3>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
@@ -407,8 +415,9 @@ export function StrategyModuleInputs({
           </span>
         </button>
       ) : (
-        <div className="mb-3">
+        <div className={isEmbedded ? 'workbench-panel-heading' : 'mb-3'}>
           <h3 className="text-base font-semibold">Rents</h3>
+          {isEmbedded ? <p className="dashboard-meta text-sm">Adjust the active strategy&apos;s revenue and operating assumptions here.</p> : null}
         </div>
       )}
 

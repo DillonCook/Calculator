@@ -62,14 +62,14 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
         : `Target IRR is set to ${targetIrrLabel}% from Inputs.`;
 
   return (
-    <section className="deal-workout-surface section-shell section-shell-analysis rounded-2xl p-3.5 sm:p-4">
+    <section className="deal-workout-surface results-hero-support section-shell-analysis">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
-          <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Make the deal work</p>
+          <p className="dashboard-kicker">Make the deal work</p>
           <h3 className="text-base font-semibold">Auto-adjust terms for this strategy</h3>
         </div>
         {strategy === 'flip' ? (
-          <div className="text-right text-[11px] text-muted">
+          <div className="dashboard-meta text-right text-[11px]">
             <p>Net proceeds: {currencyFormatter.format(recommendation.currentSaleProceeds)}</p>
           </div>
         ) : null}
@@ -99,14 +99,14 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
             return (
               <article
                 key={scenario.key}
-                className={isLoanDualFixLayout ? '' : 'section-inner rounded-xl p-3'}
+                className={isLoanDualFixLayout ? '' : 'dashboard-block rounded-xl p-3'}
               >
                 {!isLoanDualFixLayout ? <p className="text-sm font-medium">{scenario.title}</p> : null}
                 {shouldShowScenarioDescription ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
 
                 {isLoanDualFixLayout ? (
                   <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
-                    <div className="section-inner flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
+                    <div className="dashboard-block flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
                       <p className="text-xs font-semibold text-slate-100">{scenario.title}</p>
                       <button
                         type="button"
@@ -117,7 +117,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                       </button>
                       <p className="text-[11px] leading-tight text-muted">{scenario.description}</p>
                     </div>
-                    <div className="section-inner flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
+                    <div className="dashboard-block flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
                       <p className="text-xs font-semibold text-slate-100">Reduce Purchase Price</p>
                       <button
                         type="button"

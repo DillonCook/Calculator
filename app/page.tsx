@@ -944,7 +944,7 @@ export default function HomePage() {
     [compactSelectedStrategies]
   );
   const compactCompareSelection = compactProjectionStrategies;
-  const renderHeadlineMetricCard = (metricId: HeadlineMetricId, layout: 'default' | 'compact' = 'default'): ReactNode => {
+  const renderHeadlineMetricCard = (metricId: HeadlineMetricId, layout: 'default' | 'compact' | 'inline' = 'default'): ReactNode => {
     switch (metricId) {
       case 'cashToClose':
         return (
@@ -965,6 +965,7 @@ export default function HomePage() {
               }
             ]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       case 'capRate':
@@ -977,6 +978,7 @@ export default function HomePage() {
             helper="Annual NOI / current property value"
             winner={activeStrategyLabels[activeStrategy]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       case 'cashOnCash':
@@ -989,6 +991,7 @@ export default function HomePage() {
             helper="Annual cash flow / total cash invested"
             winner={activeStrategyLabels[activeStrategy]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       case 'dscr':
@@ -1002,6 +1005,7 @@ export default function HomePage() {
             helper="NOI / annual debt service"
             winner={activeStrategyLabels[activeStrategy]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       case 'roi':
@@ -1014,6 +1018,7 @@ export default function HomePage() {
             helper="Total profit / total cash invested"
             winner={activeStrategyLabels[activeStrategy]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       case 'irr':
@@ -1036,6 +1041,7 @@ export default function HomePage() {
               }
             ]}
             layout={layout}
+            inlineValueScale="large"
           />
         );
       default:
@@ -1127,7 +1133,7 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
-  const priorityMetricTitle = isFlipStrategy ? 'Net Sale Proceeds' : 'Monthly Cash Flow';
+  const priorityMetricTitle = isFlipStrategy ? 'Net sale proceeds' : 'Monthly cash flow';
   const priorityMetricSubtitle = isFlipStrategy ? 'Projected one-time proceeds after rehab, sale costs, and carry costs' : null;
   const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
 
@@ -3008,7 +3014,7 @@ export default function HomePage() {
   );
 
   const headlineMetricSection = (
-    <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+    <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
       <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
@@ -3066,8 +3072,11 @@ export default function HomePage() {
   );
 
   const desktopHeadlineMetricSection = (
-    <div className="relative border-t border-white/10 pt-3 lg:col-span-2">
-      <div className="absolute right-0 top-0 z-10 -translate-y-1/2">
+    <section className="dashboard-section-divider pt-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="dashboard-kicker">Key metrics</p>
+        </div>
         <button
           type="button"
           onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
@@ -3078,7 +3087,7 @@ export default function HomePage() {
       </div>
 
       {isHeadlineMetricOrderEditorOpen ? (
-        <div className="section-inner mb-3 space-y-1 rounded-lg p-2">
+        <div className="dashboard-block mb-2.5 space-y-1 rounded-lg p-2">
           {orderedHeadlineMetricIds.map((metricId, index) => {
             const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
 
@@ -3113,24 +3122,16 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
-        {orderedHeadlineMetricIds.map((metricId) => (
-          <div key={`desktop-headline-metric-${metricId}`} className="min-w-0 h-full [&>div]:h-full">
-            {renderHeadlineMetricCard(metricId, 'compact')}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-  const desktopInputViewportClassName =
-    'scrollbar-premium max-h-[min(58rem,calc(100vh-14rem))] overflow-y-auto pr-1 [overflow-anchor:none]';
-  const desktopWorkspaceShellClassName =
-    'grid gap-4 xl:grid-cols-[minmax(0,1.24fr)_minmax(360px,0.92fr)] 2xl:grid-cols-[minmax(0,1.3fr)_minmax(390px,0.88fr)]';
+      <div className="dashboard-summary-band">
+        <div className="dashboard-kpi-strip">
+          {orderedHeadlineMetricIds.map((metricId) => (
+            <div key={`desktop-headline-metric-${metricId}`} className="dashboard-kpi-strip-item">
+              {renderHeadlineMetricCard(metricId, 'inline')}
+            </div>
+          ))}
+        </div>
 
-  const desktopPerformanceDashboard = (
-    <section className="grid gap-4 xl:grid-cols-[minmax(340px,0.74fr)_minmax(0,1.26fr)] [overflow-anchor:none]">
-      <div className="space-y-2 [overflow-anchor:none]">
-        <div ref={irrStreamRef}>
+        <div ref={irrStreamRef} className="min-w-0">
           <TimelineCard
             output={result[activeStrategy]}
             assumptions={model.assumptions}
@@ -3139,29 +3140,38 @@ export default function HomePage() {
             summaryVariant="compact"
             onAssumptionsChange={updateAssumptions}
             showTargetIrrInput={showTargetIrrInput}
+            layoutVariant="strip"
           />
         </div>
       </div>
-
-      <div ref={desktopCompareSectionRef} className="[overflow-anchor:none]">
-        <StrategyComparison
-          data={result}
-          input={model}
-          holdYears={model.assumptions.holdYears}
-          visibleStrategies={compactCompareSelection}
-          inlineModelingViews
-          lockBoardOpen
-          onToggleVisibleStrategy={toggleCompactProjectionStrategy}
-        />
-      </div>
     </section>
+  );
+  const desktopInputViewportClassName =
+    'pr-1 [overflow-anchor:none]';
+  const desktopWorkspaceShellClassName =
+    'grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(36rem,1.1fr)] 2xl:grid-cols-[minmax(0,0.84fr)_minmax(40rem,1.16fr)]';
+  const desktopUtilityButtonClassName =
+    'header-utility-button tap-feedback shrink-0';
+
+  const desktopPerformanceDashboard = (
+    <div ref={desktopCompareSectionRef} className="[overflow-anchor:none]">
+      <StrategyComparison
+        data={result}
+        input={model}
+        holdYears={model.assumptions.holdYears}
+        visibleStrategies={compactCompareSelection}
+        inlineModelingViews
+        lockBoardOpen
+        onToggleVisibleStrategy={toggleCompactProjectionStrategy}
+      />
+    </div>
   );
 
   const compactResultsView = (
     <>
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div key={`strategy-headline-mobile-${activeStrategy}`} className="panel-swap space-y-4">
-          <div className="section-inner relative isolate overflow-hidden rounded-xl p-3 sm:p-4">
+          <div className="results-hero-main relative isolate">
             {!isFlipStrategy ? (
               <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                 <div
@@ -3227,11 +3237,11 @@ export default function HomePage() {
 
             <div className="relative z-10 pr-16">
               <div className="flex items-center gap-2">
-                <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">{priorityMetricTitle}</p>
+                <p className="dashboard-kicker">{priorityMetricTitle}</p>
                 {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
               </div>
-              {priorityMetricSubtitle ? <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p> : null}
-              <p className="section-eyebrow-projection absolute right-0 top-0 whitespace-nowrap text-xs italic tracking-wide">{activeStrategyLabel}</p>
+              {priorityMetricSubtitle ? <p className="dashboard-meta mt-1 text-sm">{priorityMetricSubtitle}</p> : null}
+              <span className="dashboard-pill absolute right-0 top-0 whitespace-nowrap">{activeStrategyLabel}</span>
             </div>
 
             <div className="relative z-10 mt-3 flex flex-col gap-3">
@@ -3283,32 +3293,32 @@ export default function HomePage() {
       {headlineMetricSection}
 
       {activeStrategy === 'purchase' && commercialSummary ? (
-        <section className="section-shell section-shell-analysis rounded-2xl p-3.5 sm:p-4">
-          <div className="mb-2 flex items-start justify-between gap-2">
+        <section className="results-hero-support">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Commercial dashboard</p>
-              <h3 className="text-base font-semibold">Pro underwriting signals</h3>
+              <p className="dashboard-kicker">Commercial snapshot</p>
+              <h3 className="mt-1 text-base font-semibold">Underwriting signals</h3>
             </div>
-            <div className="text-right text-[11px] text-muted">
+            <div className="dashboard-meta text-right text-[11px]">
               <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
               <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className="section-inner rounded-lg p-2.5">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
+          <div className="results-hero-support-grid mt-4 sm:grid-cols-3">
+            <div className="results-hero-stat">
+              <p className="dashboard-kicker text-[11px]">Occupancy headroom</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
               </p>
             </div>
-            <div className="section-inner rounded-lg p-2.5">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
+            <div className="results-hero-stat">
+              <p className="dashboard-kicker text-[11px]">Debt efficiency</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
               </p>
             </div>
-            <div className="section-inner rounded-lg p-2.5">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
+            <div className="results-hero-stat">
+              <p className="dashboard-kicker text-[11px]">Risk drag</p>
               <p className="mt-1 text-sm font-semibold text-slate-100">
                 {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
               </p>
@@ -3903,7 +3913,7 @@ export default function HomePage() {
         {!isMobileViewport ? (
         <header className={`app-header-shell section-shell section-shell-utility relative z-[110] overflow-visible rounded-2xl px-5 py-3 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
           <div className="space-y-2">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-6 xl:gap-8">
               <div className="min-w-0">
                 <div className="brand-lockup" aria-label="DealCooker">
                   <h1 className="brand-text leading-none">DealCooker</h1>
@@ -3911,85 +3921,116 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className={`min-w-0 flex-1 ${headerChromeMutedClass}`}>
-              <div ref={desktopHeaderActionsRef} className="section-inner relative overflow-visible flex flex-wrap items-center gap-2 rounded-xl px-2 py-2">
-                <button
-                  type="button"
-                  onClick={launchNewDeal}
-                  className="btn-primary inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold"
-                >
-                  New deal
-                </button>
-                <div className="section-inner flex min-w-[340px] max-w-[430px] flex-1 items-stretch overflow-hidden rounded-xl">
-                  <button
-                    ref={dealVaultRef}
-                    type="button"
-                    onClick={openDesktopDealVault}
-                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left"
-                    aria-label="Open deal vault"
-                  >
-                    <div className="min-w-0">
-                      <p className="header-deal-meta text-[10px] uppercase tracking-[0.14em]">Deal Vault</p>
-                      <p className="header-deal-name truncate text-sm font-semibold">{activeDealDisplayName}</p>
-                      <p className="header-deal-meta truncate text-[11px]">
-                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
-                      </p>
-                    </div>
-                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M7.5 4.5 12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
+              <div className={`min-w-0 flex-1 xl:pl-1 ${headerChromeMutedClass}`}>
+              <div ref={desktopHeaderActionsRef} className="header-toolbar relative overflow-visible">
+                <div className="header-primary-cluster">
                   <button
                     type="button"
-                    onClick={openDealIdentityEditor}
-                    className="header-deal-edit tap-feedback section-action section-action-utility inline-flex min-h-full shrink-0 items-center justify-center border-l border-white/10 px-3 text-sm font-medium"
-                    aria-label="Edit active deal details"
+                    onClick={launchNewDeal}
+                    className="btn-primary inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold"
                   >
-                    Edit
+                    New deal
                   </button>
+                  <div className="desktop-header-deal">
+                    <button
+                      ref={dealVaultRef}
+                      type="button"
+                      onClick={openDesktopDealVault}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                      aria-label="Open deal vault"
+                    >
+                      <div className="desktop-header-deal-copy">
+                        <p className="dashboard-kicker header-deal-meta">Deal vault</p>
+                        <p className="header-deal-name truncate text-sm font-semibold sm:text-base">{activeDealDisplayName}</p>
+                        <p className="header-deal-meta truncate text-[11px]">
+                          {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                        </p>
+                      </div>
+                      <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M7.5 4.5 12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openDealIdentityEditor}
+                      className={desktopUtilityButtonClassName}
+                      aria-label="Edit active deal details"
+                      title="Edit active deal details"
+                    >
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M4.5 13.75V16h2.25l7-7-2.25-2.25-7 7Z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="m10.5 6.5 2.25 2.25" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                {model.purchase.listingUrl ? (
-                  <Link
-                    href={normalizeListingUrl(model.purchase.listingUrl)}
-                    className="tap-feedback section-action section-action-utility btn-listing-active inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-100"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <span>View listing</span>
-                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
-                    </svg>
-                  </Link>
-                ) : (
+                <div ref={authControlsRef} className="header-utility-group relative overflow-visible">
+                  {model.purchase.listingUrl ? (
+                    <Link
+                      href={normalizeListingUrl(model.purchase.listingUrl)}
+                      className={`${desktopUtilityButtonClassName} btn-listing-active`}
+                      aria-label="View listing"
+                      title="View listing"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                      </svg>
+                      <span className="sr-only">View listing</span>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className={desktopUtilityButtonClassName}
+                      aria-label="View listing"
+                      title="View listing"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                      </svg>
+                      <span className="sr-only">View listing</span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    disabled
-                    className="section-action inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-muted/80 opacity-70"
+                    onClick={shareCurrentDeal}
+                    className={`${desktopUtilityButtonClassName} btn-link`}
+                    aria-label="Send link"
+                    title="Send link"
                   >
-                    View listing
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="m7.5 9.5 5 3" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="5.5" cy="10" r="1.5" />
+                      <circle cx="14.5" cy="6.5" r="1.5" />
+                      <circle cx="14.5" cy="13.5" r="1.5" />
+                    </svg>
+                    <span className="sr-only">Send link</span>
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={shareCurrentDeal}
-                  className="btn-primary btn-link inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
-                >
-                  Send link
-                </button>
-                <Link
-                  href={printToPdfUrl}
-                  className="btn-primary btn-pdf inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium"
-                  target="_blank"
-                >
-                  Print to PDF
-                </Link>
-                <div ref={authControlsRef} className="relative ml-auto flex shrink-0 justify-end overflow-visible">
+                  <Link
+                    href={printToPdfUrl}
+                    className={`${desktopUtilityButtonClassName} btn-pdf`}
+                    aria-label="Print to PDF"
+                    title="Print to PDF"
+                    target="_blank"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M6 6V3.75h8V6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M5.5 14H4.75A1.75 1.75 0 0 1 3 12.25V9.75A1.75 1.75 0 0 1 4.75 8h10.5A1.75 1.75 0 0 1 17 9.75v2.5A1.75 1.75 0 0 1 15.25 14H14.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M6 11.5h8v4.75H6z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="sr-only">Print to PDF</span>
+                  </Link>
+                  <span className="header-utility-divider" aria-hidden="true" />
                   <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
                     {currentUser ? (
                       <>
-                        <span className="header-status-badge inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                          Cloud: Active
+                        <span className="dashboard-pill">
+                          Cloud active
                         </span>
                         {renderProfileAvatar({ label: signedInAvatarLabel })}
                         <button
@@ -4085,8 +4126,9 @@ export default function HomePage() {
         {!isMobileViewport ? (
         <>
         <section ref={desktopResultsSectionRef} className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
-          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap grid gap-3 lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)] lg:items-stretch">
-            <div className="section-inner relative isolate overflow-hidden rounded-xl p-3 sm:p-4">
+          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap space-y-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch">
+            <div className="results-hero-main relative isolate">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                   <div
@@ -4149,88 +4191,90 @@ export default function HomePage() {
                   </svg>
                 </div>
               ) : null}
-              <div className="relative z-10 pr-20 sm:pr-24">
-                <div className="flex items-center gap-2">
-                  <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">{priorityMetricTitle}</p>
-                  {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
-                </div>
-                {priorityMetricSubtitle ? <p className="mt-1 text-sm text-muted">{priorityMetricSubtitle}</p> : null}
-                <div className="absolute right-0 top-0">
-                  <p className="section-eyebrow-projection text-xs italic tracking-wide">{activeStrategyLabel}</p>
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <p
-                  className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
-                  data-testid="kpi-priority-metric"
-                  style={priorityMetricNegativeStyle}
-                >
-                  {currencyFormatter.format(priorityMetricValue)}
-                </p>
-
-                {supportsReserveToggle ? (
-                  <div className="flex shrink-0 items-center sm:pb-1">
-                    <div className="reserve-toggle-shell inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
-                        }}
-                        aria-pressed={includeReserves}
-                        className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Include reserves
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
-                        }}
-                        aria-pressed={!includeReserves}
-                        className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
-                          !includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
-                        }`}
-                      >
-                        Exclude reserves
-                      </button>
+              <div className="relative z-10 flex flex-col gap-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 pr-3">
+                    <div className="flex items-center gap-2">
+                      <p className="dashboard-kicker">{priorityMetricTitle}</p>
+                      {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
                     </div>
+                    {priorityMetricSubtitle ? <p className="dashboard-meta mt-1 text-sm">{priorityMetricSubtitle}</p> : null}
                   </div>
-                ) : null}
+                  <span className="dashboard-pill shrink-0">{activeStrategyLabel}</span>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <p
+                    className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
+                    data-testid="kpi-priority-metric"
+                    style={priorityMetricNegativeStyle}
+                  >
+                    {currencyFormatter.format(priorityMetricValue)}
+                  </p>
+
+                  {supportsReserveToggle ? (
+                    <div className="flex shrink-0 items-center sm:pb-1">
+                      <div className="reserve-toggle-shell inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHapticFeedback('light');
+                            setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                          }}
+                          aria-pressed={includeReserves}
+                          className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                            includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Include reserves
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHapticFeedback('light');
+                            setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                          }}
+                          aria-pressed={!includeReserves}
+                          className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                            !includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                          }`}
+                        >
+                          Exclude reserves
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 
             {activeStrategy === 'purchase' && commercialSummary ? (
-              <section className="section-shell section-shell-analysis rounded-2xl p-3.5 sm:p-4">
-                <div className="mb-2 flex items-start justify-between gap-2">
+              <section className="results-hero-support">
+                <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Commercial dashboard</p>
-                    <h3 className="text-base font-semibold">Pro underwriting signals</h3>
+                    <p className="dashboard-kicker">Commercial snapshot</p>
+                    <h3 className="mt-1 text-base font-semibold">Underwriting signals</h3>
                   </div>
-                  <div className="text-right text-[11px] text-muted">
+                  <div className="dashboard-meta text-right text-[11px]">
                     <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
                     <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
                   </div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="section-inner rounded-lg p-2.5">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">Occupancy Headroom</p>
+                <div className="results-hero-support-grid mt-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                  <div className="results-hero-stat">
+                    <p className="dashboard-kicker text-[11px]">Occupancy headroom</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
                     </p>
                   </div>
-                  <div className="section-inner rounded-lg p-2.5">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">Debt Efficiency</p>
+                  <div className="results-hero-stat">
+                    <p className="dashboard-kicker text-[11px]">Debt efficiency</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
                     </p>
                   </div>
-                  <div className="section-inner rounded-lg p-2.5">
-                    <p className="text-[11px] uppercase tracking-wide text-muted">Risk Drag</p>
+                  <div className="results-hero-stat">
+                    <p className="dashboard-kicker text-[11px]">Risk drag</p>
                     <p className="mt-1 text-sm font-semibold text-slate-100">
                       {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
                     </p>
@@ -4245,16 +4289,16 @@ export default function HomePage() {
                 onApply={applyDealWorkoutScenario}
               />
             )}
-
+            </div>
             {desktopHeadlineMetricSection}
           </div>
         </section>
         {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
-          <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+          <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted">Commercial outputs</p>
-                <p className="hidden text-[11px] text-muted sm:block">Digest view for faster leasing and risk decisions</p>
+                <p className="dashboard-kicker">Commercial outputs</p>
+                <p className="dashboard-meta hidden text-[11px] sm:block">Digest view for faster leasing and risk decisions</p>
               </div>
               <button
                 type="button"
@@ -4265,7 +4309,7 @@ export default function HomePage() {
               </button>
             </div>
             {isCommercialOrderEditorOpen ? (
-              <div className="section-inner mb-2 space-y-1 rounded-lg p-2">
+              <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
                 {commercialDigestItems.map((item, index) => (
                   <div key={`order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                     <p className="truncate text-xs text-slate-200">
@@ -4298,8 +4342,8 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-1.5 sm:hidden">
               {mobileCommercialDigestItems.map((item) => (
-                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2 py-1.5">
-                  <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
+                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2 py-1.5">
+                  <p className="dashboard-meta truncate text-[10px]">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
                     style={getDigestMetricStyle(item)}
@@ -4321,8 +4365,8 @@ export default function HomePage() {
 
             <div className="hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-5">
               {commercialDigestItems.map((item) => (
-                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2.5 py-2">
-                  <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2.5 py-2">
+                  <p className="dashboard-meta truncate text-[11px]">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
                     style={getDigestMetricStyle(item)}
@@ -4335,11 +4379,11 @@ export default function HomePage() {
           </section>
         ) : null}
         {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
-          <section className="section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+          <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted">Long-term turnaround outputs</p>
-                <p className="hidden text-[11px] text-muted sm:block">12-month stabilization snapshot for multifamily turnaround decisions</p>
+                <p className="dashboard-kicker">Long-term turnaround outputs</p>
+                <p className="dashboard-meta hidden text-[11px] sm:block">12-month stabilization snapshot for multifamily turnaround decisions</p>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="section-tag section-tag-analysis">Stabilized</span>
@@ -4353,7 +4397,7 @@ export default function HomePage() {
               </div>
             </div>
             {isLongTermTurnaroundOrderEditorOpen ? (
-              <div className="section-inner mb-2 space-y-1 rounded-lg p-2">
+              <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
                 {longTermTurnaroundDigestItems.map((item, index) => (
                   <div key={`lt-order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
                     <p className="truncate text-xs text-slate-200">
@@ -4385,8 +4429,8 @@ export default function HomePage() {
             ) : null}
             <div className="grid grid-cols-2 gap-1.5 sm:hidden">
               {mobileLongTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2 py-1.5">
-                  <p className="truncate text-[9px] uppercase tracking-wide text-muted">{item.label}</p>
+                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2 py-1.5">
+                  <p className="dashboard-meta truncate text-[10px]">{item.label}</p>
                   <p
                     className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
                     style={getDigestMetricStyle(item)}
@@ -4407,8 +4451,8 @@ export default function HomePage() {
             ) : null}
             <div className="hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-4">
               {longTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="section-inner min-w-0 rounded-lg px-2.5 py-2">
-                  <p className="truncate text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2.5 py-2">
+                  <p className="dashboard-meta truncate text-[11px]">{item.label}</p>
                   <p
                     className="mt-1 truncate text-sm font-semibold text-slate-100"
                     style={getDigestMetricStyle(item)}
@@ -4422,35 +4466,41 @@ export default function HomePage() {
         ) : null}
 
         <div className={desktopWorkspaceShellClassName}>
-          <div className="space-y-4 [overflow-anchor:none]">
-            {!isMobileViewport ? (
-              <div ref={desktopStrategyTabsRef}>
-                <StrategyTabs
-                  active={activeStrategy}
-                  onChange={openDesktopStrategyWorkspace}
-                  quickScan={strategyQuickScan}
-                    actionSlot={
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerHapticFeedback('light');
-                          setIsStrategyWorkOpen(true);
-                        }}
-                        className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
-                      >
-                        Show work
-                      </button>
-                    }
-                />
-              </div>
-            ) : null}
+          <div className="space-y-4 xl:space-y-5 [overflow-anchor:none]">
             {desktopPerformanceDashboard}
           </div>
 
           {!isMobileViewport ? (
-            <div className="space-y-4 [overflow-anchor:none]">
-                <section className="section-shell section-shell-input rounded-2xl p-2 shadow-soft">
-                  <div aria-label="Desktop input workspace selection" role="tablist" className="grid grid-cols-3 gap-2">
+            <section className="desktop-input-rail section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
+              <div ref={desktopStrategyTabsRef} className="desktop-input-rail-section">
+                <div>
+                  <p className="desktop-input-rail-heading">Strategies</p>
+                </div>
+                <StrategyTabs
+                  active={activeStrategy}
+                  onChange={openDesktopStrategyWorkspace}
+                  quickScan={strategyQuickScan}
+                  embeddedInRail
+                  actionSlot={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setIsStrategyWorkOpen(true);
+                      }}
+                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
+                    >
+                      Show work
+                    </button>
+                  }
+                />
+              </div>
+
+              <div className="desktop-input-rail-section">
+                <div>
+                  <p className="desktop-input-rail-heading">Inputs</p>
+                </div>
+                <div aria-label="Desktop input workspace selection" role="tablist" className="desktop-input-switcher">
                     <button
                       ref={desktopDealSetupButtonRef}
                       type="button"
@@ -4490,12 +4540,13 @@ export default function HomePage() {
                           ? 'btn-selector btn-selector-input btn-selector-active text-white'
                           : 'btn-selector btn-selector-input text-slate-200'
                       }`}
-                  >
+                    >
                     Expenses
                   </button>
                 </div>
-              </section>
+              </div>
 
+              <div className="desktop-input-rail-section desktop-input-rail-workspace">
               <div ref={desktopCoreSectionRef} className={desktopInputWorkspace === 'dealSetup' ? 'block' : 'hidden'}>
                 <DealInputPanel
                   value={model}
@@ -4505,10 +4556,11 @@ export default function HomePage() {
                   forcedCoreSection="purchaseFinancing"
                   titleOverride="Purchase"
                   contentViewportClassName={desktopInputViewportClassName}
+                  variant="embedded"
                 />
               </div>
               <div ref={desktopStrategyInputsRef} className={desktopInputWorkspace === 'strategyInputs' ? 'block' : 'hidden'}>
-                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} />
+                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
               </div>
               <div ref={desktopExpensesSectionRef} className={desktopInputWorkspace === 'expenses' ? 'block' : 'hidden'}>
                 <DealInputPanel
@@ -4518,9 +4570,11 @@ export default function HomePage() {
                   defaultAdvancedOptionsOpen={false}
                   forcedCoreSection="expenses"
                   contentViewportClassName={desktopInputViewportClassName}
+                  variant="embedded"
                 />
               </div>
-            </div>
+              </div>
+            </section>
           ) : null}
         </div>
         </>

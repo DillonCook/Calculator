@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Input, PercentInput, Select, inputClass } from '@/components/dashboard/form-fields';
+import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
 
@@ -20,6 +20,7 @@ interface DealInputPanelProps {
   preferredCoreSection?: Exclude<CoreInputSection, 'known'>;
   titleOverride?: string;
   contentViewportClassName?: string;
+  variant?: 'panel' | 'embedded';
 }
 
 type CoreInputSection = 'purchaseFinancing' | 'expenses' | 'known';
@@ -69,6 +70,16 @@ const strategyToggleLabels: Record<ExpenseStrategyKey, string> = {
   padSplit: 'PadSplit',
   flip: 'Flip'
 };
+
+const strategyToggleCompactLabels: Record<ExpenseStrategyKey, string> = {
+  purchase: 'Comm',
+  longTerm: 'LTR',
+  airbnb: 'Airbnb',
+  padSplit: 'PadSplit',
+  flip: 'Flip'
+};
+
+const variableExpenseStrategyOrder: ExpenseStrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'flip'];
 
 const coreSectionMeta: Record<CoreInputSection, { title: string; summary: string }> = {
   purchaseFinancing: {
@@ -531,8 +542,10 @@ export function DealInputPanel({
   forcedCoreSection,
   preferredCoreSection,
   titleOverride,
-  contentViewportClassName
+  contentViewportClassName,
+  variant = 'panel'
 }: DealInputPanelProps) {
+  const isEmbedded = variant === 'embedded';
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
   const [knownDraft, setKnownDraft] = useState('');
@@ -683,17 +696,22 @@ export function DealInputPanel({
   const isPanelCollapsed = collapsible && collapsed;
   const resolvedCoreSection = forcedCoreSection ?? preferredCoreSection ?? activeCoreSection;
   const panelTitle = titleOverride ?? (forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Purchase');
+  const panelSummary = coreSectionMeta[resolvedCoreSection].summary;
   const showOwnershipModeToggle = forcedCoreSection !== 'expenses';
   const showCoreSectionTabs = !forcedCoreSection;
+  const contentSectionClassName = isEmbedded ? 'space-y-3' : 'section-inner rounded-xl p-2.5 sm:p-3';
+  const infoNoteClassName = isEmbedded ? 'workbench-note' : 'section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted';
+  const variableExpenseSectionClassName = isEmbedded ? 'workbench-subsection space-y-3' : 'section-inner mt-2.5 rounded-[1.35rem] p-3 sm:mt-3 sm:p-3.5';
+  const knownOverlayShellClassName = isEmbedded ? 'workbench-note' : 'section-inner-muted mt-2 rounded-lg p-2.5';
 
   return (
-    <section className={`section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
+    <section className={isEmbedded ? `workbench-panel ${contentViewportClassName ? 'flex flex-col' : ''}` : `section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
       {collapsible ? (
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-expanded={!collapsed}
-          className="tap-feedback section-inner mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left"
+          className={isEmbedded ? 'tap-feedback workbench-section-toggle' : 'tap-feedback section-inner mb-2.5 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left'}
         >
           <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
           <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
@@ -701,8 +719,9 @@ export function DealInputPanel({
           </span>
         </button>
       ) : (
-        <div className="mb-3 sm:mb-4">
+        <div className={isEmbedded ? 'workbench-panel-heading' : 'mb-3 sm:mb-4'}>
           <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
+          {isEmbedded ? <p className="dashboard-meta text-sm">{panelSummary}</p> : null}
         </div>
       )}
 
@@ -747,7 +766,7 @@ export function DealInputPanel({
 
             <div className="space-y-2.5 sm:space-y-3">
               {resolvedCoreSection === 'purchaseFinancing' ? (
-                <section className="section-inner rounded-xl p-2.5 sm:p-3">
+                <section className={contentSectionClassName}>
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   {!isOwnedMode ? (
                     <>
@@ -771,7 +790,7 @@ export function DealInputPanel({
                           ]}
                         />
                       ) : (
-                        <div className="section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted">
+                        <div className={infoNoteClassName}>
                           Cash mode selected. Debt service from purchase loan is excluded.
                         </div>
                       )}
@@ -809,7 +828,7 @@ export function DealInputPanel({
                         value={value.purchase.existingMortgageMonthly}
                         onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
                       />
-                      <div className="section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted sm:col-span-2">
+                      <div className={`${infoNoteClassName} sm:col-span-2`.trim()}>
                         Money down plus additional capital drive total invested, cash-on-cash, ROI, and IRR. Monthly cash flow uses your payment above, while balance, rate, and term model payoff, equity, and projected sale proceeds.
                       </div>
                       <Input
@@ -833,8 +852,8 @@ export function DealInputPanel({
                   )}
                 </div>
 
-                <div className="mt-2.5 sm:mt-3">
-                  <Section title="Advanced Options" defaultOpen={defaultAdvancedOptionsOpen}>
+                <div className={isEmbedded ? '' : 'mt-2.5 sm:mt-3'}>
+                  <Section title="Advanced Options" defaultOpen={defaultAdvancedOptionsOpen} variant={variant}>
                     <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                       <Input
                         label="HELOC amount"
@@ -866,14 +885,14 @@ export function DealInputPanel({
               ) : null}
 
               {resolvedCoreSection === 'expenses' ? (
-                <section className="section-inner rounded-xl p-2.5 sm:p-3">
+                <section className={contentSectionClassName}>
                 <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                   <Input label="HOA monthly" type="number" value={value.purchase.hoaMonthly} onChange={(v) => update('purchase', 'hoaMonthly', Number(v))} />
                   <Input label="PMI monthly" type="number" value={value.purchase.pmiMonthly} onChange={(v) => update('purchase', 'pmiMonthly', Number(v))} />
                 </div>
 
                 {!isOwnedMode ? (
-                  <div className="mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
+                  <div className={isEmbedded ? 'grid gap-2 sm:grid-cols-2 sm:gap-3' : 'mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3'}>
                     <Input
                       label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
                       type="number"
@@ -888,7 +907,7 @@ export function DealInputPanel({
                     />
                   </div>
                 ) : (
-                  <div className="mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3">
+                  <div className={isEmbedded ? 'grid gap-2 sm:grid-cols-2 sm:gap-3' : 'mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3'}>
                     <Input
                       label="Property tax / month"
                       type="number"
@@ -904,11 +923,11 @@ export function DealInputPanel({
                   </div>
                 )}
 
-                <div className="section-inner mt-2.5 rounded-[1.35rem] p-3 sm:mt-3 sm:p-3.5">
+                <div className={variableExpenseSectionClassName}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="section-eyebrow-analysis text-[11px] uppercase tracking-[0.16em]">Variable expenses</p>
-                      <p className="mt-1 text-[11px] text-muted">Build reusable expenses and decide which operating strategies each one impacts.</p>
+                      <p className={isEmbedded ? 'dashboard-kicker' : 'section-eyebrow-analysis text-[11px] uppercase tracking-[0.16em]'}>Variable expenses</p>
+                      <p className={isEmbedded ? 'dashboard-meta text-sm' : 'mt-1 text-[11px] text-muted'}>Build reusable expenses and decide which operating strategies each one impacts.</p>
                     </div>
                     <button
                       type="button"
@@ -919,89 +938,77 @@ export function DealInputPanel({
                     </button>
                   </div>
 
-                  <div className="mt-3 space-y-2.5">
+                  <div className="variable-expense-shell mt-3" aria-label="Variable expense editor">
+                    <div className="variable-expense-header" aria-hidden="true">
+                      <span>Expense</span>
+                      <span>Unit</span>
+                      <span>Amount</span>
+                      <span>Strategies</span>
+                      <span />
+                    </div>
+
+                    <div className="variable-expense-list">
                     {value.variableExpenses.map((expense, index) => {
                       const cadence = getExpenseCadence(expense.key);
                       const expenseLabel = expense.label.trim() || `Expense ${index + 1}`;
-                      const selectedStrategyCount = (Object.values(expense.appliesTo) as boolean[]).filter(Boolean).length;
 
                       return (
-                        <article
-                          key={expense.key}
-                          className="section-inner rounded-[1.15rem] p-2.5 sm:p-3"
-                        >
-                          <div className="flex items-start gap-2">
-                            <label className="block min-w-0 flex-1">
-                              <input
-                                aria-label={`Expense label ${index + 1}`}
-                                className={`${inputClass} input-accent-label px-3 py-2 text-sm font-semibold placeholder:text-muted/80 sm:text-base`}
-                                type="text"
-                                value={expense.label}
-                                onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
-                                placeholder={`Expense ${index + 1}`}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => removeVariableExpense(index)}
-                              aria-label={`Delete expense ${expenseLabel}`}
-                              className="tap-feedback inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg border border-rose-300/30 bg-rose-500/10 px-1.5 text-xs font-semibold leading-none text-rose-100 transition hover:bg-rose-500/20"
-                            >
-                              x
-                            </button>
-                          </div>
+                        <article key={expense.key} className="variable-expense-row">
+                          <label className="variable-expense-row-label">
+                            <span className="sr-only">Expense</span>
+                            <input
+                              aria-label={`Expense label ${index + 1}`}
+                              className="variable-expense-input"
+                              type="text"
+                              value={expense.label}
+                              onChange={(event) => updateVariableExpense(index, { label: event.target.value })}
+                              placeholder={`Expense ${index + 1}`}
+                            />
+                          </label>
 
-                          <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                            <label className="min-w-0 space-y-1">
-                              <span className="text-[11px] text-muted">Amount</span>
-                              <input
-                                aria-label={`${expenseLabel} amount`}
-                                className={`${inputClass} min-w-0 px-3 py-2 text-base [font-variant-numeric:tabular-nums] sm:text-lg`}
-                                type="number"
-                                value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
-                                onChange={(event) => {
-                                  const rawValue = Number(event.target.value);
-                                  const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
-                                  updateVariableExpense(index, {
-                                    monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
-                                  });
-                                }}
-                              />
-                            </label>
-
-                            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                              <div className="section-inner-muted grid grid-cols-2 overflow-hidden rounded-xl">
-                                {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
-                                  const active = cadence === mode;
-                                  return (
-                                    <button
-                                      key={mode}
-                                      type="button"
-                                      onClick={() => setExpenseCadence(expense.key, mode)}
-                                      aria-pressed={active}
-                                      aria-label={`${expenseLabel} ${mode} input cadence`}
-                                      title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
-                                      className={`tap-feedback min-h-9 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
-                                        active ? 'bg-cyan-300/15 text-cyan-100' : 'text-slate-300 hover:bg-white/[0.08]'
-                                      } ${mode === 'annual' ? 'border-l border-white/15' : ''}`}
-                                    >
-                                      {mode === 'monthly' ? 'Per month' : 'Per year'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-0.5 text-[10px] text-muted">
-                                {selectedStrategyCount} selected
-                              </span>
+                          <div className="variable-expense-row-cadence">
+                            <div className="variable-expense-cadence" role="group" aria-label={`${expenseLabel} cadence`}>
+                              {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
+                                const active = cadence === mode;
+                                return (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setExpenseCadence(expense.key, mode)}
+                                    aria-pressed={active}
+                                    aria-label={`${expenseLabel} ${mode} input cadence`}
+                                    title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
+                                    data-active={active}
+                                    className="variable-expense-cadence-btn tap-feedback"
+                                  >
+                                    {mode === 'monthly' ? 'Mo' : 'Yr'}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
-                          <div className="section-inner-muted mt-2.5 rounded-2xl p-2">
-                            <div className="mb-1.5 flex items-center justify-between gap-2">
-                              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Applies to</p>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {(Object.keys(strategyToggleLabels) as ExpenseStrategyKey[]).map((strategy) => {
+                          <label className="variable-expense-row-amount">
+                            <span className="sr-only">Amount</span>
+                            <input
+                              aria-label={`${expenseLabel} amount`}
+                              className="variable-expense-amount-input"
+                              type="number"
+                              step="0.01"
+                              value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
+                              onChange={(event) => {
+                                const rawValue = Number(event.target.value);
+                                const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
+                                updateVariableExpense(index, {
+                                  monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
+                                });
+                              }}
+                            />
+                          </label>
+
+                          <div className="variable-expense-row-strategies">
+                            <div className="variable-expense-strategies" role="group" aria-label={`${expenseLabel} strategies`}>
+                              {variableExpenseStrategyOrder.map((strategy) => {
                                 const active = expense.appliesTo[strategy];
                                 return (
                                   <button
@@ -1009,38 +1016,52 @@ export function DealInputPanel({
                                     type="button"
                                     aria-label={`${expenseLabel} applies to ${strategyToggleLabels[strategy]}`}
                                     aria-pressed={active}
+                                    data-active={active}
                                     onClick={() =>
                                       updateVariableExpense(index, {
                                         appliesTo: { ...expense.appliesTo, [strategy]: !active }
                                       })
                                     }
-                                    className={`flex min-h-8 items-center justify-center rounded-xl border px-2.5 py-1 text-[11px] font-medium transition ${
-                                      active
-                                        ? 'border-accent/70 bg-accent/20 text-accent'
-                                        : 'section-action text-slate-200'
-                                    }`}
+                                    className="variable-expense-chip tap-feedback"
                                   >
-                                    {strategyToggleLabels[strategy]}
+                                    <span
+                                      className="variable-expense-chip-label"
+                                      data-mobile-label={strategyToggleCompactLabels[strategy]}
+                                    >
+                                      {strategyToggleLabels[strategy]}
+                                    </span>
                                   </button>
                                 );
                               })}
                             </div>
                           </div>
+
+                          <div className="variable-expense-row-delete">
+                            <button
+                              type="button"
+                              onClick={() => removeVariableExpense(index)}
+                              aria-label={`Delete expense ${expenseLabel}`}
+                              className="variable-expense-delete tap-feedback"
+                            >
+                              <span aria-hidden="true">x</span>
+                            </button>
+                          </div>
                         </article>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
                 </section>
               ) : null}
 
               {resolvedCoreSection === 'known' ? (
-                <section className="section-inner rounded-xl p-2.5 sm:p-3">
+                <section className={contentSectionClassName}>
                 <div className="flex flex-col gap-2">
                   <div>
-                    <p className="section-eyebrow-analysis text-[11px] uppercase tracking-wider">Import</p>
+                    <p className={isEmbedded ? 'dashboard-kicker' : 'section-eyebrow-analysis text-[11px] uppercase tracking-wider'}>Import</p>
                     <h3 className="text-sm font-semibold text-slate-100 sm:text-base">Import T12/P&L</h3>
-                    <p className="text-[11px] text-muted">
+                    <p className={isEmbedded ? 'dashboard-meta text-sm' : 'text-[11px] text-muted'}>
                       Paste T12/P&L rows, preview auto-mapping, then apply imported values in analysis.
                     </p>
                   </div>
@@ -1060,7 +1081,7 @@ export function DealInputPanel({
                 />
                 <p className="mt-1 text-[11px] text-muted">All pasted P&L values are treated as annual totals.</p>
 
-                <div className="section-inner-muted mt-2 rounded-lg p-2.5">
+                <div className={knownOverlayShellClassName}>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
                     <p>Parsed Rows: {knownPreviewRows.length}</p>
                     <p>Mapped: {mappedKnownRows.length}</p>
@@ -1160,7 +1181,18 @@ export function DealInputPanel({
   );
 }
 
-function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function Section({
+  title,
+  children,
+  defaultOpen = true,
+  variant = 'panel'
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  variant?: 'panel' | 'embedded';
+}) {
+  const isEmbedded = variant === 'embedded';
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   useEffect(() => {
@@ -1168,12 +1200,12 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
   }, [defaultOpen]);
 
   return (
-    <section className="section-inner rounded-xl p-2.5 sm:p-3">
+    <section className={isEmbedded ? 'workbench-subsection' : 'section-inner rounded-xl p-2.5 sm:p-3'}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        className="tap-feedback section-inner-muted flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm"
+        className={isEmbedded ? 'tap-feedback workbench-section-toggle' : 'tap-feedback section-inner-muted flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm'}
       >
         <span>{title}</span>
         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/20 px-1.5 text-xs font-semibold text-slate-200 transition-transform duration-200">

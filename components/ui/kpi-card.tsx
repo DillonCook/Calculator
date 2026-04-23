@@ -25,7 +25,8 @@ interface KpiCardProps {
   backgroundChart?: 'none' | 'cashflowBars';
   chartSeries?: number[];
   valueTestId?: string;
-  layout?: 'default' | 'compact';
+  layout?: 'default' | 'compact' | 'inline';
+  inlineValueScale?: 'default' | 'large';
 }
 
 interface ChartPoint {
@@ -101,9 +102,12 @@ export function KpiCard({
   backgroundChart = 'none',
   chartSeries,
   valueTestId,
-  layout = 'default'
+  layout = 'default',
+  inlineValueScale = 'default'
 }: KpiCardProps) {
   const isCompact = layout === 'compact';
+  const isInline = layout === 'inline';
+  const useLargeInlineValue = isInline && inlineValueScale === 'large';
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const closeTooltipTimerRef = useRef<number | null>(null);
   const tooltipId = `kpi-tooltip-${slugify(label)}`;
@@ -213,8 +217,63 @@ export function KpiCard({
     []
   );
 
+  const tooltipTrigger = definitions?.length ? (
+    <div ref={tooltipAnchorRef} className="relative z-30 flex shrink-0 items-center">
+      <button
+        ref={tooltipTriggerRef}
+        type="button"
+        aria-label={`${label} definitions`}
+        aria-expanded={isTooltipOpen}
+        aria-controls={tooltipId}
+        className={`info-trigger inline-flex items-center justify-center rounded-full text-[10px] font-semibold ${isInline || isCompact ? 'h-[1.1rem] w-[1.1rem]' : 'h-5 w-5'}`}
+        onMouseEnter={openTooltip}
+        onMouseLeave={scheduleCloseTooltip}
+        onFocus={openTooltip}
+        onBlur={scheduleCloseTooltip}
+        onClick={() => {
+          clearCloseTooltipTimer();
+          setIsTooltipOpen((prev) => !prev);
+        }}
+      >
+        i
+      </button>
+
+      {isTooltipOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={tooltipPanelRef}
+              id={tooltipId}
+              role="dialog"
+              aria-modal="false"
+              className="tooltip-surface rounded-xl p-3 text-xs"
+              style={tooltipStyle}
+              onMouseEnter={openTooltip}
+              onMouseLeave={scheduleCloseTooltip}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-slate-300">{label} details</p>
+                <button
+                  type="button"
+                  className="tooltip-close rounded-md px-2 py-0.5 text-[11px]"
+                  onClick={() => setIsTooltipOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              {definitions.map((definition) => (
+                <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
+                  <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
+                </p>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  ) : null;
+
   return (
-    <div className={`relative min-w-0 overflow-visible card-surface shadow-soft ${isCompact ? 'rounded-xl p-2' : 'rounded-2xl p-2.5 sm:p-4'}`}>
+    <div className={`relative min-w-0 overflow-visible ${isInline ? 'kpi-strip-card px-3 py-2' : 'card-surface shadow-soft'} ${isInline ? '' : isCompact ? 'rounded-xl p-2.5' : 'rounded-2xl p-3 sm:p-4'}`}>
       {backgroundChart === 'cashflowBars' ? (
         <div className="pointer-events-none absolute inset-0 z-0 select-none">
           <div
@@ -258,78 +317,35 @@ export function KpiCard({
           </svg>
         </div>
       ) : null}
-      {definitions?.length ? (
-        <div ref={tooltipAnchorRef} className={`absolute z-30 ${isCompact ? 'right-1.5 top-1.5' : 'right-2.5 top-2.5 sm:right-3 sm:top-3'}`}>
-          <button
-            ref={tooltipTriggerRef}
-            type="button"
-            aria-label={`${label} definitions`}
-            aria-expanded={isTooltipOpen}
-            aria-controls={tooltipId}
-            className={`info-trigger inline-flex items-center justify-center rounded-full text-[10px] font-semibold ${isCompact ? 'h-[1.1rem] w-[1.1rem]' : 'h-5 w-5'}`}
-            onMouseEnter={openTooltip}
-            onMouseLeave={scheduleCloseTooltip}
-            onFocus={openTooltip}
-            onBlur={scheduleCloseTooltip}
-            onClick={() => {
-              clearCloseTooltipTimer();
-              setIsTooltipOpen((prev) => !prev);
-            }}
-          >
-            i
-          </button>
-
-          {isTooltipOpen && typeof document !== 'undefined'
-            ? createPortal(
-                <div
-                  ref={tooltipPanelRef}
-                  id={tooltipId}
-                  role="dialog"
-                  aria-modal="false"
-                  className="tooltip-surface rounded-xl p-3 text-xs"
-                  style={tooltipStyle}
-                  onMouseEnter={openTooltip}
-                  onMouseLeave={scheduleCloseTooltip}
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{label} details</p>
-                    <button
-                      type="button"
-                      className="tooltip-close rounded-md px-2 py-0.5 text-[11px]"
-                      onClick={() => setIsTooltipOpen(false)}
-                    >
-                      Close
-                    </button>
-                  </div>
-                  {definitions.map((definition) => (
-                    <p key={definition.term} className="leading-relaxed [&:not(:first-child)]:mt-2">
-                      <span className="font-semibold text-white">{definition.term}:</span> {definition.description}
-                    </p>
-                  ))}
-                </div>,
-                document.body
-              )
-            : null}
+      <div className={`relative z-10 min-w-0 ${isInline ? 'flex justify-center' : ''}`}>
+        <div className={`inline-flex min-w-0 max-w-full items-center ${isInline ? 'justify-center gap-1' : 'gap-1.5'}`}>
+          <p className={`dashboard-kicker min-w-0 truncate font-semibold leading-tight ${isInline ? 'kpi-strip-label text-center text-[11px] sm:text-xs' : isCompact ? 'text-[clamp(0.9rem,1.5vw,1.08rem)]' : 'text-[clamp(0.98rem,1.7vw,1.18rem)] sm:text-[1.06rem]'}`}>{label}</p>
+          {tooltipTrigger}
         </div>
-      ) : null}
-
-      <div className={`relative z-10 flex min-w-0 items-center gap-2 ${isCompact ? 'pr-[1.125rem]' : 'pr-6 sm:pr-7'}`}>
-        <p className={`min-w-0 truncate font-semibold uppercase leading-tight tracking-[0.08em] text-muted ${isCompact ? 'text-[clamp(0.95rem,1.6vw,1.14rem)]' : 'text-[clamp(1rem,1.95vw,1.26rem)] sm:text-[1.12rem]'}`}>{label}</p>
       </div>
 
-      {winner ? (
+      {winner && !isInline ? (
         <p
-          className={`relative z-10 italic tracking-wide text-accent/90 ${isCompact ? 'mt-0.5 truncate text-[10px]' : 'mt-1 text-[11px] sm:text-xs'}`}
+          className={`dashboard-meta relative z-10 font-medium ${isCompact ? 'mt-0.5 truncate text-[10px]' : 'mt-1 text-[11px] sm:text-xs'}`}
           aria-label={`${label} strategy context`}
         >
           {winner}
         </p>
       ) : null}
+      {winner && isInline ? <span className="sr-only" aria-label={`${label} strategy context`}>{winner}</span> : null}
 
       <p
         ref={primaryValueRef}
-        className={`relative z-10 font-semibold leading-tight ${tone === 'success' ? 'text-emerald-300' : 'text-white'} ${
-          isCompact ? 'mt-0.5 text-[clamp(1.22rem,2.1vw,1.72rem)] 2xl:text-[1.9rem]' : 'mt-1 text-[clamp(1.4rem,7vw,2.3rem)] sm:text-[2.7rem] md:text-[3.35rem]'
+        className={`relative z-10 font-semibold leading-tight ${
+          isInline ? (tone === 'success' ? 'kpi-strip-value kpi-strip-value-success' : 'kpi-strip-value') : tone === 'success' ? 'text-emerald-300' : 'text-white'
+        } ${
+          isInline
+            ? useLargeInlineValue
+              ? 'mt-0.5 text-center text-[1.16rem] sm:text-[1.28rem] xl:text-[1.42rem] 2xl:text-[1.5rem]'
+              : 'mt-0.5 text-center text-[1.08rem] sm:text-[1.2rem] xl:text-[1.3rem] 2xl:text-[1.36rem]'
+            : isCompact
+              ? 'mt-0.5 text-[clamp(1.22rem,2.1vw,1.72rem)] 2xl:text-[1.9rem]'
+              : 'mt-1 text-[clamp(1.4rem,7vw,2.3rem)] sm:text-[2.7rem] md:text-[3.35rem]'
         }`}
         data-testid={valueTestId ?? `kpi-${slugify(label)}`}
         style={negativeValueStyle}
@@ -338,19 +354,32 @@ export function KpiCard({
       </p>
 
       {secondaryLabel && secondaryValue ? (
-        <div className={`section-inner relative z-10 rounded-lg ${isCompact ? 'mt-1 px-2 py-1' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
-          <p className={`uppercase tracking-wide text-muted ${isCompact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'}`}>{secondaryLabel}</p>
-          <p
-            ref={secondaryValueRef}
-            className={`font-semibold text-white ${isCompact ? 'text-xs' : 'text-sm sm:text-[1.05rem]'}`}
-            data-testid={`kpi-${slugify(secondaryLabel)}`}
-          >
-            {secondaryValue}
-          </p>
-        </div>
+        isInline ? (
+          <div className="relative z-10 mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <p className="dashboard-meta text-[10px]">{secondaryLabel}</p>
+            <p
+              ref={secondaryValueRef}
+              className="kpi-strip-secondary-value text-[10px] font-semibold"
+              data-testid={`kpi-${slugify(secondaryLabel)}`}
+            >
+              {secondaryValue}
+            </p>
+          </div>
+        ) : (
+          <div className={`section-inner-muted relative z-10 rounded-lg ${isCompact ? 'mt-1 px-2 py-1.5' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
+            <p className={`dashboard-meta ${isCompact ? 'text-[10px]' : 'text-[11px] sm:text-xs'}`}>{secondaryLabel}</p>
+            <p
+              ref={secondaryValueRef}
+              className={`font-semibold text-white ${isCompact ? 'text-xs' : 'text-sm sm:text-[1.05rem]'}`}
+              data-testid={`kpi-${slugify(secondaryLabel)}`}
+            >
+              {secondaryValue}
+            </p>
+          </div>
+        )
       ) : null}
 
-      {helper ? <p className={`relative z-10 text-muted ${isCompact ? 'mt-0.5 text-[9px] leading-[1.35]' : 'mt-2 text-[11px] sm:text-xs'}`}>{helper}</p> : null}
+      {helper && !isInline ? <p className={`dashboard-meta relative z-10 ${isCompact ? 'mt-1 text-[10px] leading-[1.35]' : 'mt-2 text-[11px] sm:text-xs'}`}>{helper}</p> : null}
     </div>
   );
 }

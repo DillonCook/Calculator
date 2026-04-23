@@ -117,7 +117,7 @@ export function StrategyComparison({
           <article
             key={`inline-compare-${row.key}`}
             aria-label={`${row.label} projection card`}
-            className="panel-swap section-shell section-shell-projection relative overflow-hidden rounded-[1.55rem] p-4 shadow-soft sm:p-5"
+            className="panel-swap section-shell section-shell-projection relative overflow-hidden rounded-[1.4rem] p-4 shadow-soft sm:p-5"
             style={{ animationDelay: `${80 + index * 42}ms` }}
           >
             <div
@@ -130,10 +130,10 @@ export function StrategyComparison({
             />
 
             <div className="relative z-10 space-y-3 sm:space-y-4">
-              <section className="section-inner rounded-[1.25rem] p-3.5">
+              <section className="dashboard-block rounded-[1.15rem] p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-accent/90">{row.label}</p>
+                    <p className="dashboard-kicker text-accent/90">{row.label}</p>
                     <p
                       className={`mt-2 text-[2rem] font-semibold leading-none tracking-tight ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
                       style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
@@ -144,20 +144,20 @@ export function StrategyComparison({
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-[11px]">
-                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                    <span className="dashboard-pill">
                       IRR {percentFormatter.format(output.irr)}
                     </span>
-                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                    <span className="dashboard-pill">
                       DSCR {output.dscr.toFixed(2)}
                     </span>
-                    <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-slate-200">
+                    <span className="dashboard-pill">
                       Hold {formatHoldLabel(equityRow.holdMonths)}
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-3">
-                  <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.16em] text-muted">
+                  <div className="dashboard-meta mb-1.5 flex items-center justify-between gap-2 text-[10px]">
                     <span>Cash-flow strength</span>
                     <span>{isPositive ? 'Positive carry' : 'Negative carry'}</span>
                   </div>
@@ -199,10 +199,10 @@ export function StrategyComparison({
               </section>
 
               <div className="grid gap-3 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <section className="section-inner rounded-[1.2rem] p-3">
+                <section className="dashboard-block rounded-[1.1rem] p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="section-eyebrow-analysis text-[10px] uppercase tracking-[0.16em]">Equity</p>
+                      <p className="dashboard-kicker text-[10px]">Equity</p>
                       <p
                         className={`mt-1 text-sm font-semibold ${equityRow.modeledProfit >= 0 ? 'text-emerald-300' : 'text-rose-200'}`}
                         style={getNegativeValueStyle(equityRow.modeledProfit, { kind: 'currency' })}
@@ -211,7 +211,7 @@ export function StrategyComparison({
                         {currencyFormatter.format(equityRow.modeledProfit)} modeled profit
                       </p>
                     </div>
-                    <div className="text-right text-[10px] text-muted">
+                    <div className="dashboard-meta text-right text-[10px]">
                       <p>{currencyFormatter.format(equityRow.exitCashReturned)} {equityRow.exitLabel.toLowerCase()}</p>
                       <p>{formatHoldLabel(equityRow.holdMonths)}</p>
                     </div>
@@ -229,13 +229,13 @@ export function StrategyComparison({
                   </div>
                 </section>
 
-                <section className="section-inner rounded-[1.2rem] p-3">
+                <section className="dashboard-block rounded-[1.1rem] p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
-                      <p className="section-eyebrow-projection text-[10px] uppercase tracking-[0.16em]">Cash flow trend</p>
-                      <p className="mt-1 text-[10px] text-muted">Operating cash flow only.</p>
+                      <p className="dashboard-kicker text-[10px]">Cash flow trend</p>
+                      <p className="dashboard-meta mt-1 text-[10px]">Operating cash flow only.</p>
                     </div>
-                    <p className="text-[10px] text-muted">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
+                    <p className="dashboard-meta text-[10px]">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
                   </div>
                   <CashFlowGraph points={cashFlowRow.chartPoints} compact />
                 </section>
@@ -278,7 +278,7 @@ export function StrategyComparison({
         return (
           <div
             key={row.key}
-            className="section-inner rounded-xl p-3"
+            className="dashboard-block rounded-xl p-3"
           >
             <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <p className="min-w-0 text-sm font-medium">{row.label}</p>
@@ -296,7 +296,7 @@ export function StrategyComparison({
                     style={{ width: `${barWidth}%` }}
                   />
                 </div>
-            <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted sm:grid-cols-5">
+            <div className="dashboard-meta mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs sm:grid-cols-5">
               <span className="text-center">
                 CoC <span style={getNegativeValueStyle(output.cashOnCashReturn, { kind: 'percent' })}>{percentFormatter.format(output.cashOnCashReturn)}</span>
               </span>
@@ -335,7 +335,7 @@ export function StrategyComparison({
   const equityModelingContent = (
     <div className="grid gap-3 sm:grid-cols-2">
       {equityRows.map((row) => (
-        <div key={row.key} className="section-inner rounded-xl p-3">
+        <div key={row.key} className="dashboard-block rounded-xl p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
             <p
@@ -357,7 +357,7 @@ export function StrategyComparison({
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+          <div className="dashboard-meta mt-3 grid grid-cols-2 gap-2 text-xs">
             <p>
               Cash to close <span className="ml-1 text-white">{currencyFormatter.format(data.masterSummary.cashToClose)}</span>
             </p>
@@ -385,10 +385,10 @@ export function StrategyComparison({
   const cashFlowModelingContent = (
     <div className="grid gap-3 sm:grid-cols-2">
       {cashFlowRows.map((row) => (
-        <div key={row.key} className="section-inner rounded-xl p-3">
+        <div key={row.key} className="dashboard-block rounded-xl p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
-            <p className="text-xs text-muted">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
+            <p className="dashboard-meta text-xs">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
           </div>
           <CashFlowGraph points={row.chartPoints} />
         </div>
@@ -401,10 +401,10 @@ export function StrategyComparison({
       <section aria-label="Strategy comparison board" className="section-shell section-shell-projection min-w-0 max-w-full overflow-hidden rounded-2xl p-3 shadow-soft sm:p-5">
         {inlineModelingViews ? (
           showInlineHeader ? (
-            <div className="section-inner mb-4 rounded-[1.35rem] p-4">
+            <div className="dashboard-block mb-4 rounded-[1.2rem] p-4">
               <div>
                 <div>
-                  <p className="section-eyebrow-projection text-[11px] uppercase tracking-[0.16em]">Projections board</p>
+                  <p className="dashboard-kicker">Projections board</p>
                   <h2 className="mt-1 text-lg font-semibold text-slate-100">Compare modeled outcomes side by side</h2>
                 </div>
               </div>
@@ -434,12 +434,12 @@ export function StrategyComparison({
             </div>
           ) : null
         ) : !hideHeader && lockBoardOpen ? (
-          <div className="section-inner mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 text-left">
+          <div className="dashboard-block mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 text-left">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Projections Board</p>
+              <p className="dashboard-kicker">Projections board</p>
               <h2 className="text-lg font-semibold sm:text-xl">Compare selected strategies at a glance</h2>
             </div>
-            <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+            <span className="dashboard-pill">
               {rows.length} exits
             </span>
           </div>
@@ -447,14 +447,14 @@ export function StrategyComparison({
           <button
             type="button"
             aria-expanded={isBoardOpen}
-            className={`tap-feedback section-inner flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
+            className={`tap-feedback dashboard-block flex w-full list-none flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-2 text-left ${isBoardOpen ? 'mb-4' : 'mb-0'}`}
             onClick={() => setIsBoardOpen((prev) => !prev)}
           >
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Projections Board</p>
+              <p className="dashboard-kicker">Projections board</p>
               <h2 className="text-lg font-semibold sm:text-xl">Compare selected strategies at a glance</h2>
             </div>
-            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            <span className="dashboard-pill inline-flex h-7 min-w-7 items-center justify-center px-2 text-sm font-semibold transition-transform duration-200">
               {isBoardOpen ? '-' : '+'}
             </span>
           </button>
@@ -479,7 +479,7 @@ export function StrategyComparison({
           <div className="section-shell section-shell-projection max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Master Summary</p>
+                <p className="dashboard-kicker">Master summary</p>
                 <h3 className="text-xl font-semibold">Equity modeling by strategy</h3>
                 <p className="text-xs text-muted">Modeled Exit combines hold-period cash flow with projected sale proceeds. Break-even if selling tests the earliest month a sale would return your total invested capital.</p>
               </div>
@@ -507,7 +507,7 @@ export function StrategyComparison({
           <div className="section-shell section-shell-projection max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl p-5 shadow-soft">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="section-eyebrow-projection text-xs uppercase tracking-wider">Master Summary</p>
+                <p className="dashboard-kicker">Master summary</p>
                 <h3 className="text-xl font-semibold">Cash flow modeling by strategy</h3>
                 <p className="text-xs text-muted">Cash-flow-only view removes the exit event from the final period so you can read operating performance on its own.</p>
               </div>

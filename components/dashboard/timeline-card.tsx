@@ -14,6 +14,7 @@ interface TimelineCardProps {
   summaryVariant?: 'cards' | 'compact';
   onAssumptionsChange?: (updates: Partial<MasterAssumptions>) => void;
   showTargetIrrInput?: boolean;
+  layoutVariant?: 'panel' | 'strip';
 }
 
 export function TimelineCard({
@@ -23,7 +24,8 @@ export function TimelineCard({
   collapsible = true,
   summaryVariant = 'cards',
   onAssumptionsChange,
-  showTargetIrrInput = false
+  showTargetIrrInput = false,
+  layoutVariant = 'panel'
 }: TimelineCardProps) {
   const [isIrrTooltipOpen, setIsIrrTooltipOpen] = useState(false);
   const closeTooltipTimerRef = useRef<number | null>(null);
@@ -99,6 +101,7 @@ export function TimelineCard({
 
   const isExpanded = collapsible ? isOpen : true;
   const showEmbeddedAssumptions = Boolean(onAssumptionsChange);
+  const isStrip = layoutVariant === 'strip';
   const compactReferenceItems = [
     { label: 'Hold', value: `${assumptions.holdYears}y` },
     { label: 'NOI', value: percentFormatter.format(assumptions.noiGrowthPercent) },
@@ -137,7 +140,7 @@ export function TimelineCard({
               onMouseLeave={scheduleCloseTooltip}
             >
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">IRR stream details</p>
+                <p className="text-[11px] font-semibold text-slate-300">IRR stream details</p>
                 <button
                   type="button"
                   className="tooltip-close tap-feedback rounded-md px-2 py-0.5 text-[11px]"
@@ -162,10 +165,10 @@ export function TimelineCard({
   const timelineContent = (
     <>
       {showEmbeddedAssumptions ? (
-        <div className="section-inner relative rounded-[1.45rem] p-3 shadow-soft sm:p-4">
+        <div className="dashboard-block relative rounded-[1.35rem] p-3 shadow-soft sm:p-4">
           <div className="pr-12 sm:pr-14">
             <div>
-              <p className="section-eyebrow-projection text-[11px] uppercase tracking-[0.16em]">IRR stream</p>
+              <p className="dashboard-kicker">IRR stream</p>
               <h3 className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-100 sm:text-base md:text-lg">Hold and exit assumptions</h3>
             </div>
           </div>
@@ -185,13 +188,13 @@ export function TimelineCard({
 
       {!showEmbeddedAssumptions ? (
         summaryVariant === 'compact' ? (
-          <div className="section-inner mt-3 rounded-xl px-3 py-2.5">
+          <div className="dashboard-block mt-3 rounded-xl px-3 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Internal Rate of Return Assumptions</p>
+              <p className="dashboard-kicker">Internal rate of return assumptions</p>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+            <div className="dashboard-meta mt-2 flex flex-wrap gap-2 text-[11px]">
               {compactReferenceItems.map((item) => (
-                <span key={item.label} className="rounded-full border border-white/10 bg-black/20 px-2 py-1">
+                <span key={item.label} className="dashboard-pill px-2 py-1">
                   {item.label}: <span className="text-slate-100">{item.value}</span>
                 </span>
               ))}
@@ -209,8 +212,8 @@ export function TimelineCard({
 
       <div className="scrollbar-premium mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
         {output.cashFlowTimeline.map((flow, index) => (
-          <div key={index} className="section-inner rounded-lg p-2 text-sm">
-            <p className="text-xs text-muted">Year {index}</p>
+          <div key={index} className="dashboard-block rounded-lg p-2 text-sm">
+            <p className="dashboard-meta text-xs">Year {index}</p>
             <p
               className={`mt-1 font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
               style={getNegativeValueStyle(flow, { kind: 'currency' })}
@@ -223,6 +226,64 @@ export function TimelineCard({
     </>
   );
 
+  const stripTimelineContent = (
+    <section className="dashboard-irr-strip min-w-0 overflow-hidden">
+      <div className="dashboard-irr-strip-header relative flex min-w-0 items-start justify-between gap-3 pr-12 sm:pr-14">
+        <div className="min-w-0">
+          <p className="dashboard-kicker">IRR stream</p>
+          <p className="dashboard-meta mt-0.5 text-xs sm:text-sm">Edit hold and exit assumptions, then skim the yearly cash flow path without giving up board width.</p>
+        </div>
+        {renderIrrTooltipControl('absolute right-0 top-0 z-10')}
+      </div>
+
+      <div className="mt-2.5">
+        {showEmbeddedAssumptions ? (
+          <AssumptionsPanel
+            assumptions={assumptions}
+            onChange={onAssumptionsChange!}
+            showTargetIrrInput={showTargetIrrInput}
+            variant="inline"
+            hideHeader
+          />
+        ) : (
+          <div className="dashboard-meta flex flex-wrap gap-2 text-[11px]">
+            {compactReferenceItems.map((item) => (
+              <span key={item.label} className="dashboard-pill px-2 py-1">
+                {item.label}: <span className="text-slate-100">{item.value}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="dashboard-section-divider mt-2.5 pt-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="dashboard-kicker">Projected annual cash flow</p>
+          <p className="dashboard-meta text-[11px]">Years 0 through {Math.max(output.cashFlowTimeline.length - 1, 0)}</p>
+        </div>
+        <div className="scrollbar-premium mt-2 overflow-x-auto pb-1">
+          <div className="dashboard-irr-strip-flow-row">
+            {output.cashFlowTimeline.map((flow, index) => (
+              <article key={index} className="dashboard-irr-flow-chip">
+                <p className="dashboard-meta text-xs">Year {index}</p>
+                <p
+                  className={`mt-1 text-sm font-semibold ${flow >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
+                  style={getNegativeValueStyle(flow, { kind: 'currency' })}
+                >
+                  {currencyFormatter.format(flow)}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  if (isStrip) {
+    return stripTimelineContent;
+  }
+
   return (
     <section className="section-shell section-shell-projection min-w-0 max-w-full overflow-visible rounded-2xl p-3 shadow-soft sm:p-5">
       {collapsible ? (
@@ -230,7 +291,7 @@ export function TimelineCard({
           role="button"
           tabIndex={0}
           aria-expanded={isExpanded}
-          className={`tap-feedback section-inner relative flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 pr-12 sm:pr-14 ${isExpanded ? 'mb-4' : 'mb-0'}`}
+          className={`tap-feedback dashboard-block relative flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-xl px-3 py-2 pr-12 sm:pr-14 ${isExpanded ? 'mb-4' : 'mb-0'}`}
           onClick={() => setIsOpen((prev) => !prev)}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -239,20 +300,20 @@ export function TimelineCard({
           }}
         >
           <div>
-            <p className="text-xs uppercase tracking-wider text-muted">Cash Flow Timeline</p>
+            <p className="dashboard-kicker">Cash flow timeline</p>
             <h3 className="text-lg font-semibold sm:text-xl">IRR Stream</h3>
           </div>
           <div className="flex shrink-0 items-center gap-2 self-start">
-            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/15 bg-black/20 px-2 text-sm font-semibold text-slate-200 transition-transform duration-200">
+            <span className="dashboard-pill inline-flex h-7 min-w-7 items-center justify-center px-2 text-sm font-semibold transition-transform duration-200">
               {isExpanded ? '-' : '+'}
             </span>
           </div>
           {renderIrrTooltipControl('absolute right-3 top-2.5 z-10 sm:right-3 sm:top-3')}
         </div>
       ) : !showEmbeddedAssumptions ? (
-        <div className="section-inner relative mb-4 rounded-xl px-3 py-2 pr-12 sm:pr-14">
+        <div className="dashboard-block relative mb-4 rounded-xl px-3 py-2 pr-12 sm:pr-14">
           <div>
-            <p className="text-xs uppercase tracking-wider text-muted">Cash Flow Timeline</p>
+            <p className="dashboard-kicker">Cash flow timeline</p>
             <h3 className="text-lg font-semibold sm:text-xl">IRR Stream</h3>
           </div>
           {renderIrrTooltipControl('absolute right-3 top-2.5 z-10 sm:right-3 sm:top-3')}
@@ -272,8 +333,8 @@ export function TimelineCard({
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <article className="section-inner rounded-lg px-3 py-2">
-      <p className="text-xs text-muted">{label}</p>
+    <article className="dashboard-block rounded-lg px-3 py-2">
+      <p className="dashboard-meta text-xs">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
     </article>
   );

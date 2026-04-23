@@ -84,7 +84,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   );
 
   return (
-    <span ref={fieldLabelRef} className="relative flex items-center gap-1 text-[11px] text-muted sm:text-xs">
+    <span ref={fieldLabelRef} className="dashboard-field-label relative flex items-center gap-1 text-muted sm:text-[0.81rem]">
       <span>{label}</span>
       {tooltip ? (
         <span className="relative inline-flex items-center">

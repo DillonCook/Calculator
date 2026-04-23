@@ -52,7 +52,8 @@ import { currencyFormatter, percentFormatter } from '../lib/formatters';
 import { createScenarioRecord, writeScenarios } from '../lib/scenario-storage';
 import { encodeDealToShareParam } from '../lib/share-link';
 
-const getStrategyButton = (label: string) => screen.getAllByRole('button', { name: label })[0];
+const getStrategyButton = (label: string) =>
+  within(screen.getByLabelText('Desktop strategy selector')).getByRole('button', { name: label });
 const getStrategyInputsWorkspace = () => screen.getByLabelText('Rents workspace');
 const setViewport = (width: number) => {
   Object.defineProperty(window, 'innerWidth', {
@@ -621,7 +622,7 @@ describe('dashboard integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Timeline' });
 
     expect(within(dialog).getByRole('button', { name: 'IRR stream explanation' })).toBeInTheDocument();
-    expect(within(dialog).getByText('Internal Rate of Return Assumptions')).toBeInTheDocument();
+    expect(within(dialog).getByText('Internal rate of return assumptions')).toBeInTheDocument();
     expect(within(dialog).queryByText(/Years 0 - \d+/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Hold years')).not.toBeInTheDocument();
   });
@@ -647,6 +648,7 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('Flip'));
     expect(within(getStrategyInputsWorkspace()).getByLabelText('Flip hold months')).toBeInTheDocument();
+    expect(screen.getByText('Projected annual cash flow')).toBeInTheDocument();
 
     const holdYears = screen.getByLabelText('Hold years', { selector: 'input' });
     await user.clear(holdYears);
@@ -719,7 +721,7 @@ describe('dashboard integration', () => {
     const excludeValue = currencyFormatter.format(airbnbResult.monthlyCashFlowExcludingReserves ?? airbnbResult.monthlyCashFlow);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(includeValue);
-    expect(screen.getByText('Monthly Cash Flow')).toBeInTheDocument();
+    expect(screen.getByText('Monthly cash flow')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Exclude reserves' })[0]);
 
@@ -1067,17 +1069,31 @@ describe('dashboard integration', () => {
     expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
   });
 
-  it('allows renaming, filtering commercial expenses, and deleting variable expense rows', async () => {
+  it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('tab', { name: 'Expenses' }));
+
+    const header = document.querySelector('.variable-expense-header');
+    expect(header).not.toBeNull();
+    if (header) {
+      expect(within(header).getByText('Expense')).toBeInTheDocument();
+      expect(within(header).getByText('Unit')).toBeInTheDocument();
+      expect(within(header).getByText('Amount')).toBeInTheDocument();
+      expect(within(header).getByText('Strategies')).toBeInTheDocument();
+    }
 
     const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
     const firstLabel = screen.getByLabelText('Expense label 1');
     await user.clear(firstLabel);
     await user.type(firstLabel, 'Utilities Master');
     expect(screen.getByLabelText('Expense label 1')).toHaveValue('Utilities Master');
+
+    const annualCadence = screen.getByRole('button', { name: 'Utilities Master annual input cadence' });
+    await user.click(annualCadence);
+    expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Utilities Master monthly input cadence' })).toHaveAttribute('aria-pressed', 'false');
 
     const commercialToggle = screen.getByRole('button', { name: 'Utilities Master applies to Commercial' });
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
@@ -1088,6 +1104,41 @@ describe('dashboard integration', () => {
 
     const afterCount = screen.getAllByLabelText(/Expense label/i).length;
     expect(afterCount).toBe(beforeCount + 1);
+
+    const deleteButtons = screen.getAllByRole('button', { name: /Delete expense/i });
+    await user.click(deleteButtons[deleteButtons.length - 1]);
+
+    expect(screen.getAllByLabelText(/Expense label/i).length).toBe(beforeCount);
+  });
+
+  it('keeps the mobile variable expense editor directly usable from the expenses tab', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /Expenses/i }));
+
+    expect(screen.getByRole('button', { name: 'Add variable expense' })).toBeInTheDocument();
+
+    const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
+    const firstLabel = screen.getByLabelText('Expense label 1');
+    await user.clear(firstLabel);
+    await user.type(firstLabel, 'Mobile Utilities');
+    expect(screen.getByLabelText('Expense label 1')).toHaveValue('Mobile Utilities');
+
+    const annualCadence = screen.getByRole('button', { name: 'Mobile Utilities annual input cadence' });
+    await user.click(annualCadence);
+    expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
+
+    const commercialToggle = screen.getByRole('button', { name: 'Mobile Utilities applies to Commercial' });
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(commercialToggle);
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
+    expect(screen.getAllByLabelText(/Expense label/i).length).toBe(beforeCount + 1);
 
     const deleteButtons = screen.getAllByRole('button', { name: /Delete expense/i });
     await user.click(deleteButtons[deleteButtons.length - 1]);

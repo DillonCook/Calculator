@@ -21,16 +21,23 @@ interface StrategyTabsProps {
     points: string[];
   };
   actionSlot?: ReactNode;
+  embeddedInRail?: boolean;
 }
 
-const QuickScanPanel = ({ quickScan }: { quickScan: NonNullable<StrategyTabsProps['quickScan']> }) => (
-  <div className="panel-swap section-shell section-shell-analysis rounded-xl p-3">
+const QuickScanPanel = ({
+  quickScan,
+  embedded = false
+}: {
+  quickScan: NonNullable<StrategyTabsProps['quickScan']>;
+  embedded?: boolean;
+}) => (
+  <div className={`panel-swap quick-scan-panel p-3 ${embedded ? 'quick-scan-panel-embedded' : ''}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
-        <p className="section-eyebrow-analysis text-[11px] uppercase tracking-wide">Quick scan</p>
+        <p className="dashboard-kicker">Quick scan</p>
         <p className="text-base font-semibold sm:text-lg">{quickScan.title}</p>
       </div>
-      <p className="max-w-xl text-xs text-muted sm:text-sm">{quickScan.notes}</p>
+      <p className="dashboard-meta max-w-xl text-xs sm:text-sm">{quickScan.notes}</p>
     </div>
     <ul className="mt-2.5 space-y-1 text-xs text-slate-200 sm:text-sm">
       {quickScan.points.map((point) => (
@@ -43,37 +50,38 @@ const QuickScanPanel = ({ quickScan }: { quickScan: NonNullable<StrategyTabsProp
   </div>
 );
 
-export function StrategyTabs({ active, onChange, quickScan, actionSlot }: StrategyTabsProps) {
+export function StrategyTabs({ active, onChange, quickScan, actionSlot, embeddedInRail = false }: StrategyTabsProps) {
   return (
-    <div className="space-y-3">
+    <div className="strategy-tabs-shell">
       {quickScan ? <div key={`quick-scan-mobile-${quickScan.title}`} className="md:hidden"><QuickScanPanel quickScan={quickScan} /></div> : null}
 
-      <div className="section-shell section-shell-input rounded-2xl p-2 shadow-soft">
+      <div className={embeddedInRail ? '' : 'section-shell section-shell-input rounded-2xl p-2 shadow-soft'}>
         <div className="flex flex-wrap items-stretch gap-2">
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            {strategies.map((strategy) => (
-              <button
-                key={strategy.key}
-                className={`tap-feedback btn-brand-profile btn-selector btn-selector-input min-h-[2.625rem] w-full px-4 py-2 text-sm transition-all duration-200 ease-out sm:w-auto ${
-                  active === strategy.key
-                    ? 'btn-selector-active'
-                    : ''
-                }`}
-                onClick={() => {
-                  triggerHapticFeedback('light');
-                  onChange(strategy.key);
-                }}
-                type="button"
-              >
-                {strategy.label}
-              </button>
-            ))}
+          <div aria-label="Desktop strategy selector" role="group" className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {strategies.map((strategy) => {
+              const isActive = active === strategy.key;
+              return (
+                <button
+                  key={strategy.key}
+                  className={`tap-feedback btn-brand-profile btn-selector btn-selector-input min-h-[2.625rem] w-full px-4 py-2 text-sm transition-all duration-200 ease-out sm:w-auto ${
+                    isActive ? 'btn-selector-active' : ''
+                  }`}
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    onChange(strategy.key);
+                  }}
+                  type="button"
+                >
+                  {strategy.label}
+                </button>
+              );
+            })}
           </div>
-          {actionSlot ? <div className="flex shrink-0 items-stretch">{actionSlot}</div> : null}
+          {actionSlot ? <div className={`flex items-stretch ${embeddedInRail ? 'w-full lg:ml-auto lg:w-auto' : 'shrink-0'}`}>{actionSlot}</div> : null}
         </div>
       </div>
 
-      {quickScan ? <div key={`quick-scan-desktop-${quickScan.title}`} className="hidden md:block"><QuickScanPanel quickScan={quickScan} /></div> : null}
+      {quickScan ? <div key={`quick-scan-desktop-${quickScan.title}`} className="hidden md:block"><QuickScanPanel quickScan={quickScan} embedded={embeddedInRail} /></div> : null}
     </div>
   );
 }

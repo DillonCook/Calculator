@@ -7,7 +7,7 @@ interface AssumptionsPanelProps {
   assumptions: MasterAssumptions;
   onChange: (updates: Partial<MasterAssumptions>) => void;
   showTargetIrrInput?: boolean;
-  variant?: 'panel' | 'embedded';
+  variant?: 'panel' | 'embedded' | 'inline';
   hideHeader?: boolean;
 }
 
@@ -19,25 +19,34 @@ export function AssumptionsPanel({
   hideHeader = false
 }: AssumptionsPanelProps) {
   const isEmbedded = variant === 'embedded';
-  const eyebrow = isEmbedded ? 'IRR assumptions' : 'Exit assumptions';
-  const heading = isEmbedded ? 'Hold and exit settings' : 'IRR and timeline inputs';
-  const fieldShellClass = isEmbedded ? 'section-inner rounded-xl p-2.5' : '';
+  const isInline = variant === 'inline';
+  const eyebrow = isEmbedded || isInline ? 'IRR assumptions' : 'Exit assumptions';
+  const heading = isEmbedded ? 'Hold and exit settings' : isInline ? 'Hold and exit assumptions' : 'IRR and timeline inputs';
+  const fieldShellClass = isEmbedded ? 'section-inner rounded-xl p-2.5' : isInline ? 'dashboard-irr-inline-field min-w-0' : '';
+  const sectionClassName = isEmbedded ? 'space-y-3' : isInline ? 'dashboard-irr-inline-shell space-y-2' : 'section-shell section-shell-projection rounded-2xl p-3 shadow-soft sm:p-4';
+  const headerClassName = isEmbedded || isInline ? 'space-y-1' : 'mb-3';
+  const eyebrowClassName = isEmbedded || isInline ? 'dashboard-kicker' : 'section-eyebrow-projection text-xs';
+  const headingClassName = isEmbedded ? 'text-base' : isInline ? 'text-sm sm:text-base' : 'mt-1 text-lg';
+  const descriptionClassName = isInline ? 'dashboard-meta text-sm' : 'text-sm text-muted';
+  const fieldGridClassName = isInline
+    ? 'dashboard-irr-inline-grid'
+    : `grid gap-2.5 ${isEmbedded ? 'grid-cols-1 sm:grid-cols-2' : 'sm:grid-cols-2'}`;
 
   return (
-    <section className={isEmbedded ? 'space-y-3' : 'section-shell section-shell-projection rounded-2xl p-3 shadow-soft sm:p-4'}>
+    <section className={sectionClassName}>
       {!hideHeader ? (
-        <div className={isEmbedded ? 'space-y-1' : 'mb-3'}>
-          <p className={`uppercase tracking-[0.16em] ${isEmbedded ? 'text-[11px] text-muted' : 'section-eyebrow-projection text-xs'}`}>{eyebrow}</p>
-          <h3 className={`${isEmbedded ? 'text-base' : 'mt-1 text-lg'} font-semibold text-slate-100`}>{heading}</h3>
-          <p className="text-sm text-muted">
-            {isEmbedded
+        <div className={headerClassName}>
+          <p className={eyebrowClassName}>{eyebrow}</p>
+          <h3 className={`${headingClassName} font-semibold text-slate-100`}>{heading}</h3>
+          <p className={descriptionClassName}>
+            {isEmbedded || isInline
               ? 'These assumptions control the active strategy timeline and projected exit inside this stream.'
               : 'Set hold period and exit assumptions here so Results stays focused on outputs.'}
           </p>
         </div>
       ) : null}
 
-      <div className={`grid gap-2.5 ${isEmbedded ? 'grid-cols-1 sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
+      <div className={fieldGridClassName}>
         <div className={fieldShellClass}>
           <Input
             label="Hold years"
