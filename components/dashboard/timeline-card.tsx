@@ -228,12 +228,14 @@ export function TimelineCard({
 
   const stripTimelineContent = (
     <section className="dashboard-irr-strip min-w-0 overflow-hidden">
-      <div className="dashboard-irr-strip-header relative flex min-w-0 items-start justify-between gap-3 pr-12 sm:pr-14">
+      <div className="dashboard-irr-strip-header flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="dashboard-kicker">IRR stream</p>
+          <div className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+            <h3 className="truncate text-[0.96rem] font-semibold tracking-[0.02em] text-slate-50 sm:text-[1.04rem]">IRR stream</h3>
+            {renderIrrTooltipControl('relative z-10 flex shrink-0 items-center')}
+          </div>
           <p className="dashboard-meta mt-0.5 text-xs sm:text-sm">Edit hold and exit assumptions, then skim the yearly cash flow path without giving up board width.</p>
         </div>
-        {renderIrrTooltipControl('absolute right-0 top-0 z-10')}
       </div>
 
       <div className="mt-2.5">

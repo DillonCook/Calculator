@@ -103,7 +103,7 @@ export function StrategyComparison({
   }, [data, holdYears, input, rows]);
 
   const inlineComparisonCards = (
-    <div className="space-y-3">
+    <div className="space-y-2 sm:space-y-3">
       {rows.map((row, index) => {
         const output = data[row.key];
         const equityRow = equityRows.find((entry) => entry.key === row.key);
@@ -117,25 +117,16 @@ export function StrategyComparison({
           <article
             key={`inline-compare-${row.key}`}
             aria-label={`${row.label} projection card`}
-            className="panel-swap section-shell section-shell-projection relative overflow-hidden rounded-[1.4rem] p-4 shadow-soft sm:p-5"
+            className="projection-card-glass panel-swap section-shell section-shell-projection relative overflow-hidden rounded-[1.15rem] p-2.5 shadow-soft sm:rounded-[1.4rem] sm:p-5"
             style={{ animationDelay: `${80 + index * 42}ms` }}
           >
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-75"
-              style={{
-                background:
-                  'radial-gradient(circle at 8% 18%, rgba(92, 203, 255, 0.18), transparent 28%), radial-gradient(circle at 88% 12%, rgba(244, 150, 58, 0.16), transparent 24%)'
-              }}
-            />
-
-            <div className="relative z-10 space-y-3 sm:space-y-4">
-              <section className="dashboard-block rounded-[1.15rem] p-3.5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="relative z-10 space-y-2 sm:space-y-4">
+              <section className="dashboard-block rounded-[0.95rem] p-2.5 sm:rounded-[1.15rem] sm:p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
                   <div className="min-w-0">
                     <p className="dashboard-kicker text-accent/90">{row.label}</p>
                     <p
-                      className={`mt-2 text-[2rem] font-semibold leading-none tracking-tight ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
+                      className={`mt-1 text-2xl font-semibold leading-none tracking-tight sm:mt-2 sm:text-[2rem] ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
                       style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
                     >
                       {currencyFormatter.format(output.monthlyCashFlow)}
@@ -143,7 +134,7 @@ export function StrategyComparison({
                     <p className="mt-1 text-xs text-muted">Monthly operating result</p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-[11px]">
+                  <div className="flex flex-wrap gap-1.5 text-[10px] sm:gap-2 sm:text-[11px]">
                     <span className="dashboard-pill">
                       IRR {percentFormatter.format(output.irr)}
                     </span>
@@ -156,12 +147,12 @@ export function StrategyComparison({
                   </div>
                 </div>
 
-                <div className="mt-3">
+                <div className="mt-2 sm:mt-3">
                   <div className="dashboard-meta mb-1.5 flex items-center justify-between gap-2 text-[10px]">
                     <span>Cash-flow strength</span>
                     <span>{isPositive ? 'Positive carry' : 'Negative carry'}</span>
                   </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-2 overflow-hidden rounded-full bg-white/10 sm:h-2.5">
                     <div
                       className={`h-full rounded-full ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`}
                       style={{ width: `${barWidth}%` }}
@@ -169,7 +160,7 @@ export function StrategyComparison({
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-3 sm:gap-2 xl:grid-cols-4">
                   <CompactMetric
                     label="CoC"
                     value={percentFormatter.format(output.cashOnCashReturn)}
@@ -198,8 +189,8 @@ export function StrategyComparison({
                 </div>
               </section>
 
-              <div className="grid gap-3 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <section className="dashboard-block rounded-[1.1rem] p-3">
+              <div className="grid gap-2 sm:gap-3 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <section className="dashboard-block rounded-[0.95rem] p-2.5 sm:rounded-[1.1rem] sm:p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="dashboard-kicker text-[10px]">Equity</p>
@@ -217,7 +208,7 @@ export function StrategyComparison({
                     </div>
                   </div>
 
-                  <div className="mt-3 space-y-2.5">
+                  <div className="mt-2 space-y-2 sm:mt-3 sm:space-y-2.5">
                     <ModelBar label="Total Invested" value={equityRow.totalInvested} max={maxModeledReturn} tone="invested" compact />
                     <ModelBar
                       label="Modeled Exit"
@@ -229,7 +220,7 @@ export function StrategyComparison({
                   </div>
                 </section>
 
-                <section className="dashboard-block rounded-[1.1rem] p-3">
+                <section className="dashboard-block rounded-[0.95rem] p-2.5 sm:rounded-[1.1rem] sm:p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="dashboard-kicker text-[10px]">Cash flow trend</p>
@@ -398,7 +389,7 @@ export function StrategyComparison({
 
   return (
     <>
-      <section aria-label="Strategy comparison board" className="section-shell section-shell-projection min-w-0 max-w-full overflow-hidden rounded-2xl p-3 shadow-soft sm:p-5">
+      <section aria-label="Strategy comparison board" className="projection-board-glass section-shell section-shell-projection min-w-0 max-w-full overflow-hidden rounded-2xl p-3 shadow-soft sm:p-5">
         {inlineModelingViews ? (
           showInlineHeader ? (
             <div className="dashboard-block mb-4 rounded-[1.2rem] p-4">

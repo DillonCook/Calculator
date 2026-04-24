@@ -88,7 +88,7 @@ const coreSectionMeta: Record<CoreInputSection, { title: string; summary: string
   },
   expenses: {
     title: 'Expenses',
-    summary: 'Taxes, insurance, HOA/PMI, and variable expense matrix.'
+    summary: ''
   },
   known: {
     title: 'Import T12/P&L',
@@ -721,7 +721,7 @@ export function DealInputPanel({
       ) : (
         <div className={isEmbedded ? 'workbench-panel-heading' : 'mb-3 sm:mb-4'}>
           <h2 className="text-base font-semibold sm:text-lg">{panelTitle}</h2>
-          {isEmbedded ? <p className="dashboard-meta text-sm">{panelSummary}</p> : null}
+          {isEmbedded && panelSummary ? <p className="dashboard-meta text-sm">{panelSummary}</p> : null}
         </div>
       )}
 
@@ -924,11 +924,7 @@ export function DealInputPanel({
                 )}
 
                 <div className={variableExpenseSectionClassName}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className={isEmbedded ? 'dashboard-kicker' : 'section-eyebrow-analysis text-[11px] uppercase tracking-[0.16em]'}>Variable expenses</p>
-                      <p className={isEmbedded ? 'dashboard-meta text-sm' : 'mt-1 text-[11px] text-muted'}>Build reusable expenses and decide which operating strategies each one impacts.</p>
-                    </div>
+                  <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={addVariableExpense}
@@ -944,7 +940,6 @@ export function DealInputPanel({
                       <span>Unit</span>
                       <span>Amount</span>
                       <span>Strategies</span>
-                      <span />
                     </div>
 
                     <div className="variable-expense-list">
@@ -967,7 +962,7 @@ export function DealInputPanel({
                           </label>
 
                           <div className="variable-expense-row-cadence">
-                            <div className="variable-expense-cadence" role="group" aria-label={`${expenseLabel} cadence`}>
+                            <div className="variable-expense-cadence" role="group" aria-label={`${expenseLabel} cadence`} data-cadence={cadence}>
                               {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
                                 const active = cadence === mode;
                                 return (
@@ -1043,7 +1038,7 @@ export function DealInputPanel({
                               aria-label={`Delete expense ${expenseLabel}`}
                               className="variable-expense-delete tap-feedback"
                             >
-                              <span aria-hidden="true">x</span>
+                              <span aria-hidden="true">X</span>
                             </button>
                           </div>
                         </article>

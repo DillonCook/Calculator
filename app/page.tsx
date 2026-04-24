@@ -1072,11 +1072,6 @@ export default function HomePage() {
     setCompactSelectedStrategies((current) => normalizeProjectionStrategySelection(current));
   }, []);
 
-  useEffect(() => {
-    if (!isMobileViewport) return;
-    if (compactReadiness.ready || compactMode === 'inputs') return;
-    setCompactMode('inputs');
-  }, [compactMode, compactReadiness.ready, isMobileViewport]);
   const activeStrategyLabel = activeStrategyLabels[activeStrategy];
   const compactInputSections = [
     {
@@ -2659,7 +2654,7 @@ export default function HomePage() {
       </div>
       {!isSupabaseConfigured ? (
         <p className="mt-2 text-[11px] text-muted/90">
-          Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.
+          Account sign-in is unavailable right now.
         </p>
       ) : null}
       {authFeedback ? (
@@ -2715,7 +2710,6 @@ export default function HomePage() {
               );
             })}
           </div>
-          <p className="settings-section-label text-[10px]">These chips appear in Projections for each new deal.</p>
         </div>
       </div>
 
@@ -3073,10 +3067,7 @@ export default function HomePage() {
 
   const desktopHeadlineMetricSection = (
     <section className="dashboard-section-divider pt-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="dashboard-kicker">Key metrics</p>
-        </div>
+      <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
@@ -3496,7 +3487,7 @@ export default function HomePage() {
                     : 'border-white/15 bg-black/20 text-slate-200'
                 }`}
               >
-                {compactReadiness.ready ? 'Unlocked' : 'Needs inputs'}
+                {compactReadiness.ready ? 'Ready' : 'Needs inputs'}
               </span>
             </div>
           </section>
@@ -3563,9 +3554,9 @@ export default function HomePage() {
           <section className="section-shell section-shell-utility rounded-2xl p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-muted">Authentication</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Account</p>
                 <p className="mt-1 text-sm text-slate-100">
-                  {currentUser ? (currentUser.email ? `Signed in as ${currentUser.email}` : 'Signed in on this device.') : 'Sign in to sync scenarios across devices.'}
+                  {currentUser ? (currentUser.email ? `Signed in as ${currentUser.email}` : 'Signed in on this device.') : 'Sign in to sync deals.'}
                 </p>
               </div>
               {currentUser ? renderProfileAvatar({ label: signedInAvatarLabel }) : null}
@@ -3761,7 +3752,7 @@ export default function HomePage() {
       </section>
 
       <section className="space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
-        <div key={`compact-mode-${compactMode}`} className="panel-swap space-y-4">
+        <div key={`compact-mode-${compactMode}`} className="compact-view-panel panel-swap space-y-4">
           {compactMode === 'inputs' ? compactInputsView : null}
           {compactMode === 'results' ? compactResultsView : null}
           {compactMode === 'compare' ? compactCompareView : null}
@@ -3769,12 +3760,11 @@ export default function HomePage() {
       </section>
 
       <nav
-        className="section-shell section-shell-input fixed inset-x-3 bottom-3 z-[120] rounded-2xl p-2 shadow-soft backdrop-blur"
+        className="mobile-bottom-nav section-shell section-shell-input fixed inset-x-3 bottom-3 z-[120] rounded-2xl p-2 shadow-soft backdrop-blur"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
       >
         <div className="grid grid-cols-3 gap-2">
           {(['inputs', 'results', 'compare'] as CompactMode[]).map((mode) => {
-            const isLocked = mode !== 'inputs' && !compactReadiness.ready;
             const isActive = compactMode === mode;
 
             return (
@@ -3782,14 +3772,13 @@ export default function HomePage() {
                 key={mode}
                 ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
                 type="button"
-                disabled={isLocked}
                 onClick={() => {
                   if (!isActive) triggerHapticFeedback('light');
                   setCompactMode(mode);
                 }}
-                className={`tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  isActive ? 'btn-primary' : 'section-action section-action-input text-slate-200'
-                } disabled:cursor-not-allowed disabled:opacity-45`}
+                className={`mobile-nav-button tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                  isActive ? 'btn-primary btn-mobile-nav-active mobile-nav-button-active' : 'section-action section-action-input text-slate-200'
+                }`}
               >
                 {compactModeLabels[mode]}
               </button>
@@ -3803,16 +3792,16 @@ export default function HomePage() {
   );
 
   return (
-    <main className={`app-shell-fade relative min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
+    <main className={`app-shell-fade relative isolate min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 ${
+        className={`pointer-events-none fixed inset-0 z-0 ${
           isLightMode
             ? 'bg-[linear-gradient(135deg,rgba(243,151,76,0.22)_0%,rgba(243,151,76,0.1)_16%,rgba(118,167,222,0.08)_42%,transparent_76%)]'
             : 'bg-[linear-gradient(135deg,rgba(244,145,48,0.26)_0%,rgba(244,145,48,0.12)_18%,rgba(92,150,220,0.1)_44%,transparent_78%)]'
         }`}
       />
-      <div className="mx-auto max-w-[112rem] space-y-5">
+      <div className="relative z-10 mx-auto max-w-[112rem] space-y-5">
         {isMobileViewport ? (
           <header className={`app-header-shell section-shell section-shell-utility relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
@@ -3865,7 +3854,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={launchNewDeal}
-                    className="btn-primary rounded-xl px-3 py-2.5 text-sm font-semibold"
+                    className="btn-primary btn-new-deal rounded-xl px-3 py-2.5 text-sm font-semibold"
                   >
                     New deal
                   </button>
@@ -3927,7 +3916,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={launchNewDeal}
-                    className="btn-primary inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold"
+                    className="btn-primary btn-new-deal inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold"
                   >
                     New deal
                   </button>

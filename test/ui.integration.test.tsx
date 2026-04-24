@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authMockState = vi.hoisted(() => ({
+  isConfigured: true,
   user: null as
     | null
     | {
@@ -16,8 +17,10 @@ const authMockState = vi.hoisted(() => ({
 }));
 
 vi.mock('../lib/supabaseClient', () => ({
-  isSupabaseConfigured: true,
-  getSupabaseClient: () => ({
+  get isSupabaseConfigured() {
+    return authMockState.isConfigured;
+  },
+  getSupabaseClient: () => authMockState.isConfigured ? ({
     auth: {
       getSession: async () => ({
         data: {
@@ -35,7 +38,7 @@ vi.mock('../lib/supabaseClient', () => ({
       signUp: async () => ({ error: null }),
       signOut: async () => ({ error: null })
     }
-  })
+  }) : null
 }));
 
 vi.mock('../lib/cloud-scenarios-sync', () => ({
@@ -89,6 +92,7 @@ const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection
 
 describe('dashboard integration', () => {
   beforeEach(() => {
+    authMockState.isConfigured = true;
     authMockState.user = null;
     window.localStorage.clear();
     setViewport(1280);
@@ -169,7 +173,7 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('uses the compact shell on mobile and unlocks results after required inputs', async () => {
+  it('uses the compact shell on mobile and allows results before required inputs are complete', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -182,9 +186,15 @@ describe('dashboard integration', () => {
 
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deal Vault' })).toBeInTheDocument();
-    expect(resultsButton).toBeDisabled();
-    expect(projectionsButton).toBeDisabled();
+    expect(resultsButton).not.toBeDisabled();
+    expect(projectionsButton).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
+
+    await user.click(resultsButton);
+    expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Inputs' }));
 
     const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
     await user.clear(purchasePrice);
@@ -196,10 +206,6 @@ describe('dashboard integration', () => {
 
     expect(resultsButton).not.toBeDisabled();
     expect(projectionsButton).not.toBeDisabled();
-
-    await user.click(resultsButton);
-    expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
   });
 
   it('switches between core, expenses, rents, and IRR sections from the mobile input switcher', async () => {
@@ -314,6 +320,21 @@ describe('dashboard integration', () => {
 
     expect(screen.getByText('Signed in as agent@example.com')).toBeInTheDocument();
     expect(screen.queryByText('Cloud sync is active on this device.')).not.toBeInTheDocument();
+  });
+
+  it('hides auth provider environment variable names from the mobile menu', async () => {
+    setViewport(390);
+    authMockState.isConfigured = false;
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    expect(screen.getByText('Account sign-in is unavailable right now.')).toBeInTheDocument();
+    expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_URL/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_ANON_KEY/i)).not.toBeInTheDocument();
   });
 
   it('caps compact recent deals to the ten most recent entries by default', async () => {
