@@ -63,10 +63,10 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
 
   return (
     <section className="deal-workout-surface results-hero-support section-shell-analysis">
-      <div className="mb-2 flex items-start justify-between gap-2">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="dashboard-kicker">Make the deal work</p>
-          <h3 className="text-base font-semibold">Auto-adjust terms for this strategy</h3>
+          <h3 className="text-sm font-semibold sm:text-base">Auto-adjust terms for this strategy</h3>
         </div>
         {strategy === 'flip' ? (
           <div className="dashboard-meta text-right text-[11px]">
@@ -76,13 +76,13 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
       </div>
 
       {recommendation.canWorkAlready ? (
-        <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+        <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-xs leading-snug text-emerald-200 sm:text-sm">
           This strategy already works on current terms. No forced edits needed.
         </p>
       ) : null}
 
       {recommendation.constrainedByOperations ? (
-        <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+        <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-xs leading-snug text-amber-100 sm:text-sm">
           {strategy === 'flip'
             ? 'This flip cannot be solved through financing tweaks. Improve resale value, reduce rehab/sell costs, or shorten hold costs to recover net proceeds.'
             : 'Debt terms are not the blocker. Operating income is negative even with no debt, so you would need higher income or lower non-debt expenses.'}
@@ -90,7 +90,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
       ) : null}
 
       {!recommendation.canWorkAlready && !recommendation.constrainedByOperations ? (
-        <div className="grid gap-2">
+        <div className="grid gap-1">
           {scenariosToRender.map((scenario) => {
             const isCashPriceCutScenario = isCashDeal && shouldShowInlinePriceCut && scenario.key === 'price-cut';
             const isLoanDualFixLayout = shouldShowInlinePriceCut && scenario.key === 'down-payment' && Boolean(dualFixScenarios.priceCut);
@@ -99,45 +99,45 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
             return (
               <article
                 key={scenario.key}
-                className={isLoanDualFixLayout ? '' : 'dashboard-block rounded-xl p-3'}
+                className={isLoanDualFixLayout ? '' : 'dashboard-block rounded-lg p-2.5'}
               >
-                {!isLoanDualFixLayout ? <p className="text-sm font-medium">{scenario.title}</p> : null}
-                {shouldShowScenarioDescription ? <p className="mt-1 text-xs text-muted">{scenario.description}</p> : null}
+                {!isLoanDualFixLayout ? <p className="text-sm font-medium leading-tight">{scenario.title}</p> : null}
+                {shouldShowScenarioDescription ? <p className="mt-0.5 text-xs leading-snug text-muted">{scenario.description}</p> : null}
 
                 {isLoanDualFixLayout ? (
-                  <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
-                    <div className="dashboard-block flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
-                      <p className="text-xs font-semibold text-slate-100">{scenario.title}</p>
+                  <div className="grid gap-4 sm:grid-cols-2 sm:items-center sm:gap-6">
+                    <div className="deal-workout-action flex flex-col items-center justify-center gap-2 text-center">
+                      <p className="text-xs font-semibold leading-tight text-slate-100">{scenario.title}</p>
                       <button
                         type="button"
-                        className="btn-primary btn-work tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary btn-work tap-feedback min-h-8 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
                         onClick={() => onApply(scenario)}
                       >
                         Apply this fix
                       </button>
-                      <p className="text-[11px] leading-tight text-muted">{scenario.description}</p>
+                      <p className="text-[10px] leading-tight text-muted sm:text-[11px]">{scenario.description}</p>
                     </div>
-                    <div className="dashboard-block flex min-h-[132px] flex-col items-center justify-between rounded-lg px-3 py-2.5 text-center">
-                      <p className="text-xs font-semibold text-slate-100">Reduce Purchase Price</p>
+                    <div className="deal-workout-action flex flex-col items-center justify-center gap-2 text-center">
+                      <p className="text-xs font-semibold leading-tight text-slate-100">Reduce Purchase Price</p>
                       <button
                         type="button"
-                        className="btn-primary btn-work tap-feedback min-h-9 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-40"
+                        className="btn-primary btn-work tap-feedback min-h-8 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
                         Apply this fix
                       </button>
-                      <p className="text-[11px] leading-tight text-muted">{dualFixScenarios.priceCut?.description}</p>
+                      <p className="text-[10px] leading-tight text-muted sm:text-[11px]">{dualFixScenarios.priceCut?.description}</p>
                     </div>
                   </div>
                 ) : isCashPriceCutScenario ? (
-                    <div className="mt-2 grid gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <div className="mt-1.5 grid gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="section-tag section-tag-analysis">
                         Target IRR {targetIrrLabel}%
                       </span>
                       <button
                         type="button"
-                        className="btn-primary btn-work tap-feedback min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium"
+                        className="btn-primary btn-work tap-feedback min-h-8 rounded-lg px-3 py-1 text-xs font-medium"
                         onClick={applyTargetIrrPriceFix}
                         disabled={targetIrrDecimal === null}
                       >
@@ -147,10 +147,10 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                     <p className="text-[11px] leading-tight text-muted">{priceCutSubtext}</p>
                   </div>
                 ) : (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-1.5 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="btn-primary btn-work tap-feedback min-h-9 rounded-lg px-2.5 py-1 text-xs font-medium"
+                      className="btn-primary btn-work tap-feedback min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium"
                       onClick={() => onApply(scenario)}
                     >
                       Apply this fix

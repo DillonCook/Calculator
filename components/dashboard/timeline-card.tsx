@@ -234,7 +234,6 @@ export function TimelineCard({
             <h3 className="truncate text-[0.96rem] font-semibold tracking-[0.02em] text-slate-50 sm:text-[1.04rem]">IRR stream</h3>
             {renderIrrTooltipControl('relative z-10 flex shrink-0 items-center')}
           </div>
-          <p className="dashboard-meta mt-0.5 text-xs sm:text-sm">Edit hold and exit assumptions, then skim the yearly cash flow path without giving up board width.</p>
         </div>
       </div>
 

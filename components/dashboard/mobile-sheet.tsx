@@ -93,6 +93,8 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
 
   const handleDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse') return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('button, a, input, textarea, select, [data-no-sheet-drag="true"]')) return;
 
     dragStateRef.current = {
       pointerId: event.pointerId,
@@ -180,15 +182,17 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
           style={panelStyle}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="sticky top-0 z-10 border-b border-white/10 bg-surface/95 px-4 pb-3 pt-3 backdrop-blur">
+          <div
+            className="mobile-sheet-drag-header sticky top-0 z-10 border-b border-white/10 bg-surface/95 px-4 pb-4 pt-4 backdrop-blur lg:touch-auto"
+            onPointerDown={handleDragStart}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragCancel}
+          >
             <div
-              className="mobile-sheet-grab-zone -mx-4 -mt-3 mb-2 flex min-h-12 items-center justify-center px-4 pt-2 pb-3 lg:hidden touch-none select-none"
+              className="mobile-sheet-grab-zone -mx-4 -mt-4 mb-1 flex min-h-16 items-center justify-center px-4 pb-3 pt-4 lg:hidden touch-none select-none"
               role="presentation"
               aria-hidden="true"
-              onPointerDown={handleDragStart}
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              onPointerCancel={handleDragCancel}
             >
               <div className="mobile-sheet-handle h-2 w-20 rounded-full bg-white/15" />
             </div>

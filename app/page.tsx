@@ -61,6 +61,8 @@ type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
+type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
+type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
 
 const compactModeLabels: Record<CompactMode, string> = {
   inputs: 'Inputs',
@@ -578,7 +580,7 @@ export default function HomePage() {
   const [longTermTurnaroundDigestOrder, setLongTermTurnaroundDigestOrder] =
     useState<LongTermTurnaroundDigestKey[]>(defaultLongTermTurnaroundDigestOrder);
   const [isLongTermTurnaroundOrderEditorOpen, setIsLongTermTurnaroundOrderEditorOpen] = useState(false);
-  const [shareFeedback, setShareFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
+  const [shareFeedback, setShareFeedback] = useState<ShareFeedbackState | null>(null);
   const [compactMode, setCompactMode] = useState<CompactMode>('inputs');
   const [compactSheetView, setCompactSheetView] = useState<CompactSheetView>(null);
   const [compactInputSection, setCompactInputSection] = useState<CompactInputSection>('core');
@@ -2238,7 +2240,12 @@ export default function HomePage() {
 
   const resolveListingDealName = useCallback(async () => null, []);
 
-  const shareCurrentDeal = async () => {
+  const showShareFeedback = (
+    anchor: ShareFeedbackAnchor,
+    feedback: Omit<ShareFeedbackState, 'anchor'>
+  ) => setShareFeedback({ ...feedback, anchor });
+
+  const shareCurrentDeal = async (anchor: ShareFeedbackAnchor = 'desktop-share') => {
     if (currentUser?.id) {
       const { slug, error } = await createShortShareLink({
         ownerId: currentUser.id,
@@ -2251,23 +2258,23 @@ export default function HomePage() {
         try {
           await navigator.clipboard.writeText(shortUrl);
           triggerHapticFeedback('success');
-          setShareFeedback({ tone: 'success', message: 'Copied share link.' });
+          showShareFeedback(anchor, { tone: 'success', message: 'Link copied.' });
           qualifyInstallPrompt();
           return;
         } catch {
-          setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: shortUrl });
+          showShareFeedback(anchor, { tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: shortUrl });
           return;
         }
       }
 
       console.error('Supabase share create error:', error);
-      setShareFeedback({ tone: 'error', message: 'Unable to create short share link right now.' });
+      showShareFeedback(anchor, { tone: 'error', message: 'Unable to create short share link right now.' });
       return;
     }
 
     const encoded = encodeDealToShareParam(attachDealUiState(model));
     if (!encoded) {
-      setShareFeedback({ tone: 'error', message: 'Unable to generate a share link for this deal.' });
+      showShareFeedback(anchor, { tone: 'error', message: 'Unable to generate a share link for this deal.' });
       return;
     }
 
@@ -2276,11 +2283,11 @@ export default function HomePage() {
     try {
       await navigator.clipboard.writeText(url);
       triggerHapticFeedback('success');
-      setShareFeedback({ tone: 'success', message: 'Share link copied to clipboard.' });
+      showShareFeedback(anchor, { tone: 'success', message: 'Link copied.' });
       qualifyInstallPrompt();
     } catch {
       triggerHapticFeedback('medium');
-      setShareFeedback({ tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
+      showShareFeedback(anchor, { tone: 'error', message: 'Copy failed. Use this link manually.', fallbackUrl: url });
     }
   };
 
@@ -2356,7 +2363,7 @@ export default function HomePage() {
     setAuthBusy(false);
 
     if (error) {
-      setShareFeedback({ tone: 'error', message: error.message });
+      setAuthFeedback({ tone: 'error', message: error.message });
       return;
     }
 
@@ -2743,6 +2750,55 @@ export default function HomePage() {
             {isQuickScanVisible ? 'Shown' : 'Hidden'}
           </button>
         </div>
+        <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+          <span className="settings-row-label text-xs">Core KPI order</span>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              setIsHeadlineMetricOrderEditorOpen((value) => !value);
+            }}
+            className="tap-feedback section-action section-action-utility settings-action-button rounded-md px-2 py-1 text-[11px] font-semibold"
+            aria-pressed={isHeadlineMetricOrderEditorOpen}
+          >
+            {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange'}
+          </button>
+        </div>
+        {isHeadlineMetricOrderEditorOpen ? (
+          <div className="section-inner space-y-1 rounded-lg p-2">
+            {orderedHeadlineMetricIds.map((metricId, index) => {
+              const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
+
+              return (
+                <div key={`settings-kpi-order-${metricId}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
+                  <p className="truncate text-xs text-slate-200">
+                    {index + 1}. {metricLabel}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Move ${metricLabel} up`}
+                      onClick={() => moveHeadlineMetricItem(index, index - 1)}
+                      disabled={index === 0}
+                      className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${metricLabel} down`}
+                      onClick={() => moveHeadlineMetricItem(index, index + 1)}
+                      disabled={index === orderedHeadlineMetricIds.length - 1}
+                      className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                    >
+                      Down
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-1.5">
@@ -2789,6 +2845,30 @@ export default function HomePage() {
       </div>
     </div>
   );
+
+  const renderShareFeedbackToast = (anchor: ShareFeedbackAnchor, align: 'left' | 'right' = 'right') => {
+    if (shareFeedback?.anchor !== anchor) return null;
+
+    const isSuccess = shareFeedback.tone === 'success';
+
+    return (
+      <div
+        role="status"
+        className={`absolute top-full z-[190] mt-2 w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border px-3 py-2 text-xs font-semibold shadow-soft ${
+          align === 'right' ? 'right-0' : 'left-0'
+        } ${
+          isSuccess
+            ? 'border-emerald-300/65 bg-emerald-500 text-emerald-950 shadow-[0_12px_28px_rgba(16,185,129,0.28)]'
+            : 'border-red-300/65 bg-red-500 text-white shadow-[0_12px_28px_rgba(239,68,68,0.25)]'
+        }`}
+      >
+        <p>{shareFeedback.message}</p>
+        {shareFeedback.fallbackUrl ? (
+          <p className="mt-1 max-w-[16rem] truncate text-[10px] font-medium opacity-85">{shareFeedback.fallbackUrl}</p>
+        ) : null}
+      </div>
+    );
+  };
 
   const dealIdentitySheet = (
     <MobileSheet open={isDealIdentityOpen} title="Deal identity" onClose={closeDealIdentityEditor}>
@@ -2907,13 +2987,16 @@ export default function HomePage() {
                         </svg>
                       </a>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={shareCurrentDeal}
-                      className="btn-primary btn-link tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-medium"
-                    >
-                      Send link
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => void shareCurrentDeal('deal-identity-share')}
+                        className="btn-primary btn-link tap-feedback min-h-10 w-full rounded-xl px-3 py-2 text-sm font-medium"
+                      >
+                        Send link
+                      </button>
+                      {renderShareFeedbackToast('deal-identity-share', 'left')}
+                    </div>
                     <Link
                       href={printToPdfUrl}
                       className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-medium"
@@ -3067,52 +3150,6 @@ export default function HomePage() {
 
   const desktopHeadlineMetricSection = (
     <section className="dashboard-section-divider pt-3">
-      <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-          className="section-action section-action-projection rounded-full px-3 py-1.5 text-[11px] font-medium text-slate-200"
-        >
-          {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Arrange KPIs'}
-        </button>
-      </div>
-
-      {isHeadlineMetricOrderEditorOpen ? (
-        <div className="dashboard-block mb-2.5 space-y-1 rounded-lg p-2">
-          {orderedHeadlineMetricIds.map((metricId, index) => {
-            const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
-
-            return (
-              <div key={`desktop-kpi-order-${metricId}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-                <p className="truncate text-xs text-slate-200">
-                  {index + 1}. {metricLabel}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label={`Move ${metricLabel} up`}
-                    onClick={() => moveHeadlineMetricItem(index, index - 1)}
-                    disabled={index === 0}
-                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                  >
-                    Up
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move ${metricLabel} down`}
-                    onClick={() => moveHeadlineMetricItem(index, index + 1)}
-                    disabled={index === orderedHeadlineMetricIds.length - 1}
-                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                  >
-                    Down
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
       <div className="dashboard-summary-band">
         <div className="dashboard-kpi-strip">
           {orderedHeadlineMetricIds.map((metricId) => (
@@ -3162,7 +3199,7 @@ export default function HomePage() {
     <>
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div key={`strategy-headline-mobile-${activeStrategy}`} className="panel-swap space-y-4">
-          <div className="results-hero-main relative isolate">
+          <div className="results-hero-main priority-kpi-stable relative isolate">
             {!isFlipStrategy ? (
               <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                 <div
@@ -3520,7 +3557,14 @@ export default function HomePage() {
       <MobileSheet open={compactSheetView === 'menu'} title="Settings" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
-            <button type="button" onClick={shareCurrentDeal} className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setCompactSheetView(null);
+                void shareCurrentDeal('mobile-menu-trigger');
+              }}
+              className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold"
+            >
               Send link
             </button>
             <button
@@ -3811,24 +3855,8 @@ export default function HomePage() {
                     <h1 className="brand-text leading-none">DealCooker</h1>
                     <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
                   </div>
-                  <div className={headerChromeMutedClass}>
-                    <button
-                      type="button"
-                      onClick={openDealIdentityEditor}
-                      className="tap-feedback section-inner mt-2 w-full rounded-xl px-3 py-2 text-left"
-                      aria-label="Edit active deal details"
-                    >
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">Current Deal</p>
-                      <div className="mt-1 flex items-center justify-between gap-3">
-                        <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
-                        <span className="header-deal-chip shrink-0 rounded-full px-2 py-0.5 text-[11px]">
-                          Edit
-                        </span>
-                      </div>
-                    </button>
-                  </div>
                 </div>
-                <div className={headerChromeMutedClass}>
+                <div className={`${headerChromeMutedClass} relative`}>
                   <div className="flex items-center gap-2">
                     {currentUser ? renderProfileAvatar({ sizeClassName: 'h-9 w-9', textClassName: 'text-[11px]', label: signedInAvatarLabel }) : null}
                     <button
@@ -3846,7 +3874,25 @@ export default function HomePage() {
                       </svg>
                     </button>
                   </div>
+                  {renderShareFeedbackToast('mobile-menu-trigger')}
                 </div>
+              </div>
+
+              <div className={headerChromeMutedClass}>
+                <button
+                  type="button"
+                  onClick={openDealIdentityEditor}
+                  className="tap-feedback section-inner w-full rounded-xl px-3 py-2 text-left"
+                  aria-label="Edit active deal details"
+                >
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Current Deal</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
+                    <span className="header-deal-chip shrink-0 rounded-full px-2 py-0.5 text-[11px]">
+                      Edit
+                    </span>
+                  </div>
+                </button>
               </div>
 
               <div className={headerChromeMutedClass}>
@@ -3870,20 +3916,6 @@ export default function HomePage() {
                     Deal Vault
                   </button>
                 </div>
-              </div>
-
-              <div className={headerChromeMutedClass}>
-                {shareFeedback ? (
-                  <div
-                    role="status"
-                    className={`rounded-xl border px-3 py-2 text-xs ${
-                      shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
-                    }`}
-                  >
-                    <p>{shareFeedback.message}</p>
-                    {shareFeedback.fallbackUrl ? <p className="mt-1 break-all text-[11px]">{shareFeedback.fallbackUrl}</p> : null}
-                  </div>
-                ) : null}
               </div>
 
               {syncFeedback ? (
@@ -3984,22 +4016,25 @@ export default function HomePage() {
                       <span className="sr-only">View listing</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={shareCurrentDeal}
-                    className={`${desktopUtilityButtonClassName} btn-link`}
-                    aria-label="Send link"
-                    title="Send link"
-                  >
-                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="m7.5 9.5 5 3" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="5.5" cy="10" r="1.5" />
-                      <circle cx="14.5" cy="6.5" r="1.5" />
-                      <circle cx="14.5" cy="13.5" r="1.5" />
-                    </svg>
-                    <span className="sr-only">Send link</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => void shareCurrentDeal('desktop-share')}
+                      className={`${desktopUtilityButtonClassName} btn-link`}
+                      aria-label="Send link"
+                      title="Send link"
+                    >
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="m7.5 9.5 5 3" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="5.5" cy="10" r="1.5" />
+                        <circle cx="14.5" cy="6.5" r="1.5" />
+                        <circle cx="14.5" cy="13.5" r="1.5" />
+                      </svg>
+                      <span className="sr-only">Send link</span>
+                    </button>
+                    {renderShareFeedbackToast('desktop-share')}
+                  </div>
                   <Link
                     href={printToPdfUrl}
                     className={`${desktopUtilityButtonClassName} btn-pdf`}
@@ -4080,22 +4115,6 @@ export default function HomePage() {
             </div>
             </div>
 
-            <div className={headerChromeMutedClass}>
-              {shareFeedback ? (
-                <div
-                  role="status"
-                  className={`rounded-xl border px-3 py-2 text-xs sm:text-sm ${
-                    shareFeedback.tone === 'success' ? 'border-accent/45 bg-accent/10 text-slate-100' : 'border-red-500/45 bg-red-500/15 text-red-100'
-                  }`}
-                >
-                  <p>{shareFeedback.message}</p>
-                  {shareFeedback.fallbackUrl ? (
-                    <p className="mt-1 break-all text-[11px] text-red-100/90 sm:text-xs">{shareFeedback.fallbackUrl}</p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
             {syncFeedback ? (
               <div className="fixed inset-x-3 bottom-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:inset-x-auto sm:right-4 sm:text-sm" role="status">
                 {syncFeedback}
@@ -4117,7 +4136,7 @@ export default function HomePage() {
         <section ref={desktopResultsSectionRef} className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
           <div key={`strategy-headline-${activeStrategy}`} className="panel-swap space-y-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch">
-            <div className="results-hero-main relative isolate">
+            <div className="results-hero-main priority-kpi-stable relative isolate">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                   <div
