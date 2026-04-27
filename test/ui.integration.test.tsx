@@ -337,6 +337,30 @@ describe('dashboard integration', () => {
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_ANON_KEY/i)).not.toBeInTheDocument();
   });
 
+  it('closes the mobile menu after copying a share link', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => undefined
+      }
+    });
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    await user.click(within(dialog).getByRole('button', { name: 'Send link' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Link copied.')).toBeInTheDocument();
+  });
+
   it('caps compact recent deals to the ten most recent entries by default', async () => {
     setViewport(390);
     writeScenarios([
@@ -1047,13 +1071,13 @@ describe('dashboard integration', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Send link' })[0]);
 
-    expect(screen.getByText('Share link copied to clipboard.')).toBeInTheDocument();
+    expect(screen.getByText('Link copied.')).toBeInTheDocument();
 
     await new Promise((resolve) => {
       window.setTimeout(resolve, 3400);
     });
 
-    expect(screen.queryByText('Share link copied to clipboard.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Link copied.')).not.toBeInTheDocument();
   });
 
   it('removes the T12 import section from core inputs', async () => {
