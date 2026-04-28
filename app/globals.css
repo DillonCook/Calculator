@@ -147,6 +147,48 @@ html {
     --btn-hover-border: rgba(165, 213, 242, 0.74);
   }
 
+  .auth-email-panel {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .auth-email-title {
+    color: #f2f6fb;
+  }
+
+  .auth-email-toggle {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .auth-email-toggle-button-active {
+    background: #fb8b23;
+    color: #321303;
+  }
+
+  .auth-email-toggle-button-idle {
+    color: #98a6b7;
+  }
+
+  .auth-email-toggle-button-idle:hover,
+  .auth-email-toggle-button-idle:focus-visible {
+    color: #f2f6fb;
+  }
+
+  .auth-email-input {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: #f2f6fb;
+  }
+
+  .auth-email-input::placeholder {
+    color: rgba(152, 166, 183, 0.72);
+  }
+
+  .auth-email-input:focus {
+    border-color: rgba(251, 139, 35, 0.66);
+  }
+
   .btn-auth-top {
     border-radius: 999px;
     font-weight: 700;
@@ -2213,6 +2255,48 @@ html {
   --btn-grad-3: #629fd5;
   --btn-border: rgba(86, 137, 199, 0.68);
   --btn-hover-border: rgba(116, 168, 225, 0.82);
+}
+
+.theme-light .auth-email-panel {
+  border-color: rgba(98, 122, 151, 0.26);
+  background: rgba(244, 248, 253, 0.9);
+}
+
+.theme-light .auth-email-title {
+  color: var(--dc-light-text-strong);
+}
+
+.theme-light .auth-email-toggle {
+  border-color: rgba(98, 122, 151, 0.24);
+  background: rgba(224, 234, 246, 0.72);
+}
+
+.theme-light .auth-email-toggle-button-active {
+  background: #fb8b23;
+  color: #321303;
+}
+
+.theme-light .auth-email-toggle-button-idle {
+  color: var(--dc-light-muted);
+}
+
+.theme-light .auth-email-toggle-button-idle:hover,
+.theme-light .auth-email-toggle-button-idle:focus-visible {
+  color: var(--dc-light-text-strong);
+}
+
+.theme-light .auth-email-input {
+  border-color: rgba(98, 122, 151, 0.3);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--dc-light-text-strong);
+}
+
+.theme-light .auth-email-input::placeholder {
+  color: rgba(83, 103, 123, 0.7);
+}
+
+.theme-light .auth-email-input:focus {
+  border-color: rgba(219, 122, 49, 0.68);
 }
 
 .theme-light .btn-link {

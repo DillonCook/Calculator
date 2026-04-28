@@ -13,7 +13,9 @@ const authMockState = vi.hoisted(() => ({
           avatar_url?: string;
           picture?: string;
         };
-      }
+      },
+  emailSignInCalls: [] as Array<{ email: string; password: string }>,
+  emailSignUpCalls: [] as Array<{ email: string; password: string }>
 }));
 
 vi.mock('../lib/supabaseClient', () => ({
@@ -35,7 +37,36 @@ vi.mock('../lib/supabaseClient', () => ({
         }
       }),
       signInWithOAuth: async () => ({ error: null }),
-      signUp: async () => ({ error: null }),
+      signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
+        authMockState.emailSignInCalls.push({ email, password });
+        const user = {
+          id: 'email-user-1',
+          email
+        };
+        authMockState.user = user;
+
+        return {
+          data: {
+            user,
+            session: { user }
+          },
+          error: null
+        };
+      },
+      signUp: async ({ email, password }: { email: string; password: string }) => {
+        authMockState.emailSignUpCalls.push({ email, password });
+
+        return {
+          data: {
+            user: {
+              id: 'email-user-1',
+              email
+            },
+            session: null
+          },
+          error: null
+        };
+      },
       signOut: async () => ({ error: null })
     }
   }) : null
@@ -94,6 +125,8 @@ describe('dashboard integration', () => {
   beforeEach(() => {
     authMockState.isConfigured = true;
     authMockState.user = null;
+    authMockState.emailSignInCalls = [];
+    authMockState.emailSignUpCalls = [];
     window.localStorage.clear();
     setViewport(1280);
     writeScenarios([
@@ -335,6 +368,55 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Account sign-in is unavailable right now.')).toBeInTheDocument();
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_URL/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_ANON_KEY/i)).not.toBeInTheDocument();
+  });
+
+  it('signs in with a regular email from the mobile account menu', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
+    expect(within(emailForm).getByRole('button', { name: 'Sign in' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.type(within(emailForm).getByLabelText('Email address'), 'investor@example.com');
+    await user.type(within(emailForm).getByLabelText('Password'), 'rentalpass');
+    await user.click(within(emailForm).getByRole('button', { name: 'Sign in with email' }));
+
+    await waitFor(() => {
+      expect(authMockState.emailSignInCalls).toEqual([{ email: 'investor@example.com', password: 'rentalpass' }]);
+    });
+    expect(screen.getByText('Signed in as investor@example.com')).toBeInTheDocument();
+  });
+
+  it('keeps account creation available from the regular email path', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    await user.click(within(dialog).getByRole('button', { name: 'Create account' }));
+
+    const emailForm = within(dialog).getByRole('form', { name: 'Email account creation' });
+    expect(within(emailForm).getByRole('button', { name: 'Create account' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.type(within(emailForm).getByLabelText('Email address'), 'newuser@example.com');
+    await user.type(within(emailForm).getByLabelText('Password'), 'newpass1');
+    await user.click(within(emailForm).getByRole('button', { name: 'Create account with email' }));
+
+    await waitFor(() => {
+      expect(authMockState.emailSignUpCalls).toEqual([{ email: 'newuser@example.com', password: 'newpass1' }]);
+    });
+    expect(within(dialog).getByRole('form', { name: 'Email sign in' })).toBeInTheDocument();
+    expect(screen.getByText('Account created. Check your email, then sign in here.')).toBeInTheDocument();
   });
 
   it('closes the mobile menu after copying a share link', async () => {

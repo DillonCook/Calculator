@@ -60,6 +60,7 @@ type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
+type EmailAuthMode = 'signIn' | 'createAccount';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
 type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
@@ -603,6 +604,7 @@ export default function HomePage() {
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPwaInstalled, setIsPwaInstalled] = useState(false);
+  const [emailAuthMode, setEmailAuthMode] = useState<EmailAuthMode>('signIn');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -2330,14 +2332,23 @@ export default function HomePage() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    if (!authEmail.trim() || !authPassword.trim()) {
+    const email = authEmail.trim();
+
+    if (!email || !authPassword.trim()) {
       setAuthFeedback({ tone: 'error', message: 'Enter both email and password to create an account.' });
       return;
     }
 
+    if (authPassword.length < 6) {
+      setAuthFeedback({ tone: 'error', message: 'Use a password with at least 6 characters.' });
+      return;
+    }
+
     setAuthBusy(true);
-    const { error } = await supabase.auth.signUp({
-      email: authEmail.trim(),
+    setAuthFeedback(null);
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
       password: authPassword,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`
@@ -2350,8 +2361,62 @@ export default function HomePage() {
       return;
     }
 
-    setAuthFeedback({ tone: 'success', message: 'Account created. Check your email to confirm sign in.' });
     setAuthPassword('');
+
+    const signedInUser = data.session?.user ?? null;
+    if (signedInUser) {
+      setCurrentUser(signedInUser);
+      setIsAuthMenuOpen(false);
+      setAuthFeedback({ tone: 'success', message: 'Account created. Your deals will sync automatically.' });
+      return;
+    }
+
+    setEmailAuthMode('signIn');
+    setAuthFeedback({ tone: 'success', message: 'Account created. Check your email, then sign in here.' });
+  };
+
+  const signInWithEmail = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const email = authEmail.trim();
+
+    if (!email || !authPassword.trim()) {
+      setAuthFeedback({ tone: 'error', message: 'Enter your email and password to sign in.' });
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthFeedback(null);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password: authPassword
+    });
+    setAuthBusy(false);
+
+    if (error) {
+      setAuthFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    const signedInUser = data.session?.user ?? data.user ?? null;
+    if (signedInUser) {
+      setCurrentUser(signedInUser);
+      setIsAuthMenuOpen(false);
+    }
+
+    setAuthPassword('');
+    setAuthFeedback({ tone: 'success', message: 'Signed in. Your deals will sync automatically.' });
+  };
+
+  const submitEmailAuth = () => {
+    if (emailAuthMode === 'signIn') {
+      void signInWithEmail();
+      return;
+    }
+
+    void createAccountWithEmail();
   };
 
   const signOut = async () => {
@@ -2624,6 +2689,12 @@ export default function HomePage() {
     return () => window.clearTimeout(syncImportTimer);
   }, []);
 
+  const emailAuthModeOptions: Array<{ mode: EmailAuthMode; label: string }> = [
+    { mode: 'signIn', label: 'Sign in' },
+    { mode: 'createAccount', label: 'Create account' }
+  ];
+  const authSubmitLabel = emailAuthMode === 'signIn' ? 'Sign in with email' : 'Create account with email';
+
   const authMenuContent = (
     <>
       <button
@@ -2634,31 +2705,67 @@ export default function HomePage() {
       >
         Continue with Google
       </button>
-      <div className="mt-3 space-y-2">
-        <p className="text-xs text-muted">Create account with email</p>
+      <form
+        className="auth-email-panel mt-3 rounded-xl p-2.5"
+        aria-label={emailAuthMode === 'signIn' ? 'Email sign in' : 'Email account creation'}
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitEmailAuth();
+        }}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="auth-email-title text-xs font-semibold">Email access</p>
+          <div className="auth-email-toggle inline-flex rounded-full p-0.5" aria-label="Email access mode">
+            {emailAuthModeOptions.map((option) => {
+              const isSelected = option.mode === emailAuthMode;
+
+              return (
+                <button
+                  key={option.mode}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    setEmailAuthMode(option.mode);
+                    setAuthFeedback(null);
+                  }}
+                  className={`auth-email-toggle-button rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                    isSelected ? 'auth-email-toggle-button-active' : 'auth-email-toggle-button-idle'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="space-y-2">
         <input
           type="email"
+          aria-label="Email address"
           value={authEmail}
           onChange={(event) => setAuthEmail(event.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+          autoComplete="email"
+          className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
         />
         <input
           type="password"
+          aria-label="Password"
           value={authPassword}
           onChange={(event) => setAuthPassword(event.target.value)}
-          placeholder="Create password"
-          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs outline-none ring-0 placeholder:text-muted/70 focus:border-accent/60"
+          placeholder={emailAuthMode === 'signIn' ? 'Password' : 'Create password'}
+          autoComplete={emailAuthMode === 'signIn' ? 'current-password' : 'new-password'}
+          className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
         />
         <button
-          type="button"
-          onClick={createAccountWithEmail}
+          type="submit"
           disabled={authBusy || !isSupabaseConfigured}
           className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
         >
-          Create account with email
+          {authBusy ? (emailAuthMode === 'signIn' ? 'Signing in...' : 'Creating account...') : authSubmitLabel}
         </button>
       </div>
+      </form>
       {!isSupabaseConfigured ? (
         <p className="mt-2 text-[11px] text-muted/90">
           Account sign-in is unavailable right now.
