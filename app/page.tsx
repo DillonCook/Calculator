@@ -34,7 +34,7 @@ import {
   type ScenarioRecord,
   type StrategyKey
 } from '@/lib/models/deal';
-import { createScenarioRecord, encodeScenario, writeScenarios } from '@/lib/scenario-storage';
+import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 import { createShortShareLink } from '@/lib/share-links';
@@ -613,6 +613,7 @@ export default function HomePage() {
   const queuedPushScenarioIdRef = useRef<string | null>(null);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
+  const activeVaultOwnerIdRef = useRef<string | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
@@ -1600,6 +1601,69 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [syncFeedback]);
 
+  const clearPendingCloudState = () => {
+    if (pushTimerRef.current) {
+      window.clearTimeout(pushTimerRef.current);
+      pushTimerRef.current = null;
+    }
+
+    hasLoadedSupabaseDeals.current = false;
+    queuedPushScenarioIdRef.current = null;
+    pendingDeleteIdsRef.current.clear();
+    pendingUpsertIdsRef.current.clear();
+    setBaselineCompleteState(false);
+    setBaselineUpsertsCount(0);
+    setFetchedScenarioCount(0);
+    setPrunedLocalCount(0);
+    setLastCloudError(null);
+    setCloudHealth('idle');
+    setSyncFeedback(null);
+  };
+
+  const showBlankVaultState = () => {
+    const payload = attachDealUiState(buildNewDealPayload('New Deal'), {
+      activeStrategy: defaultNewDealStrategy,
+      projectionStrategies: normalizeProjectionStrategySelection(defaultProjectionStrategies)
+    });
+
+    setModel(payload);
+    setActiveStrategy(defaultNewDealStrategy);
+    setCompactSelectedStrategies(normalizeProjectionStrategySelection(defaultProjectionStrategies));
+    setActiveDealId('');
+    setSaveStatus('idle');
+  };
+
+  const loadVaultScope = (ownerId: string | null) => {
+    setScenarioStorageOwner(ownerId);
+
+    const scopedDeals = readDealsFromVault();
+    setDeals(scopedDeals);
+
+    const nextActiveDeal = scopedDeals[0] ?? null;
+    if (nextActiveDeal) {
+      loadScenario(nextActiveDeal.payload, nextActiveDeal.scenarioId);
+      setSaveStatus('idle');
+      return;
+    }
+
+    showBlankVaultState();
+  };
+
+  const applyAuthUser = (nextUser: User | null) => {
+    const nextOwnerId = nextUser?.id ?? null;
+
+    if (activeVaultOwnerIdRef.current !== nextOwnerId) {
+      clearPendingCloudState();
+      activeVaultOwnerIdRef.current = nextOwnerId;
+      loadVaultScope(nextOwnerId);
+    }
+
+    setCurrentUser(nextUser);
+    if (!nextUser) {
+      setIsAuthMenuOpen(false);
+    }
+  };
+
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -1608,18 +1672,12 @@ export default function HomePage() {
 
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
-      setCurrentUser(data.session?.user ?? null);
+      applyAuthUser(data.session?.user ?? null);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user ?? null);
+      applyAuthUser(session?.user ?? null);
       if (!session?.user) {
-        hasLoadedSupabaseDeals.current = false;
-        pendingDeleteIdsRef.current.clear();
-        pendingUpsertIdsRef.current.clear();
-        queuedPushScenarioIdRef.current = null;
-        setBaselineCompleteState(false);
-        setFetchedScenarioCount(0);
         setIsAuthMenuOpen(false);
       }
     });
@@ -2365,7 +2423,7 @@ export default function HomePage() {
 
     const signedInUser = data.session?.user ?? null;
     if (signedInUser) {
-      setCurrentUser(signedInUser);
+      applyAuthUser(signedInUser);
       setIsAuthMenuOpen(false);
       setAuthFeedback({ tone: 'success', message: 'Account created. Your deals will sync automatically.' });
       return;
@@ -2402,7 +2460,7 @@ export default function HomePage() {
 
     const signedInUser = data.session?.user ?? data.user ?? null;
     if (signedInUser) {
-      setCurrentUser(signedInUser);
+      applyAuthUser(signedInUser);
       setIsAuthMenuOpen(false);
     }
 
@@ -2432,13 +2490,7 @@ export default function HomePage() {
       return;
     }
 
-    hasLoadedSupabaseDeals.current = false;
-    pendingDeleteIdsRef.current.clear();
-    pendingUpsertIdsRef.current.clear();
-    queuedPushScenarioIdRef.current = null;
-    setBaselineCompleteState(false);
-    setCloudHealth('idle');
-    setCurrentUser(null);
+    applyAuthUser(null);
     setIsAuthMenuOpen(false);
   };
 
@@ -2554,6 +2606,24 @@ export default function HomePage() {
       mergedDeals = mergeScenariosByLatest(localDeals, cloudDeals);
     }
 
+    if (mergedDeals.length === 0) {
+      const payload = attachDealUiState(buildNewDealPayload('New Deal'), {
+        activeStrategy: defaultNewDealStrategy,
+        projectionStrategies: normalizeProjectionStrategySelection(defaultProjectionStrategies)
+      });
+      const freshDeal = createDealInVault(payload, payload.purchase.dealName);
+
+      pendingUpsertIdsRef.current.add(freshDeal.scenarioId);
+      const ok = await syncScenarioUpsert(freshDeal);
+      if (ok) {
+        baselineUpserts += 1;
+      } else {
+        upsertError = true;
+      }
+
+      mergedDeals = [freshDeal];
+    }
+
     writeScenarios(mergedDeals);
 
     if (!areScenarioListsEqual(deals, mergedDeals)) {
@@ -2570,7 +2640,9 @@ export default function HomePage() {
     setFetchedScenarioCount(cloudDeals.length);
     setBaselineUpsertsCount(baselineUpserts);
     setPrunedLocalCount(prunedLocal);
-    setCloudHealth('ok');
+    if (!upsertError) {
+      setCloudHealth('ok');
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       console.info('[DealVault Debug]', {
@@ -4157,12 +4229,9 @@ export default function HomePage() {
                     <span className="sr-only">Print to PDF</span>
                   </Link>
                   <span className="header-utility-divider" aria-hidden="true" />
-                  <div ref={desktopAuthActionRef} className="flex flex-wrap items-center justify-end gap-2">
+                  <div ref={desktopAuthActionRef} className="flex flex-nowrap items-center justify-end gap-2">
                     {currentUser ? (
                       <>
-                        <span className="dashboard-pill">
-                          Cloud active
-                        </span>
                         {renderProfileAvatar({ label: signedInAvatarLabel })}
                         <button
                           type="button"

@@ -15,7 +15,8 @@ const authMockState = vi.hoisted(() => ({
         };
       },
   emailSignInCalls: [] as Array<{ email: string; password: string }>,
-  emailSignUpCalls: [] as Array<{ email: string; password: string }>
+  emailSignUpCalls: [] as Array<{ email: string; password: string }>,
+  cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string }>
 }));
 
 vi.mock('../lib/supabaseClient', () => ({
@@ -74,7 +75,10 @@ vi.mock('../lib/supabaseClient', () => ({
 
 vi.mock('../lib/cloud-scenarios-sync', () => ({
   fetchSupabaseScenarios: async () => ({ scenarios: [], error: null }),
-  upsertSupabaseScenario: async () => null,
+  upsertSupabaseScenario: async (userId: string, scenario: { scenarioId: string; dealName: string }) => {
+    authMockState.cloudUpsertCalls.push({ userId, scenarioId: scenario.scenarioId, dealName: scenario.dealName });
+    return null;
+  },
   deleteSupabaseScenario: async () => null
 }));
 
@@ -83,7 +87,7 @@ import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
-import { createScenarioRecord, writeScenarios } from '../lib/scenario-storage';
+import { createScenarioRecord, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
 import { encodeDealToShareParam } from '../lib/share-link';
 
 const getStrategyButton = (label: string) =>
@@ -127,6 +131,8 @@ describe('dashboard integration', () => {
     authMockState.user = null;
     authMockState.emailSignInCalls = [];
     authMockState.emailSignUpCalls = [];
+    authMockState.cloudUpsertCalls = [];
+    setScenarioStorageOwner(null);
     window.localStorage.clear();
     setViewport(1280);
     writeScenarios([
@@ -391,6 +397,40 @@ describe('dashboard integration', () => {
       expect(authMockState.emailSignInCalls).toEqual([{ email: 'investor@example.com', password: 'rentalpass' }]);
     });
     expect(screen.getByText('Signed in as investor@example.com')).toBeInTheDocument();
+  });
+
+  it('keeps previous local vault deals out of a newly signed-in email account', async () => {
+    setViewport(390);
+    const oldAccountDeal = createSavedDeal('Old Account Deal', '2026-02-01T12:00:00.000Z');
+    writeScenarios([oldAccountDeal]);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(screen.getByText('Old Account Deal')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
+    await user.type(within(emailForm).getByLabelText('Email address'), 'second@example.com');
+    await user.type(within(emailForm).getByLabelText('Password'), 'rentalpass');
+    await user.click(within(emailForm).getByRole('button', { name: 'Sign in with email' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Signed in as second@example.com')).toBeInTheDocument();
+      expect(screen.queryByText('Old Account Deal')).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(authMockState.cloudUpsertCalls.length).toBeGreaterThan(0);
+    });
+    expect(authMockState.cloudUpsertCalls.some((call) => call.scenarioId === oldAccountDeal.scenarioId)).toBe(false);
+    expect(authMockState.cloudUpsertCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 'email-user-1', dealName: 'New Deal' })
+      ])
+    );
   });
 
   it('keeps account creation available from the regular email path', async () => {

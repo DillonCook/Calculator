@@ -928,32 +928,33 @@ html {
 
   .header-toolbar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 1rem 1.15rem;
+    gap: 0.75rem;
+    min-width: 0;
   }
 
   .header-primary-cluster {
     display: flex;
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.9rem;
+    gap: 0.75rem;
     margin-left: auto;
     min-width: 0;
   }
 
   .desktop-header-deal {
     display: flex;
-    flex: 0 0 27.75rem;
-    width: 27.75rem;
+    flex: 1 1 25rem;
+    width: auto;
     max-width: 27.75rem;
-    min-width: min(100%, 17rem);
+    min-width: 15.5rem;
     align-items: center;
     justify-content: space-between;
-    gap: 0.9rem;
+    gap: 0.7rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 1rem;
     background: rgba(255, 255, 255, 0.03);
@@ -968,7 +969,7 @@ html {
   .header-utility-group {
     display: flex;
     flex: 0 0 auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
     gap: 0.45rem;
@@ -1029,6 +1030,55 @@ html {
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.06) inset,
       0 4px 10px rgba(4, 12, 24, 0.08);
+  }
+
+  @media (min-width: 1024px) and (max-width: 1280px) {
+    .header-toolbar {
+      gap: 0.55rem;
+    }
+
+    .header-primary-cluster {
+      gap: 0.55rem;
+    }
+
+    .desktop-header-deal {
+      flex-basis: 20rem;
+      min-width: 13.5rem;
+      padding: 0.66rem 0.72rem;
+    }
+
+    .header-utility-group {
+      gap: 0.32rem;
+    }
+
+    .header-utility-divider {
+      margin: 0 0.05rem;
+    }
+
+    .header-utility-button {
+      height: 2.25rem;
+      width: 2.25rem;
+      border-radius: 0.75rem;
+    }
+
+    .app-header-shell .btn-new-deal {
+      min-height: 2.35rem;
+      padding-left: 0.78rem;
+      padding-right: 0.78rem;
+      font-size: 0.82rem;
+    }
+
+    .app-header-shell .btn-auth-top,
+    .app-header-shell .btn-signin-trigger {
+      min-height: 2.2rem;
+      padding-left: 0.72rem;
+      padding-right: 0.72rem;
+    }
+
+    .app-header-shell .dashboard-pill {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
   }
 
   .results-hero-main {

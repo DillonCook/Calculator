@@ -4,6 +4,13 @@ import { defaultDealInput } from '@/lib/models/deal';
 const STORAGE_KEY = 'investor-command-center.scenarios.v1';
 const APP_VERSION = '0.2.0';
 
+let activeStorageOwnerId: string | null = null;
+
+const getStorageKey = () => activeStorageOwnerId ? `${STORAGE_KEY}:user:${activeStorageOwnerId}` : STORAGE_KEY;
+
+export const setScenarioStorageOwner = (ownerId: string | null) => {
+  activeStorageOwnerId = ownerId;
+};
 
 const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
   return {
@@ -81,7 +88,7 @@ export const createScenarioRecord = (payload: DealInputModel, overrides?: Partia
 export const readScenarios = (): ScenarioRecord[] => {
   if (typeof window === 'undefined') return [];
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = window.localStorage.getItem(getStorageKey());
   if (!raw) return [];
 
   try {
@@ -94,7 +101,7 @@ export const readScenarios = (): ScenarioRecord[] => {
 
 export const writeScenarios = (records: ScenarioRecord[]) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  window.localStorage.setItem(getStorageKey(), JSON.stringify(records));
 };
 
 export const upsertScenario = (record: ScenarioRecord) => {
