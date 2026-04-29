@@ -16,6 +16,8 @@ const authMockState = vi.hoisted(() => ({
       },
   emailSignInCalls: [] as Array<{ email: string; password: string }>,
   emailSignUpCalls: [] as Array<{ email: string; password: string }>,
+  passwordResetCalls: [] as Array<{ email: string; redirectTo?: string }>,
+  passwordUpdateCalls: [] as Array<{ password: string }>,
   cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string }>
 }));
 
@@ -64,6 +66,19 @@ vi.mock('../lib/supabaseClient', () => ({
               email
             },
             session: null
+          },
+          error: null
+        };
+      },
+      resetPasswordForEmail: async (email: string, options?: { redirectTo?: string }) => {
+        authMockState.passwordResetCalls.push({ email, redirectTo: options?.redirectTo });
+        return { data: {}, error: null };
+      },
+      updateUser: async ({ password }: { password: string }) => {
+        authMockState.passwordUpdateCalls.push({ password });
+        return {
+          data: {
+            user: authMockState.user
           },
           error: null
         };
@@ -131,9 +146,12 @@ describe('dashboard integration', () => {
     authMockState.user = null;
     authMockState.emailSignInCalls = [];
     authMockState.emailSignUpCalls = [];
+    authMockState.passwordResetCalls = [];
+    authMockState.passwordUpdateCalls = [];
     authMockState.cloudUpsertCalls = [];
     setScenarioStorageOwner(null);
     window.localStorage.clear();
+    window.history.pushState({}, '', '/');
     setViewport(1280);
     writeScenarios([
       createScenarioRecord({
@@ -397,6 +415,57 @@ describe('dashboard integration', () => {
       expect(authMockState.emailSignInCalls).toEqual([{ email: 'investor@example.com', password: 'rentalpass' }]);
     });
     expect(screen.getByText('Signed in as investor@example.com')).toBeInTheDocument();
+  });
+
+  it('sends a password reset email from the regular email sign-in path', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
+    await user.type(within(emailForm).getByLabelText('Email address'), 'reset@example.com');
+    await user.click(within(emailForm).getByRole('button', { name: 'Forgot password?' }));
+
+    await waitFor(() => {
+      expect(authMockState.passwordResetCalls).toEqual([
+        expect.objectContaining({
+          email: 'reset@example.com',
+          redirectTo: 'https://dealcooker.app/auth/callback?next=password-reset'
+        })
+      ]);
+    });
+    expect(screen.getByText('Password reset email sent. Check your inbox, then return here.')).toBeInTheDocument();
+  });
+
+  it('updates a recovered password from the callback mode', async () => {
+    setViewport(390);
+    authMockState.user = {
+      id: 'email-user-1',
+      email: 'reset@example.com'
+    };
+    window.history.pushState({}, '', '/?authMode=password-reset');
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole('dialog', { name: 'Settings' });
+    const passwordForm = within(dialog).getByRole('form', { name: 'Password reset' });
+
+    await user.type(within(passwordForm).getByLabelText('New password'), 'newpass1');
+    await user.type(within(passwordForm).getByLabelText('Confirm new password'), 'newpass1');
+    await user.click(within(passwordForm).getByRole('button', { name: 'Update password' }));
+
+    await waitFor(() => {
+      expect(authMockState.passwordUpdateCalls).toEqual([{ password: 'newpass1' }]);
+    });
+    expect(screen.getByText('Password updated. You can keep working securely.')).toBeInTheDocument();
+    window.history.pushState({}, '', '/');
   });
 
   it('keeps previous local vault deals out of a newly signed-in email account', async () => {

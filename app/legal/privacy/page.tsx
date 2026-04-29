@@ -3,7 +3,7 @@ import Link from 'next/link';
 const privacySections = [
   {
     title: '1. Data We Process',
-    body: 'We process scenario inputs, calculation preferences, and technical telemetry required to run and improve the Service. In this version, saved scenarios are stored locally in your browser storage unless you explicitly share them.'
+    body: 'We process scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, and sanitized technical error logs required to run and improve the Service.'
   },
   {
     title: '2. How We Use Data',
@@ -11,19 +11,19 @@ const privacySections = [
   },
   {
     title: '3. Shared Links and Exports',
-    body: 'When you create a share link, deal data may be encoded into the URL. Anyone with the link can potentially access that data. Avoid including sensitive personal data in scenario fields.'
+    body: 'When you create a share link, a deal snapshot may be stored for link resolution and generally expires after 30 days. Anyone with the link can potentially access that snapshot. Avoid including sensitive personal data in scenario fields.'
   },
   {
     title: '4. Cookies and Local Storage',
-    body: 'The Service may rely on browser storage and essential cookies for functionality such as saved scenarios and settings. Disabling storage may limit app behavior.'
+    body: 'The Service relies on browser storage, essential auth storage, and Supabase session handling for saved scenarios, settings, account access, and offline-friendly behavior. Disabling storage may limit app behavior.'
   },
   {
     title: '5. Data Retention',
-    body: 'Local data remains on your device until deleted by you, your browser, or app controls. If cloud sync is introduced later, retention windows will be updated in this policy.'
+    body: 'Local data remains on your device until deleted by you, your browser, or app controls. Cloud-synced scenarios remain associated with your account until deleted or until account-retention processes are applied. Error logs are retained only as long as operationally useful.'
   },
   {
     title: '6. Security',
-    body: 'We implement reasonable safeguards, but no method of storage or transmission is fully secure. You should avoid storing highly sensitive data in this Service.'
+    body: 'We implement reasonable safeguards including account-scoped storage and row-level access controls, but no method of storage or transmission is fully secure. You should avoid storing highly sensitive data in this Service.'
   },
   {
     title: '7. Your Rights',

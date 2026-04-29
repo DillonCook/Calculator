@@ -36,6 +36,7 @@ import {
 } from '@/lib/models/deal';
 import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
+import { reportClientError, toClientErrorMessage } from '@/lib/client-error-reporting';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
 import { createShortShareLink } from '@/lib/share-links';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
@@ -60,10 +61,19 @@ type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
-type EmailAuthMode = 'signIn' | 'createAccount';
+type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
 type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
+
+const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealcooker.app').replace(/\/+$/, '');
+const getAuthCallbackUrl = (next?: 'password-reset') => {
+  const url = new URL('/auth/callback', appUrl);
+  if (next) {
+    url.searchParams.set('next', next);
+  }
+  return url.toString();
+};
 
 const compactModeLabels: Record<CompactMode, string> = {
   inputs: 'Inputs',
@@ -607,6 +617,8 @@ export default function HomePage() {
   const [emailAuthMode, setEmailAuthMode] = useState<EmailAuthMode>('signIn');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordConfirmValue, setResetPasswordConfirmValue] = useState('');
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
@@ -615,6 +627,7 @@ export default function HomePage() {
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const activeVaultOwnerIdRef = useRef<string | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [isRetryingCloudSync, setIsRetryingCloudSync] = useState(false);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
   const [cloudHealth, setCloudHealth] = useState<'ok' | 'error' | 'idle'>('idle');
@@ -1476,9 +1489,17 @@ export default function HomePage() {
         : { status: undefined, message: String(error) };
 
     console.error(`Supabase scenarios ${operation} error:`, { details, error });
+    reportClientError({
+      source: 'cloud-scenarios',
+      operation,
+      severity: 'error',
+      message: `Supabase scenarios ${operation} failed: ${toClientErrorMessage(error)}`,
+      userId: currentUser?.id ?? null,
+      metadata: details
+    });
     setLastCloudError(operation);
     setCloudHealth('error');
-    setSyncFeedback('Cloud sync error while saving Deal Vault.');
+    setSyncFeedback('Cloud sync needs attention. Your local Deal Vault backup is still available.');
   }
 
   async function syncScenarioUpsert(scenario: ScenarioRecord) {
@@ -1584,11 +1605,28 @@ export default function HomePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get('authError');
-    if (!authError) return;
+    const authMode = params.get('authMode');
 
-    setAuthFeedback({ tone: 'error', message: authError });
-    setIsAuthMenuOpen(true);
+    if (!authError && authMode !== 'password-reset') return;
 
+    if (authMode === 'password-reset') {
+      setEmailAuthMode('resetPassword');
+      setIsAuthMenuOpen(true);
+      if (window.innerWidth <= 1023) {
+        setCompactSheetView('menu');
+      }
+      setAuthFeedback({ tone: 'success', message: 'Enter a new password to finish account recovery.' });
+    }
+
+    if (authError) {
+      setAuthFeedback({ tone: 'error', message: authError });
+      setIsAuthMenuOpen(true);
+      if (window.innerWidth <= 1023) {
+        setCompactSheetView('menu');
+      }
+    }
+
+    params.delete('authMode');
     params.delete('authError');
     const nextSearch = params.toString();
     const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
@@ -1600,6 +1638,37 @@ export default function HomePage() {
     const timer = window.setTimeout(() => setSyncFeedback(null), 3600);
     return () => window.clearTimeout(timer);
   }, [syncFeedback]);
+
+  useEffect(() => {
+    const handleWindowError = (event: ErrorEvent) => {
+      reportClientError({
+        source: 'window-error',
+        severity: 'error',
+        message: event.message || 'Unhandled window error',
+        stack: event.error instanceof Error ? event.error.stack : undefined,
+        userId: currentUser?.id ?? null,
+        metadata: { filename: event.filename, lineno: event.lineno, colno: event.colno }
+      });
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      reportClientError({
+        source: 'unhandled-rejection',
+        severity: 'error',
+        message: toClientErrorMessage(event.reason),
+        stack: event.reason instanceof Error ? event.reason.stack : undefined,
+        userId: currentUser?.id ?? null
+      });
+    };
+
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [currentUser?.id]);
 
   const clearPendingCloudState = () => {
     if (pushTimerRef.current) {
@@ -2373,7 +2442,7 @@ export default function HomePage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: getAuthCallbackUrl()
       }
     });
 
@@ -2409,7 +2478,7 @@ export default function HomePage() {
       email,
       password: authPassword,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: getAuthCallbackUrl()
       }
     });
     setAuthBusy(false);
@@ -2468,7 +2537,91 @@ export default function HomePage() {
     setAuthFeedback({ tone: 'success', message: 'Signed in. Your deals will sync automatically.' });
   };
 
+  const sendPasswordResetEmail = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const email = authEmail.trim();
+    if (!email) {
+      setAuthFeedback({ tone: 'error', message: 'Enter your email address first.' });
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthFeedback(null);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getAuthCallbackUrl('password-reset')
+    });
+    setAuthBusy(false);
+
+    if (error) {
+      reportClientError({
+        source: 'auth',
+        operation: 'password-reset-email',
+        severity: 'warning',
+        message: error.message,
+        metadata: { status: (error as { status?: unknown }).status }
+      });
+      setAuthFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setAuthFeedback({ tone: 'success', message: 'Password reset email sent. Check your inbox, then return here.' });
+  };
+
+  const updateRecoveredPassword = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    if (!resetPasswordValue || !resetPasswordConfirmValue) {
+      setAuthFeedback({ tone: 'error', message: 'Enter and confirm your new password.' });
+      return;
+    }
+
+    if (resetPasswordValue.length < 6) {
+      setAuthFeedback({ tone: 'error', message: 'Use a password with at least 6 characters.' });
+      return;
+    }
+
+    if (resetPasswordValue !== resetPasswordConfirmValue) {
+      setAuthFeedback({ tone: 'error', message: 'Passwords do not match.' });
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthFeedback(null);
+
+    const { error } = await supabase.auth.updateUser({ password: resetPasswordValue });
+    setAuthBusy(false);
+
+    if (error) {
+      reportClientError({
+        source: 'auth',
+        operation: 'password-update',
+        severity: 'warning',
+        message: error.message,
+        userId: currentUser?.id ?? null,
+        metadata: { status: (error as { status?: unknown }).status }
+      });
+      setAuthFeedback({ tone: 'error', message: error.message });
+      return;
+    }
+
+    setResetPasswordValue('');
+    setResetPasswordConfirmValue('');
+    setAuthPassword('');
+    setEmailAuthMode('signIn');
+    setIsAuthMenuOpen(false);
+    setAuthFeedback({ tone: 'success', message: 'Password updated. You can keep working securely.' });
+  };
+
   const submitEmailAuth = () => {
+    if (emailAuthMode === 'resetPassword') {
+      void updateRecoveredPassword();
+      return;
+    }
+
     if (emailAuthMode === 'signIn') {
       void signInWithEmail();
       return;
@@ -2704,6 +2857,67 @@ export default function HomePage() {
     };
   }, [currentUser?.id, pullAndMergeCloudDeals]);
 
+  const retryCloudSync = async () => {
+    if (!currentUser?.id) {
+      setSyncFeedback('Sign in to sync Deal Vault with the cloud.');
+      return;
+    }
+
+    setIsRetryingCloudSync(true);
+    setSyncFeedback('Retrying cloud sync...');
+
+    try {
+      await pullAndMergeCloudDeals();
+      setSyncFeedback('Cloud sync retry finished.');
+    } catch (error) {
+      reportClientError({
+        source: 'cloud-scenarios',
+        operation: 'manual-retry',
+        severity: 'error',
+        message: toClientErrorMessage(error),
+        userId: currentUser.id
+      });
+      setSyncFeedback('Cloud sync retry failed. Export a backup before continuing.');
+    } finally {
+      setIsRetryingCloudSync(false);
+    }
+  };
+
+  const exportDealVaultBackup = () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const records = readDealsFromVault();
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        ownerId: currentUser?.id ?? null,
+        ownerEmail: currentUser?.email ?? null,
+        app: 'DealCooker',
+        schemaVersion: '1.0.0',
+        deals: records
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `dealcooker-vault-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setSyncFeedback(`Exported ${records.length} saved ${records.length === 1 ? 'deal' : 'deals'} from this vault.`);
+    } catch (error) {
+      reportClientError({
+        source: 'deal-vault',
+        operation: 'backup-export',
+        severity: 'error',
+        message: toClientErrorMessage(error),
+        userId: currentUser?.id ?? null
+      });
+      setSyncFeedback('Unable to export Deal Vault backup from this browser.');
+    }
+  };
+
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' || !currentUser?.id) return;
 
@@ -2761,82 +2975,152 @@ export default function HomePage() {
     return () => window.clearTimeout(syncImportTimer);
   }, []);
 
-  const emailAuthModeOptions: Array<{ mode: EmailAuthMode; label: string }> = [
+  const emailAuthModeOptions: Array<{ mode: Exclude<EmailAuthMode, 'resetPassword'>; label: string }> = [
     { mode: 'signIn', label: 'Sign in' },
     { mode: 'createAccount', label: 'Create account' }
   ];
-  const authSubmitLabel = emailAuthMode === 'signIn' ? 'Sign in with email' : 'Create account with email';
+  const isPasswordResetMode = emailAuthMode === 'resetPassword';
+  const authSubmitLabel =
+    emailAuthMode === 'resetPassword'
+      ? 'Update password'
+      : emailAuthMode === 'signIn'
+        ? 'Sign in with email'
+        : 'Create account with email';
 
   const authMenuContent = (
     <>
-      <button
-        type="button"
-        onClick={signInWithGoogle}
-        disabled={authBusy || !isSupabaseConfigured}
-        className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
-      >
-        Continue with Google
-      </button>
+      {!isPasswordResetMode ? (
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={authBusy || !isSupabaseConfigured}
+          className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+        >
+          Continue with Google
+        </button>
+      ) : null}
       <form
-        className="auth-email-panel mt-3 rounded-xl p-2.5"
-        aria-label={emailAuthMode === 'signIn' ? 'Email sign in' : 'Email account creation'}
+        className={`${isPasswordResetMode ? 'auth-email-panel rounded-xl p-2.5' : 'auth-email-panel mt-3 rounded-xl p-2.5'}`}
+        aria-label={
+          emailAuthMode === 'resetPassword'
+            ? 'Password reset'
+            : emailAuthMode === 'signIn'
+              ? 'Email sign in'
+              : 'Email account creation'
+        }
         onSubmit={(event) => {
           event.preventDefault();
           submitEmailAuth();
         }}
       >
         <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="auth-email-title text-xs font-semibold">Email access</p>
-          <div className="auth-email-toggle inline-flex rounded-full p-0.5" aria-label="Email access mode">
-            {emailAuthModeOptions.map((option) => {
-              const isSelected = option.mode === emailAuthMode;
+          <p className="auth-email-title text-xs font-semibold">{isPasswordResetMode ? 'Update password' : 'Email access'}</p>
+          {isPasswordResetMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEmailAuthMode('signIn');
+                setResetPasswordValue('');
+                setResetPasswordConfirmValue('');
+                setAuthFeedback(null);
+              }}
+              className="auth-email-link text-[11px] font-semibold"
+            >
+              Back to sign in
+            </button>
+          ) : (
+            <div className="auth-email-toggle inline-flex rounded-full p-0.5" aria-label="Email access mode">
+              {emailAuthModeOptions.map((option) => {
+                const isSelected = option.mode === emailAuthMode;
 
-              return (
-                <button
-                  key={option.mode}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    setEmailAuthMode(option.mode);
-                    setAuthFeedback(null);
-                  }}
-                  className={`auth-email-toggle-button rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                    isSelected ? 'auth-email-toggle-button-active' : 'auth-email-toggle-button-idle'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setEmailAuthMode(option.mode);
+                      setAuthFeedback(null);
+                    }}
+                    className={`auth-email-toggle-button rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                      isSelected ? 'auth-email-toggle-button-active' : 'auth-email-toggle-button-idle'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="space-y-2">
-        <input
-          type="email"
-          aria-label="Email address"
-          value={authEmail}
-          onChange={(event) => setAuthEmail(event.target.value)}
-          placeholder="you@example.com"
-          autoComplete="email"
-          className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
-        />
-        <input
-          type="password"
-          aria-label="Password"
-          value={authPassword}
-          onChange={(event) => setAuthPassword(event.target.value)}
-          placeholder={emailAuthMode === 'signIn' ? 'Password' : 'Create password'}
-          autoComplete={emailAuthMode === 'signIn' ? 'current-password' : 'new-password'}
-          className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
-        />
-        <button
-          type="submit"
-          disabled={authBusy || !isSupabaseConfigured}
-          className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
-        >
-          {authBusy ? (emailAuthMode === 'signIn' ? 'Signing in...' : 'Creating account...') : authSubmitLabel}
-        </button>
-      </div>
+          {isPasswordResetMode ? (
+            <>
+              <input
+                type="password"
+                aria-label="New password"
+                value={resetPasswordValue}
+                onChange={(event) => setResetPasswordValue(event.target.value)}
+                placeholder="New password"
+                autoComplete="new-password"
+                className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
+              />
+              <input
+                type="password"
+                aria-label="Confirm new password"
+                value={resetPasswordConfirmValue}
+                onChange={(event) => setResetPasswordConfirmValue(event.target.value)}
+                placeholder="Confirm new password"
+                autoComplete="new-password"
+                className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
+              />
+            </>
+          ) : (
+            <>
+              <input
+                type="email"
+                aria-label="Email address"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
+              />
+              <input
+                type="password"
+                aria-label="Password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                placeholder={emailAuthMode === 'signIn' ? 'Password' : 'Create password'}
+                autoComplete={emailAuthMode === 'signIn' ? 'current-password' : 'new-password'}
+                className="auth-email-input w-full rounded-lg px-3 py-2 text-xs outline-none ring-0"
+              />
+            </>
+          )}
+          <button
+            type="submit"
+            disabled={authBusy || !isSupabaseConfigured}
+            className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+          >
+            {authBusy
+              ? emailAuthMode === 'resetPassword'
+                ? 'Updating...'
+                : emailAuthMode === 'signIn'
+                  ? 'Signing in...'
+                  : 'Creating account...'
+              : authSubmitLabel}
+          </button>
+          {emailAuthMode === 'signIn' ? (
+            <button
+              type="button"
+              onClick={() => void sendPasswordResetEmail()}
+              disabled={authBusy || !isSupabaseConfigured}
+              className="auth-email-link w-full text-left text-[11px] font-semibold disabled:opacity-60"
+            >
+              Forgot password?
+            </button>
+          ) : null}
+        </div>
       </form>
       {!isSupabaseConfigured ? (
         <p className="mt-2 text-[11px] text-muted/90">
@@ -2848,6 +3132,14 @@ export default function HomePage() {
       ) : null}
     </>
   );
+
+  const syncStatusLabel = currentUser
+    ? cloudHealth === 'error'
+      ? `Cloud sync needs retry${lastCloudError ? ` after ${lastCloudError}` : ''}.`
+      : cloudHealth === 'ok'
+        ? `Cloud synced for this account. ${deals.length} local ${deals.length === 1 ? 'deal' : 'deals'} available.`
+        : 'Cloud sync is ready for this account.'
+    : 'Local only until you sign in.';
 
   const settingsMenuContent = (
     <div className="settings-panel space-y-3">
@@ -2978,6 +3270,30 @@ export default function HomePage() {
             })}
           </div>
         ) : null}
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Data safety</p>
+        <div className="section-inner space-y-2 rounded-lg px-2.5 py-2">
+          <p className="settings-row-label text-xs">{syncStatusLabel}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void retryCloudSync()}
+              disabled={!currentUser || isRetryingCloudSync}
+              className="tap-feedback section-action section-action-utility settings-action-button rounded-lg px-2.5 py-2 text-left text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isRetryingCloudSync ? 'Retrying...' : 'Retry sync'}
+            </button>
+            <button
+              type="button"
+              onClick={exportDealVaultBackup}
+              className="tap-feedback section-action section-action-utility settings-action-button rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+            >
+              Export backup
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -3785,14 +4101,20 @@ export default function HomePage() {
               {currentUser ? renderProfileAvatar({ label: signedInAvatarLabel }) : null}
             </div>
             {currentUser ? (
-              <button
-                type="button"
-                onClick={signOut}
-                disabled={authBusy || !isSupabaseConfigured}
-                className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
-              >
-                Sign out
-              </button>
+              <div className="space-y-2">
+                {isPasswordResetMode ? authMenuContent : null}
+                <button
+                  type="button"
+                  onClick={signOut}
+                  disabled={authBusy || !isSupabaseConfigured}
+                  className="btn-primary btn-auth w-full rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+                >
+                  Sign out
+                </button>
+                {authFeedback ? (
+                  <p className={`text-[11px] ${authFeedback.tone === 'success' ? 'text-accent' : 'text-red-300'}`}>{authFeedback.message}</p>
+                ) : null}
+              </div>
             ) : (
               authMenuContent
             )}
@@ -4241,6 +4563,11 @@ export default function HomePage() {
                         >
                           Sign out
                         </button>
+                        {isPasswordResetMode && isAuthMenuOpen ? (
+                          <div id="auth-menu-desktop" className="section-shell section-shell-utility absolute right-12 top-12 z-[136] w-72 rounded-xl p-3 shadow-soft backdrop-blur">
+                            {authMenuContent}
+                          </div>
+                        ) : null}
                       </>
                     ) : (
                       <div className="relative">

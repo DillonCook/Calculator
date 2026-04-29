@@ -189,6 +189,15 @@ html {
     border-color: rgba(251, 139, 35, 0.66);
   }
 
+  .auth-email-link {
+    color: #f7a74c;
+  }
+
+  .auth-email-link:hover,
+  .auth-email-link:focus-visible {
+    color: #ffd28d;
+  }
+
   .btn-auth-top {
     border-radius: 999px;
     font-weight: 700;
@@ -2347,6 +2356,15 @@ html {
 
 .theme-light .auth-email-input:focus {
   border-color: rgba(219, 122, 49, 0.68);
+}
+
+.theme-light .auth-email-link {
+  color: #b25f16;
+}
+
+.theme-light .auth-email-link:hover,
+.theme-light .auth-email-link:focus-visible {
+  color: #88450b;
 }
 
 .theme-light .btn-link {

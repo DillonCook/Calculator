@@ -18,6 +18,7 @@ export default function AuthCallbackPage() {
       const url = new URL(window.location.href);
       const authCode = url.searchParams.get('code');
       const oauthError = url.searchParams.get('error_description') ?? url.searchParams.get('error');
+      const next = url.searchParams.get('next');
 
       if (oauthError) {
         router.replace(`/?authError=${encodeURIComponent(oauthError)}`);
@@ -48,7 +49,7 @@ export default function AuthCallbackPage() {
         }
       }
 
-      router.replace('/');
+      router.replace(next === 'password-reset' ? '/?authMode=password-reset' : '/');
     };
 
     completeSignIn();

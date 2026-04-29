@@ -3,11 +3,11 @@ import Link from 'next/link';
 const sections = [
   {
     title: '1. Acceptance of Terms',
-    body: 'By accessing or using Investor Command Center (the "Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.'
+    body: 'By accessing or using DealCooker (the "Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.'
   },
   {
     title: '2. Ownership and Intellectual Property',
-    body: 'The Service, including its code, content, design, calculations, branding, and documentation, is owned by Investor Command Center and protected by applicable intellectual property laws. Unauthorized copying, resale, reverse engineering, or derivative use is prohibited unless explicitly permitted in writing.'
+    body: 'The Service, including its code, content, design, calculations, branding, and documentation, is owned by DealCooker and protected by applicable intellectual property laws. Unauthorized copying, resale, reverse engineering, or derivative use is prohibited unless explicitly permitted in writing.'
   },
   {
     title: '3. No Financial, Legal, or Tax Advice',
@@ -23,11 +23,11 @@ const sections = [
   },
   {
     title: '6. Limitation of Liability',
-    body: 'To the fullest extent permitted by law, Investor Command Center shall not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, revenue, data, goodwill, or business opportunities arising from your use of the Service.'
+    body: 'To the fullest extent permitted by law, DealCooker shall not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, revenue, data, goodwill, or business opportunities arising from your use of the Service.'
   },
   {
     title: '7. Indemnification',
-    body: 'You agree to defend, indemnify, and hold harmless Investor Command Center from claims, liabilities, damages, and expenses arising from your use of the Service, violation of these Terms, or violation of law.'
+    body: 'You agree to defend, indemnify, and hold harmless DealCooker from claims, liabilities, damages, and expenses arising from your use of the Service, violation of these Terms, or violation of law.'
   },
   {
     title: '8. Termination',
