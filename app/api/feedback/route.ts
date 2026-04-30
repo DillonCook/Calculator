@@ -19,13 +19,16 @@ const asString = (value: unknown, maxLength = MAX_FIELD_LENGTH): string => {
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+const feedbackResponse = (error: string, status: number) =>
+  NextResponse.json({ ok: false, error }, { status, headers: { 'Cache-Control': 'no-store' } });
+
 export async function POST(request: Request) {
   let rawBody: unknown;
 
   try {
     rawBody = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: 'Invalid JSON.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    return feedbackResponse('Invalid JSON.', 400);
   }
 
   const body = asRecord(rawBody);
@@ -37,15 +40,16 @@ export async function POST(request: Request) {
   const phone = asString(contact.phone);
 
   if (!message) {
-    return NextResponse.json({ ok: false, error: 'Missing feedback message.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    return feedbackResponse('Missing feedback message.', 400);
   }
 
   if (!email || !emailPattern.test(email)) {
-    return NextResponse.json({ ok: false, error: 'A valid email is required.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    return feedbackResponse('A valid email is required.', 400);
   }
 
   if (!resendApiKey) {
-    return NextResponse.json({ ok: false, error: 'Feedback email is not configured.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    console.error('Feedback email is not configured: missing RESEND_API_KEY.');
+    return feedbackResponse('Feedback email is not configured yet.', 503);
   }
 
   const submittedAt = new Date().toISOString();
@@ -86,12 +90,18 @@ export async function POST(request: Request) {
         text: emailText
       })
     });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'Unable to send feedback.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    console.error('Feedback email request failed:', error);
+    return feedbackResponse('Feedback email service is unreachable.', 502);
   }
 
   if (!response.ok) {
-    return NextResponse.json({ ok: false, error: 'Unable to send feedback.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    const responseBody = await response.text().catch(() => '');
+    console.error('Feedback email rejected by Resend:', {
+      status: response.status,
+      body: responseBody.slice(0, 800)
+    });
+    return feedbackResponse('Feedback email service rejected the request.', 502);
   }
 
   return NextResponse.json({ ok: true }, { status: 202, headers: { 'Cache-Control': 'no-store' } });

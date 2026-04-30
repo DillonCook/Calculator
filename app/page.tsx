@@ -174,6 +174,23 @@ const getFeedbackContactFromUser = (user: User | null) => {
   };
 };
 
+const getFeedbackSubmitErrorMessage = async (response: Response) => {
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error.trim();
+    }
+  } catch {
+    // Fall back to a generic user-facing message below.
+  }
+
+  if (response.status === 503) {
+    return 'Feedback email is not configured yet.';
+  }
+
+  return 'Feedback could not be sent. Try again in a moment.';
+};
+
 type CommercialDigestKey =
   | 'leased-sf'
   | 'physical-occ'
@@ -3152,7 +3169,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Feedback request failed with ${response.status}`);
+        throw new Error(await getFeedbackSubmitErrorMessage(response));
       }
 
       markFeedbackSubmitted(viewport);
@@ -3169,7 +3186,7 @@ export default function HomePage() {
         userId: currentUser?.id ?? null
       });
       setFeedbackSubmitState('error');
-      setFeedbackSubmitMessage('Feedback could not be sent. Try again in a moment.');
+      setFeedbackSubmitMessage(toClientErrorMessage(error) || 'Feedback could not be sent. Try again in a moment.');
     }
   };
 

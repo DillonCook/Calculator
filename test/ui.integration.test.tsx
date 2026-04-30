@@ -496,6 +496,37 @@ describe('dashboard integration', () => {
     fetchSpy.mockRestore();
   });
 
+  it('shows feedback API configuration errors from the server', async () => {
+    setViewport(390);
+    authMockState.user = {
+      id: 'feedback-user-2',
+      email: 'feedback-config@example.com',
+      user_metadata: {
+        full_name: 'Feedback Config Tester'
+      }
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: 'Feedback email is not configured yet.' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
+    await user.type(within(dialog).getByLabelText('Feedback'), 'This should show the API configuration error.');
+    await user.click(within(dialog).getByRole('button', { name: 'Send feedback' }));
+
+    expect(await within(dialog).findByText('Feedback email is not configured yet.')).toBeInTheDocument();
+    fetchSpy.mockRestore();
+  });
+
   it('only offers app download from mobile and tablet settings', async () => {
     const desktopRender = render(<HomePage />);
     const user = userEvent.setup();
