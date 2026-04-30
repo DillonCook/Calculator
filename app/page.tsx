@@ -96,6 +96,7 @@ const KPI_ORDER_STORAGE_KEY = 'dealcooker-kpi-order:v1';
 const FEEDBACK_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-open-count:v1';
 const FEEDBACK_SENT_STORAGE_KEY = 'dealcooker-feedback-sent:v1';
 const FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-last-sent-open-count:v1';
+const FEEDBACK_PROMPT_DELAY_MS = 3000;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -657,9 +658,6 @@ export default function HomePage() {
   const [isFeedbackComposerOpen, setIsFeedbackComposerOpen] = useState(false);
   const [feedbackSource, setFeedbackSource] = useState<FeedbackSource>('settings');
   const [feedbackDraft, setFeedbackDraft] = useState('');
-  const [feedbackName, setFeedbackName] = useState('');
-  const [feedbackEmail, setFeedbackEmail] = useState('');
-  const [feedbackPhone, setFeedbackPhone] = useState('');
   const [feedbackSubmitState, setFeedbackSubmitState] = useState<FeedbackSubmitState>('idle');
   const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(null);
   const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
@@ -1903,6 +1901,10 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!feedbackViewport || feedbackOpenCountedRef.current || typeof window === 'undefined') return;
+    if (!currentUser?.id || isOnboardingOpen) return;
+
+    const hasSeenTutorial = window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1';
+    if (!hasSeenTutorial) return;
 
     feedbackOpenCountedRef.current = true;
 
@@ -1917,10 +1919,20 @@ export default function HomePage() {
       ? opensSinceFeedback > 0 && opensSinceFeedback % 7 === 0
       : nextOpenCount % 2 === 0;
 
+    let promptTimer: number | null = null;
     if (shouldPrompt) {
-      setIsFeedbackPromptOpen(true);
+      promptTimer = window.setTimeout(() => {
+        setFeedbackSource('reminder');
+        setIsFeedbackPromptOpen(true);
+      }, FEEDBACK_PROMPT_DELAY_MS);
     }
-  }, [feedbackViewport]);
+
+    return () => {
+      if (promptTimer !== null) {
+        window.clearTimeout(promptTimer);
+      }
+    };
+  }, [currentUser?.id, feedbackViewport, isOnboardingOpen]);
 
   useEffect(() => {
     if (!isOnboardingOpen) return;
@@ -3084,12 +3096,8 @@ export default function HomePage() {
   };
 
   const openFeedbackComposer = (source: FeedbackSource) => {
-    const contact = getFeedbackContactFromUser(currentUser);
     setFeedbackSource(source);
     setFeedbackDraft('');
-    setFeedbackName(contact.name);
-    setFeedbackEmail(contact.email);
-    setFeedbackPhone(contact.phone);
     setFeedbackSubmitState('idle');
     setFeedbackSubmitMessage(null);
     setIsFeedbackPromptOpen(false);
@@ -3102,9 +3110,7 @@ export default function HomePage() {
     if (feedbackSubmitState === 'sending') return;
 
     const message = feedbackDraft.trim();
-    const email = feedbackEmail.trim();
-    const name = feedbackName.trim();
-    const phone = feedbackPhone.trim();
+    const contact = getFeedbackContactFromUser(currentUser);
 
     if (!message) {
       setFeedbackSubmitState('error');
@@ -3112,9 +3118,9 @@ export default function HomePage() {
       return;
     }
 
-    if (!email) {
+    if (!contact.email) {
       setFeedbackSubmitState('error');
-      setFeedbackSubmitMessage('Add your email so I can follow up.');
+      setFeedbackSubmitMessage('Sign in before sending feedback so I know who it came from.');
       return;
     }
 
@@ -3130,9 +3136,9 @@ export default function HomePage() {
         body: JSON.stringify({
           message,
           contact: {
-            name,
-            email,
-            phone
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone
           },
           context: {
             source: feedbackSource,
@@ -4555,44 +4561,8 @@ export default function HomePage() {
             </span>
           </label>
 
-          <div className="grid gap-2 sm:grid-cols-3">
-            <label className="block space-y-1.5">
-              <span className="settings-section-label text-[11px]">Email</span>
-              <input
-                value={feedbackEmail}
-                onChange={(event) => setFeedbackEmail(event.target.value)}
-                type="email"
-                aria-label="Email"
-                required
-                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
-                placeholder="you@example.com"
-              />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="settings-section-label text-[11px]">Name</span>
-              <input
-                value={feedbackName}
-                onChange={(event) => setFeedbackName(event.target.value)}
-                aria-label="Name"
-                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
-                placeholder="Optional"
-              />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="settings-section-label text-[11px]">Phone</span>
-              <input
-                value={feedbackPhone}
-                onChange={(event) => setFeedbackPhone(event.target.value)}
-                type="tel"
-                aria-label="Phone"
-                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
-                placeholder="Optional"
-              />
-            </label>
-          </div>
-
           <p className="text-xs leading-relaxed text-muted">
-            DealCooker sends this to Dillon with your contact info so he can follow up directly.
+            DealCooker includes your signed-in account contact info automatically so Dillon can follow up directly.
           </p>
 
           {feedbackSubmitMessage ? (

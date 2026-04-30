@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -142,9 +142,25 @@ const createSavedDeal = (dealName: string, updatedAt: string) =>
     { createdAt: updatedAt, updatedAt }
   );
 const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
+const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
 const FEEDBACK_LAST_SENT_DESKTOP_KEY = 'dealcooker-feedback-last-sent-open-count:v1:desktop';
 const FEEDBACK_SENT_KEY = 'dealcooker-feedback-sent:v1';
+const FEEDBACK_PROMPT_DELAY_MS = 3000;
+
+const flushAuthEffects = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+const advanceFeedbackPromptDelay = async () => {
+  await act(async () => {
+    vi.advanceTimersByTime(FEEDBACK_PROMPT_DELAY_MS + 100);
+    await Promise.resolve();
+  });
+};
 
 describe('dashboard integration', () => {
   beforeEach(() => {
@@ -446,9 +462,9 @@ describe('dashboard integration', () => {
     await user.click(screen.getByRole('button', { name: 'Send feedback' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
-    expect(within(dialog).getByLabelText('Email')).toHaveValue('feedback@example.com');
-    expect(within(dialog).getByLabelText('Name')).toHaveValue('Feedback Tester');
-    expect(within(dialog).getByLabelText('Phone')).toHaveValue('555-1212');
+    expect(within(dialog).queryByLabelText('Email')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Name')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Phone')).not.toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText('Feedback'), 'This is clear feedback from inside the app.');
     await user.click(within(dialog).getByRole('button', { name: 'Send feedback' }));
@@ -539,30 +555,90 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Imported 1 saved deal into this vault.')).toBeInTheDocument();
   });
 
-  it('reminds for feedback every second desktop open before feedback is sent', async () => {
-    const firstRender = render(<HomePage />);
+  it('does not auto-open feedback before sign-in or before the tutorial is complete', async () => {
+    vi.useFakeTimers();
+    try {
+      window.localStorage.setItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY, '1');
 
-    await waitFor(() => {
+      const signedOutRender = render(<HomePage />);
+      await flushAuthEffects();
+      await advanceFeedbackPromptDelay();
+
       expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('1');
-    });
-    expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
 
-    firstRender.unmount();
-    render(<HomePage />);
+      signedOutRender.unmount();
+      authMockState.user = {
+        id: 'feedback-reminder-user',
+        email: 'feedback-reminder@example.com'
+      };
 
-    expect(await screen.findByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
-    expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('2');
+      render(<HomePage />);
+      await flushAuthEffects();
+      await advanceFeedbackPromptDelay();
+
+      expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('1');
+      expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('reminds every seventh desktop open after feedback is sent', async () => {
-    window.localStorage.setItem(FEEDBACK_SENT_KEY, '1');
-    window.localStorage.setItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY, '8');
-    window.localStorage.setItem(FEEDBACK_LAST_SENT_DESKTOP_KEY, '2');
+  it('reminds for feedback every second desktop open after sign-in and tutorial completion', async () => {
+    vi.useFakeTimers();
+    try {
+      authMockState.user = {
+        id: 'feedback-reminder-user',
+        email: 'feedback-reminder@example.com'
+      };
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
 
-    render(<HomePage />);
+      const firstRender = render(<HomePage />);
+      await flushAuthEffects();
 
-    expect(await screen.findByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
-    expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('9');
+      expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('1');
+      await advanceFeedbackPromptDelay();
+      expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+
+      firstRender.unmount();
+      render(<HomePage />);
+      await flushAuthEffects();
+
+      expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('2');
+      expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+
+      await advanceFeedbackPromptDelay();
+
+      expect(screen.getByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reminds every seventh desktop open after feedback is sent and the tutorial is complete', async () => {
+    vi.useFakeTimers();
+    try {
+      authMockState.user = {
+        id: 'feedback-reminder-user',
+        email: 'feedback-reminder@example.com'
+      };
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+      window.localStorage.setItem(FEEDBACK_SENT_KEY, '1');
+      window.localStorage.setItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY, '8');
+      window.localStorage.setItem(FEEDBACK_LAST_SENT_DESKTOP_KEY, '2');
+
+      render(<HomePage />);
+      await flushAuthEffects();
+
+      expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('9');
+      expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+
+      await advanceFeedbackPromptDelay();
+
+      expect(screen.getByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('signs in with a regular email from the mobile account menu', async () => {
