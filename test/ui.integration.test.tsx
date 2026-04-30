@@ -9,9 +9,12 @@ const authMockState = vi.hoisted(() => ({
     | {
         id: string;
         email?: string;
+        phone?: string;
         user_metadata?: {
           avatar_url?: string;
           picture?: string;
+          full_name?: string;
+          phone?: string;
         };
       },
   emailSignInCalls: [] as Array<{ email: string; password: string }>,
@@ -139,6 +142,9 @@ const createSavedDeal = (dealName: string, updatedAt: string) =>
     { createdAt: updatedAt, updatedAt }
   );
 const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
+const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
+const FEEDBACK_LAST_SENT_DESKTOP_KEY = 'dealcooker-feedback-last-sent-open-count:v1:desktop';
+const FEEDBACK_SENT_KEY = 'dealcooker-feedback-sent:v1';
 
 describe('dashboard integration', () => {
   beforeEach(() => {
@@ -336,6 +342,27 @@ describe('dashboard integration', () => {
     expect(within(dialog).getByDisplayValue('Test Seed Deal')).toBeInTheDocument();
   });
 
+  it('applies light mode to portal sheets for deal identity and vault dialogs', async () => {
+    setViewport(390);
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Dark mode' }));
+
+    expect(document.body).toHaveClass('theme-light');
+
+    await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
+    const identityDialog = screen.getByRole('dialog', { name: 'Deal identity' });
+    expect(identityDialog).toBeInTheDocument();
+    await user.click(within(identityDialog).getByRole('button', { name: 'Close' }));
+
+    await user.click(screen.getByRole('button', { name: 'Deal Vault' }));
+    expect(screen.getByRole('dialog', { name: 'Deals' })).toBeInTheDocument();
+  });
+
   it('opens the deal identity editor after creating a new deal from mobile header', async () => {
     setViewport(390);
 
@@ -392,6 +419,150 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Account sign-in is unavailable right now.')).toBeInTheDocument();
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_URL/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_ANON_KEY/i)).not.toBeInTheDocument();
+  });
+
+  it('sends in-app feedback with available contact details', async () => {
+    setViewport(390);
+    authMockState.user = {
+      id: 'feedback-user-1',
+      email: 'feedback@example.com',
+      user_metadata: {
+        full_name: 'Feedback Tester',
+        phone: '555-1212'
+      }
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
+    expect(within(dialog).getByLabelText('Email')).toHaveValue('feedback@example.com');
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Feedback Tester');
+    expect(within(dialog).getByLabelText('Phone')).toHaveValue('555-1212');
+
+    await user.type(within(dialog).getByLabelText('Feedback'), 'This is clear feedback from inside the app.');
+    await user.click(within(dialog).getByRole('button', { name: 'Send feedback' }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/feedback',
+        expect.objectContaining({
+          method: 'POST'
+        })
+      );
+    });
+
+    const requestBody = JSON.parse((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(requestBody.message).toBe('This is clear feedback from inside the app.');
+    expect(requestBody.contact).toMatchObject({
+      email: 'feedback@example.com',
+      name: 'Feedback Tester',
+      phone: '555-1212'
+    });
+    expect(requestBody.context).toMatchObject({
+      source: 'settings',
+      viewport: 'mobile',
+      signedIn: true,
+      userId: 'feedback-user-1'
+    });
+    expect(window.localStorage.getItem(FEEDBACK_SENT_KEY)).toBe('1');
+    expect(within(dialog).getByText('Feedback sent. Thank you.')).toBeInTheDocument();
+    fetchSpy.mockRestore();
+  });
+
+  it('only offers app download from mobile and tablet settings', async () => {
+    const desktopRender = render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+
+    expect(screen.getByRole('button', { name: 'Replay quick tutorial' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset settings and order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset output ordering' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset settings defaults' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download the app!' })).not.toBeInTheDocument();
+
+    desktopRender.unmount();
+    setViewport(390);
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    expect(screen.getByRole('button', { name: 'Download the app!' })).toBeInTheDocument();
+  });
+
+  it('imports a Deal Vault backup from settings', async () => {
+    const importedPayload = {
+      ...defaultDealInput,
+      purchase: {
+        ...defaultDealInput.purchase,
+        dealName: 'Imported Backup Deal',
+        purchasePrice: 412000
+      }
+    };
+    const importedDeal = createScenarioRecord(importedPayload, {
+      scenarioId: 'backup-deal-1',
+      dealName: importedPayload.purchase.dealName,
+      payload: importedPayload,
+      createdAt: '2026-04-20T12:00:00.000Z',
+      updatedAt: '2026-04-29T12:00:00.000Z'
+    });
+    const backupFile = new File(
+      [JSON.stringify({ app: 'DealCooker', schemaVersion: '1.0.0', deals: [importedDeal] })],
+      'dealcooker-vault-backup.json',
+      { type: 'application/json' }
+    );
+    const { container } = render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Import backup' }));
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).toBeInstanceOf(HTMLInputElement);
+    await user.upload(fileInput as HTMLInputElement, backupFile);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Imported Backup Deal').length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText('Imported 1 saved deal into this vault.')).toBeInTheDocument();
+  });
+
+  it('reminds for feedback every second desktop open before feedback is sent', async () => {
+    const firstRender = render(<HomePage />);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('1');
+    });
+    expect(screen.queryByRole('dialog', { name: 'Send DealCooker feedback' })).not.toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<HomePage />);
+
+    expect(await screen.findByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
+    expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('2');
+  });
+
+  it('reminds every seventh desktop open after feedback is sent', async () => {
+    window.localStorage.setItem(FEEDBACK_SENT_KEY, '1');
+    window.localStorage.setItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY, '8');
+    window.localStorage.setItem(FEEDBACK_LAST_SENT_DESKTOP_KEY, '2');
+
+    render(<HomePage />);
+
+    expect(await screen.findByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
+    expect(window.localStorage.getItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY)).toBe('9');
   });
 
   it('signs in with a regular email from the mobile account menu', async () => {

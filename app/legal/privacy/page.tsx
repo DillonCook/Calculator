@@ -3,7 +3,7 @@ import Link from 'next/link';
 const privacySections = [
   {
     title: '1. Data We Process',
-    body: 'We process scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, and sanitized technical error logs required to run and improve the Service.'
+    body: 'Dillon Cook, doing business as DealCooker ("we", "us", or "our"), processes scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, feedback submissions, and sanitized technical error logs required to run and improve the Service.'
   },
   {
     title: '2. How We Use Data',
@@ -27,7 +27,7 @@ const privacySections = [
   },
   {
     title: '7. Your Rights',
-    body: 'Depending on your jurisdiction, you may have rights to access, correct, delete, or restrict processing of personal information. Contact details should be provided in your production deployment for rights requests.'
+    body: 'Depending on your jurisdiction, you may have rights to access, correct, delete, or restrict processing of personal information. You can contact Dillon Cook at dillon@theinvestoragent.io for privacy-related requests.'
   },
   {
     title: '8. Policy Changes',
@@ -42,8 +42,8 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Privacy Policy</h1>
-          <p className="text-xs text-muted">Effective date: February 19, 2026</p>
-          <p className="text-sm text-muted">This policy explains what data is handled and how users can make informed sharing decisions.</p>
+          <p className="text-xs text-muted">Effective date: April 29, 2026</p>
+          <p className="text-sm text-muted">This policy explains how Dillon Cook, doing business as DealCooker, handles data and how users can make informed sharing decisions.</p>
         </div>
 
         <div className="space-y-4">

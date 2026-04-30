@@ -3,11 +3,11 @@ import Link from 'next/link';
 const sections = [
   {
     title: '1. Acceptance of Terms',
-    body: 'By accessing or using DealCooker (the "Service"), you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.'
+    body: 'By accessing or using DealCooker (the "Service"), you agree to be bound by these Terms of Use with Dillon Cook, doing business as DealCooker ("we", "us", or "our"). If you do not agree, do not use the Service.'
   },
   {
     title: '2. Ownership and Intellectual Property',
-    body: 'The Service, including its code, content, design, calculations, branding, and documentation, is owned by DealCooker and protected by applicable intellectual property laws. Unauthorized copying, resale, reverse engineering, or derivative use is prohibited unless explicitly permitted in writing.'
+    body: 'The Service, including its code, content, design, calculations, branding, documentation, and related materials, is owned by Dillon Cook and operated under the DealCooker brand. The Service is protected by applicable intellectual property laws. Unauthorized copying, resale, redistribution, reverse engineering, scraping, or derivative use is prohibited unless explicitly permitted in writing.'
   },
   {
     title: '3. No Financial, Legal, or Tax Advice',
@@ -23,22 +23,26 @@ const sections = [
   },
   {
     title: '6. Limitation of Liability',
-    body: 'To the fullest extent permitted by law, DealCooker shall not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, revenue, data, goodwill, or business opportunities arising from your use of the Service.'
+    body: 'To the fullest extent permitted by law, Dillon Cook shall not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, revenue, data, goodwill, or business opportunities arising from your use of the Service.'
   },
   {
     title: '7. Indemnification',
-    body: 'You agree to defend, indemnify, and hold harmless DealCooker from claims, liabilities, damages, and expenses arising from your use of the Service, violation of these Terms, or violation of law.'
+    body: 'You agree to defend, indemnify, and hold harmless Dillon Cook from claims, liabilities, damages, and expenses arising from your use of the Service, violation of these Terms, or violation of law.'
   },
   {
-    title: '8. Termination',
+    title: '8. Feedback',
+    body: 'If you submit feedback, suggestions, bug reports, or ideas, you grant Dillon Cook the right to use them to improve, modify, market, operate, or support the Service without compensation or obligation to you.'
+  },
+  {
+    title: '9. Termination',
     body: 'We may suspend or terminate access to the Service at any time for misuse, legal risk, or operational reasons. Sections intended to survive termination remain effective.'
   },
   {
-    title: '9. Governing Law',
+    title: '10. Governing Law',
     body: 'These Terms are governed by applicable law in your operating jurisdiction, unless superseded by mandatory consumer protections.'
   },
   {
-    title: '10. Updates to Terms',
+    title: '11. Updates to Terms',
     body: 'We may revise these Terms from time to time. Continued use after updates means you accept the revised Terms.'
   }
 ];
@@ -50,8 +54,8 @@ export default function TermsPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Terms of Use</h1>
-          <p className="text-xs text-muted">Effective date: February 19, 2026</p>
-          <p className="text-sm text-muted">These terms help protect the product, company, and intellectual property while setting clear user expectations.</p>
+          <p className="text-xs text-muted">Effective date: April 29, 2026</p>
+          <p className="text-sm text-muted">These terms help protect DealCooker, its owner, and the intellectual property behind the Service while setting clear user expectations.</p>
         </div>
 
         <div className="space-y-4">

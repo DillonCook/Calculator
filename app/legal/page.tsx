@@ -7,7 +7,7 @@ export default function LegalHubPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
         <h1 className="text-2xl font-semibold md:text-3xl">DealCooker Legal Center</h1>
         <p className="text-sm text-muted">
-          Core legal documents for use of this product. These pages are not legal advice and should be reviewed with your attorney.
+          Core legal documents for DealCooker, a product owned and operated by Dillon Cook. These pages are not legal advice and should be reviewed with your attorney.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Link href="/legal/terms" className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium hover:bg-white/10">

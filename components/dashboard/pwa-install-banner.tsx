@@ -291,7 +291,7 @@ export function PwaInstallBanner() {
       <section
         role="region"
         aria-label="Install DealCooker"
-        className="section-shell section-shell-utility hidden rounded-2xl p-3 shadow-soft sm:block sm:p-4"
+        className="section-shell section-shell-utility hidden rounded-2xl p-3 shadow-soft sm:block sm:p-4 lg:hidden"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">

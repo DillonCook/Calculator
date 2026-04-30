@@ -97,9 +97,9 @@ html {
 
   .btn-primary:hover {
     filter: saturate(1.02);
-    border-color: var(--btn-hover-border);
+    border-color: rgba(251, 139, 35, 0.86);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.42),
+      0 0 0 1px rgba(251, 139, 35, 0.42),
       0 0 0 1px rgba(8, 18, 32, 0.22),
       0 10px 22px var(--btn-shadow-hover),
       inset 0 1px 0 rgba(255, 255, 255, 0.16);
@@ -120,11 +120,27 @@ html {
     --btn-grad-2: #fb8b23;
     --btn-grad-3: #ffad57;
     --btn-border: rgba(251, 139, 35, 0.86);
-    --btn-hover-border: rgba(255, 188, 112, 0.9);
-    --btn-text: #321303;
+    --btn-hover-border: rgba(251, 139, 35, 0.9);
+    --btn-text: #1f0b00;
     --btn-shadow-base: rgba(80, 31, 4, 0.34);
     --btn-shadow-hover: rgba(80, 31, 4, 0.42);
     --btn-shadow-active: rgba(80, 31, 4, 0.26);
+  }
+
+  .settings-feedback-button {
+    background: #fb8b23;
+    border-color: rgba(251, 139, 35, 0.9);
+    color: #1f0b00;
+    box-shadow:
+      0 0 0 1px rgba(8, 18, 32, 0.18),
+      0 8px 18px rgba(80, 31, 4, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .settings-feedback-button:hover {
+    background: #ff9a3f;
+    border-color: rgba(251, 139, 35, 0.95);
+    color: #1f0b00;
   }
 
   .btn-mobile-nav-active {
@@ -210,7 +226,7 @@ html {
 
   .btn-auth-top:hover {
     box-shadow:
-      0 0 0 1px rgba(255, 199, 136, 0.36),
+      0 0 0 1px rgba(251, 139, 35, 0.36),
       0 10px 18px rgba(18, 49, 90, 0.24),
       inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
@@ -243,11 +259,11 @@ html {
   }
 
   .btn-signin-trigger:hover {
-    border-color: rgba(255, 174, 120, 0.5);
+    border-color: rgba(251, 139, 35, 0.5);
     color: #ffffff;
     transform: translateY(-1px);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.34),
+      0 0 0 1px rgba(251, 139, 35, 0.34),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 9px 18px rgba(9, 12, 18, 0.18);
   }
@@ -285,9 +301,9 @@ html {
   }
 
   .btn-settings:hover {
-    border-color: rgba(255, 172, 116, 0.48);
+    border-color: rgba(251, 139, 35, 0.48);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.32),
+      0 0 0 1px rgba(251, 139, 35, 0.32),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 8px 16px rgba(9, 12, 18, 0.16);
     transform: translateY(-1px);
@@ -353,9 +369,9 @@ html {
   }
 
 .btn-listing-active:hover {
-  border-color: rgba(255, 181, 130, 0.48);
+  border-color: rgba(251, 139, 35, 0.48);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.34),
+      0 0 0 1px rgba(251, 139, 35, 0.34),
       0 1px 0 rgba(255, 255, 255, 0.12) inset,
       0 10px 20px rgba(6, 14, 28, 0.22);
   }
@@ -426,10 +442,10 @@ html {
 
   .btn-selector:hover,
   .btn-strategy-tab:hover {
-    border-color: rgba(255, 173, 118, 0.44);
+    border-color: rgba(251, 139, 35, 0.44);
     color: #ffffff;
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.3),
+      0 0 0 1px rgba(251, 139, 35, 0.3),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 10px 20px rgba(4, 13, 25, 0.18);
     transform: translateY(-1px);
@@ -462,9 +478,9 @@ html {
 
   .btn-selector-active:hover,
   .btn-strategy-active:hover {
-    border-color: rgba(255, 190, 141, 0.72);
+    border-color: rgba(251, 139, 35, 0.72);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.32),
+      0 0 0 1px rgba(251, 139, 35, 0.32),
       0 1px 0 rgba(255, 255, 255, 0.16) inset,
       0 14px 26px rgba(17, 51, 92, 0.26);
   }
@@ -678,9 +694,9 @@ html {
   }
 
   .section-action:hover {
-    border-color: rgba(255, 177, 126, 0.4);
+    border-color: rgba(251, 139, 35, 0.4);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.28),
+      0 0 0 1px rgba(251, 139, 35, 0.28),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 10px 20px rgba(4, 12, 24, 0.16);
     transform: translateY(-1px);
@@ -722,6 +738,16 @@ html {
     background:
       linear-gradient(180deg, rgba(89, 134, 195, 0.3), rgba(29, 50, 82, 0.18)) padding-box,
       linear-gradient(135deg, rgba(128, 173, 223, 0.34), rgba(217, 153, 99, 0.08)) border-box;
+  }
+
+  .cash-flow-chart-shell {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: #0a1326;
+    --cash-flow-chart-axis: #94a3b8;
+    --cash-flow-chart-grid: rgba(148, 163, 184, 0.12);
+    --cash-flow-chart-zero: rgba(148, 163, 184, 0.3);
+    --cash-flow-chart-positive: #34d399;
+    --cash-flow-chart-negative: #fb7185;
   }
 
   .section-action-utility {
@@ -1015,9 +1041,9 @@ html {
 
   .header-utility-button:hover {
     transform: translateY(-1px);
-    border-color: rgba(255, 173, 118, 0.44);
+    border-color: rgba(251, 139, 35, 0.44);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.3),
+      0 0 0 1px rgba(251, 139, 35, 0.3),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 8px 16px rgba(4, 12, 24, 0.16);
     color: #ffffff;
@@ -1817,9 +1843,9 @@ html {
 
   .app-header-shell .section-action:hover,
   .app-header-shell .section-action-utility:hover {
-    border-color: rgba(255, 176, 123, 0.42);
+    border-color: rgba(251, 139, 35, 0.42);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.28),
+      0 0 0 1px rgba(251, 139, 35, 0.28),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 8px 16px rgba(9, 12, 18, 0.16);
   }
@@ -1833,9 +1859,9 @@ html {
   }
 
   .app-header-shell .btn-listing-active:hover {
-    border-color: rgba(255, 183, 132, 0.54);
+    border-color: rgba(251, 139, 35, 0.54);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.32),
+      0 0 0 1px rgba(251, 139, 35, 0.32),
       0 1px 0 rgba(255, 255, 255, 0.12) inset,
       0 10px 18px rgba(9, 12, 18, 0.18);
   }
@@ -1876,10 +1902,10 @@ html {
   }
 
   .app-header-shell .btn-signin-trigger:hover {
-    border-color: rgba(255, 178, 126, 0.46);
+    border-color: rgba(251, 139, 35, 0.46);
     color: #f3f7fb;
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.3),
+      0 0 0 1px rgba(251, 139, 35, 0.3),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 8px 16px rgba(9, 12, 18, 0.18);
   }
@@ -1901,9 +1927,9 @@ html {
   }
 
   .app-header-shell .btn-settings:hover {
-    border-color: rgba(255, 176, 122, 0.42);
+    border-color: rgba(251, 139, 35, 0.42);
     box-shadow:
-      0 0 0 1px rgba(255, 149, 81, 0.28),
+      0 0 0 1px rgba(251, 139, 35, 0.28),
       0 1px 0 rgba(255, 255, 255, 0.1) inset,
       0 8px 16px rgba(9, 12, 18, 0.16);
   }
@@ -2015,6 +2041,16 @@ html {
     color: #eef3f9;
   }
 
+  .settings-panel-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .settings-section {
+    min-width: 0;
+  }
+
   .settings-section-kicker,
   .settings-section-label {
     color: #9aabbd;
@@ -2033,6 +2069,69 @@ html {
     background: rgba(103, 152, 213, 0.16);
     color: #eaf4ff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  @media (min-width: 768px) {
+    #settings-menu-desktop .settings-panel-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(10.25rem, 0.68fr) minmax(0, 0.92fr);
+      gap: 0.75rem;
+      align-items: start;
+    }
+
+    #settings-menu-desktop .settings-section-defaults {
+      grid-column: 1;
+      grid-row: span 2;
+    }
+
+    #settings-menu-desktop .settings-section-appearance {
+      grid-column: 3;
+      grid-row: 1;
+    }
+
+    #settings-menu-desktop .settings-section-data {
+      grid-column: 3;
+      grid-row: 2;
+    }
+
+    #settings-menu-desktop .settings-section-actions {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
+
+    #settings-menu-desktop .settings-action-stack {
+      grid-template-columns: 1fr;
+    }
+
+    #settings-menu-desktop .settings-section-data .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .feedback-reminder-backdrop {
+    background: rgba(4, 8, 20, 0.62);
+    backdrop-filter: blur(10px);
+  }
+
+  .feedback-reminder-panel {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(19, 24, 31, 0.98);
+    color: #eef3f9;
+  }
+
+  .feedback-input {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.055);
+    color: #eef3f9;
+  }
+
+  .feedback-input::placeholder {
+    color: rgba(187, 199, 213, 0.62);
+  }
+
+  .feedback-input:focus {
+    border-color: rgba(118, 171, 236, 0.7);
+    box-shadow: 0 0 0 3px rgba(118, 171, 236, 0.14);
   }
 }
 
@@ -2204,9 +2303,9 @@ html {
 }
 
 .theme-light .section-action:hover {
-  border-color: rgba(216, 132, 74, 0.42);
+  border-color: rgba(251, 139, 35, 0.42);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 10px 18px rgba(68, 96, 132, 0.12);
 }
@@ -2224,6 +2323,19 @@ html {
 .theme-light .section-action-projection {
   border-color: rgba(87, 139, 201, 0.24);
   background: rgba(232, 241, 252, 0.94);
+}
+
+.theme-light .cash-flow-chart-shell {
+  border-color: rgba(87, 139, 201, 0.22);
+  background: linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(237, 245, 253, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 18px rgba(63, 91, 126, 0.08);
+  --cash-flow-chart-axis: #47627d;
+  --cash-flow-chart-grid: rgba(76, 101, 132, 0.22);
+  --cash-flow-chart-zero: rgba(52, 76, 104, 0.48);
+  --cash-flow-chart-positive: #117a58;
+  --cash-flow-chart-negative: #b33d52;
 }
 
 .theme-light .section-action-utility {
@@ -2277,7 +2389,7 @@ html {
   --btn-grad-2: #dc7a2f;
   --btn-grad-3: #efa055;
   --btn-border: rgba(188, 99, 37, 0.64);
-  --btn-hover-border: rgba(220, 140, 82, 0.84);
+  --btn-hover-border: rgba(251, 139, 35, 0.84);
   --btn-text: #f8fbff;
   --btn-shadow-base: rgba(72, 94, 126, 0.2);
   --btn-shadow-hover: rgba(66, 88, 122, 0.28);
@@ -2289,8 +2401,8 @@ html {
   --btn-grad-2: #fb8b23;
   --btn-grad-3: #ffad57;
   --btn-border: rgba(251, 139, 35, 0.82);
-  --btn-hover-border: rgba(255, 174, 90, 0.9);
-  --btn-text: #321303;
+  --btn-hover-border: rgba(251, 139, 35, 0.9);
+  --btn-text: #1f0b00;
   --btn-shadow-base: rgba(146, 62, 8, 0.2);
   --btn-shadow-hover: rgba(146, 62, 8, 0.28);
   --btn-shadow-active: rgba(146, 62, 8, 0.16);
@@ -2413,9 +2525,9 @@ html {
 }
 
 .theme-light .btn-listing-active:hover {
-  border-color: rgba(216, 132, 74, 0.48);
+  border-color: rgba(251, 139, 35, 0.48);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.24),
+    0 0 0 1px rgba(251, 139, 35, 0.24),
     0 0 0 1px rgba(67, 102, 148, 0.18),
     0 12px 20px rgba(60, 90, 128, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
@@ -2444,10 +2556,10 @@ html {
 
 .theme-light .btn-selector:hover,
 .theme-light .btn-strategy-tab:hover {
-  border-color: rgba(216, 132, 74, 0.44);
+  border-color: rgba(251, 139, 35, 0.44);
   color: #142d46;
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 0 0 1px rgba(88, 123, 168, 0.1),
     0 10px 20px rgba(70, 98, 133, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.94);
@@ -2461,6 +2573,10 @@ html {
 .theme-light .btn-selector-projection {
   border-color: rgba(87, 139, 201, 0.28);
   background: rgba(239, 246, 254, 0.96);
+}
+
+.theme-light .btn-selector-projection:not(.btn-selector-active) {
+  color: #16324a;
 }
 
 .theme-light .btn-selector-utility {
@@ -2481,9 +2597,9 @@ html {
 
 .theme-light .btn-selector-active:hover,
 .theme-light .btn-strategy-active:hover {
-  border-color: rgba(216, 132, 74, 0.48);
+  border-color: rgba(251, 139, 35, 0.48);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.24),
+    0 0 0 1px rgba(251, 139, 35, 0.24),
     0 0 0 1px rgba(65, 100, 144, 0.12),
     0 14px 26px rgba(62, 95, 138, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
@@ -2504,9 +2620,9 @@ html {
 }
 
 .theme-light .btn-settings:hover {
-  border-color: rgba(216, 132, 74, 0.46);
+  border-color: rgba(251, 139, 35, 0.46);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.24),
+    0 0 0 1px rgba(251, 139, 35, 0.24),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 8px 16px rgba(56, 90, 130, 0.14);
 }
@@ -2549,9 +2665,9 @@ html {
 
 .theme-light .app-header-shell .section-action:hover,
 .theme-light .app-header-shell .section-action-utility:hover {
-  border-color: rgba(216, 132, 74, 0.42);
+  border-color: rgba(251, 139, 35, 0.42);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 8px 16px rgba(68, 96, 132, 0.1);
 }
@@ -2567,9 +2683,9 @@ html {
 }
 
 .theme-light .app-header-shell .btn-listing-active:hover {
-  border-color: rgba(216, 132, 74, 0.44);
+  border-color: rgba(251, 139, 35, 0.44);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.24),
+    0 0 0 1px rgba(251, 139, 35, 0.24),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 10px 18px rgba(58, 88, 124, 0.12);
 }
@@ -2584,10 +2700,10 @@ html {
 }
 
 .theme-light .app-header-shell .btn-signin-trigger:hover {
-  border-color: rgba(216, 132, 74, 0.42);
+  border-color: rgba(251, 139, 35, 0.42);
   color: #142d46;
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 8px 16px rgba(68, 96, 132, 0.12);
 }
@@ -2701,10 +2817,10 @@ html {
 }
 
 .theme-light .header-utility-button:hover {
-  border-color: rgba(216, 132, 74, 0.42);
+  border-color: rgba(251, 139, 35, 0.42);
   color: #142d46;
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 8px 16px rgba(68, 96, 132, 0.12);
 }
@@ -2868,6 +2984,65 @@ html {
     0 1px 0 rgba(74, 119, 182, 0.04);
 }
 
+.theme-light .feedback-reminder-backdrop {
+  background: rgba(20, 34, 50, 0.36);
+}
+
+.theme-light .feedback-reminder-panel {
+  border-color: rgba(101, 124, 151, 0.24);
+  background: linear-gradient(180deg, rgba(247, 251, 255, 0.99), rgba(237, 244, 251, 0.98));
+  color: #16324a;
+  box-shadow:
+    0 18px 30px rgba(63, 84, 111, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+.theme-light .feedback-input {
+  border-color: rgba(101, 124, 151, 0.24);
+  background: rgba(255, 255, 255, 0.92);
+  color: #16324a;
+}
+
+.theme-light .feedback-input::placeholder {
+  color: rgba(83, 104, 125, 0.7);
+}
+
+.theme-light .feedback-input:focus {
+  border-color: rgba(74, 119, 182, 0.48);
+  box-shadow: 0 0 0 3px rgba(74, 119, 182, 0.12);
+}
+
+.theme-light .mobile-sheet-panel {
+  border-color: rgba(101, 124, 151, 0.26) !important;
+  background: linear-gradient(180deg, rgba(247, 251, 255, 0.99), rgba(237, 244, 251, 0.98)) !important;
+  color: #16324a;
+  box-shadow:
+    0 18px 34px rgba(55, 78, 106, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98) !important;
+}
+
+.theme-light .mobile-sheet-drag-header {
+  border-color: rgba(101, 124, 151, 0.2) !important;
+  background: rgba(247, 251, 255, 0.94) !important;
+}
+
+.theme-light .mobile-sheet-panel .section-shell,
+.theme-light .mobile-sheet-panel .section-inner {
+  color: #16324a;
+}
+
+.theme-light .mobile-sheet-panel [class*='text-red-100'] {
+  color: #8f2d2d !important;
+}
+
+.theme-light .mobile-sheet-panel [class*='bg-red-500/'] {
+  background-color: rgba(250, 229, 229, 0.96) !important;
+}
+
+.theme-light .mobile-sheet-panel [class*='border-red-500/'] {
+  border-color: rgba(182, 72, 72, 0.34) !important;
+}
+
 .theme-light .app-header-shell [class*='text-slate-200'] {
   color: #274055 !important;
 }
@@ -2922,9 +3097,9 @@ html {
 }
 
 .theme-light .app-header-shell .btn-settings:hover {
-  border-color: rgba(216, 132, 74, 0.44);
+  border-color: rgba(251, 139, 35, 0.44);
   box-shadow:
-    0 0 0 1px rgba(220, 132, 74, 0.22),
+    0 0 0 1px rgba(251, 139, 35, 0.22),
     0 1px 0 rgba(255, 255, 255, 0.98) inset,
     0 8px 16px rgba(68, 96, 132, 0.12);
 }
@@ -2963,6 +3138,18 @@ html {
 
 .theme-light [class*='text-slate-300'] {
   color: #5a6f84 !important;
+}
+
+.theme-light .btn-selector-projection:not(.btn-selector-active),
+.theme-light .btn-selector-projection:not(.btn-selector-active) * {
+  color: #16324a !important;
+}
+
+.theme-light .btn-selector-active,
+.theme-light .btn-selector-active *,
+.theme-light .btn-strategy-active,
+.theme-light .btn-strategy-active * {
+  color: #f8fbff !important;
 }
 
 .theme-light [class*='border-white/'] {

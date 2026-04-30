@@ -81,9 +81,11 @@ GitHub Actions runs `npm ci`, lint, tests, and production build on pushes to `ma
 
 1. Keep the GitHub repository private and configure deployment secrets in the host, not in source.
 2. Apply the Supabase migration in `supabase/migrations/20260429000000_private_production_foundation.sql`.
-3. Configure the Supabase URL, anon/publishable key, service-role key, Open Claw key, `NEXT_PUBLIC_APP_URL=https://dealcooker.app`, and `NEXT_PUBLIC_APP_RELEASE`.
+3. Configure the Supabase URL, anon/publishable key, service-role key, Open Claw key, Resend feedback-email key, `NEXT_PUBLIC_APP_URL=https://dealcooker.app`, and `NEXT_PUBLIC_APP_RELEASE`.
 4. Run the RLS smoke checks in `supabase/README.md` before inviting users.
 5. Verify email sign-in, password reset, Google sign-in, account switching, Deal Vault sync, share links, backup export, print, and mobile layout.
+
+Feedback email uses `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`, and `FEEDBACK_FROM_EMAIL`. The Resend API key must stay server-side in deployment secrets.
 
 ## Open Claw Backend Access (Deal + Short Link)
 

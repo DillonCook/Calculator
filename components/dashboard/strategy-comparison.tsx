@@ -747,7 +747,7 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
 
   return (
     <div className={compact ? 'space-y-1' : 'space-y-2'}>
-      <div className={`rounded-lg border border-white/10 bg-[#0A1326] ${compact ? 'p-0' : 'p-2 sm:p-2.5'}`}>
+      <div className={`cash-flow-chart-shell rounded-lg border ${compact ? 'p-0' : 'p-2 sm:p-2.5'}`}>
         {!compact ? (
           <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
             <p className="pl-0.5">Annual cash flow</p>
@@ -781,7 +781,7 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
                 x2={width - padding}
                 y1={tick.y}
                 y2={tick.y}
-                stroke={Math.abs(tick.y - zeroY) < 0.5 ? '#94a3b84d' : '#94a3b81f'}
+                stroke={Math.abs(tick.y - zeroY) < 0.5 ? 'var(--cash-flow-chart-zero)' : 'var(--cash-flow-chart-grid)'}
                 strokeDasharray={Math.abs(tick.y - zeroY) < 0.5 ? '4 4' : undefined}
                 strokeWidth={Math.abs(tick.y - zeroY) < 0.5 ? '1' : '0.8'}
               />
@@ -795,7 +795,7 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
                   width={barWidth}
                   height={bar.barHeight}
                   rx="1.4"
-                  fill={bar.isPositive ? '#34d399' : '#fb7185'}
+                  fill={bar.isPositive ? 'var(--cash-flow-chart-positive)' : 'var(--cash-flow-chart-negative)'}
                   opacity={bar.year === 0 ? 0.85 : 1}
                 >
                   <animate
@@ -819,7 +819,7 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
                   x={bar.x}
                   y={height - 3}
                   textAnchor="middle"
-                  style={{ fill: '#94a3b8', fontSize: compact ? '3.4px' : '4.4px' }}
+                  style={{ fill: 'var(--cash-flow-chart-axis)', fontSize: compact ? '3.4px' : '4.4px' }}
                 >
                   {bar.year}
                 </text>

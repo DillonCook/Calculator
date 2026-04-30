@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
@@ -62,6 +62,9 @@ type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
 type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
+type FeedbackSource = 'settings' | 'reminder';
+type FeedbackSubmitState = 'idle' | 'sending' | 'sent' | 'error';
+type FeedbackViewport = 'desktop' | 'mobile';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
 type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
@@ -90,6 +93,10 @@ const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
 ];
 const defaultHeadlineMetricOrder: HeadlineMetricId[] = ['cashToClose', 'capRate', 'cashOnCash', 'dscr', 'roi', 'irr'];
 const KPI_ORDER_STORAGE_KEY = 'dealcooker-kpi-order:v1';
+const FEEDBACK_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-open-count:v1';
+const FEEDBACK_SENT_STORAGE_KEY = 'dealcooker-feedback-sent:v1';
+const FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-last-sent-open-count:v1';
+const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const compactStrategyDescriptions: Record<StrategyKey, string> = {
@@ -126,6 +133,44 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
     'Value-add renovation and resale model focused on execution speed.',
     'Timeline discipline and exit pricing accuracy are the core profit levers.'
   ]
+};
+
+const getViewportStorageKey = (baseKey: string, viewport: FeedbackViewport) => `${baseKey}:${viewport}`;
+
+const readStoredCount = (key: string) => {
+  if (typeof window === 'undefined') return 0;
+  const parsed = Number.parseInt(window.localStorage.getItem(key) ?? '0', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const asProfileString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : '');
+
+const getMetadataString = (metadata: unknown, keys: string[]) => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return '';
+  const record = metadata as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = asProfileString(record[key]);
+    if (value) return value;
+  }
+
+  return '';
+};
+
+const getFeedbackContactFromUser = (user: User | null) => {
+  const metadata = user?.user_metadata;
+  const givenName = getMetadataString(metadata, ['given_name', 'first_name']);
+  const familyName = getMetadataString(metadata, ['family_name', 'last_name']);
+  const name = getMetadataString(metadata, ['full_name', 'name', 'display_name']) || [givenName, familyName].filter(Boolean).join(' ');
+  const phone =
+    asProfileString((user as { phone?: unknown } | null)?.phone) ||
+    getMetadataString(metadata, ['phone', 'phone_number', 'mobile', 'mobile_phone']);
+
+  return {
+    name,
+    email: asProfileString(user?.email),
+    phone
+  };
 };
 
 type CommercialDigestKey =
@@ -607,6 +652,16 @@ export default function HomePage() {
   const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [feedbackViewport, setFeedbackViewport] = useState<FeedbackViewport | null>(null);
+  const [isFeedbackPromptOpen, setIsFeedbackPromptOpen] = useState(false);
+  const [isFeedbackComposerOpen, setIsFeedbackComposerOpen] = useState(false);
+  const [feedbackSource, setFeedbackSource] = useState<FeedbackSource>('settings');
+  const [feedbackDraft, setFeedbackDraft] = useState('');
+  const [feedbackName, setFeedbackName] = useState('');
+  const [feedbackEmail, setFeedbackEmail] = useState('');
+  const [feedbackPhone, setFeedbackPhone] = useState('');
+  const [feedbackSubmitState, setFeedbackSubmitState] = useState<FeedbackSubmitState>('idle');
+  const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(null);
   const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
   const [isDesktopDealVaultOpen, setIsDesktopDealVaultOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -622,6 +677,7 @@ export default function HomePage() {
   const [authFeedback, setAuthFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const hasLoadedSupabaseDeals = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
+  const feedbackOpenCountedRef = useRef(false);
   const queuedPushScenarioIdRef = useRef<string | null>(null);
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
@@ -643,6 +699,7 @@ export default function HomePage() {
   const desktopAuthActionRef = useRef<HTMLDivElement | null>(null);
   const settingsControlsRef = useRef<HTMLDivElement | null>(null);
   const desktopSettingsControlsRef = useRef<HTMLDivElement | null>(null);
+  const importBackupInputRef = useRef<HTMLInputElement | null>(null);
   const compactInputsViewRef = useRef<HTMLDivElement | null>(null);
   const mobileCoreSectionRef = useRef<HTMLDivElement | null>(null);
   const mobileExpensesSectionRef = useRef<HTMLDivElement | null>(null);
@@ -1781,7 +1838,10 @@ export default function HomePage() {
 
     if (typeof window.matchMedia === 'function') {
       const mediaQuery = window.matchMedia('(max-width: 1023px)');
-      const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+      const updateViewport = () => {
+        setIsMobileViewport(mediaQuery.matches);
+        setFeedbackViewport(mediaQuery.matches ? 'mobile' : 'desktop');
+      };
 
       updateViewport();
       if (typeof mediaQuery.addEventListener === 'function') {
@@ -1793,7 +1853,11 @@ export default function HomePage() {
       return () => mediaQuery.removeListener(updateViewport);
     }
 
-    const updateViewport = () => setIsMobileViewport(window.innerWidth <= 1023);
+    const updateViewport = () => {
+      const isMobile = window.innerWidth <= 1023;
+      setIsMobileViewport(isMobile);
+      setFeedbackViewport(isMobile ? 'mobile' : 'desktop');
+    };
     updateViewport();
     window.addEventListener('resize', updateViewport);
     return () => window.removeEventListener('resize', updateViewport);
@@ -1836,6 +1900,27 @@ export default function HomePage() {
       setOnboardingStepIndex(0);
     }
   }, []);
+
+  useEffect(() => {
+    if (!feedbackViewport || feedbackOpenCountedRef.current || typeof window === 'undefined') return;
+
+    feedbackOpenCountedRef.current = true;
+
+    const openCountKey = getViewportStorageKey(FEEDBACK_OPEN_COUNT_STORAGE_KEY, feedbackViewport);
+    const nextOpenCount = readStoredCount(openCountKey) + 1;
+    window.localStorage.setItem(openCountKey, String(nextOpenCount));
+
+    const hasSentFeedback = window.localStorage.getItem(FEEDBACK_SENT_STORAGE_KEY) === '1';
+    const lastSentOpenCount = readStoredCount(getViewportStorageKey(FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY, feedbackViewport));
+    const opensSinceFeedback = nextOpenCount - lastSentOpenCount;
+    const shouldPrompt = hasSentFeedback
+      ? opensSinceFeedback > 0 && opensSinceFeedback % 7 === 0
+      : nextOpenCount % 2 === 0;
+
+    if (shouldPrompt) {
+      setIsFeedbackPromptOpen(true);
+    }
+  }, [feedbackViewport]);
 
   useEffect(() => {
     if (!isOnboardingOpen) return;
@@ -2024,6 +2109,12 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(SETTINGS_LIGHT_MODE_STORAGE_KEY, isLightMode ? '1' : '0');
+  }, [isLightMode]);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    document.body.classList.toggle('theme-light', isLightMode);
+    return () => document.body.classList.remove('theme-light');
   }, [isLightMode]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2672,6 +2763,7 @@ export default function HomePage() {
 
   const openInstallPromptFromSettings = () => {
     if (typeof window === 'undefined') return;
+    if (!isMobileViewport) return;
     triggerHapticFeedback('light');
     setIsSettingsOpen(false);
     window.dispatchEvent(new Event(PWA_OPEN_INSTALL_EVENT));
@@ -2918,6 +3010,163 @@ export default function HomePage() {
     }
   };
 
+  const importDealVaultBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const rawText = typeof file.text === 'function'
+        ? await file.text()
+        : await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.addEventListener('load', () => resolve(typeof reader.result === 'string' ? reader.result : ''));
+            reader.addEventListener('error', () => reject(reader.error ?? new Error('Unable to read backup file.')));
+            reader.readAsText(file);
+          });
+      const parsed = JSON.parse(rawText) as { deals?: unknown };
+      const importedDeals = Array.isArray(parsed.deals)
+        ? parsed.deals.filter((record): record is ScenarioRecord => {
+            if (!record || typeof record !== 'object') return false;
+            const candidate = record as Partial<ScenarioRecord>;
+            return (
+              typeof candidate.scenarioId === 'string' &&
+              typeof candidate.dealName === 'string' &&
+              typeof candidate.createdAt === 'string' &&
+              typeof candidate.updatedAt === 'string' &&
+              Boolean(candidate.payload && typeof candidate.payload === 'object')
+            );
+          })
+        : [];
+
+      if (importedDeals.length === 0) {
+        setSyncFeedback('No DealCooker deals were found in that backup file.');
+        return;
+      }
+
+      const mergedDeals = mergeScenariosByLatest(readDealsFromVault(), importedDeals);
+      writeScenarios(mergedDeals);
+      setDeals(mergedDeals);
+
+      const nextActiveDeal = importedDeals[0] ?? mergedDeals[0];
+      if (nextActiveDeal) {
+        loadScenario(nextActiveDeal.payload, nextActiveDeal.scenarioId);
+      }
+
+      if (currentUser?.id) {
+        importedDeals.forEach((deal) => {
+          pendingUpsertIdsRef.current.add(deal.scenarioId);
+          void syncScenarioUpsert(deal);
+        });
+      }
+
+      setSyncFeedback(`Imported ${importedDeals.length} saved ${importedDeals.length === 1 ? 'deal' : 'deals'} into this vault.`);
+    } catch (error) {
+      reportClientError({
+        source: 'deal-vault',
+        operation: 'backup-import',
+        severity: 'error',
+        message: toClientErrorMessage(error),
+        userId: currentUser?.id ?? null
+      });
+      setSyncFeedback('Unable to import that Deal Vault backup.');
+    }
+  };
+
+  const markFeedbackSubmitted = (viewport: FeedbackViewport) => {
+    if (typeof window === 'undefined') return;
+
+    window.localStorage.setItem(FEEDBACK_SENT_STORAGE_KEY, '1');
+    window.localStorage.setItem(
+      getViewportStorageKey(FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY, viewport),
+      String(readStoredCount(getViewportStorageKey(FEEDBACK_OPEN_COUNT_STORAGE_KEY, viewport)))
+    );
+  };
+
+  const openFeedbackComposer = (source: FeedbackSource) => {
+    const contact = getFeedbackContactFromUser(currentUser);
+    setFeedbackSource(source);
+    setFeedbackDraft('');
+    setFeedbackName(contact.name);
+    setFeedbackEmail(contact.email);
+    setFeedbackPhone(contact.phone);
+    setFeedbackSubmitState('idle');
+    setFeedbackSubmitMessage(null);
+    setIsFeedbackPromptOpen(false);
+    setIsFeedbackComposerOpen(true);
+    triggerHapticFeedback('light');
+  };
+
+  const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (feedbackSubmitState === 'sending') return;
+
+    const message = feedbackDraft.trim();
+    const email = feedbackEmail.trim();
+    const name = feedbackName.trim();
+    const phone = feedbackPhone.trim();
+
+    if (!message) {
+      setFeedbackSubmitState('error');
+      setFeedbackSubmitMessage('Add a note before sending feedback.');
+      return;
+    }
+
+    if (!email) {
+      setFeedbackSubmitState('error');
+      setFeedbackSubmitMessage('Add your email so I can follow up.');
+      return;
+    }
+
+    setFeedbackSubmitState('sending');
+    setFeedbackSubmitMessage(null);
+
+    try {
+      const viewport = feedbackViewport ?? (isMobileViewport ? 'mobile' : 'desktop');
+      const route = typeof window === 'undefined' ? appUrl : `${window.location.origin}${window.location.pathname}`;
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          contact: {
+            name,
+            email,
+            phone
+          },
+          context: {
+            source: feedbackSource,
+            viewport,
+            route,
+            signedIn: Boolean(currentUser),
+            userId: currentUser?.id ?? null,
+            activeDeal: activeDealDisplayName
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Feedback request failed with ${response.status}`);
+      }
+
+      markFeedbackSubmitted(viewport);
+      setFeedbackSubmitState('sent');
+      setFeedbackDraft('');
+      setFeedbackSubmitMessage('Feedback sent. Thank you.');
+      triggerHapticFeedback('light');
+    } catch (error) {
+      reportClientError({
+        source: 'feedback',
+        operation: 'submit',
+        severity: 'error',
+        message: toClientErrorMessage(error),
+        userId: currentUser?.id ?? null
+      });
+      setFeedbackSubmitState('error');
+      setFeedbackSubmitMessage('Feedback could not be sent. Try again in a moment.');
+    }
+  };
+
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' || !currentUser?.id) return;
 
@@ -3142,8 +3391,8 @@ export default function HomePage() {
     : 'Local only until you sign in.';
 
   const settingsMenuContent = (
-    <div className="settings-panel space-y-3">
-      <div className="space-y-1.5">
+    <div className="settings-panel settings-panel-layout">
+      <div className="settings-section settings-section-defaults space-y-1.5">
         <p className="settings-section-kicker text-[11px] uppercase tracking-wide">New Deal Defaults</p>
         <label className="settings-section-label text-[11px]" htmlFor="settings-default-strategy">
           Default strategy
@@ -3191,7 +3440,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="settings-section settings-section-appearance space-y-1.5">
         <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Appearance</p>
         <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
           <span className="settings-row-label text-xs">Theme</span>
@@ -3236,7 +3485,7 @@ export default function HomePage() {
           </button>
         </div>
         {isHeadlineMetricOrderEditorOpen ? (
-          <div className="section-inner space-y-1 rounded-lg p-2">
+          <div className="settings-kpi-editor section-inner space-y-1 rounded-lg p-2">
             {orderedHeadlineMetricIds.map((metricId, index) => {
               const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
 
@@ -3272,18 +3521,18 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="settings-section settings-section-data space-y-1.5">
         <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Data safety</p>
         <div className="section-inner space-y-2 rounded-lg px-2.5 py-2">
           <p className="settings-row-label text-xs">{syncStatusLabel}</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             <button
               type="button"
               onClick={() => void retryCloudSync()}
               disabled={!currentUser || isRetryingCloudSync}
               className="tap-feedback section-action section-action-utility settings-action-button rounded-lg px-2.5 py-2 text-left text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isRetryingCloudSync ? 'Retrying...' : 'Retry sync'}
+              {isRetryingCloudSync ? 'Retrying...' : 'Retry cloud sync'}
             </button>
             <button
               type="button"
@@ -3292,51 +3541,68 @@ export default function HomePage() {
             >
               Export backup
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                importBackupInputRef.current?.click();
+              }}
+              className="tap-feedback section-action section-action-utility settings-action-button rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+            >
+              Import backup
+            </button>
+            <input
+              ref={importBackupInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              onChange={(event) => void importDealVaultBackup(event)}
+            />
           </div>
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="settings-section settings-section-actions space-y-1.5">
         <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Actions</p>
-        <button
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('light');
-            replayQuickTutorial();
-          }}
-          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-        >
-          Replay quick tutorial
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('light');
-            resetOutputOrderingPreferences();
-          }}
-          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-        >
-          Reset output ordering
-        </button>
-        {!isPwaInstalled ? (
+        <div className="settings-action-stack grid gap-2">
           <button
             type="button"
-            onClick={openInstallPromptFromSettings}
+            onClick={() => openFeedbackComposer('settings')}
+            className="btn-primary btn-new-deal tap-feedback settings-feedback-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
+          >
+            Send feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              replayQuickTutorial();
+            }}
             className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
           >
-            Download the app!
+            Replay quick tutorial
           </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            triggerHapticFeedback('medium');
-            resetSettingsDefaults();
-          }}
-          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-        >
-          Reset settings defaults
-        </button>
+          {!isPwaInstalled && isMobileViewport ? (
+            <button
+              type="button"
+              onClick={openInstallPromptFromSettings}
+              className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+            >
+              Download the app!
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('medium');
+              resetOutputOrderingPreferences();
+              resetSettingsDefaults();
+            }}
+            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+          >
+            Reset settings and order
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -4193,6 +4459,172 @@ export default function HomePage() {
     </>
   );
 
+  const feedbackReminderDialog = isFeedbackPromptOpen ? (
+    <div className="feedback-reminder-backdrop fixed inset-0 z-[220] flex items-end justify-center px-4 py-5 sm:items-center" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-reminder-title"
+        className="feedback-reminder-panel w-full max-w-sm rounded-2xl p-4 shadow-soft"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Open testing</p>
+            <h2 id="feedback-reminder-title" className="mt-1 text-base font-semibold">
+              Send DealCooker feedback
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFeedbackPromptOpen(false)}
+            className="tap-feedback section-action section-action-utility inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
+            aria-label="Close feedback reminder"
+          >
+            X
+          </button>
+        </div>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Tell me what felt confusing, broken, or worth improving.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => openFeedbackComposer('reminder')}
+            className="btn-primary btn-auth tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-semibold"
+          >
+            Send feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsFeedbackPromptOpen(false)}
+            className="tap-feedback section-action section-action-utility min-h-10 rounded-xl px-3 py-2 text-sm font-medium"
+          >
+            Not now
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
+  const feedbackComposerDialog = isFeedbackComposerOpen ? (
+    <div className="feedback-reminder-backdrop fixed inset-0 z-[230] flex items-end justify-center px-4 py-5 sm:items-center" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-composer-title"
+        className="feedback-reminder-panel feedback-composer-panel w-full max-w-lg rounded-2xl p-4 shadow-soft"
+      >
+        <form className="space-y-4" onSubmit={submitFeedback}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Open testing</p>
+              <h2 id="feedback-composer-title" className="mt-1 text-base font-semibold">
+                Send DealCooker feedback
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFeedbackComposerOpen(false)}
+              className="tap-feedback section-action section-action-utility inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
+              aria-label="Close feedback form"
+            >
+              X
+            </button>
+          </div>
+
+          <label className="block space-y-1.5">
+            <span className="settings-section-label text-[11px]">Feedback</span>
+            <textarea
+              value={feedbackDraft}
+              onChange={(event) => {
+                setFeedbackDraft(event.target.value.slice(0, FEEDBACK_MESSAGE_MAX_LENGTH));
+                if (feedbackSubmitState !== 'sending') {
+                  setFeedbackSubmitState('idle');
+                  setFeedbackSubmitMessage(null);
+                }
+              }}
+              maxLength={FEEDBACK_MESSAGE_MAX_LENGTH}
+              aria-label="Feedback"
+              required
+              rows={5}
+              className="feedback-input min-h-32 w-full resize-y rounded-xl border px-3 py-2 text-sm outline-none"
+              placeholder="What felt confusing, broken, or worth improving?"
+            />
+            <span className="block text-right text-[10px] text-muted">
+              {feedbackDraft.length}/{FEEDBACK_MESSAGE_MAX_LENGTH}
+            </span>
+          </label>
+
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Email</span>
+              <input
+                value={feedbackEmail}
+                onChange={(event) => setFeedbackEmail(event.target.value)}
+                type="email"
+                aria-label="Email"
+                required
+                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                placeholder="you@example.com"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Name</span>
+              <input
+                value={feedbackName}
+                onChange={(event) => setFeedbackName(event.target.value)}
+                aria-label="Name"
+                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                placeholder="Optional"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Phone</span>
+              <input
+                value={feedbackPhone}
+                onChange={(event) => setFeedbackPhone(event.target.value)}
+                type="tel"
+                aria-label="Phone"
+                className="feedback-input h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                placeholder="Optional"
+              />
+            </label>
+          </div>
+
+          <p className="text-xs leading-relaxed text-muted">
+            DealCooker sends this to Dillon with your contact info so he can follow up directly.
+          </p>
+
+          {feedbackSubmitMessage ? (
+            <p
+              role="status"
+              className={`text-xs ${feedbackSubmitState === 'sent' ? 'text-accent' : feedbackSubmitState === 'error' ? 'text-red-300' : 'text-muted'}`}
+            >
+              {feedbackSubmitMessage}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="submit"
+              disabled={feedbackSubmitState === 'sending' || feedbackSubmitState === 'sent'}
+              className="btn-primary btn-auth tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {feedbackSubmitState === 'sending' ? 'Sending...' : feedbackSubmitState === 'sent' ? 'Sent' : 'Send feedback'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFeedbackComposerOpen(false)}
+              className="tap-feedback section-action section-action-utility min-h-10 rounded-xl px-3 py-2 text-sm font-medium"
+            >
+              {feedbackSubmitState === 'sent' ? 'Done' : 'Cancel'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  ) : null;
+
   const compactShell = (
     <>
       <section ref={mobileStrategyTabsRef} className="section-shell section-shell-input sticky top-2 z-30 space-y-2 rounded-2xl p-2 backdrop-blur">
@@ -4607,7 +5039,7 @@ export default function HomePage() {
                         </svg>
                       </button>
                       {isSettingsOpen ? (
-                        <div id="settings-menu-desktop" className="settings-menu-shell section-shell section-shell-utility absolute right-0 top-10 z-[136] w-80 max-w-[92vw] rounded-xl p-3 shadow-soft backdrop-blur">
+                        <div id="settings-menu-desktop" className="settings-menu-shell section-shell section-shell-utility absolute right-0 top-10 z-[136] w-[52rem] max-w-[calc(100vw-1rem)] rounded-xl p-3 shadow-soft backdrop-blur">
                           {settingsMenuContent}
                         </div>
                       ) : null}
@@ -5093,7 +5525,7 @@ export default function HomePage() {
       </div>
       <footer className="section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; 2026 DealCooker. Created by Dillon Cook. All rights reserved.</p>
+          <p>&copy; 2026 Dillon Cook. DealCooker is a product created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3 text-slate-300">
             <Link href="/legal" className="hover:text-white">Legal Center</Link>
             <Link href="/legal/terms" className="hover:text-white">Terms</Link>
@@ -5107,6 +5539,8 @@ export default function HomePage() {
 
       {dealIdentitySheet}
       {desktopDealVaultSheet}
+      {feedbackReminderDialog}
+      {feedbackComposerDialog}
 
       <OnboardingTour
         open={isOnboardingOpen}
