@@ -14,7 +14,7 @@ import { StrategyInputsWorkspace } from '@/components/dashboard/strategy-inputs-
 import { StrategyModuleInputs } from '@/components/dashboard/strategy-module-inputs';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { OnboardingTour, type OnboardingStep } from '@/components/dashboard/onboarding-tour';
-import { StrategyTabs } from '@/components/dashboard/strategy-tabs';
+import { StrategyTabs, TurnaroundIcon } from '@/components/dashboard/strategy-tabs';
 import { StrategyWorkLightbox } from '@/components/dashboard/strategy-work-lightbox';
 import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { PwaInstallBanner, PWA_OPEN_INSTALL_EVENT, PWA_QUALIFY_INSTALL_EVENT } from '@/components/dashboard/pwa-install-banner';
@@ -68,8 +68,11 @@ type FeedbackViewport = 'desktop' | 'mobile';
 type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
 type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
 type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
+type SyncFeedbackTone = 'info' | 'success' | 'error';
+type SyncFeedbackMessage = { tone: SyncFeedbackTone; message: string };
 
 const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealcooker.app').replace(/\/+$/, '');
+const appReleaseLabel = process.env.NEXT_PUBLIC_APP_RELEASE ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'local-open-testing';
 const getAuthCallbackUrl = (next?: 'password-reset') => {
   const url = new URL('/auth/callback', appUrl);
   if (next) {
@@ -96,8 +99,10 @@ const KPI_ORDER_STORAGE_KEY = 'dealcooker-kpi-order:v1';
 const FEEDBACK_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-open-count:v1';
 const FEEDBACK_SENT_STORAGE_KEY = 'dealcooker-feedback-sent:v1';
 const FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-last-sent-open-count:v1';
+const SHARE_IMPORT_NOTICE_STORAGE_KEY = 'dealcooker-share-imported:v1';
 const FEEDBACK_PROMPT_DELAY_MS = 3000;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
+const SAMPLE_DEAL_NAME = 'Tampa Duplex - Sample Deal';
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const compactStrategyDescriptions: Record<StrategyKey, string> = {
@@ -603,6 +608,63 @@ const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel 
     }
   };
 };
+
+const buildSampleDealPayload = (): DealInputModel => {
+  const base = cloneDefaultDealPayload();
+
+  return {
+    ...base,
+    purchase: {
+      ...base.purchase,
+      dealName: SAMPLE_DEAL_NAME,
+      listingUrl: '',
+      purchasePrice: 285000,
+      rehabBudget: 25000,
+      arv: 340000
+    },
+    commercial: {
+      ...base.commercial,
+      grossLeasableAreaSqft: 9000,
+      occupiedSqft: 8100,
+      averageBaseRentPerSqftYear: 28,
+      nnnRecoveryPerSqftYear: 9
+    },
+    longTerm: {
+      ...base.longTerm,
+      grossRentMonthly: 3200,
+      otherIncomeMonthly: 75,
+      turnaround: {
+        ...base.longTerm.turnaround,
+        enabled: true,
+        stabilizedGrossRentMonthly: 3600,
+        additionalIncomeMonthly: 100,
+        rehabBudgetForStabilization: 25000
+      }
+    },
+    airbnb: {
+      ...base.airbnb,
+      adr: 185,
+      occupancyPercent: 0.66
+    },
+    padSplit: {
+      ...base.padSplit,
+      rentableRooms: 5,
+      avgWeeklyRatePerRoom: 215
+    },
+    brrrr: {
+      ...base.brrrr,
+      holdingMonths: 6,
+      rehabOverride: 25000,
+      arvOverride: 340000
+    },
+    flip: {
+      ...base.flip,
+      holdingMonths: 5,
+      rehabOverride: 25000,
+      arvOverride: 340000
+    }
+  };
+};
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
 const defaultProjectionStrategySelectionFallback: StrategyKey[] = [...strategyKeyOrder];
 const areStrategySelectionsEqual = (left: StrategyKey[], right: StrategyKey[]) =>
@@ -697,7 +759,7 @@ export default function HomePage() {
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const activeVaultOwnerIdRef = useRef<string | null>(null);
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<SyncFeedbackMessage | null>(null);
   const [isRetryingCloudSync, setIsRetryingCloudSync] = useState(false);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
@@ -708,6 +770,10 @@ export default function HomePage() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; scenarioId: string } | null>(null);
+
+  const showSyncFeedback = useCallback((message: string, tone: SyncFeedbackTone = 'info') => {
+    setSyncFeedback({ message, tone });
+  }, []);
   const dealVaultRef = useRef<HTMLButtonElement | null>(null);
   const desktopHeaderActionsRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
@@ -1195,6 +1261,13 @@ export default function HomePage() {
   const headerChromeMutedClass = isHeaderModalOpen
     ? 'pointer-events-none select-none blur-[6px] opacity-30 saturate-[0.7] transition duration-200 ease-out'
     : 'transition duration-200 ease-out';
+  const syncFeedbackClassName = syncFeedback
+    ? syncFeedback.tone === 'error'
+      ? 'border-red-400/50 bg-red-500/15 text-red-100'
+      : syncFeedback.tone === 'success'
+        ? 'border-emerald-400/45 bg-emerald-500/15 text-emerald-100'
+        : 'border-accent/45 bg-accent/12 text-slate-100'
+    : '';
   const quickScanPoints = quickScanDetails[activeStrategy];
   const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
   const orderedHeadlineMetricIds = normalizeHeadlineMetricOrder(headlineMetricOrder);
@@ -1371,6 +1444,23 @@ export default function HomePage() {
   const updateModel: Dispatch<SetStateAction<DealInputModel>> = (nextModel) => {
     if (activeDealId) setSaveStatus('saving');
     setModel(nextModel);
+  };
+
+  const setLongTermTurnaroundEnabled = (enabled: boolean) => {
+    updateModel((current) => {
+      if (current.longTerm.turnaround.enabled === enabled) return current;
+
+      return {
+        ...current,
+        longTerm: {
+          ...current.longTerm,
+          turnaround: {
+            ...current.longTerm.turnaround,
+            enabled
+          }
+        }
+      };
+    });
   };
 
   const updateAssumptions = (updates: Partial<MasterAssumptions>) => {
@@ -1571,7 +1661,7 @@ export default function HomePage() {
     });
     setLastCloudError(operation);
     setCloudHealth('error');
-    setSyncFeedback('Cloud sync needs attention. Your local Deal Vault backup is still available.');
+    showSyncFeedback('Cloud sync needs attention. Your local Deal Vault backup is still available.', 'error');
   }
 
   async function syncScenarioUpsert(scenario: ScenarioRecord) {
@@ -2290,6 +2380,38 @@ export default function HomePage() {
     return nextDeal;
   };
 
+  const loadSampleDeal = () => {
+    const sampleDealName = buildUniqueDealName(SAMPLE_DEAL_NAME);
+    const samplePayload = buildSampleDealPayload();
+    const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
+    const payload = attachDealUiState(
+      {
+        ...samplePayload,
+        purchase: {
+          ...samplePayload.purchase,
+          dealName: sampleDealName
+        }
+      },
+      {
+        activeStrategy: 'longTerm',
+        projectionStrategies: nextProjectionStrategies
+      }
+    );
+
+    const sampleDeal = createDealInVault(payload, sampleDealName);
+    const nextDeals = saveDealToVault(sampleDeal);
+    setDeals(nextDeals);
+    loadScenario(sampleDeal.payload, sampleDeal.scenarioId);
+    queueScenarioPush(sampleDeal);
+    setSaveStatus('saved');
+    setIsSettingsOpen(false);
+    setCompactSheetView(null);
+    showSyncFeedback('Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.', 'success');
+    qualifyInstallPrompt();
+
+    return sampleDeal;
+  };
+
   const duplicateScenario = (scenarioId: string) => {
     const scenario = deals.find((entry) => entry.scenarioId === scenarioId);
     if (!scenario) return;
@@ -2980,16 +3102,16 @@ export default function HomePage() {
 
   const retryCloudSync = async () => {
     if (!currentUser?.id) {
-      setSyncFeedback('Sign in to sync Deal Vault with the cloud.');
+      showSyncFeedback('Sign in to sync Deal Vault with the cloud.', 'info');
       return;
     }
 
     setIsRetryingCloudSync(true);
-    setSyncFeedback('Retrying cloud sync...');
+    showSyncFeedback('Retrying cloud sync...', 'info');
 
     try {
       await pullAndMergeCloudDeals();
-      setSyncFeedback('Cloud sync retry finished.');
+      showSyncFeedback('Cloud sync retry finished.', 'success');
     } catch (error) {
       reportClientError({
         source: 'cloud-scenarios',
@@ -2998,7 +3120,7 @@ export default function HomePage() {
         message: toClientErrorMessage(error),
         userId: currentUser.id
       });
-      setSyncFeedback('Cloud sync retry failed. Export a backup before continuing.');
+      showSyncFeedback('Cloud sync retry failed. Export a backup before continuing.', 'error');
     } finally {
       setIsRetryingCloudSync(false);
     }
@@ -3026,7 +3148,7 @@ export default function HomePage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setSyncFeedback(`Exported ${records.length} saved ${records.length === 1 ? 'deal' : 'deals'} from this vault.`);
+      showSyncFeedback(`Exported ${records.length} saved ${records.length === 1 ? 'deal' : 'deals'} from this vault.`, 'success');
     } catch (error) {
       reportClientError({
         source: 'deal-vault',
@@ -3035,7 +3157,7 @@ export default function HomePage() {
         message: toClientErrorMessage(error),
         userId: currentUser?.id ?? null
       });
-      setSyncFeedback('Unable to export Deal Vault backup from this browser.');
+      showSyncFeedback('Unable to export Deal Vault backup from this browser.', 'error');
     }
   };
 
@@ -3069,7 +3191,7 @@ export default function HomePage() {
         : [];
 
       if (importedDeals.length === 0) {
-        setSyncFeedback('No DealCooker deals were found in that backup file.');
+        showSyncFeedback('No DealCooker deals were found in that backup file.', 'error');
         return;
       }
 
@@ -3089,7 +3211,7 @@ export default function HomePage() {
         });
       }
 
-      setSyncFeedback(`Imported ${importedDeals.length} saved ${importedDeals.length === 1 ? 'deal' : 'deals'} into this vault.`);
+      showSyncFeedback(`Imported ${importedDeals.length} saved ${importedDeals.length === 1 ? 'deal' : 'deals'} into this vault.`, 'success');
     } catch (error) {
       reportClientError({
         source: 'deal-vault',
@@ -3098,7 +3220,7 @@ export default function HomePage() {
         message: toClientErrorMessage(error),
         userId: currentUser?.id ?? null
       });
-      setSyncFeedback('Unable to import that Deal Vault backup.');
+      showSyncFeedback('Unable to import that Deal Vault backup.', 'error');
     }
   };
 
@@ -3161,9 +3283,15 @@ export default function HomePage() {
             source: feedbackSource,
             viewport,
             route,
+            appRelease: appReleaseLabel,
+            userAgent: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
             signedIn: Boolean(currentUser),
             userId: currentUser?.id ?? null,
-            activeDeal: activeDealDisplayName
+            activeDeal: activeDealDisplayName,
+            activeDealId: activeDealId || null,
+            activeStrategy,
+            projectionStrategies: compactSelectedStrategies,
+            savedDealCount: deals.length
           }
         })
       });
@@ -3246,6 +3374,16 @@ export default function HomePage() {
 
     return () => window.clearTimeout(syncImportTimer);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const importedDealName = window.sessionStorage.getItem(SHARE_IMPORT_NOTICE_STORAGE_KEY);
+    if (!importedDealName) return;
+
+    window.sessionStorage.removeItem(SHARE_IMPORT_NOTICE_STORAGE_KEY);
+    showSyncFeedback(`Imported shared deal: ${importedDealName}.`, 'success');
+  }, [showSyncFeedback]);
 
   const emailAuthModeOptions: Array<{ mode: Exclude<EmailAuthMode, 'resetPassword'>; label: string }> = [
     { mode: 'signIn', label: 'Sign in' },
@@ -3595,6 +3733,26 @@ export default function HomePage() {
           >
             Send feedback
           </button>
+          <Link
+            href="/help"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              setIsSettingsOpen(false);
+            }}
+            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+          >
+            Help &amp; methodology
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              loadSampleDeal();
+            }}
+            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+          >
+            Load sample deal
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -3808,6 +3966,7 @@ export default function HomePage() {
           onActiveDealChange={openDesktopVaultScenario}
           onSaveAs={saveDealAs}
           onCreateNew={launchNewDeal}
+          onLoadSampleDeal={loadSampleDeal}
           onDeleteDeal={removeScenarioById}
         />
       </div>
@@ -4204,9 +4363,21 @@ export default function HomePage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Deal Vault</p>
                 <p className="mt-1 text-sm text-slate-100">Open, duplicate, or delete saved scenarios without leaving the mobile workflow.</p>
               </div>
-              <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
-                {deals.length} total
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
+                  {deals.length} total
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    loadSampleDeal();
+                  }}
+                  className="tap-feedback section-action section-action-utility min-h-8 rounded-lg px-2.5 text-[11px] font-semibold text-slate-100"
+                >
+                  Sample deal
+                </button>
+              </div>
             </div>
 
             <label className="sr-only" htmlFor="compact-deal-search">
@@ -4284,7 +4455,7 @@ export default function HomePage() {
                 <p className="section-inner w-full rounded-xl border-dashed px-3 py-2 text-sm text-muted">
                   {compactDealsSearch.trim()
                     ? 'No deals match this search.'
-                    : 'No saved deals yet. Start with a blank one and it will appear here.'}
+                    : 'No saved deals yet. Start with a blank one or load the sample deal.'}
                 </p>
               </div>
             )}
@@ -4314,26 +4485,72 @@ export default function HomePage() {
           </section>
 
           <div className="space-y-2">
-            {strategyKeyOrder.map((strategy) => (
-              <button
-                key={`compact-strategy-sheet-${strategy}`}
-                type="button"
-                onClick={() => {
-                  triggerHapticFeedback('light');
-                  handleStrategyChange(strategy);
-                  setCompactSheetView(null);
-                }}
-                className={`tap-feedback flex w-full items-start justify-between gap-3 rounded-2xl px-4 py-3 text-left transition ${
-                  activeStrategy === strategy ? 'btn-selector btn-selector-input btn-selector-active text-white' : 'btn-selector btn-selector-input text-slate-200'
-                }`}
-              >
-                <div>
-                  <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
-                  <p className={`mt-1 text-xs ${activeStrategy === strategy ? 'text-slate-200/85' : 'text-muted'}`}>{compactStrategyDescriptions[strategy]}</p>
-                </div>
-                <span className={`shrink-0 text-xs ${activeStrategy === strategy ? 'text-slate-100/85' : 'text-muted'}`}>{activeStrategy === strategy ? 'Selected' : 'Switch'}</span>
-              </button>
-            ))}
+            {strategyKeyOrder.map((strategy) => {
+              const isActive = activeStrategy === strategy;
+
+              if (strategy === 'longTerm') {
+                const isRegularActive = isActive && !model.longTerm.turnaround.enabled;
+                const isTurnaroundActive = isActive && model.longTerm.turnaround.enabled;
+
+                return (
+                  <div key={`compact-strategy-sheet-${strategy}`} className={`long-term-strategy-combo grid w-full grid-cols-[2fr_1fr] overflow-hidden rounded-2xl ${isActive ? 'long-term-strategy-combo-active' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setLongTermTurnaroundEnabled(false);
+                        handleStrategyChange(strategy);
+                        setCompactSheetView(null);
+                      }}
+                      className={`tap-feedback btn-selector btn-selector-input rounded-none px-4 py-3 text-left transition ${
+                        isRegularActive ? 'btn-selector-active text-white' : 'text-slate-200'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
+                      <p className={`mt-1 text-xs ${isRegularActive ? 'text-slate-200/85' : 'text-muted'}`}>{compactStrategyDescriptions[strategy]}</p>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Long-Term turnaround"
+                      aria-pressed={isTurnaroundActive}
+                      title="Turnaround"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setLongTermTurnaroundEnabled(true);
+                        handleStrategyChange(strategy);
+                        setCompactSheetView(null);
+                      }}
+                      className={`tap-feedback btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
+                        isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active text-white' : 'text-slate-200'
+                      }`}
+                    >
+                      <TurnaroundIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={`compact-strategy-sheet-${strategy}`}
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    handleStrategyChange(strategy);
+                    setCompactSheetView(null);
+                  }}
+                  className={`tap-feedback flex w-full items-start justify-between gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                    isActive ? 'btn-selector btn-selector-input btn-selector-active text-white' : 'btn-selector btn-selector-input text-slate-200'
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
+                    <p className={`mt-1 text-xs ${isActive ? 'text-slate-200/85' : 'text-muted'}`}>{compactStrategyDescriptions[strategy]}</p>
+                  </div>
+                  <span className={`shrink-0 text-xs ${isActive ? 'text-slate-100/85' : 'text-muted'}`}>{isActive ? 'Selected' : 'Switch'}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </MobileSheet>
@@ -4839,8 +5056,8 @@ export default function HomePage() {
               </div>
 
               {syncFeedback ? (
-                <div className="rounded-xl border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100" role="status">
-                  {syncFeedback}
+                <div className={`rounded-xl border px-3 py-2 text-xs ${syncFeedbackClassName}`} role="status">
+                  {syncFeedback.message}
                 </div>
               ) : null}
 
@@ -5038,8 +5255,8 @@ export default function HomePage() {
             </div>
 
             {syncFeedback ? (
-              <div className="fixed inset-x-3 bottom-4 z-50 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-xs text-red-100 shadow-soft sm:inset-x-auto sm:right-4 sm:text-sm" role="status">
-                {syncFeedback}
+              <div className={`fixed inset-x-3 bottom-4 z-50 rounded-lg border px-3 py-2 text-xs shadow-soft sm:inset-x-auto sm:right-4 sm:text-sm ${syncFeedbackClassName}`} role="status">
+                {syncFeedback.message}
               </div>
             ) : null}
 
@@ -5409,6 +5626,8 @@ export default function HomePage() {
                 <StrategyTabs
                   active={activeStrategy}
                   onChange={openDesktopStrategyWorkspace}
+                  longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+                  onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
                   quickScan={strategyQuickScan}
                   embeddedInRail
                   actionSlot={
@@ -5418,7 +5637,7 @@ export default function HomePage() {
                         triggerHapticFeedback('light');
                         setIsStrategyWorkOpen(true);
                       }}
-                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap"
+                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
                     >
                       Show work
                     </button>
@@ -5513,10 +5732,11 @@ export default function HomePage() {
       <footer className="section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; 2026 Dillon Cook. DealCooker is a product created by Dillon Cook. All rights reserved.</p>
-          <div className="flex flex-wrap items-center gap-3 text-slate-300">
-            <Link href="/legal" className="hover:text-white">Legal Center</Link>
-            <Link href="/legal/terms" className="hover:text-white">Terms</Link>
-            <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/help" className="hover:text-accent">Help</Link>
+            <Link href="/legal" className="hover:text-accent">Legal Center</Link>
+            <Link href="/legal/terms" className="hover:text-accent">Terms</Link>
+            <Link href="/legal/privacy" className="hover:text-accent">Privacy</Link>
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted/90">

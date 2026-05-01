@@ -19,6 +19,15 @@ const asString = (value: unknown, maxLength = MAX_FIELD_LENGTH): string => {
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+const asStringList = (value: unknown, maxItems = 12): string => {
+  if (!Array.isArray(value)) return '';
+  return value
+    .slice(0, maxItems)
+    .map((item) => asString(item, 40))
+    .filter(Boolean)
+    .join(', ');
+};
+
 const feedbackResponse = (error: string, status: number) =>
   NextResponse.json({ ok: false, error }, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -38,6 +47,16 @@ export async function POST(request: Request) {
   const email = asString(contact.email);
   const name = asString(contact.name);
   const phone = asString(contact.phone);
+  const source = asString(context.source, 40) || 'unknown';
+  const viewport = asString(context.viewport, 40) || 'unknown';
+  const route = asString(context.route, 300) || 'unknown';
+  const appRelease = asString(context.appRelease, 120) || 'unknown';
+  const userAgent = asString(context.userAgent, 500) || asString(request.headers.get('user-agent'), 500) || 'unknown';
+  const activeDeal = asString(context.activeDeal, 180) || 'Not provided';
+  const activeDealId = asString(context.activeDealId, 120) || 'Not provided';
+  const activeStrategy = asString(context.activeStrategy, 40) || 'Not provided';
+  const projectionStrategies = asStringList(context.projectionStrategies) || 'Not provided';
+  const savedDealCount = Number.isFinite(Number(context.savedDealCount)) ? String(Number(context.savedDealCount)) : 'unknown';
 
   if (!message) {
     return feedbackResponse('Missing feedback message.', 400);
@@ -65,12 +84,18 @@ export async function POST(request: Request) {
     '',
     'Context',
     `Submitted at: ${submittedAt}`,
-    `Source: ${asString(context.source, 40) || 'unknown'}`,
-    `Viewport: ${asString(context.viewport, 40) || 'unknown'}`,
-    `Route: ${asString(context.route, 300) || 'unknown'}`,
+    `Source: ${source}`,
+    `Viewport: ${viewport}`,
+    `Route: ${route}`,
+    `App release: ${appRelease}`,
+    `Browser: ${userAgent}`,
     `Signed in: ${String(Boolean(context.signedIn))}`,
     `User ID: ${asString(context.userId, 120) || 'Not provided'}`,
-    `Active deal: ${asString(context.activeDeal, 180) || 'Not provided'}`
+    `Active deal: ${activeDeal}`,
+    `Active deal ID: ${activeDealId}`,
+    `Active strategy: ${activeStrategy}`,
+    `Visible projections: ${projectionStrategies}`,
+    `Saved deals: ${savedDealCount}`
   ].join('\n');
 
   let response: Response;
@@ -86,7 +111,7 @@ export async function POST(request: Request) {
         from: feedbackFromEmail,
         to: [feedbackToEmail],
         reply_to: email,
-        subject: `DealCooker feedback from ${name || email}`,
+        subject: `DealCooker feedback (${source}/${viewport}) from ${name || email}`,
         text: emailText
       })
     });

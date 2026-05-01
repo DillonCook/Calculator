@@ -11,6 +11,7 @@ interface DealsVaultPanelProps {
   onActiveDealChange: (id: string) => void;
   onSaveAs: (dealName: string, listingUrl: string) => void;
   onCreateNew: () => void;
+  onLoadSampleDeal: () => void;
   onDeleteDeal: (scenarioId: string) => void;
   onRequestClose?: () => void;
 }
@@ -64,6 +65,7 @@ export function DealsVaultPanel({
   onActiveDealChange,
   onSaveAs,
   onCreateNew,
+  onLoadSampleDeal,
   onDeleteDeal,
   onRequestClose
 }: DealsVaultPanelProps) {
@@ -153,6 +155,19 @@ export function DealsVaultPanel({
             <VaultActionButton ariaLabel="Create new deal" title="New deal" onClick={onCreateNew} tone="primary">
               +
             </VaultActionButton>
+            <button
+              type="button"
+              aria-label="Load sample deal"
+              title="Load sample deal"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                onLoadSampleDeal();
+                onRequestClose?.();
+              }}
+              className="tap-feedback section-action section-action-utility min-h-10 rounded-lg px-3 text-xs font-semibold text-slate-200"
+            >
+              Sample
+            </button>
             <VaultActionButton
               ariaLabel="Duplicate active deal"
               title="Duplicate active deal"
@@ -217,7 +232,7 @@ export function DealsVaultPanel({
         <div className="scrollbar-premium mt-3 max-h-[28rem] overflow-y-auto pr-1">
           {visibleDeals.length === 0 ? (
             <div className="section-inner rounded-xl border-dashed px-4 py-6 text-center text-sm text-muted">
-              No deals match this search.
+              {hasSearchQuery ? 'No deals match this search.' : 'No saved deals yet. Start with a blank or sample deal.'}
             </div>
           ) : (
             <div className="space-y-2">

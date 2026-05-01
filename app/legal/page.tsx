@@ -9,12 +9,15 @@ export default function LegalHubPage() {
         <p className="text-sm text-muted">
           Core legal documents for DealCooker, a product owned and operated by Dillon Cook. These pages are not legal advice and should be reviewed with your attorney.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Link href="/legal/terms" className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium hover:bg-white/10">
             Terms of Use
           </Link>
           <Link href="/legal/privacy" className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium hover:bg-white/10">
             Privacy Policy
+          </Link>
+          <Link href="/help" className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium hover:bg-white/10">
+            Help &amp; Methodology
           </Link>
         </div>
       </div>

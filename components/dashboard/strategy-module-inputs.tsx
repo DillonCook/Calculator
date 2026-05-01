@@ -26,7 +26,6 @@ export function StrategyModuleInputs({
 }: StrategyModuleInputsProps) {
   const isEmbedded = variant === 'embedded';
   const infoShellClassName = isEmbedded ? 'workbench-note' : 'section-inner rounded-xl p-3 text-sm text-muted';
-  const inlineCalloutClassName = isEmbedded ? 'workbench-note' : 'section-inner rounded-xl p-3';
   const inlineSubsectionClassName = isEmbedded ? 'workbench-subsection' : 'section-inner rounded-xl p-3';
   const inlineMutedPanelClassName = isEmbedded ? 'workbench-note sm:col-span-2' : 'section-inner-muted sm:col-span-2 rounded-lg p-3';
 
@@ -151,27 +150,6 @@ export function StrategyModuleInputs({
     if (active === 'longTerm') {
       return (
         <div className="space-y-3">
-          <div className={inlineCalloutClassName}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-slate-100">Buying this deal to turn it around?</p>
-                <p className="text-xs text-muted">Enable stabilized-year underwriting for any long-term rental repositioning plan.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => updateLongTermTurnaround('enabled', !model.longTerm.turnaround.enabled)}
-                aria-pressed={model.longTerm.turnaround.enabled}
-                className={`tap-feedback inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  model.longTerm.turnaround.enabled
-                    ? 'btn-primary'
-                    : 'section-action section-action-input text-slate-200'
-                }`}
-              >
-                {model.longTerm.turnaround.enabled ? 'Turnaround On' : 'Turnaround Off'}
-              </button>
-            </div>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
             <Input

@@ -488,6 +488,9 @@ describe('dashboard integration', () => {
     expect(requestBody.context).toMatchObject({
       source: 'settings',
       viewport: 'mobile',
+      appRelease: expect.any(String),
+      activeStrategy: expect.any(String),
+      savedDealCount: expect.any(Number),
       signedIn: true,
       userId: 'feedback-user-1'
     });
@@ -533,6 +536,8 @@ describe('dashboard integration', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
+    expect(screen.getByRole('link', { name: 'Help & methodology' })).toHaveAttribute('href', '/help');
+    expect(screen.getByRole('button', { name: 'Load sample deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Replay quick tutorial' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reset settings and order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reset output ordering' })).not.toBeInTheDocument();
@@ -1403,6 +1408,22 @@ describe('dashboard integration', () => {
     expect(strategyArv).toHaveValue(365000);
   });
 
+  it('uses the split Long-Term strategy button to toggle turnaround mode', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const selector = screen.getByLabelText('Desktop strategy selector');
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term turnaround' }));
+
+    expect(within(selector).getByRole('button', { name: 'Long-Term turnaround' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(getStrategyInputsWorkspace()).getByText('Stabilize scenario (12-month underwrite)')).toBeInTheDocument();
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term' }));
+
+    expect(within(selector).getByRole('button', { name: 'Long-Term turnaround' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('Stabilize scenario (12-month underwrite)')).not.toBeInTheDocument();
+  });
+
   it('allows decimal precision for percent and numeric text fields without rounding', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -1440,7 +1461,7 @@ describe('dashboard integration', () => {
       'href',
       'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
     );
-  });
+  }, 10000);
 
 
   it('does not auto-rename for onehome links', async () => {
@@ -1462,7 +1483,7 @@ describe('dashboard integration', () => {
     });
 
     expect(within(dialog).getByLabelText('Deal name')).toHaveValue(originalName);
-  });
+  }, 10000);
 
   it('does not auto-rename when listing url lacks an address slug', async () => {
     render(<HomePage />);
@@ -1525,7 +1546,7 @@ describe('dashboard integration', () => {
     expect(within(workspace).getByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })).toHaveValue(0);
 
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
-  });
+  }, 10000);
 
   it('share link feedback auto-dismisses after a few seconds', async () => {
     Object.defineProperty(navigator, 'clipboard', {

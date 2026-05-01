@@ -502,6 +502,30 @@ html {
     transform: translateY(0);
   }
 
+  .long-term-strategy-combo {
+    border: 1px solid rgba(151, 173, 207, 0.22);
+    background: rgba(28, 37, 51, 0.92);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.08) inset,
+      0 8px 16px rgba(4, 12, 24, 0.14);
+  }
+
+  .long-term-strategy-combo .btn-selector {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .long-term-strategy-combo .btn-selector + .btn-selector {
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .turnaround-strategy-toggle-active {
+    border-color: rgba(251, 139, 35, 0.72);
+    background: linear-gradient(180deg, rgba(251, 139, 35, 0.95), rgba(194, 100, 32, 0.96));
+    color: #fff8f1;
+  }
+
   .accent-edge {
     border: 1px solid transparent;
     background:
@@ -1220,6 +1244,10 @@ html {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .strategy-action-slot > * {
+    height: 100%;
   }
 
   .quick-scan-panel {
@@ -2605,6 +2633,25 @@ html {
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
+.theme-light .long-term-strategy-combo {
+  border-color: rgba(112, 141, 178, 0.26);
+  background: rgba(246, 250, 254, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(92, 123, 163, 0.08),
+    0 8px 16px rgba(68, 96, 132, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.theme-light .long-term-strategy-combo .btn-selector + .btn-selector {
+  border-left-color: rgba(112, 141, 178, 0.24);
+}
+
+.theme-light .turnaround-strategy-toggle-active {
+  border-color: rgba(251, 139, 35, 0.66);
+  background: linear-gradient(180deg, rgba(251, 139, 35, 0.96), rgba(203, 111, 34, 0.96));
+  color: #fffaf3;
+}
+
 .theme-light .btn-primary,
 .theme-light .btn-primary * {
   color: var(--btn-text) !important;
@@ -3837,6 +3884,10 @@ input[type='number'] {
   border-radius: 0.75rem;
   border: 1px solid #d9e0ea;
   background: linear-gradient(180deg, rgba(255, 253, 249, 0.98), rgba(243, 247, 252, 0.96));
+}
+
+.print-report-footer {
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.94), rgba(241, 246, 252, 0.98));
 }
 
 .print-link {

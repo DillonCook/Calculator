@@ -11,6 +11,9 @@ interface PrintPageProps {
 }
 
 const printableStrategies: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+const supportEmail = 'dillon@theinvestoragent.io';
+const printDisclaimer =
+  'DealCooker projections are estimates for screening and comparison. Verify rents, expenses, financing, taxes, insurance, zoning, and exit values independently before making decisions.';
 
 const parseStrategy = (value?: string): StrategyKey => {
   if (!value) return 'purchase';
@@ -29,7 +32,7 @@ const splitRows = (rows: PdfReportRow[], columns = 2) => {
 
 const buildPrintDocumentTitle = (dealName: string | undefined) => {
   const normalizedDealName = dealName?.trim();
-  return normalizedDealName ? `${normalizedDealName}- Dealcooker` : 'Dealcooker';
+  return normalizedDealName ? `${normalizedDealName} - DealCooker` : 'DealCooker';
 };
 
 export async function generateMetadata({ searchParams }: PrintPageProps): Promise<Metadata> {
@@ -104,6 +107,15 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
             <ReportSectionCard className="lg:col-span-2 print:col-span-2" title={report.listingReference.title} rows={report.listingReference.rows} />
           </div>
         </div>
+
+        <footer className="print-report-footer border-t border-slate-200 bg-slate-50/85 px-4 py-3 text-[11px] leading-snug text-slate-600 sm:px-6 print:px-4 print:py-2">
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center print:grid-cols-[minmax(0,1fr)_auto]">
+            <p>{printDisclaimer}</p>
+            <a href={`mailto:${supportEmail}`} className="font-semibold text-slate-800 underline underline-offset-2">
+              Support: {supportEmail}
+            </a>
+          </div>
+        </footer>
       </article>
     </main>
   );
