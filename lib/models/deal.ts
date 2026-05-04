@@ -11,6 +11,9 @@ export type ExpenseStrategyKey = 'purchase' | 'longTerm' | 'airbnb' | 'padSplit'
 
 export type BrrrrOperatingStrategy = 'longTerm' | 'airbnb' | 'padSplit';
 
+export const DEFAULT_PROPERTY_TAX_RATE_PERCENT = 0.017;
+export const DEFAULT_INSURANCE_RATE_PERCENT = 0.01;
+
 export interface DealUiState {
   activeStrategy: StrategyKey;
   projectionStrategies: StrategyKey[];
@@ -55,6 +58,8 @@ export interface PurchaseInputs {
   helocTermYears: number;
   helocAmortizationType: AmortizationType;
   helocClosingCosts: number;
+  propertyTaxRatePercent: number;
+  insuranceRatePercent: number;
   propertyTaxAnnualOverride: number | null;
   insuranceAnnualOverride: number | null;
   hoaMonthly: number;
@@ -382,6 +387,8 @@ export const defaultDealInput: DealInputModel = {
     helocTermYears: 15,
     helocAmortizationType: 'PI',
     helocClosingCosts: 0,
+    propertyTaxRatePercent: DEFAULT_PROPERTY_TAX_RATE_PERCENT,
+    insuranceRatePercent: DEFAULT_INSURANCE_RATE_PERCENT,
     propertyTaxAnnualOverride: null,
     insuranceAnnualOverride: null,
     hoaMonthly: 0,

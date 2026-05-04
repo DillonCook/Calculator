@@ -5,6 +5,7 @@ import {
 } from '@/lib/engine/investment-math';
 import type { DealInputModel, ExpenseStrategyKey, LongTermTurnaroundSummaryOutput, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
 import { calculateAcquisitionDebtService, calculateCashToClose, calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
+import { getMonthlyFixedCosts as getPurchaseMonthlyFixedCosts } from '@/lib/tax-insurance';
 
 const createBaseOutput = (strategy: StrategyOutput['strategy'], notes: string): StrategyOutput => ({
   strategy,
@@ -67,16 +68,7 @@ const getPurchaseLoanTerms = (input: DealInputModel) => {
 };
 
 const getMonthlyFixedCosts = (input: DealInputModel): number => {
-  const { purchase } = input;
-
-  if (purchase.ownershipMode === 'owned') {
-    return purchase.existingTaxMonthly + purchase.existingInsuranceMonthly + purchase.hoaMonthly + purchase.pmiMonthly;
-  }
-
-  const annualTax = purchase.propertyTaxAnnualOverride ?? purchase.purchasePrice * 0.017;
-  const annualInsurance = purchase.insuranceAnnualOverride ?? purchase.purchasePrice * 0.01;
-
-  return annualTax / 12 + annualInsurance / 12 + purchase.hoaMonthly + purchase.pmiMonthly;
+  return getPurchaseMonthlyFixedCosts(input.purchase);
 };
 
 const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrategyKey): number => {

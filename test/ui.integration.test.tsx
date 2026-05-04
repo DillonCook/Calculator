@@ -252,6 +252,53 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('exposes editable automatic tax and insurance rates in expenses', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
+
+    const taxRate = screen.getByLabelText(/Auto Tax %/i, { selector: 'input' });
+    const insuranceRate = screen.getByLabelText(/Auto Insurance %/i, { selector: 'input' });
+    const taxOverride = screen.getByLabelText(/Tax Override/i, { selector: 'input' });
+    const insuranceOverride = screen.getByLabelText(/Insurance Override/i, { selector: 'input' });
+    const expectedTaxPlaceholder = currencyFormatter.format(
+      defaultDealInput.purchase.purchasePrice * defaultDealInput.purchase.propertyTaxRatePercent
+    );
+    const expectedInsurancePlaceholder = currencyFormatter.format(
+      defaultDealInput.purchase.purchasePrice * defaultDealInput.purchase.insuranceRatePercent
+    );
+
+    expect(taxRate).toHaveValue(1.7);
+    expect(insuranceRate).toHaveValue(1);
+    expect(taxOverride).toHaveAttribute('placeholder', expectedTaxPlaceholder);
+    expect(insuranceOverride).toHaveAttribute('placeholder', expectedInsurancePlaceholder);
+
+    await user.clear(taxRate);
+    await user.type(taxRate, '2.25');
+
+    expect(taxRate).toHaveValue(2.25);
+    const expectedUpdatedTaxPlaceholder = currencyFormatter.format(defaultDealInput.purchase.purchasePrice * 0.0225);
+
+    await user.type(taxOverride, '2400');
+    expect(taxOverride).toHaveValue(2400);
+
+    await user.clear(taxOverride);
+    await user.tab();
+
+    expect(taxOverride).toHaveValue(null);
+    expect(taxOverride).toHaveAttribute('placeholder', expectedUpdatedTaxPlaceholder);
+
+    await user.type(insuranceOverride, '1200');
+    expect(insuranceOverride).toHaveValue(1200);
+
+    await user.clear(insuranceOverride);
+    await user.tab();
+
+    expect(insuranceOverride).toHaveValue(null);
+    expect(insuranceOverride).toHaveAttribute('placeholder', expectedInsurancePlaceholder);
+  });
+
   it('uses the compact shell on mobile and allows results before required inputs are complete', async () => {
     window.localStorage.clear();
     setViewport(390);

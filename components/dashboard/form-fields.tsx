@@ -134,7 +134,9 @@ export function Input({
   onChange,
   type = 'text',
   step,
-  tooltip
+  tooltip,
+  placeholder,
+  allowEmptyNumber = false
 }: {
   label: string;
   value: number | string;
@@ -142,6 +144,8 @@ export function Input({
   type?: string;
   step?: string;
   tooltip?: string;
+  placeholder?: string;
+  allowEmptyNumber?: boolean;
 }) {
   const isNumber = type === 'number';
   const [draftValue, setDraftValue] = useState(String(value ?? ''));
@@ -156,6 +160,7 @@ export function Input({
         className={inputClass}
         type={type}
         step={step ?? (isNumber ? '0.01' : undefined)}
+        placeholder={placeholder}
         value={renderedValue}
         onFocus={() => {
           if (!isNumber) return;
@@ -170,7 +175,10 @@ export function Input({
 
           const nextDraft = event.target.value;
           setDraftValue(nextDraft);
-          if (nextDraft === '') return;
+          if (nextDraft === '') {
+            if (allowEmptyNumber) onChange('');
+            return;
+          }
           onChange(nextDraft);
         }}
         onBlur={(event) => {
@@ -178,7 +186,7 @@ export function Input({
           setIsFocused(false);
           const normalized = normalizeNumberString(event.target.value);
           if (normalized === '') {
-            if (value === '') {
+            if (allowEmptyNumber || value === '') {
               setDraftValue('');
               onChange('');
               return;

@@ -7,6 +7,7 @@ import { currencyFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
+import { getFixedCostBreakdown } from '@/lib/tax-insurance';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -102,10 +103,9 @@ const buildFixedCostLineItems = (input: DealInputModel) => {
     maybePushFixedItem('existing-tax', 'Property tax', purchase.existingTaxMonthly);
     maybePushFixedItem('existing-insurance', 'Insurance', purchase.existingInsuranceMonthly);
   } else {
-    const annualTax = purchase.propertyTaxAnnualOverride ?? purchase.purchasePrice * 0.017;
-    const annualInsurance = purchase.insuranceAnnualOverride ?? purchase.purchasePrice * 0.01;
-    maybePushFixedItem('property-tax', 'Property tax', annualTax / 12);
-    maybePushFixedItem('property-insurance', 'Insurance', annualInsurance / 12);
+    const fixedCostBreakdown = getFixedCostBreakdown(purchase);
+    maybePushFixedItem('property-tax', 'Property tax', fixedCostBreakdown.propertyTaxMonthly);
+    maybePushFixedItem('property-insurance', 'Insurance', fixedCostBreakdown.insuranceMonthly);
   }
 
   maybePushFixedItem('hoa', 'HOA', purchase.hoaMonthly);

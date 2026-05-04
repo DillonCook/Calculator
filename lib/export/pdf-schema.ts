@@ -2,6 +2,7 @@ import type { DealInputModel, DealResult, ExpenseStrategyKey, StrategyCalculatio
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { normalizeListingUrl } from '@/lib/listing-link';
+import { getFixedCostBreakdown } from '@/lib/tax-insurance';
 
 export interface PdfReportRow {
   label: string;
@@ -71,8 +72,7 @@ export const createPdfReportSchema = (
 ): PdfReportSchema => {
   const strategyOutput = getSelectedOutput(result, selectedStrategy);
   const effectiveValue = selectedStrategy === 'flip' ? strategyOutput.saleProceeds ?? 0 : strategyOutput.monthlyCashFlow;
-  const annualTax = input.purchase.propertyTaxAnnualOverride ?? input.purchase.purchasePrice * 0.017;
-  const annualInsurance = input.purchase.insuranceAnnualOverride ?? input.purchase.purchasePrice * 0.01;
+  const fixedCostBreakdown = getFixedCostBreakdown(input.purchase);
   const cashToCloseValue =
     input.purchase.ownershipMode === 'owned'
       ? Math.max(input.purchase.helocClosingCosts, 0)
@@ -131,13 +131,19 @@ export const createPdfReportSchema = (
     taxAndInsuranceDetail: {
       title: 'Taxes, Insurance & Fixed Carry Costs',
       rows: [
-        { label: 'Property Tax', value: `${formatCurrency(annualTax / 12)} /mo (${formatCurrency(annualTax)} /yr)` },
-        { label: 'Insurance', value: `${formatCurrency(annualInsurance / 12)} /mo (${formatCurrency(annualInsurance)} /yr)` },
+        {
+          label: 'Property Tax',
+          value: `${formatCurrency(fixedCostBreakdown.propertyTaxMonthly)} /mo (${formatCurrency(fixedCostBreakdown.propertyTaxAnnual)} /yr)`
+        },
+        {
+          label: 'Insurance',
+          value: `${formatCurrency(fixedCostBreakdown.insuranceMonthly)} /mo (${formatCurrency(fixedCostBreakdown.insuranceAnnual)} /yr)`
+        },
         { label: 'HOA', value: `${formatCurrency(input.purchase.hoaMonthly)} /mo (${formatCurrency(input.purchase.hoaMonthly * 12)} /yr)` },
         { label: 'PMI', value: `${formatCurrency(input.purchase.pmiMonthly)} /mo (${formatCurrency(input.purchase.pmiMonthly * 12)} /yr)` },
         {
           label: 'Total Fixed Carry',
-          value: `${formatCurrency(annualTax / 12 + annualInsurance / 12 + input.purchase.hoaMonthly + input.purchase.pmiMonthly)} /mo`
+          value: `${formatCurrency(fixedCostBreakdown.totalMonthly)} /mo`
         }
       ]
     },

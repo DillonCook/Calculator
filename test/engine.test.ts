@@ -9,24 +9,14 @@ import { getProjectionMetrics } from '../lib/projection-metrics';
 
 import { createScenarioRecord, decodeScenario, encodeScenario } from '../lib/scenario-storage';
 import { createPdfReportSchema } from '../lib/export/pdf-schema';
+import { getMonthlyFixedCosts } from '../lib/tax-insurance';
 
 const near = (actual: number, expected: number, epsilon = 0.01) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `Expected ${actual} to be within ${epsilon} of ${expected}`);
 };
 
 const fixedCostsMonthly = (input = defaultDealInput) => {
-  if (input.purchase.ownershipMode === 'owned') {
-    return (
-      input.purchase.existingTaxMonthly +
-      input.purchase.existingInsuranceMonthly +
-      input.purchase.hoaMonthly +
-      input.purchase.pmiMonthly
-    );
-  }
-
-  const annualTax = input.purchase.propertyTaxAnnualOverride ?? input.purchase.purchasePrice * 0.017;
-  const annualInsurance = input.purchase.insuranceAnnualOverride ?? input.purchase.purchasePrice * 0.01;
-  return annualTax / 12 + annualInsurance / 12 + input.purchase.hoaMonthly + input.purchase.pmiMonthly;
+  return getMonthlyFixedCosts(input.purchase);
 };
 
 const variableCostMonthly = (strategy: 'purchase' | 'longTerm' | 'airbnb' | 'padSplit' | 'flip', input = defaultDealInput) =>
@@ -654,6 +644,28 @@ test('purchase taxes and insurance are auto calculated but can be overridden', (
 
   assert.ok(fixed !== autoFixed);
   assert.ok(result.longTerm.monthlyCashFlow < calculateDeal(defaultDealInput).longTerm.monthlyCashFlow);
+});
+
+test('purchase automatic tax and insurance rates are configurable', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 400000,
+      propertyTaxRatePercent: 0.0225,
+      insuranceRatePercent: 0.0125,
+      propertyTaxAnnualOverride: null,
+      insuranceAnnualOverride: null
+    }
+  };
+
+  const result = calculateDeal(model);
+  const fixedCosts = fixedCostsMonthly(model);
+  const expectedFixedCosts = (400000 * 0.0225 + 400000 * 0.0125) / 12;
+  const fixedLine = result.airbnb.calculationBreakdown?.lines.find((line) => line.key === 'str-fixed-costs');
+
+  near(fixedCosts, expectedFixedCosts, 0.0001);
+  near(Math.abs(fixedLine?.monthly ?? 0), expectedFixedCosts, 0.0001);
 });
 
 test('flip monthly cash flow is zero and net proceeds are realized at exit', () => {

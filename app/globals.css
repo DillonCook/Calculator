@@ -3621,6 +3621,13 @@ input[type='number'] {
 }
 
 .mobile-bottom-nav {
+  position: fixed;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  z-index: 120;
+  width: auto;
   -webkit-backdrop-filter: blur(22px) saturate(1.16);
   backdrop-filter: blur(22px) saturate(1.16);
 }

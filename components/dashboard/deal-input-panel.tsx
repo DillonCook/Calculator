@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
+import {
+  getModeledAnnualInsurance,
+  getModeledAnnualPropertyTax,
+  resolveInsuranceRatePercent,
+  resolvePropertyTaxRatePercent
+} from '@/lib/tax-insurance';
 
 interface DealInputPanelProps {
   value: DealInputModel;
@@ -368,8 +374,8 @@ const buildKnownOverlayModel = (baseModel: DealInputModel, entries: KnownApplied
     const mapping = entry.target;
 
     if (mapping.kind === 'purchaseAnnual') {
-      const autoTaxAnnual = nextPurchase.purchasePrice * 0.017;
-      const autoInsuranceAnnual = nextPurchase.purchasePrice * 0.01;
+      const autoTaxAnnual = getModeledAnnualPropertyTax(nextPurchase);
+      const autoInsuranceAnnual = getModeledAnnualInsurance(nextPurchase);
       if (mapping.field === 'propertyTaxAnnualOverride') {
         const baselineAnnual = nextPurchase.propertyTaxAnnualOverride ?? autoTaxAnnual;
         nextPurchase.propertyTaxAnnualOverride = applyImportedValue(baselineAnnual, entry.annualValue);
@@ -690,9 +696,9 @@ export function DealInputPanel({
     );
   };
 
-  const autoTaxAnnual = value.purchase.purchasePrice * 0.017;
-  const autoInsuranceAnnual = value.purchase.purchasePrice * 0.01;
   const isOwnedMode = value.purchase.ownershipMode === 'owned';
+  const autoTaxAnnual = getModeledAnnualPropertyTax(value.purchase);
+  const autoInsuranceAnnual = getModeledAnnualInsurance(value.purchase);
   const isPanelCollapsed = collapsible && collapsed;
   const resolvedCoreSection = forcedCoreSection ?? preferredCoreSection ?? activeCoreSection;
   const panelTitle = titleOverride ?? (forcedCoreSection ? coreSectionMeta[forcedCoreSection].title : 'Purchase');
@@ -893,18 +899,42 @@ export function DealInputPanel({
 
                 {!isOwnedMode ? (
                   <div className={isEmbedded ? 'grid gap-2 sm:grid-cols-2 sm:gap-3' : 'mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3'}>
-                    <Input
-                      label={`Property tax override (auto ${currencyFormatter.format(autoTaxAnnual)})`}
-                      type="number"
-                      value={value.purchase.propertyTaxAnnualOverride ?? ''}
-                      onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
-                    />
-                    <Input
-                      label={`Insurance override (auto ${currencyFormatter.format(autoInsuranceAnnual)})`}
-                      type="number"
-                      value={value.purchase.insuranceAnnualOverride ?? ''}
-                      onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
-                    />
+                    <div className="grid grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2 [&_.dashboard-field-label>span:first-child]:whitespace-nowrap">
+                      <PercentInput
+                        label="Auto Tax %"
+                        value={resolvePropertyTaxRatePercent(value.purchase)}
+                        onChange={(v) => update('purchase', 'propertyTaxRatePercent', v)}
+                        tooltip="Used for automatic annual property tax unless you enter a tax override."
+                      />
+                      <div className="min-w-0 border-l border-slate-500/20 pl-2">
+                        <Input
+                          label="Tax Override"
+                          type="number"
+                          placeholder={currencyFormatter.format(autoTaxAnnual)}
+                          allowEmptyNumber
+                          value={value.purchase.propertyTaxAnnualOverride ?? ''}
+                          onChange={(v) => update('purchase', 'propertyTaxAnnualOverride', v === '' ? null : Number(v))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2 [&_.dashboard-field-label>span:first-child]:whitespace-nowrap">
+                      <PercentInput
+                        label="Auto Insurance %"
+                        value={resolveInsuranceRatePercent(value.purchase)}
+                        onChange={(v) => update('purchase', 'insuranceRatePercent', v)}
+                        tooltip="Used for automatic annual insurance unless you enter an insurance override."
+                      />
+                      <div className="min-w-0 border-l border-slate-500/20 pl-2">
+                        <Input
+                          label="Insurance Override"
+                          type="number"
+                          placeholder={currencyFormatter.format(autoInsuranceAnnual)}
+                          allowEmptyNumber
+                          value={value.purchase.insuranceAnnualOverride ?? ''}
+                          onChange={(v) => update('purchase', 'insuranceAnnualOverride', v === '' ? null : Number(v))}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className={isEmbedded ? 'grid gap-2 sm:grid-cols-2 sm:gap-3' : 'mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3'}>
