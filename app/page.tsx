@@ -34,7 +34,7 @@ import {
   type ScenarioRecord,
   type StrategyKey
 } from '@/lib/models/deal';
-import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '@/lib/scenario-storage';
+import { encodeScenario, setScenarioStorageOwner, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { reportClientError, toClientErrorMessage } from '@/lib/client-error-reporting';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '@/lib/share-link';
@@ -73,6 +73,9 @@ type SyncFeedbackMessage = { tone: SyncFeedbackTone; message: string };
 
 const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealcooker.app').replace(/\/+$/, '');
 const appReleaseLabel = process.env.NEXT_PUBLIC_APP_RELEASE ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'local-open-testing';
+const PRINT_EXPORT_SCENARIO_ID = 'dealcooker-current-print-preview';
+const PRINT_EXPORT_TIMESTAMP = '1970-01-01T00:00:00.000Z';
+const PRINT_EXPORT_APP_VERSION = '0.2.0';
 const getAuthCallbackUrl = (next?: 'password-reset') => {
   const url = new URL('/auth/callback', appUrl);
   if (next) {
@@ -671,31 +674,12 @@ const areStrategySelectionsEqual = (left: StrategyKey[], right: StrategyKey[]) =
   left.length === right.length && left.every((strategy, index) => strategy === right[index]);
 
 export default function HomePage() {
-  const [initialVaultState] = useState(() => {
-    const storedDeals = readDealsFromVault();
-    const nextDeals =
-      storedDeals.length > 0
-        ? storedDeals
-        : (() => {
-            const payload = buildNewDealPayload('New Deal');
-            const freshDeal = createDealInVault(payload, payload.purchase.dealName);
-            return saveDealToVault(freshDeal);
-          })();
-
-    return {
-      deals: nextDeals,
-      activeDeal: nextDeals[0] ?? null
-    };
-  });
-  const initialActiveDealUiState = initialVaultState.activeDeal?.payload.uiState;
-  const hasInitialDealActiveStrategy = Boolean(initialActiveDealUiState?.activeStrategy);
-  const hasInitialDealProjectionStrategies = Array.isArray(initialActiveDealUiState?.projectionStrategies) && initialActiveDealUiState.projectionStrategies.length > 0;
-  const [model, setModel] = useState(initialVaultState.activeDeal?.payload ?? defaultDealInput);
+  const [model, setModel] = useState(() => buildNewDealPayload('New Deal'));
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(
-    isStrategyKey(initialActiveDealUiState?.activeStrategy) ? initialActiveDealUiState.activeStrategy : defaultNewDealStrategyFallback
+    defaultNewDealStrategyFallback
   );
-  const [deals, setDeals] = useState<ScenarioRecord[]>(initialVaultState.deals);
-  const [activeDealId, setActiveDealId] = useState(initialVaultState.activeDeal?.scenarioId ?? '');
+  const [deals, setDeals] = useState<ScenarioRecord[]>([]);
+  const [activeDealId, setActiveDealId] = useState('');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
   const [defaultProjectionStrategies, setDefaultProjectionStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
   const [isLightMode, setIsLightMode] = useState(false);
@@ -723,11 +707,7 @@ export default function HomePage() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
-  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(
-    hasInitialDealProjectionStrategies
-      ? normalizeProjectionStrategySelection(initialActiveDealUiState?.projectionStrategies)
-      : defaultProjectionStrategySelectionFallback
-  );
+  const [compactSelectedStrategies, setCompactSelectedStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
   const [compactDealsSearch, setCompactDealsSearch] = useState('');
   const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
@@ -760,6 +740,8 @@ export default function HomePage() {
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const activeVaultOwnerIdRef = useRef<string | null>(null);
+  const hasHydratedLocalVaultRef = useRef(false);
+  const activeDealUiStatePresenceRef = useRef({ hasActiveStrategy: false, hasProjectionStrategies: false });
   const [syncFeedback, setSyncFeedback] = useState<SyncFeedbackMessage | null>(null);
   const [isRetryingCloudSync, setIsRetryingCloudSync] = useState(false);
   const [fetchedScenarioCount, setFetchedScenarioCount] = useState(0);
@@ -837,7 +819,24 @@ export default function HomePage() {
   );
 
   const result = useMemo(() => calculateDeal(model), [model]);
-  const exportPayload = useMemo(() => encodeScenario(createScenarioRecord(attachDealUiState(model))), [attachDealUiState, model]);
+  const activeScenarioForExport = useMemo(
+    () => deals.find((deal) => deal.scenarioId === activeDealId),
+    [activeDealId, deals]
+  );
+  const exportPayload = useMemo(
+    () =>
+      encodeScenario({
+        schemaVersion: '1.0.0',
+        scenarioId: activeScenarioForExport?.scenarioId ?? PRINT_EXPORT_SCENARIO_ID,
+        appVersion: activeScenarioForExport?.appVersion ?? PRINT_EXPORT_APP_VERSION,
+        dealName: model.purchase.dealName,
+        createdAt: activeScenarioForExport?.createdAt ?? PRINT_EXPORT_TIMESTAMP,
+        updatedAt: activeScenarioForExport?.updatedAt ?? PRINT_EXPORT_TIMESTAMP,
+        tags: activeScenarioForExport?.tags ?? [],
+        payload: attachDealUiState(model)
+      }),
+    [activeScenarioForExport, attachDealUiState, model]
+  );
   const printToPdfUrl = useMemo(() => `/print?scenario=${exportPayload}&strategy=${activeStrategy}`, [activeStrategy, exportPayload]);
 
   const activeOutput = result[activeStrategy];
@@ -1423,13 +1422,12 @@ export default function HomePage() {
     [activeStrategy, monthlyCashFlowChartSeries]
   );
 
-  const activeDeal = useMemo(
-    () => deals.find((deal) => deal.scenarioId === activeDealId),
-    [deals, activeDealId]
-  );
-
   const loadScenario = (payload: DealInputModel, dealId?: string) => {
     const nextUiState = resolveDealUiState(payload);
+    activeDealUiStatePresenceRef.current = {
+      hasActiveStrategy: isStrategyKey(payload.uiState?.activeStrategy),
+      hasProjectionStrategies: Array.isArray(payload.uiState?.projectionStrategies) && payload.uiState.projectionStrategies.length > 0
+    };
     setModel({
       ...payload,
       uiState: {
@@ -1858,6 +1856,7 @@ export default function HomePage() {
       projectionStrategies: normalizeProjectionStrategySelection(defaultProjectionStrategies)
     });
 
+    activeDealUiStatePresenceRef.current = { hasActiveStrategy: false, hasProjectionStrategies: false };
     setModel(payload);
     setActiveStrategy(defaultNewDealStrategy);
     setCompactSelectedStrategies(normalizeProjectionStrategySelection(defaultProjectionStrategies));
@@ -1865,19 +1864,30 @@ export default function HomePage() {
     setSaveStatus('idle');
   };
 
-  const loadVaultScope = (ownerId: string | null) => {
+  const loadVaultScope = (ownerId: string | null, options?: { createIfEmpty?: boolean }) => {
     setScenarioStorageOwner(ownerId);
 
     const scopedDeals = readDealsFromVault();
-    setDeals(scopedDeals);
-
     const nextActiveDeal = scopedDeals[0] ?? null;
     if (nextActiveDeal) {
+      setDeals(scopedDeals);
       loadScenario(nextActiveDeal.payload, nextActiveDeal.scenarioId);
       setSaveStatus('idle');
       return;
     }
 
+    if (options?.createIfEmpty) {
+      const payload = buildNewDealPayload('New Deal');
+      const freshDeal = createDealInVault(payload, payload.purchase.dealName);
+      const nextDeals = saveDealToVault(freshDeal);
+
+      setDeals(nextDeals);
+      loadScenario(freshDeal.payload, freshDeal.scenarioId);
+      setSaveStatus('idle');
+      return;
+    }
+
+    setDeals(scopedDeals);
     showBlankVaultState();
   };
 
@@ -1887,7 +1897,7 @@ export default function HomePage() {
     if (activeVaultOwnerIdRef.current !== nextOwnerId) {
       clearPendingCloudState();
       activeVaultOwnerIdRef.current = nextOwnerId;
-      loadVaultScope(nextOwnerId);
+      loadVaultScope(nextOwnerId, { createIfEmpty: nextOwnerId === null });
     }
 
     setCurrentUser(nextUser);
@@ -1895,6 +1905,15 @@ export default function HomePage() {
       setIsAuthMenuOpen(false);
     }
   };
+
+  useEffect(() => {
+    if (hasHydratedLocalVaultRef.current) return;
+
+    hasHydratedLocalVaultRef.current = true;
+    loadVaultScope(null, { createIfEmpty: true });
+    // Run once after hydration so the first client render stays identical to SSR.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -2174,7 +2193,7 @@ export default function HomePage() {
     const storedDefaultStrategy = window.localStorage.getItem(SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY);
     if (isStrategyKey(storedDefaultStrategy)) {
       setDefaultNewDealStrategy(storedDefaultStrategy);
-      if (!hasInitialDealActiveStrategy) {
+      if (!activeDealUiStatePresenceRef.current.hasActiveStrategy) {
         setActiveStrategy(storedDefaultStrategy);
       }
     }
@@ -2185,7 +2204,7 @@ export default function HomePage() {
         const parsedProjectionStrategies = JSON.parse(storedDefaultProjectionStrategies);
         const normalizedProjectionStrategies = normalizeProjectionStrategySelection(parsedProjectionStrategies);
         setDefaultProjectionStrategies(normalizedProjectionStrategies);
-        if (!hasInitialDealProjectionStrategies) {
+        if (!activeDealUiStatePresenceRef.current.hasProjectionStrategies) {
           setCompactSelectedStrategies(normalizedProjectionStrategies);
         }
       } catch {
@@ -2206,7 +2225,7 @@ export default function HomePage() {
     } else if (storedQuickScanVisible === '1') {
       setIsQuickScanVisible(true);
     }
-  }, [hasInitialDealActiveStrategy, hasInitialDealProjectionStrategies]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
