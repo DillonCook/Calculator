@@ -3632,6 +3632,12 @@ input[type='number'] {
   backdrop-filter: blur(22px) saturate(1.16);
 }
 
+@media (max-width: 1023px) {
+  .app-footer {
+    margin-bottom: calc(env(safe-area-inset-bottom) + 5rem);
+  }
+}
+
 .mobile-nav-button {
   position: relative;
   transform-origin: 50% 100%;

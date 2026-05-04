@@ -307,9 +307,13 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
+    const mobileViewSwitcher = await screen.findByRole('navigation', { name: 'Mobile view switcher' });
     const resultsButton = screen.getByRole('button', { name: 'Results' });
     const projectionsButton = screen.getByRole('button', { name: 'Projections' });
 
+    expect(mobileViewSwitcher).toHaveClass('mobile-bottom-nav');
+    expect(mobileViewSwitcher.parentElement).toBe(document.body);
+    expect(screen.getByText(/For educational and informational purposes only/i).closest('footer')).toHaveClass('app-footer');
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deal Vault' })).toBeInTheDocument();
     expect(resultsButton).not.toBeDisabled();

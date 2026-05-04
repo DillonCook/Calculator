@@ -732,6 +732,7 @@ export default function HomePage() {
   const [headlineMetricOrder, setHeadlineMetricOrder] = useState<HeadlineMetricId[]>(defaultHeadlineMetricOrder);
   const [isHeadlineMetricOrderEditorOpen, setIsHeadlineMetricOrderEditorOpen] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [feedbackViewport, setFeedbackViewport] = useState<FeedbackViewport | null>(null);
   const [isFeedbackPromptOpen, setIsFeedbackPromptOpen] = useState(false);
   const [isFeedbackComposerOpen, setIsFeedbackComposerOpen] = useState(false);
@@ -1936,6 +1937,10 @@ export default function HomePage() {
 
     mediaQuery.addListener(updateMotionPreference);
     return () => mediaQuery.removeListener(updateMotionPreference);
+  }, []);
+
+  useEffect(() => {
+    setIsClientMounted(true);
   }, []);
 
   useEffect(() => {
@@ -4699,6 +4704,42 @@ export default function HomePage() {
     </>
   );
 
+  const compactModeNav = (
+    <nav
+      aria-label="Mobile view switcher"
+      className="mobile-bottom-nav section-shell section-shell-input fixed inset-x-3 bottom-3 z-[120] rounded-2xl p-2 shadow-soft backdrop-blur"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
+    >
+      <div className="grid grid-cols-3 gap-2">
+        {(['inputs', 'results', 'compare'] as CompactMode[]).map((mode) => {
+          const isActive = compactMode === mode;
+
+          return (
+            <button
+              key={mode}
+              ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
+              type="button"
+              onClick={() => {
+                if (!isActive) triggerHapticFeedback('light');
+                setCompactMode(mode);
+              }}
+              className={`mobile-nav-button tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                isActive ? 'btn-primary btn-mobile-nav-active mobile-nav-button-active' : 'section-action section-action-input text-slate-200'
+              }`}
+            >
+              {compactModeLabels[mode]}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+
+  const compactModeNavPortal =
+    isClientMounted && isMobileViewport && typeof document !== 'undefined'
+      ? createPortal(compactModeNav, document.body)
+      : null;
+
   const feedbackReminderDialog = isFeedbackPromptOpen ? (
     <div className="feedback-reminder-backdrop fixed inset-0 z-[220] flex items-end justify-center px-4 py-5 sm:items-center" role="presentation">
       <section
@@ -4932,41 +4973,13 @@ export default function HomePage() {
         ) : null}
       </section>
 
-      <section className="space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
+      <section className="space-y-4 pb-4">
         <div key={`compact-mode-${compactMode}`} className="compact-view-panel panel-swap space-y-4">
           {compactMode === 'inputs' ? compactInputsView : null}
           {compactMode === 'results' ? compactResultsView : null}
           {compactMode === 'compare' ? compactCompareView : null}
         </div>
       </section>
-
-      <nav
-        className="mobile-bottom-nav section-shell section-shell-input fixed inset-x-3 bottom-3 z-[120] rounded-2xl p-2 shadow-soft backdrop-blur"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
-      >
-        <div className="grid grid-cols-3 gap-2">
-          {(['inputs', 'results', 'compare'] as CompactMode[]).map((mode) => {
-            const isActive = compactMode === mode;
-
-            return (
-              <button
-                key={mode}
-                ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
-                type="button"
-                onClick={() => {
-                  if (!isActive) triggerHapticFeedback('light');
-                  setCompactMode(mode);
-                }}
-                className={`mobile-nav-button tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  isActive ? 'btn-primary btn-mobile-nav-active mobile-nav-button-active' : 'section-action section-action-input text-slate-200'
-                }`}
-              >
-                {compactModeLabels[mode]}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {compactSheets}
     </>
@@ -5729,7 +5742,7 @@ export default function HomePage() {
         </>
         ) : null}
       </div>
-      <footer className="section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
+      <footer className="app-footer section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; 2026 Dillon Cook. DealCooker is a product created by Dillon Cook. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-3">
@@ -5766,6 +5779,7 @@ export default function HomePage() {
         presentation={isMobileViewport ? 'sheet' : 'modal'}
         onClose={() => setIsStrategyWorkOpen(false)}
       />
+      {compactModeNavPortal}
     </main>
   );
 }
