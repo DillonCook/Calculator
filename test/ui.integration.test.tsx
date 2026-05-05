@@ -538,6 +538,7 @@ describe('dashboard integration', () => {
     const signOutButton = within(dialog).getByRole('button', { name: 'Sign out' });
 
     expect(adminLink).toHaveAttribute('href', '/admin/analytics');
+    expect(adminLink).toHaveClass('btn-primary', 'btn-auth', 'w-full', 'text-center');
     expect(accountText.compareDocumentPosition(adminLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(adminLink.compareDocumentPosition(signOutButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
