@@ -20,6 +20,8 @@ import { TimelineCard } from '@/components/dashboard/timeline-card';
 import { PwaInstallBanner, PWA_OPEN_INSTALL_EVENT, PWA_QUALIFY_INSTALL_EVENT } from '@/components/dashboard/pwa-install-banner';
 import { inputClass } from '@/components/dashboard/form-fields';
 import { KpiCard } from '@/components/ui/kpi-card';
+import { isOwnerEmail } from '@/lib/admin-access';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
@@ -741,6 +743,7 @@ export default function HomePage() {
   const pendingUpsertIdsRef = useRef<Set<string>>(new Set());
   const activeVaultOwnerIdRef = useRef<string | null>(null);
   const hasHydratedLocalVaultRef = useRef(false);
+  const appOpenTrackedRef = useRef(false);
   const activeDealUiStatePresenceRef = useRef({ hasActiveStrategy: false, hasProjectionStrategies: false });
   const [syncFeedback, setSyncFeedback] = useState<SyncFeedbackMessage | null>(null);
   const [isRetryingCloudSync, setIsRetryingCloudSync] = useState(false);
@@ -1312,6 +1315,7 @@ export default function HomePage() {
     const email = currentUser?.email?.trim();
     return email ? `Signed in as ${email}` : 'Signed in';
   }, [currentUser]);
+  const isAdminOwner = isOwnerEmail(currentUser?.email);
 
   const renderProfileAvatar = (options?: { sizeClassName?: string; textClassName?: string; label?: string }) => (
     <div
@@ -1501,6 +1505,9 @@ export default function HomePage() {
   };
 
   const handleStrategyChange = (nextStrategy: StrategyKey) => {
+    if (nextStrategy !== activeStrategy) {
+      void trackAnalyticsEvent('strategy_selected', { strategy: nextStrategy });
+    }
     setActiveStrategy(nextStrategy);
     setIsHeadlineMetricOrderEditorOpen(false);
     setIsCommercialOrderEditorOpen(false);
@@ -1963,6 +1970,16 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (!isClientMounted || appOpenTrackedRef.current) return;
+
+    appOpenTrackedRef.current = true;
+    void trackAnalyticsEvent('app_opened', {
+      signedIn: Boolean(currentUser?.id),
+      pwaInstalled: isPwaInstalled
+    });
+  }, [currentUser?.id, isClientMounted, isPwaInstalled]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     if (typeof window.matchMedia === 'function') {
@@ -2375,6 +2392,7 @@ export default function HomePage() {
     queueScenarioPush(record);
     setSaveStatus('saved');
     qualifyInstallPrompt();
+    void trackAnalyticsEvent('scenario_created', { source: 'save_as', signedIn: Boolean(currentUser?.id) });
   };
 
   const createNewDeal = (
@@ -2397,6 +2415,7 @@ export default function HomePage() {
     queueScenarioPush(nextDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
+    void trackAnalyticsEvent('scenario_created', { source: 'new_deal', signedIn: Boolean(currentUser?.id) });
     if (options?.openIdentityEditor) {
       setIsDealIdentityOpen(true);
     }
@@ -2432,6 +2451,8 @@ export default function HomePage() {
     setCompactSheetView(null);
     showSyncFeedback('Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.', 'success');
     qualifyInstallPrompt();
+    void trackAnalyticsEvent('scenario_created', { source: 'sample_deal', signedIn: Boolean(currentUser?.id) });
+    void trackAnalyticsEvent('scenario_sample_loaded', { signedIn: Boolean(currentUser?.id) });
 
     return sampleDeal;
   };
@@ -2456,6 +2477,8 @@ export default function HomePage() {
     queueScenarioPush(duplicatedDeal);
     setSaveStatus('saved');
     qualifyInstallPrompt();
+    void trackAnalyticsEvent('scenario_created', { source: 'duplicate', signedIn: Boolean(currentUser?.id) });
+    void trackAnalyticsEvent('scenario_duplicated', { signedIn: Boolean(currentUser?.id) });
   };
 
   const handleDealNameChange = (dealName: string) => {
@@ -2606,6 +2629,7 @@ export default function HomePage() {
       queueScenarioPush(nextDeal);
       setSaveStatus('saved');
       qualifyInstallPrompt();
+      void trackAnalyticsEvent('scenario_created', { source: 'delete_replacement', signedIn: Boolean(currentUser?.id) });
     } else {
       setDeals(next);
       if (activeDealId === scenarioId) {
@@ -2618,6 +2642,7 @@ export default function HomePage() {
       }
       setSaveStatus('idle');
     }
+    void trackAnalyticsEvent('scenario_deleted', { signedIn: Boolean(currentUser?.id) });
     void syncScenarioDelete(scenarioId);
 
     void (async () => {
@@ -2650,6 +2675,7 @@ export default function HomePage() {
 
       if (!error && slug) {
         const shortUrl = `${window.location.origin}/s/${slug}`;
+        void trackAnalyticsEvent('share_link_created', { source: 'short_link', anchor, signedIn: true });
         try {
           await navigator.clipboard.writeText(shortUrl);
           triggerHapticFeedback('success');
@@ -2674,6 +2700,7 @@ export default function HomePage() {
     }
 
     const url = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
+    void trackAnalyticsEvent('share_link_created', { source: 'url_param', anchor, signedIn: false });
 
     try {
       await navigator.clipboard.writeText(url);
@@ -2941,6 +2968,7 @@ export default function HomePage() {
     if (!isMobileViewport) return;
     triggerHapticFeedback('light');
     setIsSettingsOpen(false);
+    void trackAnalyticsEvent('pwa_install_prompt_requested', { source: 'settings' });
     window.dispatchEvent(new Event(PWA_OPEN_INSTALL_EVENT));
   };
 
@@ -3329,6 +3357,7 @@ export default function HomePage() {
       setFeedbackDraft('');
       setFeedbackSubmitMessage('Feedback sent. Thank you.');
       triggerHapticFeedback('light');
+      void trackAnalyticsEvent('feedback_sent', { source: feedbackSource, viewport, signedIn: Boolean(currentUser?.id) });
     } catch (error) {
       reportClientError({
         source: 'feedback',
@@ -3389,6 +3418,8 @@ export default function HomePage() {
       setDeals(nextDeals);
       loadScenario(imported.payload, imported.scenarioId);
       queueScenarioPush(imported);
+      void trackAnalyticsEvent('scenario_created', { source: 'share_import', signedIn: Boolean(currentUser?.id) });
+      void trackAnalyticsEvent('scenario_imported', { source: 'url_param', signedIn: Boolean(currentUser?.id) });
     }, 0);
 
     params.delete('s');
@@ -3757,6 +3788,19 @@ export default function HomePage() {
           >
             Send feedback
           </button>
+          {isAdminOwner ? (
+            <Link
+              href="/admin/analytics"
+              onClick={() => {
+                triggerHapticFeedback('light');
+                setIsSettingsOpen(false);
+                setCompactSheetView(null);
+              }}
+              className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+            >
+              Admin dashboard
+            </Link>
+          ) : null}
           <Link
             href="/help"
             onClick={() => {
@@ -3965,6 +4009,7 @@ export default function HomePage() {
                     </div>
                     <Link
                       href={printToPdfUrl}
+                      onClick={() => void trackAnalyticsEvent('print_opened', { surface: 'deal_identity', strategy: activeStrategy })}
                       className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-medium"
                       target="_blank"
                     >
@@ -4596,6 +4641,7 @@ export default function HomePage() {
               type="button"
               onClick={() => {
                 triggerHapticFeedback('light');
+                void trackAnalyticsEvent('print_opened', { surface: 'mobile_menu', strategy: activeStrategy });
                 window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
               }}
                 className="tap-feedback section-action section-action-utility rounded-xl px-4 py-3 text-sm font-medium text-slate-100"
@@ -5206,6 +5252,7 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={printToPdfUrl}
+                    onClick={() => void trackAnalyticsEvent('print_opened', { surface: 'desktop_header', strategy: activeStrategy })}
                     className={`${desktopUtilityButtonClassName} btn-pdf`}
                     aria-label="Print to PDF"
                     title="Print to PDF"

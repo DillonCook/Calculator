@@ -1,12 +1,13 @@
 # Supabase Production Setup
 
-Apply `migrations/20260429000000_private_production_foundation.sql` before inviting private production users.
+Apply the SQL files in `migrations/` before inviting private production users.
 
 ## Tables
 
 - `scenarios`: one row per saved Deal Vault scenario. RLS limits reads, inserts, updates, and deletes to `auth.uid() = user_id`.
 - `shares`: short share-link snapshots. Public users can read only active public links; owners can manage their own links.
 - `client_error_events`: sanitized production client/server error events written only by the server API route.
+- `analytics_events`: first-party product usage and PWA install-funnel events written only by the server API route.
 
 ## Required Environment Variables
 

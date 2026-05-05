@@ -488,6 +488,35 @@ describe('dashboard integration', () => {
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_ANON_KEY/i)).not.toBeInTheDocument();
   });
 
+  it('shows the admin dashboard link only for the owner account', async () => {
+    authMockState.user = {
+      id: 'regular-user',
+      email: 'agent@example.com'
+    };
+
+    const user = userEvent.setup();
+    const { unmount } = render(<HomePage />);
+
+    await flushAuthEffects();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+
+    expect(screen.queryByRole('link', { name: 'Admin dashboard' })).not.toBeInTheDocument();
+
+    unmount();
+    window.localStorage.clear();
+    authMockState.user = {
+      id: 'owner-user',
+      email: 'dillon@theinvestoragent.io'
+    };
+
+    render(<HomePage />);
+    await flushAuthEffects();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+
+    const adminLink = screen.getByRole('link', { name: 'Admin dashboard' });
+    expect(adminLink).toHaveAttribute('href', '/admin/analytics');
+  });
+
   it('sends in-app feedback with available contact details', async () => {
     setViewport(390);
     authMockState.user = {

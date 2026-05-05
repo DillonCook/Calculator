@@ -3,11 +3,11 @@ import Link from 'next/link';
 const privacySections = [
   {
     title: '1. Data We Process',
-    body: 'Dillon Cook, doing business as DealCooker ("we", "us", or "our"), processes scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, feedback submissions, and sanitized technical error logs required to run and improve the Service.'
+    body: 'Dillon Cook, doing business as DealCooker ("we", "us", or "our"), processes scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, feedback submissions, product usage events, install-related events, and sanitized technical error logs required to run and improve the Service.'
   },
   {
     title: '2. How We Use Data',
-    body: 'We use data to deliver core calculations, persist your workflow, improve reliability, and prevent abuse. We do not sell your personal information.'
+    body: 'We use data to deliver core calculations, persist your workflow, understand feature usage, improve reliability, and prevent abuse. We do not sell your personal information.'
   },
   {
     title: '3. Shared Links and Exports',
@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Privacy Policy</h1>
-          <p className="text-xs text-muted">Effective date: April 29, 2026</p>
+          <p className="text-xs text-muted">Effective date: May 5, 2026</p>
           <p className="text-sm text-muted">This policy explains how Dillon Cook, doing business as DealCooker, handles data and how users can make informed sharing decisions.</p>
         </div>
 

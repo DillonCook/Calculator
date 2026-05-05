@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { triggerHapticFeedback } from '@/lib/use-haptics';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -56,6 +57,7 @@ export function PwaInstallBanner() {
   const [isQualified, setIsQualified] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const shownSurfaceRef = useRef<InstallSurface>('none');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -111,6 +113,7 @@ export function PwaInstallBanner() {
       deferredPromptRef.current = promptEvent;
       setInstallSurface('prompt');
       setFeedback(null);
+      void trackAnalyticsEvent('pwa_install_prompt_available', { surface: 'browser_prompt' });
     };
 
     const handleAppInstalled = () => {
@@ -123,9 +126,11 @@ export function PwaInstallBanner() {
         // Ignore storage failures (private mode / blocked storage).
       }
       setFeedback('DealCooker is now installed on this device.');
+      void trackAnalyticsEvent('pwa_installed');
     };
 
     const handleOpenInstallRequest = () => {
+      void trackAnalyticsEvent('pwa_install_prompt_requested', { source: 'pwa_banner' });
       try {
         window.localStorage.setItem(PWA_INSTALL_QUALIFIED_KEY, '1');
       } catch {
@@ -186,6 +191,17 @@ export function PwaInstallBanner() {
     return installSurface !== 'none';
   }, [installSurface, isInstallPromptDismissed, isInstalled, isQualified]);
 
+  useEffect(() => {
+    if (!shouldRender) {
+      shownSurfaceRef.current = 'none';
+      return;
+    }
+
+    if (shownSurfaceRef.current === installSurface) return;
+    shownSurfaceRef.current = installSurface;
+    void trackAnalyticsEvent('pwa_install_prompt_shown', { surface: installSurface });
+  }, [installSurface, shouldRender]);
+
   const dismissPrompt = () => {
     triggerHapticFeedback('light');
     setIsInstallPromptDismissed(true);
@@ -194,6 +210,7 @@ export function PwaInstallBanner() {
     } catch {
       // Ignore storage failures (private mode / blocked storage).
     }
+    void trackAnalyticsEvent('pwa_install_prompt_dismissed', { surface: installSurface });
   };
 
   const installApp = async () => {
@@ -212,8 +229,10 @@ export function PwaInstallBanner() {
       const { outcome } = await promptEvent.userChoice;
       if (outcome === 'accepted') {
         setFeedback('Installing DealCooker...');
+        void trackAnalyticsEvent('pwa_install_prompt_accepted', { surface: 'browser_prompt' });
       } else {
         setFeedback('Install canceled. You can install anytime from browser settings.');
+        void trackAnalyticsEvent('pwa_install_prompt_dismissed', { surface: 'browser_prompt' });
       }
     } catch {
       setFeedback('Install is not available right now. Try again from browser settings.');

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { createDealInVault, saveDealToVault } from '@/lib/deals-vault-service';
 import { fetchShareBySlug } from '@/lib/share-links';
 
@@ -28,9 +29,11 @@ export default function ShareResolverPage() {
       if (error || !share) {
         setStatus('error');
         setErrorMessage(error instanceof Error && error.message === 'Link expired' ? 'Link expired.' : 'Link not found or unavailable.');
+        void trackAnalyticsEvent('share_link_open_failed', { reason: error instanceof Error ? error.message : 'unavailable' });
         return;
       }
 
+      void trackAnalyticsEvent('share_link_opened', { source: 'short_link' });
       const imported = createDealInVault(share.payload_snapshot, share.payload_snapshot.purchase.dealName);
       saveDealToVault(imported);
       window.sessionStorage.setItem(SHARE_IMPORT_NOTICE_STORAGE_KEY, imported.dealName);
