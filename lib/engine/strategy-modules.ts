@@ -37,6 +37,7 @@ interface LeveredTimelineInput {
   totalCashNeeded: number;
   annualRevenueYear1: number;
   annualOperatingExpensesYear1: number;
+  annualNoiForYear?: (yearIndex: number) => number;
   arv: number;
   revenueGrowthRate: number;
   expenseGrowthRate: number;
@@ -203,19 +204,21 @@ const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'a
     if (input.airbnb.annualRevenueOverride && input.airbnb.annualRevenueOverride > 0) {
       return (input.airbnb.annualRevenueOverride / 12) * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
     }
-    const occupiedNights = input.airbnb.nightsPerMonth * clampPercent(input.airbnb.occupancyPercent);
-    const roomRevenue = occupiedNights * input.airbnb.adr;
+    const occupiedNights = Math.max(input.airbnb.nightsPerMonth, 0) * clampPercent(input.airbnb.occupancyPercent);
+    const roomRevenue = occupiedNights * Math.max(input.airbnb.adr, 0);
     return roomRevenue * (clampPercent(input.airbnb.maintenancePercent) + clampPercent(input.airbnb.capexPercent));
   }
 
-  const rentableRooms = Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0;
-  const avgWeeklyRatePerRoom = Number.isFinite(input.padSplit.avgWeeklyRatePerRoom) ? input.padSplit.avgWeeklyRatePerRoom : 0;
+  const rentableRooms = Math.max(Number.isFinite(input.padSplit.rentableRooms) ? input.padSplit.rentableRooms : 0, 0);
+  const avgWeeklyRatePerRoom = Math.max(Number.isFinite(input.padSplit.avgWeeklyRatePerRoom) ? input.padSplit.avgWeeklyRatePerRoom : 0, 0);
+  const weeksPerMonth = Math.max(Number.isFinite(input.padSplit.weeksPerMonth) ? input.padSplit.weeksPerMonth : 0, 0);
+  const otherIncomeMonthly = Math.max(Number.isFinite(input.padSplit.otherIncomeMonthly) ? input.padSplit.otherIncomeMonthly : 0, 0);
   const modeledGross =
     rentableRooms *
     avgWeeklyRatePerRoom *
-    input.padSplit.weeksPerMonth *
+    weeksPerMonth *
     clampPercent(input.padSplit.occupancyPercent) +
-    input.padSplit.otherIncomeMonthly;
+    otherIncomeMonthly;
   const gross = input.padSplit.annualRevenueOverride && input.padSplit.annualRevenueOverride > 0 ? input.padSplit.annualRevenueOverride / 12 : modeledGross;
 
   return gross * (clampPercent(input.padSplit.maintenancePercent) + clampPercent(input.padSplit.capexPercent));
@@ -242,6 +245,7 @@ const buildLeveredTimeline = ({
   totalCashNeeded,
   annualRevenueYear1,
   annualOperatingExpensesYear1,
+  annualNoiForYear,
   arv,
   revenueGrowthRate,
   expenseGrowthRate,
@@ -262,19 +266,23 @@ const buildLeveredTimeline = ({
   const saleProceeds = terminalPropertyValue * (1 - assumptions.sellingCostPercent) - remainingLoanBalance;
 
   const timeline = [-Math.abs(totalCashNeeded)];
+  const getAnnualNoi = (yearIndex: number) => {
+    if (annualNoiForYear) return annualNoiForYear(yearIndex);
+
+    const revenueForYear = annualRevenueYear1 * Math.pow(1 + revenueGrowth, yearIndex);
+    const expensesForYear = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, yearIndex);
+    return revenueForYear - expensesForYear;
+  };
 
   for (let year = 1; year <= fullYears; year += 1) {
-    const revenueForYear = annualRevenueYear1 * Math.pow(1 + revenueGrowth, year - 1);
-    const expensesForYear = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, year - 1);
-    const annualNoi = revenueForYear - expensesForYear;
+    const annualNoi = getAnnualNoi(year - 1);
     timeline.push(annualNoi - annualDebtService);
   }
 
   if (partialYear > 0) {
-    const partialRevenue = annualRevenueYear1 * Math.pow(1 + revenueGrowth, fullYears) * partialYear;
-    const partialExpenses = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, fullYears) * partialYear;
+    const partialNoi = getAnnualNoi(fullYears) * partialYear;
     const partialDebtService = annualDebtService * partialYear;
-    timeline.push(partialRevenue - partialExpenses - partialDebtService + saleProceeds);
+    timeline.push(partialNoi - partialDebtService + saleProceeds);
   } else if (fullYears > 0) {
     timeline[fullYears] += saleProceeds;
   } else {
@@ -304,6 +312,7 @@ const calculateLongTermTurnaroundSummary = (
   const capexPercent = clampPercent(turnaround.capexPercent);
   const managementFeePercent = clampPercent(turnaround.managementFeePercent);
   const exitRefiCapRatePercent = Math.max(turnaround.exitRefiCapRatePercent, 0.0001);
+  const noiGrowthRate = clampGrowthRate(input.assumptions.noiGrowthPercent);
 
   const stabilizedGrossIncomeMonthly =
     Math.max(turnaround.stabilizedGrossRentMonthly, 0) +
@@ -319,7 +328,7 @@ const calculateLongTermTurnaroundSummary = (
   const managementFeeMonthly = effectiveGrossIncomeMonthly * managementFeePercent;
   const maintenanceMonthly = effectiveGrossIncomeMonthly * maintenancePercent;
   const capexMonthly = effectiveGrossIncomeMonthly * capexPercent;
-  const adjustedFixedCostsMonthly = fixedCosts + turnaround.annualTaxInsuranceAdjustment / 12;
+  const adjustedFixedCostsMonthly = Math.max(fixedCosts + turnaround.annualTaxInsuranceAdjustment / 12, 0);
   const operatingExpensesMonthly =
     maintenanceMonthly +
     capexMonthly +
@@ -341,16 +350,44 @@ const calculateLongTermTurnaroundSummary = (
   const totalProjectBasis = getTotalProjectBasis(input, rehabBudgetForStabilization);
   const capOnCost = totalProjectBasis <= 0 ? 0 : annualNoi / totalProjectBasis;
   const equityCreated = impliedValueAtExitCap - totalProjectBasis;
+  const currentGrossIncomeMonthly =
+    input.longTerm.annualRevenueOverride && input.longTerm.annualRevenueOverride > 0
+      ? input.longTerm.annualRevenueOverride / 12
+      : Math.max(input.longTerm.grossRentMonthly, 0) + Math.max(input.longTerm.otherIncomeMonthly, 0);
+  const currentVacancyMonthly = currentGrossIncomeMonthly * clampPercent(input.longTerm.vacancyPercent);
+  const currentEffectiveGrossIncomeMonthly = currentGrossIncomeMonthly - currentVacancyMonthly;
+  const currentMaintenanceMonthly = currentEffectiveGrossIncomeMonthly * clampPercent(input.longTerm.maintenancePercent);
+  const currentCapexMonthly = currentEffectiveGrossIncomeMonthly * clampPercent(input.longTerm.capexPercent);
+  const currentManagementMonthly = currentEffectiveGrossIncomeMonthly * clampPercent(input.longTerm.managementFeePercent);
+  const currentOperatingExpensesMonthly =
+    currentVacancyMonthly +
+    currentMaintenanceMonthly +
+    currentCapexMonthly +
+    currentManagementMonthly +
+    Math.max(input.longTerm.ownerExpensesMonthly, 0) +
+    fixedCosts +
+    strategyVariableCosts;
+  const turnaroundYearNoi = currentGrossIncomeMonthly * 12 - currentOperatingExpensesMonthly * 12;
+  const turnaroundYearCashFlowPreTax = turnaroundYearNoi - debtService * 12;
 
-  const timelineArv = input.longTerm.arvOverride ?? (impliedValueAtExitCap > 0 ? impliedValueAtExitCap : input.purchase.arv);
+  const timelineArv =
+    input.longTerm.arvOverride && input.longTerm.arvOverride > 0
+      ? input.longTerm.arvOverride
+      : impliedValueAtExitCap > 0
+        ? impliedValueAtExitCap
+        : input.purchase.arv;
   const timelineData = buildLeveredTimeline({
     input,
     totalCashNeeded: totalCashInvested,
-    annualRevenueYear1: stabilizedGrossIncomeMonthly * 12,
-    annualOperatingExpensesYear1: (vacancyLossMonthly + operatingExpensesMonthly) * 12,
+    annualRevenueYear1: currentGrossIncomeMonthly * 12,
+    annualOperatingExpensesYear1: currentOperatingExpensesMonthly * 12,
+    annualNoiForYear: (yearIndex) => {
+      if (yearIndex <= 0) return turnaroundYearNoi;
+      return annualNoi * Math.pow(1 + noiGrowthRate, yearIndex - 1);
+    },
     arv: timelineArv,
-    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
-    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
+    revenueGrowthRate: noiGrowthRate,
+    expenseGrowthRate: noiGrowthRate,
     debts: buildAcquisitionTimelineDebts(input)
   });
 
@@ -381,11 +418,15 @@ const calculateLongTermTurnaroundSummary = (
     annualNoi,
     annualCashFlowPreTax,
     totalCashInvested,
+    turnaroundYearNoi,
+    turnaroundYearCashFlowPreTax,
     dscr: calculateDscr(noiMonthly, debtService),
     capRate,
     cashOnCashReturn,
     irr: timelineData.irr,
     roi: timelineData.roi,
+    saleProceeds: timelineData.saleProceeds,
+    cashFlowTimeline: timelineData.timeline,
     impliedValueAtExitCap,
     capOnCost,
     equityCreated
@@ -422,15 +463,17 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   const annualLeasingReserve = grossLeasableAreaSqft * Math.max(commercial.leasingCommissionsReservePerSqftYear, 0);
   const annualFixedCosts = fixedCosts * 12;
   const annualVariableExpenses = strategyVariableCosts * 12;
-  const annualOperatingExpenses =
-    annualEconomicVacancyLoss +
-    annualCreditLoss +
-    annualManagementFee +
+  const annualHardOperatingExpenses =
     annualNonRecoverableExpenses +
     annualTiReserve +
     annualLeasingReserve +
     annualVariableExpenses +
     annualFixedCosts;
+  const annualOperatingExpenses =
+    annualEconomicVacancyLoss +
+    annualCreditLoss +
+    annualManagementFee +
+    annualHardOperatingExpenses;
   const annualNoi =
     annualOccupiedGross - annualOperatingExpenses;
   const noiMonthly = annualNoi / 12;
@@ -441,6 +484,18 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     totalCashNeeded: capitalInvested,
     annualRevenueYear1: annualOccupiedGross,
     annualOperatingExpensesYear1: annualOperatingExpenses,
+    annualNoiForYear: (yearIndex) => {
+      const rentMultiplier = Math.pow(1 + clampGrowthRate(commercial.annualRentGrowthPercent), yearIndex);
+      const expenseMultiplier = Math.pow(1 + clampGrowthRate(commercial.annualExpenseGrowthPercent), yearIndex);
+      const occupiedGross = annualOccupiedGross * rentMultiplier;
+      const economicVacancyLoss = occupiedGross * occupancyPercent;
+      const creditLoss = occupiedGross * creditLossPercent;
+      const effectiveGross = occupiedGross - economicVacancyLoss - creditLoss;
+      const managementFee = effectiveGross * managementFeePercent;
+      const hardOperatingExpenses = annualHardOperatingExpenses * expenseMultiplier;
+
+      return occupiedGross - economicVacancyLoss - creditLoss - managementFee - hardOperatingExpenses;
+    },
     arv: purchase.arv,
     revenueGrowthRate: clampGrowthRate(commercial.annualRentGrowthPercent),
     expenseGrowthRate: clampGrowthRate(commercial.annualExpenseGrowthPercent),
@@ -449,10 +504,10 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   const annualDebtService = debtService * 12;
   const denominator = grossLeasableAreaSqft * rentAndRecoveryPerSqftYear * (1 - occupancyPercent - creditLossPercent) * (1 - managementFeePercent);
   const breakEvenOccupancyPercent =
-    denominator <= 0 ? 1 : clampPercent((annualNonRecoverableExpenses + annualTiReserve + annualLeasingReserve + annualFixedCosts + annualDebtService) / denominator);
+    denominator <= 0 ? 1 : clampPercent((annualHardOperatingExpenses + annualDebtService) / denominator);
   const debtYield = principal > 0 ? annualNoi / principal : 0;
-  const annualBaseRent = occupiedSqft * Math.max(commercial.averageBaseRentPerSqftYear, 0);
-  const annualRecoveries = occupiedSqft * Math.max(commercial.nnnRecoveryPerSqftYear, 0);
+  const annualBaseRent = grossLeasableAreaSqft * Math.max(commercial.averageBaseRentPerSqftYear, 0);
+  const annualRecoveries = grossLeasableAreaSqft * Math.max(commercial.nnnRecoveryPerSqftYear, 0);
 
   return {
     ...base,
@@ -527,23 +582,26 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const managementPercent = clampPercent(longTerm.managementFeePercent);
   const tenantPlacementFeePercent = clampPercent(longTerm.tenantPlacementFeePercent);
   const annualRevenueOverrideMonthly = longTerm.annualRevenueOverride && longTerm.annualRevenueOverride > 0 ? longTerm.annualRevenueOverride / 12 : null;
-  const tenantPlacementRentBase = annualRevenueOverrideMonthly ?? Math.max(longTerm.grossRentMonthly, 0);
+  const grossRentMonthly = Math.max(longTerm.grossRentMonthly, 0);
+  const otherIncomeMonthly = Math.max(longTerm.otherIncomeMonthly, 0);
+  const ownerExpensesMonthly = Math.max(longTerm.ownerExpensesMonthly, 0);
+  const tenantPlacementRentBase = annualRevenueOverrideMonthly ?? grossRentMonthly;
   const tenantPlacementFeeOneTime =
     purchase.ownershipMode === 'purchase' ? tenantPlacementRentBase * tenantPlacementFeePercent : 0;
 
-  const modeledGross = longTerm.grossRentMonthly + longTerm.otherIncomeMonthly;
+  const modeledGross = grossRentMonthly + otherIncomeMonthly;
   const gross = annualRevenueOverrideMonthly ?? modeledGross;
   const vacancy = gross * vacancyPercent;
   const effectiveGrossIncome = gross - vacancy;
   const maintenance = effectiveGrossIncome * maintenancePercent;
   const capex = effectiveGrossIncome * capexPercent;
   const managementFee = effectiveGrossIncome * managementPercent;
-  const noi = effectiveGrossIncome - maintenance - capex - managementFee - longTerm.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
+  const noi = effectiveGrossIncome - maintenance - capex - managementFee - ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
   const annualRevenueYear1 = gross * 12;
   const annualOperatingExpensesYear1 =
-    (vacancy + maintenance + capex + managementFee + longTerm.ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
+    (vacancy + maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
   const timelineData = buildLeveredTimeline({
     input,
     totalCashNeeded: purchaseCashNeeded,
@@ -572,11 +630,11 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const stabilizedCapexMonthly =
     turnaroundSummary ? turnaroundSummary.effectiveGrossIncomeMonthly * turnaroundSummary.capexPercent : 0;
   const stabilizedFixedAndTaxMonthly =
-    turnaroundSummary ? fixedCosts + turnaroundSummary.annualTaxInsuranceAdjustment / 12 : 0;
+    turnaroundSummary ? Math.max(fixedCosts + turnaroundSummary.annualTaxInsuranceAdjustment / 12, 0) : 0;
   const longTermRevenueLines =
     annualRevenueOverrideMonthly
       ? [toLine('lt-annual-revenue-override', 'Annual revenue override (monthly equivalent)', gross)]
-      : [toLine('lt-gross-rent', 'Gross rent', longTerm.grossRentMonthly), toLine('lt-other-income', 'Other income', longTerm.otherIncomeMonthly)];
+      : [toLine('lt-gross-rent', 'Gross rent', grossRentMonthly), toLine('lt-other-income', 'Other income', otherIncomeMonthly)];
 
   const turnaroundLines = turnaroundSummary
     ? [
@@ -594,23 +652,31 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
         toLine('lt-stab-cash-flow', 'Cash flow (stabilized, pre-tax)', turnaroundSummary.cashFlowPreTaxMonthly)
       ]
     : [];
+  const outputMonthlyCashFlow = turnaroundSummary?.cashFlowPreTaxMonthly ?? monthly;
+  const outputMaintenance = turnaroundSummary ? stabilizedMaintenanceMonthly : maintenance;
+  const outputCapex = turnaroundSummary ? stabilizedCapexMonthly : capex;
+  const outputAnnualCashFlow = turnaroundSummary?.annualCashFlowPreTax ?? annual;
+  const outputNoiMonthly = turnaroundSummary?.noiMonthly ?? noi;
+  const outputTotalCashNeeded = turnaroundSummary?.totalCashInvested ?? purchaseCashNeeded;
+  const outputTimeline = turnaroundSummary?.cashFlowTimeline ?? timelineData.timeline;
+  const outputSaleProceeds = turnaroundSummary?.saleProceeds ?? timelineData.saleProceeds;
 
   return {
     ...base,
-    monthlyCashFlow: monthly,
-    monthlyCashFlowExcludingReserves: monthly + maintenance + capex,
-    annualCashFlow: annual,
-    capRate: acquisitionBasisPrice <= 0 ? 0 : (noi * 12) / acquisitionBasisPrice,
-    cashOnCashReturn: purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded,
-    dscr: calculateDscr(noi, debtService),
-    roi: timelineData.roi,
-    totalCashNeeded: purchaseCashNeeded,
-    noiMonthly: noi,
-    irr: timelineData.irr,
-    saleProceeds: timelineData.saleProceeds,
-    cashFlowTimeline: timelineData.timeline,
+    monthlyCashFlow: outputMonthlyCashFlow,
+    monthlyCashFlowExcludingReserves: outputMonthlyCashFlow + outputMaintenance + outputCapex,
+    annualCashFlow: outputAnnualCashFlow,
+    capRate: turnaroundSummary?.capRate ?? (acquisitionBasisPrice <= 0 ? 0 : (noi * 12) / acquisitionBasisPrice),
+    cashOnCashReturn: turnaroundSummary?.cashOnCashReturn ?? (purchaseCashNeeded === 0 ? 0 : annual / purchaseCashNeeded),
+    dscr: turnaroundSummary?.dscr ?? calculateDscr(noi, debtService),
+    roi: turnaroundSummary?.roi ?? timelineData.roi,
+    totalCashNeeded: outputTotalCashNeeded,
+    noiMonthly: outputNoiMonthly,
+    irr: turnaroundSummary?.irr ?? timelineData.irr,
+    saleProceeds: outputSaleProceeds,
+    cashFlowTimeline: outputTimeline,
     notes: turnaroundSummary
-      ? 'Buy-then-stabilize mode enabled: includes a 12-month turnaround underwriting block and stabilized performance outputs.'
+      ? 'Buy-then-stabilize mode enabled: headline metrics show stabilized run-rate outputs, while IRR/ROI include the first 12 months from regular Long-Term inputs before stabilization.'
       : base.notes,
     calculationBreakdown: {
       lines: [
@@ -625,7 +691,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
         toLine('lt-maintenance', 'Maintenance reserve', -maintenance),
         toLine('lt-capex', 'CapEx reserve', -capex),
         toLine('lt-management', 'Management fee', -managementFee),
-        toLine('lt-owner-expenses', 'Owner expenses', -longTerm.ownerExpensesMonthly),
+        toLine('lt-owner-expenses', 'Owner expenses', -ownerExpensesMonthly),
         toLine('lt-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('lt-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('lt-noi', 'NOI', noi),
@@ -633,11 +699,11 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
         toLine('lt-cash-flow', 'Cash flow', monthly),
         ...turnaroundLines
       ],
-      revenueMonthly: gross,
-      sellerPaidExpensesMonthly: maintenance + capex + managementFee + longTerm.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      revenueMonthly: turnaroundSummary?.stabilizedGrossIncomeMonthly ?? gross,
+      sellerPaidExpensesMonthly: turnaroundSummary?.operatingExpensesMonthly ?? (maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts),
       debtServiceMonthly: debtService,
-      noiMonthly: noi,
-      cashFlowMonthly: monthly
+      noiMonthly: outputNoiMonthly,
+      cashFlowMonthly: outputMonthlyCashFlow
     },
     longTermTurnaroundSummary: turnaroundSummary
   };
@@ -647,10 +713,17 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const { airbnb } = input;
   const base = createBaseOutput('airbnb', 'Short-term rental model with cleaning and platform drag.');
 
-  const occupiedNights = airbnb.nightsPerMonth * clampPercent(airbnb.occupancyPercent);
-  const modeledRoomRevenue = occupiedNights * airbnb.adr;
-  const bookings = occupiedNights / Math.max(airbnb.averageNightsPerBooking, 1);
-  const modeledCleaningRevenue = bookings * airbnb.cleaningFeeCharged;
+  const nightsPerMonth = Math.max(airbnb.nightsPerMonth, 0);
+  const adr = Math.max(airbnb.adr, 0);
+  const averageNightsPerBooking = Math.max(airbnb.averageNightsPerBooking, 1);
+  const cleaningFeeCharged = Math.max(airbnb.cleaningFeeCharged, 0);
+  const cleanerCostPerTurn = Math.max(airbnb.cleanerCostPerTurn, 0);
+  const ownerExpensesMonthly = Math.max(airbnb.ownerExpensesMonthly, 0);
+  const furnishingOneTime = Math.max(airbnb.furnishingOneTime, 0);
+  const occupiedNights = nightsPerMonth * clampPercent(airbnb.occupancyPercent);
+  const modeledRoomRevenue = occupiedNights * adr;
+  const bookings = occupiedNights / averageNightsPerBooking;
+  const modeledCleaningRevenue = bookings * cleaningFeeCharged;
   const annualRevenueOverrideMonthly = airbnb.annualRevenueOverride && airbnb.annualRevenueOverride > 0 ? airbnb.annualRevenueOverride / 12 : null;
   const roomRevenue = annualRevenueOverrideMonthly ?? modeledRoomRevenue;
   const cleaningRevenue = annualRevenueOverrideMonthly ? 0 : modeledCleaningRevenue;
@@ -658,7 +731,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const feeBaseRevenue = annualRevenueOverrideMonthly ? gross : modeledRoomRevenue;
 
   const platformFees = feeBaseRevenue * clampPercent(airbnb.platformFeePercent);
-  const cleanerCost = bookings * airbnb.cleanerCostPerTurn;
+  const cleanerCost = bookings * cleanerCostPerTurn;
   const maintenance = feeBaseRevenue * clampPercent(airbnb.maintenancePercent);
   const capex = feeBaseRevenue * clampPercent(airbnb.capexPercent);
   const managementFee = feeBaseRevenue * clampPercent(airbnb.managementFeePercent);
@@ -667,13 +740,13 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const fixedCosts = getMonthlyFixedCosts(input);
   const strategyVariableCosts = getVariableExpenseTotal(input, 'airbnb');
 
-  const noi = gross - platformFees - cleanerCost - maintenance - capex - managementFee - airbnb.ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
+  const noi = gross - platformFees - cleanerCost - maintenance - capex - managementFee - ownerExpensesMonthly - fixedCosts - strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
-  const investedCapital = purchaseCashNeeded + airbnb.furnishingOneTime;
+  const investedCapital = purchaseCashNeeded + furnishingOneTime;
   const annualRevenueYear1 = gross * 12;
   const annualOperatingExpensesYear1 =
-    (platformFees + cleanerCost + maintenance + capex + managementFee + airbnb.ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
+    (platformFees + cleanerCost + maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
   const timelineData = buildLeveredTimeline({
     input,
     totalCashNeeded: investedCapital,
@@ -713,7 +786,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
         toLine('str-maintenance', 'Maintenance reserve', -maintenance),
         toLine('str-capex', 'CapEx reserve', -capex),
         toLine('str-management', 'Management fee', -managementFee),
-        toLine('str-owner-expenses', 'Owner expenses / imported adjustments', -airbnb.ownerExpensesMonthly),
+        toLine('str-owner-expenses', 'Owner expenses / imported adjustments', -ownerExpensesMonthly),
         toLine('str-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('str-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('str-noi', 'NOI', noi),
@@ -721,7 +794,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
         toLine('str-cash-flow', 'Cash flow', monthly)
       ],
       revenueMonthly: gross,
-      sellerPaidExpensesMonthly: platformFees + cleanerCost + maintenance + capex + managementFee + airbnb.ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
+      sellerPaidExpensesMonthly: platformFees + cleanerCost + maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts,
       debtServiceMonthly: debtService,
       noiMonthly: noi,
       cashFlowMonthly: monthly
@@ -734,33 +807,42 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
   const base = createBaseOutput('padSplit', 'Rent-by-room economics with platform and turn costs.');
 
   const legacyPadSplit = padSplit as DealInputModel['padSplit'] & { turnoverCostMonthly?: number };
-  const rentableRooms = Number.isFinite(padSplit.rentableRooms) ? padSplit.rentableRooms : 0;
-  const avgWeeklyRatePerRoom = Number.isFinite(padSplit.avgWeeklyRatePerRoom) ? padSplit.avgWeeklyRatePerRoom : 0;
-  const moveOutsPerYear = Number.isFinite(padSplit.moveOutsPerYear) ? padSplit.moveOutsPerYear : 0;
-  const turnoverCostPerMoveOut = Number.isFinite(padSplit.turnoverCostPerMoveOut)
+  const rentableRooms = Math.max(Number.isFinite(padSplit.rentableRooms) ? padSplit.rentableRooms : 0, 0);
+  const avgWeeklyRatePerRoom = Math.max(Number.isFinite(padSplit.avgWeeklyRatePerRoom) ? padSplit.avgWeeklyRatePerRoom : 0, 0);
+  const weeksPerMonth = Math.max(Number.isFinite(padSplit.weeksPerMonth) ? padSplit.weeksPerMonth : 0, 0);
+  const otherIncomeMonthly = Math.max(Number.isFinite(padSplit.otherIncomeMonthly) ? padSplit.otherIncomeMonthly : 0, 0);
+  const moveOutsPerYear = Math.max(Number.isFinite(padSplit.moveOutsPerYear) ? padSplit.moveOutsPerYear : 0, 0);
+  const rawTurnoverCostPerMoveOut = Number.isFinite(padSplit.turnoverCostPerMoveOut)
     ? padSplit.turnoverCostPerMoveOut
     : Number.isFinite(legacyPadSplit.turnoverCostMonthly)
       ? legacyPadSplit.turnoverCostMonthly ?? 0
       : 0;
+  const turnoverCostPerMoveOut = Math.max(rawTurnoverCostPerMoveOut, 0);
+  const ownerExpensesMonthly = Math.max(Number.isFinite(padSplit.ownerExpensesMonthly) ? padSplit.ownerExpensesMonthly : 0, 0);
+  const furnishingOneTime = Math.max(Number.isFinite(padSplit.furnishingOneTime) ? padSplit.furnishingOneTime : 0, 0);
+  const propertyManagementFeeMonthly = Math.max(
+    Number.isFinite(padSplit.propertyManagementFeeMonthly) ? padSplit.propertyManagementFeeMonthly : 0,
+    0
+  );
 
   const gross =
     rentableRooms *
     avgWeeklyRatePerRoom *
-    padSplit.weeksPerMonth *
+    weeksPerMonth *
     clampPercent(padSplit.occupancyPercent) +
-    padSplit.otherIncomeMonthly;
+    otherIncomeMonthly;
   const annualRevenueOverrideMonthly = padSplit.annualRevenueOverride && padSplit.annualRevenueOverride > 0 ? padSplit.annualRevenueOverride / 12 : null;
   const effectiveGross = annualRevenueOverrideMonthly ?? gross;
   const platformFees = effectiveGross * clampPercent(padSplit.platformFeePercent);
   const maintenance = effectiveGross * clampPercent(padSplit.maintenancePercent);
   const capex = effectiveGross * clampPercent(padSplit.capexPercent);
   const managementFee = effectiveGross * clampPercent(padSplit.managementFeePercent);
-  const turnoverMonthly = (turnoverCostPerMoveOut * moveOutsPerYear * rentableRooms) / 12;
+  const turnoverMonthly = (turnoverCostPerMoveOut * moveOutsPerYear) / 12;
   const derivedWeeklyRatePerRoomFromOverride =
-    annualRevenueOverrideMonthly && rentableRooms > 0 && padSplit.weeksPerMonth > 0 && clampPercent(padSplit.occupancyPercent) > 0
-      ? annualRevenueOverrideMonthly / (rentableRooms * padSplit.weeksPerMonth * clampPercent(padSplit.occupancyPercent))
+    annualRevenueOverrideMonthly && rentableRooms > 0 && weeksPerMonth > 0 && clampPercent(padSplit.occupancyPercent) > 0
+      ? annualRevenueOverrideMonthly / (rentableRooms * weeksPerMonth * clampPercent(padSplit.occupancyPercent))
       : avgWeeklyRatePerRoom;
-  const placementBaseWeeklyRate = annualRevenueOverrideMonthly ? derivedWeeklyRatePerRoomFromOverride : avgWeeklyRatePerRoom;
+  const placementBaseWeeklyRate = avgWeeklyRatePerRoom > 0 ? avgWeeklyRatePerRoom : derivedWeeklyRatePerRoomFromOverride;
   const placementMonthly = (moveOutsPerYear * ((placementBaseWeeklyRate * 10) / 7)) / 12;
 
   const { debtService } = getPurchaseLoanTerms(input);
@@ -773,23 +855,25 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     maintenance -
     capex -
     managementFee -
+    propertyManagementFeeMonthly -
     turnoverMonthly -
     placementMonthly -
-    padSplit.ownerExpensesMonthly -
+    ownerExpensesMonthly -
     fixedCosts -
     strategyVariableCosts;
   const monthly = noi - debtService;
   const annual = monthly * 12;
-  const investedCapital = purchaseCashNeeded + padSplit.furnishingOneTime;
+  const investedCapital = purchaseCashNeeded + furnishingOneTime;
   const annualRevenueYear1 = effectiveGross * 12;
   const annualOperatingExpensesYear1 =
     (platformFees +
       maintenance +
       capex +
       managementFee +
+      propertyManagementFeeMonthly +
       turnoverMonthly +
       placementMonthly +
-      padSplit.ownerExpensesMonthly +
+      ownerExpensesMonthly +
       fixedCosts +
       strategyVariableCosts) *
     12;
@@ -823,14 +907,15 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
       lines: [
         ...(annualRevenueOverrideMonthly
           ? [toLine('ps-annual-revenue-override', 'Annual revenue override (monthly equivalent)', effectiveGross)]
-          : [toLine('ps-room-revenue', 'Room revenue', gross - padSplit.otherIncomeMonthly), toLine('ps-other-income', 'Other income', padSplit.otherIncomeMonthly)]),
+          : [toLine('ps-room-revenue', 'Room revenue', gross - otherIncomeMonthly), toLine('ps-other-income', 'Other income', otherIncomeMonthly)]),
         toLine('ps-platform-fees', 'Platform fees', -platformFees),
         toLine('ps-turnover-cleaning', 'Turnover / cleaning', -turnoverMonthly),
         toLine('ps-tenant-placement', 'Tenant placement fees', -placementMonthly),
         toLine('ps-maintenance', 'Maintenance reserve', -maintenance),
         toLine('ps-capex', 'CapEx reserve', -capex),
-        toLine('ps-management', 'Management fee', -managementFee),
-        toLine('ps-owner-expenses', 'Owner expenses / imported adjustments', -padSplit.ownerExpensesMonthly),
+        toLine('ps-management', 'Management fee (%)', -managementFee),
+        toLine('ps-property-management-flat', 'Property manager flat fee', -propertyManagementFeeMonthly),
+        toLine('ps-owner-expenses', 'Owner expenses / imported adjustments', -ownerExpensesMonthly),
         toLine('ps-fixed-costs', 'Fixed costs (tax/ins/hoa/pmi)', -fixedCosts),
         toLine('ps-variable-costs', 'Variable expenses', -strategyVariableCosts),
         toLine('ps-noi', 'NOI', noi),
@@ -845,7 +930,8 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
         maintenance +
         capex +
         managementFee +
-        padSplit.ownerExpensesMonthly +
+        propertyManagementFeeMonthly +
+        ownerExpensesMonthly +
         fixedCosts +
         strategyVariableCosts,
       debtServiceMonthly: debtService,

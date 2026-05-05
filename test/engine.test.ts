@@ -290,7 +290,13 @@ test('commercial strategy uses leased sq ft and $/sq ft assumptions for NOI and 
   near(result.purchase.noiMonthly ?? 0, noi, 0.01);
   near(result.purchase.monthlyCashFlow, noi - debt, 0.01);
   near(result.purchase.monthlyCashFlowExcludingReserves ?? 0, noi - debt + tiReserveMonthly + leasingReserveMonthly, 0.01);
-  assert.ok(result.purchase.calculationBreakdown?.lines.some((line) => line.key === 'comm-base-rent'));
+  const lines = result.purchase.calculationBreakdown?.lines ?? [];
+  const operatingLineTotal = lines
+    .filter((line) => !['comm-noi', 'comm-debt-service', 'comm-cash-flow'].includes(line.key))
+    .reduce((sum, line) => sum + line.monthly, 0);
+
+  assert.ok(lines.some((line) => line.key === 'comm-base-rent'));
+  near(operatingLineTotal, result.purchase.noiMonthly ?? 0, 0.01);
 });
 
 test('commercial strategy includes variable expenses when the commercial toggle is enabled', () => {
@@ -312,6 +318,85 @@ test('commercial strategy includes variable expenses when the commercial toggle 
 
   near(baseResult.monthlyCashFlow - result.monthlyCashFlow, 240, 0.01);
   assert.ok(result.calculationBreakdown?.lines.some((line) => line.key === 'comm-variable-expenses'));
+});
+
+test('commercial break-even occupancy includes commercial variable expenses', () => {
+  const model = {
+    ...defaultDealInput,
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) =>
+      expense.key === 'power'
+        ? {
+            ...expense,
+            monthlyAmount: 1000,
+            appliesTo: { ...expense.appliesTo, purchase: true }
+          }
+        : expense
+    )
+  };
+
+  const result = calculateDeal(model).purchase;
+  const c = model.commercial;
+  const rentAndRecoveryPerSqftYear = c.averageBaseRentPerSqftYear + c.nnnRecoveryPerSqftYear;
+  const denominator =
+    c.grossLeasableAreaSqft *
+    rentAndRecoveryPerSqftYear *
+    (1 - c.vacancyPercent - c.creditLossPercent) *
+    (1 - c.managementFeePercent);
+  const annualHardCosts =
+    c.grossLeasableAreaSqft * c.nonRecoverableExpensesPerSqftYear +
+    c.grossLeasableAreaSqft * c.tenantImprovementsReservePerSqftYear +
+    c.grossLeasableAreaSqft * c.leasingCommissionsReservePerSqftYear +
+    fixedCostsMonthly(model) * 12 +
+    variableCostMonthly('purchase', model) * 12;
+  const annualDebtService = calculateMonthlyPayment(
+    calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent),
+    model.purchase.interestRate,
+    model.purchase.loanTermYears
+  ) * 12;
+
+  near(result.commercialSummary?.breakEvenOccupancyPercent ?? 0, (annualHardCosts + annualDebtService) / denominator, 0.0001);
+});
+
+test('commercial projections grow revenue-linked vacancy, credit loss, and management with rent', () => {
+  const model = {
+    ...defaultDealInput,
+    commercial: {
+      ...defaultDealInput.commercial,
+      annualRentGrowthPercent: 0.1,
+      annualExpenseGrowthPercent: 0
+    },
+    assumptions: {
+      ...defaultDealInput.assumptions,
+      holdYears: 3
+    }
+  };
+
+  const result = calculateDeal(model).purchase;
+  const c = model.commercial;
+  const yearIndex = 1;
+  const rentMultiplier = Math.pow(1 + c.annualRentGrowthPercent, yearIndex);
+  const grossLeasableAreaSqft = Math.max(c.grossLeasableAreaSqft, 0);
+  const occupiedSqft = Math.min(Math.max(c.occupiedSqft, 0), grossLeasableAreaSqft);
+  const occupiedGross = occupiedSqft * (c.averageBaseRentPerSqftYear + c.nnnRecoveryPerSqftYear) * rentMultiplier;
+  const economicVacancyLoss = occupiedGross * c.vacancyPercent;
+  const creditLoss = occupiedGross * c.creditLossPercent;
+  const effectiveGross = occupiedGross - economicVacancyLoss - creditLoss;
+  const managementFee = effectiveGross * c.managementFeePercent;
+  const annualHardCosts =
+    grossLeasableAreaSqft * c.nonRecoverableExpensesPerSqftYear +
+    grossLeasableAreaSqft * c.tenantImprovementsReservePerSqftYear +
+    grossLeasableAreaSqft * c.leasingCommissionsReservePerSqftYear +
+    fixedCostsMonthly(model) * 12 +
+    variableCostMonthly('purchase', model) * 12;
+  const annualDebtService = calculateMonthlyPayment(
+    calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent),
+    model.purchase.interestRate,
+    model.purchase.loanTermYears
+  ) * 12;
+  const expectedYearTwoCashFlow =
+    occupiedGross - economicVacancyLoss - creditLoss - managementFee - annualHardCosts - annualDebtService;
+
+  near(result.cashFlowTimeline[2], expectedYearTwoCashFlow, 0.01);
 });
 
 test('long-term module includes base fixed and variable expenses', () => {
@@ -432,17 +517,77 @@ test('long-term turnaround mode computes stabilized outputs and show-work lines'
   const stabilizedNoi = effectiveGrossIncome - operatingExpenses;
   const debt = calculateMonthlyPayment(
     calculateLoanAmount(model.purchase.purchasePrice, model.purchase.downPaymentPercent),
-    model.purchase.interestRate,
-    model.purchase.loanTermYears
-  );
+      model.purchase.interestRate,
+      model.purchase.loanTermYears
+    );
+  const currentGross = Math.max(model.longTerm.grossRentMonthly, 0) + Math.max(model.longTerm.otherIncomeMonthly, 0);
+  const currentEffectiveGrossIncome = currentGross * (1 - model.longTerm.vacancyPercent);
+  const currentNoi =
+    currentEffectiveGrossIncome -
+    currentEffectiveGrossIncome * model.longTerm.maintenancePercent -
+    currentEffectiveGrossIncome * model.longTerm.capexPercent -
+    currentEffectiveGrossIncome * model.longTerm.managementFeePercent -
+    Math.max(model.longTerm.ownerExpensesMonthly, 0) -
+    fixedCostsMonthly(model) -
+    variableCostMonthly('longTerm', model);
+  const currentYearCashFlow = currentNoi * 12 - debt * 12;
 
   near(summary?.stabilizedGrossIncomeMonthly ?? 0, stabilizedGrossIncome, 0.01);
   near(summary?.effectiveGrossIncomeMonthly ?? 0, effectiveGrossIncome, 0.01);
   near(summary?.noiMonthly ?? 0, stabilizedNoi, 0.01);
   near(summary?.cashFlowPreTaxMonthly ?? 0, stabilizedNoi - debt, 0.01);
   near(summary?.totalCashInvested ?? 0, result.purchase.totalCashNeeded + model.longTerm.turnaround.rehabBudgetForStabilization, 0.01);
+  near(summary?.turnaroundYearCashFlowPreTax ?? 0, currentYearCashFlow, 0.01);
   near(summary?.impliedValueAtExitCap ?? 0, (stabilizedNoi * 12) / model.longTerm.turnaround.exitRefiCapRatePercent, 0.01);
+  near(result.longTerm.monthlyCashFlow, summary?.cashFlowPreTaxMonthly ?? 0, 0.01);
+  near(result.longTerm.monthlyCashFlowExcludingReserves ?? 0, summary?.cashFlowExcludingReservesMonthly ?? 0, 0.01);
+  near(result.longTerm.totalCashNeeded, summary?.totalCashInvested ?? 0, 0.01);
+  near(result.longTerm.noiMonthly ?? 0, stabilizedNoi, 0.01);
+  near(result.longTerm.cashFlowTimeline[1], currentYearCashFlow, 0.01);
+  near(result.longTerm.cashFlowTimeline[2], stabilizedNoi * 12 - debt * 12, 0.01);
   assert.ok(result.longTerm.calculationBreakdown?.lines.some((line) => line.key === 'lt-stab-noi'));
+});
+
+test('long-term and turnaround modes clamp negative operating inputs that would inflate returns', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash' as const,
+      propertyTaxAnnualOverride: 3600,
+      insuranceAnnualOverride: 1200
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: -1000,
+      otherIncomeMonthly: -250,
+      vacancyPercent: 0,
+      maintenancePercent: 0,
+      capexPercent: 0,
+      managementFeePercent: 0,
+      ownerExpensesMonthly: -5000,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        enabled: true,
+        stabilizedGrossRentMonthly: 3000,
+        vacancyPercent: 0,
+        maintenancePercent: 0,
+        capexPercent: 0,
+        managementFeePercent: 0,
+        annualTaxInsuranceAdjustment: -24000
+      }
+    }
+  };
+
+  const result = calculateDeal(model);
+  const summary = result.longTerm.longTermTurnaroundSummary;
+  const regularNoiLine = result.longTerm.calculationBreakdown?.lines.find((line) => line.key === 'lt-noi');
+  const stabilizedFixedLine = result.longTerm.calculationBreakdown?.lines.find((line) => line.key === 'lt-stab-fixed-tax-ins');
+
+  near(regularNoiLine?.monthly ?? 0, -fixedCostsMonthly(model), 0.01);
+  near(summary?.operatingExpensesMonthly ?? 0, 0, 0.01);
+  near(summary?.noiMonthly ?? 0, 3000, 0.01);
+  near(stabilizedFixedLine?.monthly ?? 0, 0, 0.01);
 });
 
 
@@ -998,7 +1143,38 @@ test('STR annual revenue override ignores ADR and cleaning-fee inputs for revenu
   near(baseResult.noiMonthly ?? 0, changedResult.noiMonthly ?? 0, 0.0001);
 });
 
-test('PadSplit includes other income plus reserve and management fee percentages', () => {
+test('STR clamps negative operating inputs before calculating revenue, costs, and invested capital', () => {
+  const model = {
+    ...defaultDealInput,
+    airbnb: {
+      ...defaultDealInput.airbnb,
+      adr: -200,
+      nightsPerMonth: -30,
+      cleaningFeeCharged: -50,
+      cleanerCostPerTurn: -100,
+      averageNightsPerBooking: -3,
+      ownerExpensesMonthly: -250,
+      furnishingOneTime: -10000
+    }
+  };
+
+  const result = calculateDeal(model);
+  const lines = result.airbnb.calculationBreakdown?.lines ?? [];
+  const roomRevenueLine = lines.find((line) => line.key === 'str-room-revenue');
+  const cleaningRevenueLine = lines.find((line) => line.key === 'str-cleaning-revenue');
+  const cleanerCostLine = lines.find((line) => line.key === 'str-cleaner-cost');
+  const ownerExpensesLine = lines.find((line) => line.key === 'str-owner-expenses');
+  const expectedNoi = -(fixedCostsMonthly(model) + variableCostMonthly('airbnb', model));
+
+  near(roomRevenueLine?.monthly ?? 0, 0, 0.0001);
+  near(cleaningRevenueLine?.monthly ?? 0, 0, 0.0001);
+  near(cleanerCostLine?.monthly ?? 0, 0, 0.0001);
+  near(ownerExpensesLine?.monthly ?? 0, 0, 0.0001);
+  near(result.airbnb.noiMonthly ?? 0, expectedNoi, 0.01);
+  near(result.airbnb.totalCashNeeded, result.purchase.totalCashNeeded, 0.01);
+});
+
+test('PadSplit includes other income plus reserves and percent/flat management fees', () => {
   const model = {
     ...defaultDealInput,
     padSplit: {
@@ -1006,11 +1182,13 @@ test('PadSplit includes other income plus reserve and management fee percentages
       otherIncomeMonthly: 300,
       maintenancePercent: 0.03,
       capexPercent: 0.04,
-      managementFeePercent: 0.1
+      managementFeePercent: 0.1,
+      propertyManagementFeeMonthly: 250
     }
   };
 
   const result = calculateDeal(model);
+  const lines = result.padSplit.calculationBreakdown?.lines ?? [];
   const ps = model.padSplit;
   const gross = ps.rentableRooms * ps.avgWeeklyRatePerRoom * ps.weeksPerMonth * ps.occupancyPercent + ps.otherIncomeMonthly;
   const noi =
@@ -1019,16 +1197,19 @@ test('PadSplit includes other income plus reserve and management fee percentages
     gross * ps.maintenancePercent -
     gross * ps.capexPercent -
     gross * ps.managementFeePercent -
-    (ps.turnoverCostPerMoveOut * ps.moveOutsPerYear * ps.rentableRooms) / 12 -
+    ps.propertyManagementFeeMonthly -
+    (ps.turnoverCostPerMoveOut * ps.moveOutsPerYear) / 12 -
     (ps.moveOutsPerYear * ((ps.avgWeeklyRatePerRoom * 10) / 7)) / 12 -
     ps.ownerExpensesMonthly -
     fixedCostsMonthly(model) -
     variableCostMonthly('padSplit', model);
 
   near(result.padSplit.noiMonthly ?? 0, noi, 0.01);
+  near(Math.abs(lines.find((line) => line.key === 'ps-management')?.monthly ?? 0), gross * ps.managementFeePercent, 0.0001);
+  near(Math.abs(lines.find((line) => line.key === 'ps-property-management-flat')?.monthly ?? 0), ps.propertyManagementFeeMonthly, 0.0001);
 });
 
-test('PadSplit annual revenue override takes precedence over room-rent inputs', () => {
+test('PadSplit annual revenue override replaces modeled room revenue without double-counting other income', () => {
   const base = {
     ...defaultDealInput,
     padSplit: {
@@ -1044,7 +1225,7 @@ test('PadSplit annual revenue override takes precedence over room-rent inputs', 
     ...base,
     padSplit: {
       ...base.padSplit,
-      avgWeeklyRatePerRoom: 420,
+      rentableRooms: 9,
       otherIncomeMonthly: 5000
     }
   };
@@ -1055,7 +1236,38 @@ test('PadSplit annual revenue override takes precedence over room-rent inputs', 
   near(baseResult.noiMonthly ?? 0, changedResult.noiMonthly ?? 0, 0.0001);
 });
 
-test('PadSplit turnover and placement fees match spreadsheet formulas and are separate line items', () => {
+test('PadSplit placement fees use entered weekly rent even when annual revenue is overridden', () => {
+  const model = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      annualRevenueOverride: 96000,
+      rentableRooms: 4,
+      avgWeeklyRatePerRoom: 150,
+      moveOutsPerYear: 12
+    }
+  };
+  const changedWeeklyRent = {
+    ...model,
+    padSplit: {
+      ...model.padSplit,
+      avgWeeklyRatePerRoom: 220
+    }
+  };
+
+  const baseResult = calculateDeal(model).padSplit;
+  const changedResult = calculateDeal(changedWeeklyRent).padSplit;
+  const basePlacement = baseResult.calculationBreakdown?.lines.find((line) => line.key === 'ps-tenant-placement');
+  const changedPlacement = changedResult.calculationBreakdown?.lines.find((line) => line.key === 'ps-tenant-placement');
+  const expectedBasePlacementMonthly = (12 * ((150 * 10) / 7)) / 12;
+  const expectedChangedPlacementMonthly = (12 * ((220 * 10) / 7)) / 12;
+
+  near(Math.abs(basePlacement?.monthly ?? 0), expectedBasePlacementMonthly, 0.0001);
+  near(Math.abs(changedPlacement?.monthly ?? 0), expectedChangedPlacementMonthly, 0.0001);
+  near((baseResult.noiMonthly ?? 0) - (changedResult.noiMonthly ?? 0), expectedChangedPlacementMonthly - expectedBasePlacementMonthly, 0.0001);
+});
+
+test('PadSplit turnover and placement fees use total property move-outs as separate line items', () => {
   const model = {
     ...defaultDealInput,
     padSplit: {
@@ -1076,7 +1288,7 @@ test('PadSplit turnover and placement fees match spreadsheet formulas and are se
   assert.ok(turnoverLine);
   assert.ok(placementLine);
 
-  const expectedTurnoverMonthly = (40 * 10 * 7) / 12;
+  const expectedTurnoverMonthly = (40 * 10) / 12;
   const expectedPlacementMonthly = (10 * ((195 * 10) / 7)) / 12;
 
   near(Math.abs(turnoverLine?.monthly ?? 0), expectedTurnoverMonthly, 0.0001);
@@ -1084,6 +1296,37 @@ test('PadSplit turnover and placement fees match spreadsheet formulas and are se
   near(Math.abs(placementLine?.monthly ?? 0), expectedPlacementMonthly, 0.0001);
   near(Math.abs(placementLine?.annual ?? 0), expectedPlacementMonthly * 12, 0.0001);
   near(Math.abs((turnoverLine?.monthly ?? 0) + (placementLine?.monthly ?? 0)), expectedTurnoverMonthly + expectedPlacementMonthly, 0.0001);
+});
+
+test('PadSplit clamps negative operating inputs before calculating revenue, fees, and invested capital', () => {
+  const model = {
+    ...defaultDealInput,
+    padSplit: {
+      ...defaultDealInput.padSplit,
+      rentableRooms: -5,
+      avgWeeklyRatePerRoom: -200,
+      weeksPerMonth: -4.3333,
+      otherIncomeMonthly: -500,
+      turnoverCostPerMoveOut: -40,
+      moveOutsPerYear: -10,
+      ownerExpensesMonthly: -300,
+      propertyManagementFeeMonthly: -250,
+      furnishingOneTime: -10000
+    }
+  };
+
+  const result = calculateDeal(model);
+  const lines = result.padSplit.calculationBreakdown?.lines ?? [];
+  const expectedNoi = -(fixedCostsMonthly(model) + variableCostMonthly('padSplit', model));
+
+  near(lines.find((line) => line.key === 'ps-room-revenue')?.monthly ?? 0, 0, 0.0001);
+  near(lines.find((line) => line.key === 'ps-other-income')?.monthly ?? 0, 0, 0.0001);
+  near(lines.find((line) => line.key === 'ps-turnover-cleaning')?.monthly ?? 0, 0, 0.0001);
+  near(lines.find((line) => line.key === 'ps-tenant-placement')?.monthly ?? 0, 0, 0.0001);
+  near(lines.find((line) => line.key === 'ps-property-management-flat')?.monthly ?? 0, 0, 0.0001);
+  near(lines.find((line) => line.key === 'ps-owner-expenses')?.monthly ?? 0, 0, 0.0001);
+  near(result.padSplit.noiMonthly ?? 0, expectedNoi, 0.01);
+  near(result.padSplit.totalCashNeeded, result.purchase.totalCashNeeded, 0.01);
 });
 
 
@@ -1254,7 +1497,7 @@ test('BRRRR rehab override changes BRRRR invested capital', () => {
   near(Math.abs(highRehab.brrrr.cashFlowTimeline[0]) - Math.abs(lowRehab.brrrr.cashFlowTimeline[0]), 60000, 0.01);
 });
 
-test('REI Calculator v2.15 parity fixture', () => {
+test('REI Calculator regression fixture', () => {
   const fixture = {
     ...defaultDealInput,
     purchase: {
@@ -1322,8 +1565,8 @@ test('REI Calculator v2.15 parity fixture', () => {
   near(result.airbnb.irr, -0.04822822475582286, 1e-9);
   near(result.airbnb.roi, -0.9668730042395492, 1e-9);
 
-  near(result.padSplit.irr, -0.051673852668701885, 1e-9);
-  near(result.padSplit.roi, -1.0535906071482806, 1e-9);
+  near(result.padSplit.irr, -0.04222644591480419, 1e-9);
+  near(result.padSplit.roi, -0.8555197692635638, 1e-9);
 
   near(result.brrrr.irr, -0.103474976, 1e-9);
   near(result.brrrr.roi, -1.5812330323, 1e-9);
@@ -1393,6 +1636,38 @@ test('pdf schema includes underwriting work, taxes/insurance, and variable expen
 
   assert.equal(report.listingReference.rows[0]?.label, 'Source URL');
   assert.equal(report.listingReference.rows[0]?.value, 'Not provided');
+});
+
+test('pdf schema promotes long-term turnaround stabilized metrics when enabled', () => {
+  const model = {
+    ...defaultDealInput,
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 1200,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        enabled: true,
+        stabilizedGrossRentMonthly: 3600,
+        rehabBudgetForStabilization: 50000,
+        vacancyPercent: 0.05,
+        maintenancePercent: 0.05,
+        capexPercent: 0.05,
+        managementFeePercent: 0.08,
+        exitRefiCapRatePercent: 0.07
+      }
+    }
+  };
+  const result = calculateDeal(model);
+  const report = createPdfReportSchema(model, result, 'longTerm');
+
+  assert.equal(report.selectedStrategyLabel, 'Long-Term Turnaround');
+  assert.ok(report.summary.rows.some((row) => row.label === 'Selected Strategy' && row.value === 'Long-Term Turnaround'));
+  assert.ok(report.strategyHighlights.rows.some((row) => row.label === 'Stabilized Monthly Cash Flow'));
+  assert.ok(report.strategyHighlights.rows.some((row) => row.label === 'Stabilized Annual Cash Flow'));
+  assert.ok(report.strategyHighlights.rows.some((row) => row.label === 'Stabilized NOI (Monthly)'));
+  assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'Projection basis'));
+  assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'Exit value basis' && row.value.includes('Implied value @ exit cap')));
+  assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'First-year turnaround cash flow'));
 });
 
 

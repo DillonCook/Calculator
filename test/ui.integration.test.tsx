@@ -1532,7 +1532,7 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('Long-Term'));
-    const strategyArv = within(getStrategyInputsWorkspace()).getByLabelText('Long-Term ARV');
+    const strategyArv = within(getStrategyInputsWorkspace()).getByRole('spinbutton', { name: /Exit value override/i });
 
     await user.clear(strategyArv);
     await user.type(strategyArv, '365000');
@@ -1672,6 +1672,7 @@ describe('dashboard integration', () => {
     await user.click(getStrategyButton('PadSplit'));
     workspace = getStrategyInputsWorkspace();
     expect(within(workspace).getByLabelText('Weekly rate / room')).toHaveValue(0);
+    expect(within(workspace).getByLabelText('PM flat fee / mo', { selector: 'input' })).toBeInTheDocument();
 
     await user.click(getStrategyButton('Commercial'));
     workspace = getStrategyInputsWorkspace();
@@ -1734,6 +1735,7 @@ describe('dashboard integration', () => {
     await user.click(getStrategyButton('PadSplit'));
     workspace = getStrategyInputsWorkspace();
     expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(within(workspace).getByLabelText('PM flat fee / mo', { selector: 'input' })).toBeInTheDocument();
   });
 
   it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {

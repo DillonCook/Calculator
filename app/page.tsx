@@ -845,6 +845,8 @@ export default function HomePage() {
   const activeOutput = result[activeStrategy];
   const commercialSummary = activeStrategy === 'purchase' ? activeOutput.commercialSummary : undefined;
   const longTermTurnaroundSummary = activeStrategy === 'longTerm' ? activeOutput.longTermTurnaroundSummary : undefined;
+  const isLongTermTurnaroundActive = activeStrategy === 'longTerm' && Boolean(longTermTurnaroundSummary?.enabled);
+  const activeModeLabel = isLongTermTurnaroundActive ? 'Long-Term Turnaround' : activeStrategyLabels[activeStrategy];
   const baseCommercialDigestItems = useMemo<DigestItem<CommercialDigestKey>[]>(() => {
     if (!commercialSummary) return [];
 
@@ -1107,12 +1109,12 @@ export default function HomePage() {
     switch (metricId) {
       case 'cashToClose':
         return (
-          <KpiCard
-            label="Cash to Close"
-            value={currencyFormatter.format(cashToCloseValue)}
-            winner={activeStrategyLabels[activeStrategy]}
-            secondaryLabel="Total cash invested"
-            secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
+            <KpiCard
+              label="Cash to Close"
+              value={currencyFormatter.format(cashToCloseValue)}
+              winner={activeModeLabel}
+              secondaryLabel="Total cash invested"
+              secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
             definitions={[
               {
                 term: 'Cash to Close',
@@ -1135,7 +1137,7 @@ export default function HomePage() {
             numericValue={activeOutput.capRate}
             numericValueKind="percent"
             helper="Annual NOI / current property value"
-            winner={activeStrategyLabels[activeStrategy]}
+            winner={activeModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1148,7 +1150,7 @@ export default function HomePage() {
             numericValue={activeOutput.cashOnCashReturn}
             numericValueKind="percent"
             helper="Annual cash flow / total cash invested"
-            winner={activeStrategyLabels[activeStrategy]}
+            winner={activeModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1162,7 +1164,7 @@ export default function HomePage() {
             numericValueKind="ratio"
             numericValueBaseline={1}
             helper="NOI / annual debt service"
-            winner={activeStrategyLabels[activeStrategy]}
+            winner={activeModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1175,7 +1177,7 @@ export default function HomePage() {
             numericValue={activeOutput.roi}
             numericValueKind="percent"
             helper="Total profit / total cash invested"
-            winner={activeStrategyLabels[activeStrategy]}
+            winner={activeModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1188,7 +1190,7 @@ export default function HomePage() {
             numericValue={activeOutput.irr}
             numericValueKind="percent"
             helper="Discounted return from yearly cashflow timeline"
-            winner={activeStrategyLabels[activeStrategy]}
+            winner={activeModeLabel}
             definitions={[
               {
                 term: 'IRR (Internal Rate of Return)',
@@ -1231,7 +1233,7 @@ export default function HomePage() {
     setCompactSelectedStrategies((current) => normalizeProjectionStrategySelection(current));
   }, []);
 
-  const activeStrategyLabel = activeStrategyLabels[activeStrategy];
+  const activeStrategyLabel = activeModeLabel;
   const compactInputSections = [
     {
       key: 'core' as const,
@@ -1294,8 +1296,12 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
-  const priorityMetricTitle = isFlipStrategy ? 'Net sale proceeds' : 'Monthly cash flow';
-  const priorityMetricSubtitle = isFlipStrategy ? 'Projected one-time proceeds after rehab, sale costs, and carry costs' : null;
+  const priorityMetricTitle = isFlipStrategy ? 'Net sale proceeds' : isLongTermTurnaroundActive ? 'Stabilized monthly cash flow' : 'Monthly cash flow';
+  const priorityMetricSubtitle = isFlipStrategy
+    ? 'Projected one-time proceeds after rehab, sale costs, and carry costs'
+    : isLongTermTurnaroundActive
+      ? 'Run-rate cash flow after the first 12-month stabilization year.'
+      : null;
   const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
 
   const profileImageUrl = useMemo(() => {
@@ -5636,7 +5642,7 @@ export default function HomePage() {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="dashboard-kicker">Long-term turnaround outputs</p>
-                <p className="dashboard-meta hidden text-[11px] sm:block">12-month stabilization snapshot for multifamily turnaround decisions</p>
+                <p className="dashboard-meta hidden text-[11px] sm:block">Stabilized run-rate metrics with first-year turnaround drag in IRR/ROI</p>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="section-tag section-tag-analysis">Stabilized</span>

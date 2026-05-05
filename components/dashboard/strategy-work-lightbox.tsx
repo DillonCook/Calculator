@@ -750,6 +750,8 @@ export function StrategyWorkLightbox({
 }: StrategyWorkLightboxProps) {
   if (!open) return null;
 
+  const strategyLabel =
+    activeStrategy === 'longTerm' && output.longTermTurnaroundSummary?.enabled ? 'Long-Term Turnaround' : strategyLabels[activeStrategy];
   const breakdown = output.calculationBreakdown;
   const groupedBreakdown = breakdown ? buildWorkBreakdownGroups(breakdown.lines, input, activeStrategy) : [];
   const incomeGroup = groupedBreakdown.find((group) => group.key === 'income');
@@ -893,11 +895,11 @@ export function StrategyWorkLightbox({
 
   if (presentation === 'sheet') {
     return (
-      <MobileSheet open={open} title={`${strategyLabels[activeStrategy]} calculations`} onClose={onClose}>
+      <MobileSheet open={open} title={`${strategyLabel} calculations`} onClose={onClose}>
         <div className="mobile-sheet-stack space-y-4">
           <div>
             <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
-            <h3 className="mt-1 text-lg font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
+            <h3 className="mt-1 text-lg font-semibold">{strategyLabel} calculations</h3>
             <p className="mt-1 text-sm text-muted">
               Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.
             </p>
@@ -914,7 +916,7 @@ export function StrategyWorkLightbox({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
-            <h3 className="text-xl font-semibold">{strategyLabels[activeStrategy]} calculations</h3>
+            <h3 className="text-xl font-semibold">{strategyLabel} calculations</h3>
             <p className="text-sm text-muted">Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.</p>
           </div>
           <button type="button" onClick={onClose} className="section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs text-muted">

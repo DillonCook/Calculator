@@ -17,6 +17,8 @@ const strategyLabels: Record<StrategyKey, string> = {
   flip: 'Flip'
 };
 const strategyOrder: StrategyKey[] = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip'];
+const getStrategyLabel = (strategy: StrategyKey, data: DealResult) =>
+  strategy === 'longTerm' && data.longTerm.longTermTurnaroundSummary?.enabled ? 'Long-Term Turnaround' : strategyLabels[strategy];
 
 interface StrategyComparisonProps {
   data: DealResult;
@@ -51,9 +53,9 @@ export function StrategyComparison({
 
     return selectedStrategies.map((strategy) => ({
       key: strategy,
-      label: strategyLabels[strategy]
+      label: getStrategyLabel(strategy, data)
     }));
-  }, [visibleStrategies]);
+  }, [data, visibleStrategies]);
   const maxCashFlowMagnitude = Math.max(...rows.map((row) => Math.abs(data[row.key].monthlyCashFlow)), 1);
 
   useEffect(() => {
@@ -416,7 +418,7 @@ export function StrategyComparison({
                             : 'btn-selector btn-selector-board btn-selector-projection text-slate-200'
                         }`}
                       >
-                        {strategyLabels[strategy]}
+                        {getStrategyLabel(strategy, data)}
                       </button>
                     );
                   })}

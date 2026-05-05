@@ -160,6 +160,7 @@ export function Input({
         className={inputClass}
         type={type}
         step={step ?? (isNumber ? '0.01' : undefined)}
+        aria-label={label}
         placeholder={placeholder}
         value={renderedValue}
         onFocus={() => {
@@ -224,6 +225,7 @@ export function PercentInput({
         className={inputClass}
         type="number"
         step="0.01"
+        aria-label={label}
         value={isFocused ? draftValue : Number.isFinite(value) ? Number((value * 100).toFixed(2)) : 0}
         onFocus={() => {
           setDraftValue(Number.isFinite(value) ? Number((value * 100).toFixed(2)).toString() : '0');

@@ -152,6 +152,7 @@ export interface PadSplitInputs {
   maintenancePercent: number;
   capexPercent: number;
   managementFeePercent: number;
+  propertyManagementFeeMonthly: number;
   turnoverCostPerMoveOut: number;
   moveOutsPerYear: number;
   ownerExpensesMonthly: number;
@@ -294,11 +295,15 @@ export interface LongTermTurnaroundSummaryOutput {
   annualNoi: number;
   annualCashFlowPreTax: number;
   totalCashInvested: number;
+  turnaroundYearNoi: number;
+  turnaroundYearCashFlowPreTax: number;
   dscr: number;
   capRate: number;
   cashOnCashReturn: number;
   irr: number;
   roi: number;
+  saleProceeds: number;
+  cashFlowTimeline: number[];
   impliedValueAtExitCap: number;
   capOnCost: number;
   equityCreated: number;
@@ -475,6 +480,7 @@ export const defaultDealInput: DealInputModel = {
     maintenancePercent: 0.05,
     capexPercent: 0.05,
     managementFeePercent: 0.06,
+    propertyManagementFeeMonthly: 0,
     turnoverCostPerMoveOut: 40,
     moveOutsPerYear: 10,
     ownerExpensesMonthly: 0,

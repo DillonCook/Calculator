@@ -151,7 +151,13 @@ export function StrategyModuleInputs({
       return (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input label="Long-Term ARV" type="number" value={model.longTerm.arvOverride ?? ''} onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))} />
+            <Input
+              label="Exit value override"
+              tooltip="Optional. In regular long-term mode this overrides the sale value used for IRR/ROI. In turnaround mode it overrides the exit-cap implied value; leave it blank to let the stabilized cap-rate value drive the timeline."
+              type="number"
+              value={model.longTerm.arvOverride ?? ''}
+              onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))}
+            />
             <Input
               label="Annual revenue (optional)"
               type="number"
@@ -175,7 +181,7 @@ export function StrategyModuleInputs({
             <section className={inlineSubsectionClassName}>
               <div className="mb-2">
                 <p className="dashboard-kicker">Stabilize scenario (12-month underwrite)</p>
-                <p className="text-xs text-muted">Estimate year-one turnaround performance and value creation after repositioning.</p>
+                <p className="text-xs text-muted">Headline metrics use the stabilized run-rate; IRR/ROI carry the first 12 months from regular long-term inputs.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
@@ -266,7 +272,7 @@ export function StrategyModuleInputs({
                 />
                 <PercentInput
                   label="Exit/Refi cap rate %"
-                  tooltip="Cap rate used to value stabilized NOI at refinance or sale. Lower cap rates imply higher value."
+                  tooltip="Values stabilized NOI for the turnaround scenario. If Exit value override is blank, this implied value is also used for projected sale proceeds, IRR, and ROI."
                   value={model.longTerm.turnaround.exitRefiCapRatePercent}
                   onChange={(v) => updateLongTermTurnaround('exitRefiCapRatePercent', v)}
                 />
@@ -319,13 +325,32 @@ export function StrategyModuleInputs({
           <Input label="Other income / mo" type="number" value={model.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
           <Input
             label="Turnover / cleaning per move-out"
+            tooltip="Cleaning or turnover cost for each room move-out."
             type="number"
             value={model.padSplit.turnoverCostPerMoveOut}
             onChange={(v) => update('padSplit', 'turnoverCostPerMoveOut', Number(v))}
           />
-          <Input label="Move-outs per year" type="number" value={model.padSplit.moveOutsPerYear} onChange={(v) => update('padSplit', 'moveOutsPerYear', Number(v))} />
+          <Input
+            label="Total move-outs / year"
+            tooltip="Total property-level tenant move-outs per year. Each move-out triggers one turnover/cleaning cost and one PadSplit tenant-placement fee equal to 10 days of weekly room rent."
+            type="number"
+            value={model.padSplit.moveOutsPerYear}
+            onChange={(v) => update('padSplit', 'moveOutsPerYear', Number(v))}
+          />
           <PercentInput label="Platform fee %" value={model.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
-          <PercentInput label="Management fee %" value={model.padSplit.managementFeePercent} onChange={(v) => update('padSplit', 'managementFeePercent', v)} />
+          <PercentInput
+            label="Management fee %"
+            tooltip="Percent-based property-management fee on effective gross revenue. Use PM flat fee / mo when the manager charges a fixed amount instead."
+            value={model.padSplit.managementFeePercent}
+            onChange={(v) => update('padSplit', 'managementFeePercent', v)}
+          />
+          <Input
+            label="PM flat fee / mo"
+            tooltip="Optional fixed monthly property-management charge. This is added on top of Management fee %, so set the percentage to 0 if the manager charges only a flat fee."
+            type="number"
+            value={model.padSplit.propertyManagementFeeMonthly ?? 0}
+            onChange={(v) => update('padSplit', 'propertyManagementFeeMonthly', Number(v))}
+          />
           <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
           <PercentInput label="CapEx reserve %" value={model.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
           <Input label="Furnishing (one-time)" type="number" value={model.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
