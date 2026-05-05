@@ -144,6 +144,7 @@ const createSavedDeal = (dealName: string, updatedAt: string) =>
 const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
+const FEEDBACK_OPEN_COUNT_MOBILE_KEY = 'dealcooker-feedback-open-count:v1:mobile';
 const FEEDBACK_LAST_SENT_DESKTOP_KEY = 'dealcooker-feedback-last-sent-open-count:v1:desktop';
 const FEEDBACK_SENT_KEY = 'dealcooker-feedback-sent:v1';
 const FEEDBACK_PROMPT_DELAY_MS = 3000;
@@ -726,6 +727,32 @@ describe('dashboard integration', () => {
       await advanceFeedbackPromptDelay();
 
       expect(screen.getByRole('dialog', { name: 'Send DealCooker feedback' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('anchors the mobile feedback reminder at the top of the screen', async () => {
+    vi.useFakeTimers();
+    try {
+      setViewport(390);
+      authMockState.user = {
+        id: 'feedback-reminder-user',
+        email: 'feedback-reminder@example.com'
+      };
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+      window.localStorage.setItem(FEEDBACK_OPEN_COUNT_MOBILE_KEY, '1');
+
+      render(<HomePage />);
+      window.dispatchEvent(new Event('resize'));
+      await flushAuthEffects();
+      await advanceFeedbackPromptDelay();
+
+      const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
+      const backdrop = dialog.closest('.feedback-reminder-backdrop');
+
+      expect(backdrop).toHaveClass('items-start');
+      expect(backdrop).not.toHaveClass('items-end');
     } finally {
       vi.useRealTimers();
     }

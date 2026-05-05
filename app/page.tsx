@@ -4806,12 +4806,19 @@ export default function HomePage() {
       : null;
 
   const feedbackReminderDialog = isFeedbackPromptOpen ? (
-    <div className="feedback-reminder-backdrop fixed inset-0 z-[220] flex items-end justify-center px-4 py-5 sm:items-center" role="presentation">
+    <div
+      className="feedback-reminder-backdrop fixed inset-0 z-[220] flex items-start justify-center px-4 py-5 sm:items-center"
+      role="presentation"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top), 1.25rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1.25rem)'
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="feedback-reminder-title"
-        className="feedback-reminder-panel w-full max-w-sm rounded-2xl p-4 shadow-soft"
+        className="feedback-reminder-panel max-h-[calc(100dvh-2.5rem)] w-full max-w-sm overflow-y-auto rounded-2xl p-4 shadow-soft"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -4853,12 +4860,19 @@ export default function HomePage() {
   ) : null;
 
   const feedbackComposerDialog = isFeedbackComposerOpen ? (
-    <div className="feedback-reminder-backdrop fixed inset-0 z-[230] flex items-end justify-center px-4 py-5 sm:items-center" role="presentation">
+    <div
+      className="feedback-reminder-backdrop fixed inset-0 z-[230] flex items-start justify-center px-4 py-5 sm:items-center"
+      role="presentation"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top), 1.25rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1.25rem)'
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="feedback-composer-title"
-        className="feedback-reminder-panel feedback-composer-panel w-full max-w-lg rounded-2xl p-4 shadow-soft"
+        className="feedback-reminder-panel feedback-composer-panel max-h-[calc(100dvh-2.5rem)] w-full max-w-lg overflow-y-auto rounded-2xl p-4 shadow-soft"
       >
         <form className="space-y-4" onSubmit={submitFeedback}>
           <div className="flex items-start justify-between gap-3">
