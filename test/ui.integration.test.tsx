@@ -518,6 +518,30 @@ describe('dashboard integration', () => {
     expect(adminLink).toHaveAttribute('href', '/admin/analytics');
   });
 
+  it('places the mobile admin dashboard link directly below owner account info', async () => {
+    setViewport(390);
+    authMockState.user = {
+      id: 'owner-user',
+      email: 'dillon@theinvestoragent.io'
+    };
+
+    render(<HomePage />);
+    window.dispatchEvent(new Event('resize'));
+    await flushAuthEffects();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    const accountText = within(dialog).getByText('Signed in as dillon@theinvestoragent.io');
+    const adminLink = within(dialog).getByRole('link', { name: 'Admin dashboard' });
+    const signOutButton = within(dialog).getByRole('button', { name: 'Sign out' });
+
+    expect(adminLink).toHaveAttribute('href', '/admin/analytics');
+    expect(accountText.compareDocumentPosition(adminLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(adminLink.compareDocumentPosition(signOutButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('sends in-app feedback with available contact details', async () => {
     setViewport(390);
     authMockState.user = {

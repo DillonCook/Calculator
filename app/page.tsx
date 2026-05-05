@@ -3605,6 +3605,19 @@ export default function HomePage() {
         ? `Cloud synced for this account. ${deals.length} local ${deals.length === 1 ? 'deal' : 'deals'} available.`
         : 'Cloud sync is ready for this account.'
     : 'Local only until you sign in.';
+  const adminDashboardLink = isAdminOwner ? (
+    <Link
+      href="/admin/analytics"
+      onClick={() => {
+        triggerHapticFeedback('light');
+        setIsSettingsOpen(false);
+        setCompactSheetView(null);
+      }}
+      className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+    >
+      Admin dashboard
+    </Link>
+  ) : null;
 
   const settingsMenuContent = (
     <div className="settings-panel settings-panel-layout">
@@ -3788,19 +3801,6 @@ export default function HomePage() {
           >
             Send feedback
           </button>
-          {isAdminOwner ? (
-            <Link
-              href="/admin/analytics"
-              onClick={() => {
-                triggerHapticFeedback('light');
-                setIsSettingsOpen(false);
-                setCompactSheetView(null);
-              }}
-              className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-            >
-              Admin dashboard
-            </Link>
-          ) : null}
           <Link
             href="/help"
             onClick={() => {
@@ -4679,6 +4679,7 @@ export default function HomePage() {
             {currentUser ? (
               <div className="space-y-2">
                 {isPasswordResetMode ? authMenuContent : null}
+                {adminDashboardLink}
                 <button
                   type="button"
                   onClick={signOut}
@@ -5337,6 +5338,18 @@ export default function HomePage() {
                       </button>
                       {isSettingsOpen ? (
                         <div id="settings-menu-desktop" className="settings-menu-shell section-shell section-shell-utility absolute right-0 top-10 z-[136] w-[52rem] max-w-[calc(100vw-1rem)] rounded-xl p-3 shadow-soft backdrop-blur">
+                          {isAdminOwner ? (
+                            <div className="settings-section mb-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Owner account</p>
+                                  <p className="mt-1 truncate text-xs text-slate-100">{signedInAvatarLabel}</p>
+                                </div>
+                                {renderProfileAvatar({ label: signedInAvatarLabel })}
+                              </div>
+                              {adminDashboardLink}
+                            </div>
+                          ) : null}
                           {settingsMenuContent}
                         </div>
                       ) : null}
