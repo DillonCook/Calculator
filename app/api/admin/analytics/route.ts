@@ -21,9 +21,12 @@ type ClientErrorRow = {
   created_at: string;
   severity: string;
   source: string;
+  operation: string | null;
   message: string;
+  stack: string | null;
   route: string | null;
   release: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 const getBearerToken = (request: Request) => {
@@ -90,6 +93,29 @@ const countTableRows = async (supabase: NonNullable<ReturnType<typeof getSupabas
   return { count: count ?? 0, error: error?.message ?? null };
 };
 
+const countTableRowsSince = async (
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdminClient>>,
+  tableName: string,
+  since: Date
+) => {
+  const { count, error } = await supabase.from(tableName).select('*', { count: 'exact', head: true }).gte('created_at', since.toISOString());
+  return { count: count ?? 0, error: error?.message ?? null };
+};
+
+const countAnalyticsEvent = async (
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdminClient>>,
+  eventName: string,
+  since: Date
+) => {
+  const { count, error } = await supabase
+    .from('analytics_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('event_name', eventName)
+    .gte('created_at', since.toISOString());
+
+  return { eventName, count: count ?? 0, error: error?.message ?? null };
+};
+
 const listAllUsers = async (supabase: NonNullable<ReturnType<typeof getSupabaseAdminClient>>) => {
   const users: User[] = [];
   const perPage = 1000;
@@ -131,26 +157,53 @@ export async function GET(request: Request) {
   const since30 = daysAgo(29);
   const dayKeys = buildDayKeys(14);
 
-  const [usersResult, scenariosResult, sharesResult, analyticsResult, errorsResult] = await Promise.all([
+  const eventNamesToCount = [
+    'pwa_install_prompt_shown',
+    'pwa_install_prompt_accepted',
+    'pwa_installed',
+    'scenario_created',
+    'share_link_created',
+    'share_link_opened',
+    'print_opened',
+    'feedback_sent'
+  ];
+
+  const [
+    usersResult,
+    scenariosResult,
+    sharesResult,
+    analyticsCountResult,
+    analyticsResult,
+    eventCountResults,
+    errorsCountResult,
+    errorsResult
+  ] = await Promise.all([
     listAllUsers(supabase),
     countTableRows(supabase, 'scenarios'),
     countTableRows(supabase, 'shares'),
+    countTableRowsSince(supabase, 'analytics_events', since30),
     supabase
       .from('analytics_events')
       .select('event_name, created_at, user_id, anonymous_id, session_id, route, release, properties')
       .gte('created_at', since30.toISOString())
       .order('created_at', { ascending: false })
       .limit(10000),
+    Promise.all(eventNamesToCount.map((eventName) => countAnalyticsEvent(supabase, eventName, since30))),
+    countTableRowsSince(supabase, 'client_error_events', since7),
     supabase
       .from('client_error_events')
-      .select('created_at, severity, source, message, route, release', { count: 'exact' })
+      .select('created_at, severity, source, operation, message, stack, route, release, metadata')
       .gte('created_at', since7.toISOString())
       .order('created_at', { ascending: false })
-      .limit(12)
+      .limit(1000)
   ]);
 
   const analyticsEvents = analyticsResult.error ? [] : ((analyticsResult.data ?? []) as AnalyticsEventRow[]);
-  const recentErrors = errorsResult.error ? [] : ((errorsResult.data ?? []) as ClientErrorRow[]);
+  const errors = errorsResult.error ? [] : ((errorsResult.data ?? []) as ClientErrorRow[]);
+  const recentErrors = errors.slice(0, 25);
+  const eventCounts = new Map(
+    eventCountResults.filter((result) => !result.error).map((result) => [result.eventName, result.count])
+  );
   const users = usersResult.users;
   const newAccountCount7d = users.filter((user) => user.created_at && new Date(user.created_at).getTime() >= since7.getTime()).length;
 
@@ -175,6 +228,11 @@ export async function GET(request: Request) {
     const displayMode = event.properties?.displayMode;
     return typeof displayMode === 'string' ? displayMode : null;
   });
+  const severityCounts = countBy(errors, (error) => error.severity);
+  const errorPatterns = countBy(errors, (error) => `${error.source}: ${error.message}${error.route ? ` (${error.route})` : ''}`).slice(0, 10);
+  const eventCountWarnings = eventCountResults
+    .filter((result) => result.error)
+    .map((result) => `Unable to count ${result.eventName}: ${result.error}`);
 
   return NextResponse.json(
     {
@@ -185,8 +243,13 @@ export async function GET(request: Request) {
         usersResult.error ? `Unable to list auth users: ${usersResult.error}` : null,
         scenariosResult.error ? `Unable to count scenarios: ${scenariosResult.error}` : null,
         sharesResult.error ? `Unable to count shares: ${sharesResult.error}` : null,
+        analyticsCountResult.error ? `Unable to count analytics events: ${analyticsCountResult.error}` : null,
         analyticsResult.error ? `Analytics table is not ready: ${analyticsResult.error.message}` : null,
-        errorsResult.error ? `Unable to load client errors: ${errorsResult.error.message}` : null
+        analyticsEvents.length >= 10000 ? 'Recent analytics sample hit 10,000 rows. Headline counts are exact, but charts and recent-event lists may be sampled.' : null,
+        ...eventCountWarnings,
+        errorsCountResult.error ? `Unable to count client errors: ${errorsCountResult.error}` : null,
+        errorsResult.error ? `Unable to load client errors: ${errorsResult.error.message}` : null,
+        errors.length >= 1000 ? 'Recent client-error sample hit 1,000 rows. Error patterns may be sampled.' : null
       ].filter(Boolean),
       metrics: {
         totalUserAccounts: users.length,
@@ -196,23 +259,25 @@ export async function GET(request: Request) {
         activeToday: countDistinctUsersSince(analyticsEvents, today),
         active7d: countDistinctUsersSince(analyticsEvents, since7),
         active30d: countDistinctUsersSince(analyticsEvents, since30),
-        totalEvents30d: analyticsEvents.length,
-        pwaPromptShown30d: eventCount(analyticsEvents, 'pwa_install_prompt_shown'),
-        pwaPromptAccepted30d: eventCount(analyticsEvents, 'pwa_install_prompt_accepted'),
-        pwaInstalls30d: eventCount(analyticsEvents, 'pwa_installed'),
-        scenarioCreated30d: eventCount(analyticsEvents, 'scenario_created'),
-        shareLinksCreated30d: eventCount(analyticsEvents, 'share_link_created'),
-        shareLinksOpened30d: eventCount(analyticsEvents, 'share_link_opened'),
-        printOpens30d: eventCount(analyticsEvents, 'print_opened'),
-        feedbackSent30d: eventCount(analyticsEvents, 'feedback_sent'),
-        clientErrors7d: errorsResult.count ?? recentErrors.length
+        totalEvents30d: analyticsCountResult.error ? analyticsEvents.length : analyticsCountResult.count,
+        pwaPromptShown30d: eventCounts.get('pwa_install_prompt_shown') ?? eventCount(analyticsEvents, 'pwa_install_prompt_shown'),
+        pwaPromptAccepted30d: eventCounts.get('pwa_install_prompt_accepted') ?? eventCount(analyticsEvents, 'pwa_install_prompt_accepted'),
+        pwaInstalls30d: eventCounts.get('pwa_installed') ?? eventCount(analyticsEvents, 'pwa_installed'),
+        scenarioCreated30d: eventCounts.get('scenario_created') ?? eventCount(analyticsEvents, 'scenario_created'),
+        shareLinksCreated30d: eventCounts.get('share_link_created') ?? eventCount(analyticsEvents, 'share_link_created'),
+        shareLinksOpened30d: eventCounts.get('share_link_opened') ?? eventCount(analyticsEvents, 'share_link_opened'),
+        printOpens30d: eventCounts.get('print_opened') ?? eventCount(analyticsEvents, 'print_opened'),
+        feedbackSent30d: eventCounts.get('feedback_sent') ?? eventCount(analyticsEvents, 'feedback_sent'),
+        clientErrors7d: errorsCountResult.error ? errors.length : errorsCountResult.count
       },
       charts: {
         dailyEvents,
         dailyActive,
         topEvents,
         topRoutes,
-        displayModeCounts
+        displayModeCounts,
+        severityCounts,
+        errorPatterns
       },
       recentEvents: analyticsEvents.slice(0, 15).map((event) => ({
         eventName: event.event_name,

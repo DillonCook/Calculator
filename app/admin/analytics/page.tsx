@@ -36,9 +36,21 @@ type DashboardStats = {
     topEvents: Array<{ label: string; count: number }>;
     topRoutes: Array<{ label: string; count: number }>;
     displayModeCounts: Array<{ label: string; count: number }>;
+    severityCounts: Array<{ label: string; count: number }>;
+    errorPatterns: Array<{ label: string; count: number }>;
   };
   recentEvents: Array<{ eventName: string; createdAt: string; route: string | null; release: string | null; signedIn: boolean }>;
-  recentErrors: Array<{ created_at: string; severity: string; source: string; message: string; route: string | null; release: string | null }>;
+  recentErrors: Array<{
+    created_at: string;
+    severity: string;
+    source: string;
+    operation: string | null;
+    message: string;
+    stack: string | null;
+    route: string | null;
+    release: string | null;
+    metadata: Record<string, unknown> | null;
+  }>;
 };
 
 type LoadState = 'loading' | 'ready' | 'signed-out' | 'forbidden' | 'unconfigured' | 'error';
@@ -52,6 +64,17 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 });
 
 const formatNumber = (value: number) => numberFormatter.format(value);
+
+const formatMetadata = (metadata: Record<string, unknown> | null) => {
+  if (!metadata || Object.keys(metadata).length === 0) return null;
+
+  try {
+    const serialized = JSON.stringify(metadata, null, 2);
+    return serialized.length > 1200 ? `${serialized.slice(0, 1200)}...` : serialized;
+  } catch {
+    return 'Metadata unavailable.';
+  }
+};
 
 const formatPercent = (value: number, max: number) => {
   if (max <= 0) return '0%';
@@ -152,6 +175,43 @@ function MiniTrend({ title, items }: { title: string; items: Array<{ day: string
         <span>{items.at(-1)?.day.slice(5) ?? ''}</span>
       </div>
     </section>
+  );
+}
+
+function RecentErrorCard({ error, index }: { error: DashboardStats['recentErrors'][number]; index: number }) {
+  const metadata = formatMetadata(error.metadata);
+
+  return (
+    <div className="section-inner rounded-xl px-3 py-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-red-300/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-100">
+              {error.severity}
+            </span>
+            <span className="font-semibold text-slate-100">{error.source}</span>
+            {error.operation ? <span className="text-muted">{error.operation}</span> : null}
+          </div>
+          <p className="mt-2 break-words text-slate-200">{error.message}</p>
+        </div>
+        <span className="shrink-0 text-muted">{dateFormatter.format(new Date(error.created_at))}</span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+        <span>{error.route ?? 'No route'}</span>
+        {error.release ? <span>Release {error.release.slice(0, 12)}</span> : null}
+      </div>
+
+      {error.stack || metadata ? (
+        <details className="mt-2 rounded-lg border border-white/10 bg-black/15 px-2 py-1.5">
+          <summary className="cursor-pointer text-[11px] font-semibold text-slate-200">Debug details {index + 1}</summary>
+          {error.stack ? <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-300">{error.stack}</pre> : null}
+          {metadata ? (
+            <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-300">{metadata}</pre>
+          ) : null}
+        </details>
+      ) : null}
+    </div>
   );
 }
 
@@ -336,19 +396,17 @@ export default function AdminAnalyticsPage() {
 
           <section className="section-shell section-shell-utility rounded-2xl p-4">
             <h2 className="text-sm font-semibold text-slate-100">Recent Errors</h2>
+            <p className="mt-1 text-xs text-muted">Latest captured production errors, with sanitized route, release, stack, and metadata when available.</p>
             <div className="mt-3 space-y-2">
               {stats.recentErrors.length === 0 ? <p className="text-sm text-muted">No client errors in the last 7 days.</p> : null}
-              {stats.recentErrors.map((error, index) => (
-                <div key={`${error.created_at}-${error.source}-${index}`} className="section-inner rounded-xl px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-slate-100">{error.source}</span>
-                    <span className="text-muted">{dateFormatter.format(new Date(error.created_at))}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-muted">{error.message}</p>
-                </div>
-              ))}
+              {stats.recentErrors.map((error, index) => <RecentErrorCard key={`${error.created_at}-${error.source}-${index}`} error={error} index={index} />)}
             </div>
           </section>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <BarList title="Error Patterns" items={stats.charts.errorPatterns} />
+          <BarList title="Error Severity" items={stats.charts.severityCounts} />
         </div>
       </div>
     );

@@ -32,7 +32,7 @@ vi.mock('../lib/supabaseClient', () => ({
     auth: {
       getSession: async () => ({
         data: {
-          session: authMockState.user ? { user: authMockState.user } : null
+          session: authMockState.user ? { user: authMockState.user, access_token: 'test-access-token' } : null
         }
       }),
       onAuthStateChange: () => ({
@@ -101,6 +101,7 @@ vi.mock('../lib/cloud-scenarios-sync', () => ({
 }));
 
 import HomePage from '../app/page';
+import AdminAnalyticsPage from '../app/admin/analytics/page';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
@@ -541,6 +542,91 @@ describe('dashboard integration', () => {
     expect(adminLink).toHaveClass('btn-primary', 'btn-auth', 'w-full', 'text-center');
     expect(accountText.compareDocumentPosition(adminLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(adminLink.compareDocumentPosition(signOutButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('loads owner admin stats with actionable recent error details', async () => {
+    authMockState.user = {
+      id: 'owner-user',
+      email: 'dillon@theinvestoragent.io'
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ownerEmail: 'dillon@theinvestoragent.io',
+          generatedAt: '2026-05-05T16:00:00.000Z',
+          analyticsReady: true,
+          warnings: [],
+          metrics: {
+            totalUserAccounts: 12,
+            newAccountCount7d: 2,
+            totalScenarios: 30,
+            totalShareLinks: 5,
+            activeToday: 3,
+            active7d: 7,
+            active30d: 9,
+            totalEvents30d: 120,
+            pwaPromptShown30d: 8,
+            pwaPromptAccepted30d: 4,
+            pwaInstalls30d: 3,
+            scenarioCreated30d: 11,
+            shareLinksCreated30d: 4,
+            shareLinksOpened30d: 6,
+            printOpens30d: 2,
+            feedbackSent30d: 1,
+            clientErrors7d: 5
+          },
+          charts: {
+            dailyEvents: [{ day: '2026-05-05', count: 4 }],
+            dailyActive: [{ day: '2026-05-05', count: 2 }],
+            topEvents: [{ label: 'app_opened', count: 12 }],
+            topRoutes: [{ label: '/', count: 12 }],
+            displayModeCounts: [{ label: 'browser', count: 10 }],
+            severityCounts: [{ label: 'error', count: 5 }],
+            errorPatterns: [{ label: 'window: Cannot read properties of undefined (/)', count: 5 }]
+          },
+          recentEvents: [
+            {
+              eventName: 'app_opened',
+              createdAt: '2026-05-05T15:59:00.000Z',
+              route: '/',
+              release: 'abc123',
+              signedIn: true
+            }
+          ],
+          recentErrors: [
+            {
+              created_at: '2026-05-05T15:58:00.000Z',
+              severity: 'error',
+              source: 'window',
+              operation: 'unhandledrejection',
+              message: 'Cannot read properties of undefined',
+              stack: 'at Dashboard (/app/page.js:12:3)',
+              route: '/',
+              release: 'abc123',
+              metadata: { component: 'dashboard', category: 'hydration' }
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    render(<AdminAnalyticsPage />);
+
+    expect(await screen.findByText('DealCooker Admin')).toBeInTheDocument();
+    expect(screen.getAllByText('5').length).toBeGreaterThan(0);
+    expect(screen.getByText('Cannot read properties of undefined')).toBeInTheDocument();
+    expect(screen.getByText('unhandledrejection')).toBeInTheDocument();
+    expect(screen.getAllByText('/').length).toBeGreaterThan(0);
+    expect(screen.getByText(/at Dashboard/)).toBeInTheDocument();
+    expect(screen.getByText(/hydration/)).toBeInTheDocument();
+    expect(screen.getByText('Error Patterns')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith('/api/admin/analytics', expect.objectContaining({
+      headers: { Authorization: 'Bearer test-access-token' },
+      cache: 'no-store'
+    }));
+
+    fetchSpy.mockRestore();
   });
 
   it('sends in-app feedback with available contact details', async () => {
