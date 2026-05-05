@@ -1657,17 +1657,38 @@ export default function HomePage() {
   };
 
   function reportSupabaseError(error: unknown, operation: 'fetch' | 'upsert' | 'delete') {
+    const navigatorConnection =
+      typeof navigator !== 'undefined' && 'connection' in navigator
+        ? (navigator as Navigator & { connection?: { effectiveType?: string; downlink?: number; rtt?: number } }).connection
+        : undefined;
     const details =
       error && typeof error === 'object'
-        ? { status: (error as { status?: unknown }).status, message: (error as { message?: unknown }).message }
-        : { status: undefined, message: String(error) };
+        ? {
+            status: (error as { status?: unknown }).status,
+            name: error instanceof Error ? error.name : undefined,
+            message: (error as { message?: unknown }).message,
+            online: typeof navigator === 'undefined' ? undefined : navigator.onLine,
+            connectionType: navigatorConnection?.effectiveType,
+            connectionDownlink: navigatorConnection?.downlink,
+            connectionRtt: navigatorConnection?.rtt
+          }
+        : {
+            status: undefined,
+            name: undefined,
+            message: String(error),
+            online: typeof navigator === 'undefined' ? undefined : navigator.onLine,
+            connectionType: navigatorConnection?.effectiveType,
+            connectionDownlink: navigatorConnection?.downlink,
+            connectionRtt: navigatorConnection?.rtt
+          };
 
     console.error(`Supabase scenarios ${operation} error:`, { details, error });
     reportClientError({
       source: 'cloud-scenarios',
       operation,
-      severity: 'error',
+      severity: toClientErrorMessage(error).toLowerCase().includes('failed to fetch') ? 'warning' : 'error',
       message: `Supabase scenarios ${operation} failed: ${toClientErrorMessage(error)}`,
+      stack: error instanceof Error ? error.stack : undefined,
       userId: currentUser?.id ?? null,
       metadata: details
     });
@@ -1826,12 +1847,18 @@ export default function HomePage() {
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
       reportClientError({
         source: 'unhandled-rejection',
+        operation: 'unhandledrejection',
         severity: 'error',
-        message: toClientErrorMessage(event.reason),
-        stack: event.reason instanceof Error ? event.reason.stack : undefined,
-        userId: currentUser?.id ?? null
+        message: toClientErrorMessage(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+        userId: currentUser?.id ?? null,
+        metadata: {
+          reasonName: reason instanceof Error ? reason.name : undefined,
+          online: typeof navigator === 'undefined' ? undefined : navigator.onLine
+        }
       });
     };
 
@@ -3611,19 +3638,20 @@ export default function HomePage() {
         ? `Cloud synced for this account. ${deals.length} local ${deals.length === 1 ? 'deal' : 'deals'} available.`
         : 'Cloud sync is ready for this account.'
     : 'Local only until you sign in.';
-  const adminDashboardLink = isAdminOwner ? (
-    <Link
-      href="/admin/analytics"
-      onClick={() => {
-        triggerHapticFeedback('light');
-        setIsSettingsOpen(false);
-        setCompactSheetView(null);
-      }}
-      className="btn-primary btn-auth tap-feedback block w-full rounded-lg px-3 py-2 text-center text-xs font-medium"
-    >
-      Admin dashboard
-    </Link>
-  ) : null;
+  const renderAdminDashboardLink = (className: string) =>
+    isAdminOwner ? (
+      <Link
+        href="/admin/analytics"
+        onClick={() => {
+          triggerHapticFeedback('light');
+          setIsSettingsOpen(false);
+          setCompactSheetView(null);
+        }}
+        className={`btn-primary btn-auth tap-feedback rounded-lg px-3 py-2 text-center text-xs font-medium ${className}`}
+      >
+        Admin dashboard
+      </Link>
+    ) : null;
 
   const settingsMenuContent = (
     <div className="settings-panel settings-panel-layout">
@@ -4685,7 +4713,7 @@ export default function HomePage() {
             {currentUser ? (
               <div className="space-y-2">
                 {isPasswordResetMode ? authMenuContent : null}
-                {adminDashboardLink}
+                {renderAdminDashboardLink('block w-full')}
                 <button
                   type="button"
                   onClick={signOut}
@@ -5353,7 +5381,7 @@ export default function HomePage() {
                                 </div>
                                 {renderProfileAvatar({ label: signedInAvatarLabel })}
                               </div>
-                              {adminDashboardLink}
+                              {renderAdminDashboardLink('inline-flex w-auto min-w-[10rem] items-center justify-center')}
                             </div>
                           ) : null}
                           {settingsMenuContent}

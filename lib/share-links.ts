@@ -55,30 +55,34 @@ export const createShortShareLink = async (params: {
     ];
   };
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const slug = generateSlug();
-    const candidates = buildInsertCandidates(slug);
+  try {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const slug = generateSlug();
+      const candidates = buildInsertCandidates(slug);
 
-    for (const candidate of candidates) {
-      const { error } = await supabase.from(SHARES_TABLE).insert(candidate);
+      for (const candidate of candidates) {
+        const { error } = await supabase.from(SHARES_TABLE).insert(candidate);
 
-      if (!error) {
-        return { slug, error: null };
+        if (!error) {
+          return { slug, error: null };
+        }
+
+        const code = (error as { code?: string }).code;
+        const message = (error as { message?: string }).message ?? '';
+
+        if (code === '23505') {
+          break;
+        }
+
+        if (code === '42703' || code === '22P02' || message.toLowerCase().includes('column')) {
+          continue;
+        }
+
+        return { slug: '', error };
       }
-
-      const code = (error as { code?: string }).code;
-      const message = (error as { message?: string }).message ?? '';
-
-      if (code === '23505') {
-        break;
-      }
-
-      if (code === '42703' || code === '22P02' || message.toLowerCase().includes('column')) {
-        continue;
-      }
-
-      return { slug: '', error };
     }
+  } catch (error) {
+    return { slug: '', error };
   }
 
   return { slug: '', error: new Error('Unable to create a unique short slug.') };
@@ -90,22 +94,26 @@ export const fetchShareBySlug = async (slug: string): Promise<{ share: ShareLink
     return { share: null, error: new Error('Supabase is not configured.') };
   }
 
-  const { data, error } = await supabase
-    .from(SHARES_TABLE)
-    .select('slug, payload_snapshot, expires_at')
-    .eq('slug', slug)
-    .eq('is_public', true)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from(SHARES_TABLE)
+      .select('slug, payload_snapshot, expires_at')
+      .eq('slug', slug)
+      .eq('is_public', true)
+      .single();
 
-  if (error || !data) {
-    return { share: null, error: error ?? new Error('Share not found.') };
+    if (error || !data) {
+      return { share: null, error: error ?? new Error('Share not found.') };
+    }
+
+    const share = data as ShareLinkRecord;
+
+    if (new Date(share.expires_at).getTime() < Date.now()) {
+      return { share: null, error: new Error('Link expired') };
+    }
+
+    return { share, error: null };
+  } catch (error) {
+    return { share: null, error };
   }
-
-  const share = data as ShareLinkRecord;
-
-  if (new Date(share.expires_at).getTime() < Date.now()) {
-    return { share: null, error: new Error('Link expired') };
-  }
-
-  return { share, error: null };
 };

@@ -64,43 +64,55 @@ export const fetchSupabaseScenarios = async (userId: string): Promise<{ scenario
   const supabase = getSupabaseClient();
   if (!supabase) return { scenarios: [], error: null };
 
-  const { data, error } = await supabase
-    .from(SCENARIOS_TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from(SCENARIOS_TABLE)
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
 
-  if (error || !data) {
-    return { scenarios: [], error: error ?? new Error('Failed to fetch scenarios.') };
+    if (error || !data) {
+      return { scenarios: [], error: error ?? new Error('Failed to fetch scenarios.') };
+    }
+
+    const scenarios = (data as ScenarioRow[]).map((row) => toScenarioRecord(row));
+    return { scenarios, error: null };
+  } catch (error) {
+    return { scenarios: [], error };
   }
-
-  const scenarios = (data as ScenarioRow[]).map((row) => toScenarioRecord(row));
-  return { scenarios, error: null };
 };
 
 export const upsertSupabaseScenario = async (userId: string, scenario: ScenarioRecord): Promise<unknown | null> => {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
-  const { error } = await supabase.from(SCENARIOS_TABLE).upsert(
-    {
-      id: scenario.scenarioId,
-      user_id: userId,
-      name: scenario.dealName,
-      payload: scenario.payload,
-      updated_at: scenario.updatedAt
-    },
-    { onConflict: 'id' }
-  );
+  try {
+    const { error } = await supabase.from(SCENARIOS_TABLE).upsert(
+      {
+        id: scenario.scenarioId,
+        user_id: userId,
+        name: scenario.dealName,
+        payload: scenario.payload,
+        updated_at: scenario.updatedAt
+      },
+      { onConflict: 'id' }
+    );
 
-  return error ?? null;
+    return error ?? null;
+  } catch (error) {
+    return error;
+  }
 };
 
 export const deleteSupabaseScenario = async (userId: string, scenarioId: string): Promise<unknown | null> => {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
-  const { error } = await supabase.from(SCENARIOS_TABLE).delete().eq('id', scenarioId).eq('user_id', userId);
+  try {
+    const { error } = await supabase.from(SCENARIOS_TABLE).delete().eq('id', scenarioId).eq('user_id', userId);
 
-  return error ?? null;
+    return error ?? null;
+  } catch (error) {
+    return error;
+  }
 };

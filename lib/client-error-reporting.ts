@@ -13,10 +13,13 @@ interface ClientErrorPayload {
 const MAX_STRING_LENGTH = 700;
 const MAX_STACK_LENGTH = 1800;
 const REDACTED = '[redacted]';
+const DUPLICATE_REPORT_WINDOW_MS = 1000 * 60 * 5;
+const MAX_RECENT_REPORT_KEYS = 80;
 
 const sensitiveKeyPattern = /(authorization|cookie|deal|email|key|listing|password|payload|secret|token|url)/i;
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const urlPattern = /\bhttps?:\/\/[^\s"'<>]+/gi;
+const recentReportTimestamps = new Map<string, number>();
 
 const truncate = (value: string, maxLength = MAX_STRING_LENGTH) =>
   value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
@@ -52,14 +55,33 @@ const shouldReportClientErrors = () =>
 export const reportClientError = (payload: ClientErrorPayload) => {
   if (typeof window === 'undefined' || !shouldReportClientErrors()) return;
 
+  const source = truncate(payload.source, 80);
+  const operation = payload.operation ? truncate(payload.operation, 80) : undefined;
+  const severity = payload.severity ?? 'error';
+  const message = sanitizeString(payload.message);
+  const route = `${window.location.pathname}${window.location.search ? '?[query]' : ''}`;
+  const dedupeKey = [source, operation ?? '', severity, message, route].join('|');
+  const now = Date.now();
+  const lastReportTime = recentReportTimestamps.get(dedupeKey);
+
+  if (lastReportTime && now - lastReportTime < DUPLICATE_REPORT_WINDOW_MS) {
+    return;
+  }
+
+  recentReportTimestamps.set(dedupeKey, now);
+  if (recentReportTimestamps.size > MAX_RECENT_REPORT_KEYS) {
+    const oldestKey = recentReportTimestamps.keys().next().value;
+    if (oldestKey) recentReportTimestamps.delete(oldestKey);
+  }
+
   const body = JSON.stringify({
-    source: truncate(payload.source, 80),
-    operation: payload.operation ? truncate(payload.operation, 80) : undefined,
-    severity: payload.severity ?? 'error',
-    message: sanitizeString(payload.message),
+    source,
+    operation,
+    severity,
+    message,
     stack: payload.stack ? truncate(sanitizeString(payload.stack), MAX_STACK_LENGTH) : undefined,
     userId: payload.userId ?? null,
-    route: `${window.location.pathname}${window.location.search ? '?[query]' : ''}`,
+    route,
     release: process.env.NEXT_PUBLIC_APP_RELEASE ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? null,
     metadata: sanitizeMetadata(payload.metadata)
   });

@@ -517,6 +517,8 @@ describe('dashboard integration', () => {
 
     const adminLink = screen.getByRole('link', { name: 'Admin dashboard' });
     expect(adminLink).toHaveAttribute('href', '/admin/analytics');
+    expect(adminLink).toHaveClass('inline-flex', 'w-auto', 'min-w-[10rem]');
+    expect(adminLink).not.toHaveClass('w-full');
   });
 
   it('places the mobile admin dashboard link directly below owner account info', async () => {
