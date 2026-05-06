@@ -93,6 +93,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
             <ReportSectionCard title={report.strategyHighlights.title} rows={report.strategyHighlights.rows} />
             <ReportSectionCard title={report.financingSnapshot.title} rows={report.financingSnapshot.rows} />
             <ReportSectionCard title={report.assumptions.title} rows={report.assumptions.rows} />
+            {report.flipAnalysis ? <ReportSectionCard title={report.flipAnalysis.title} rows={report.flipAnalysis.rows} /> : null}
             <ReportSectionCard title={report.taxAndInsuranceDetail.title} rows={report.taxAndInsuranceDetail.rows} />
             <ReportSectionCard title={report.variableExpenseDetail.title} rows={report.variableExpenseDetail.rows} twoColumnRows />
             {report.turnaroundStabilization ? (

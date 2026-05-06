@@ -47,6 +47,9 @@ export function StrategyModuleInputs({
       }
     });
   };
+  const updateFlip = <K extends keyof DealInputModel['flip']>(field: K, nextValue: DealInputModel['flip'][K]) => {
+    update('flip', field, nextValue);
+  };
   const commercialOccupancyPercent =
     model.commercial.grossLeasableAreaSqft > 0
       ? (Math.min(model.commercial.occupiedSqft, model.commercial.grossLeasableAreaSqft) / model.commercial.grossLeasableAreaSqft) * 100
@@ -392,13 +395,102 @@ export function StrategyModuleInputs({
     }
 
     return (
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Flip ARV" type="number" value={model.flip.arvOverride ?? ''} onChange={(v) => update('flip', 'arvOverride', v === '' ? null : Number(v))} />
-        <Input label="Flip rehab override" type="number" value={model.flip.rehabOverride ?? ''} onChange={(v) => update('flip', 'rehabOverride', v === '' ? null : Number(v))} />
-        <Input label="Flip hold months" type="number" value={model.flip.holdingMonths} onChange={(v) => update('flip', 'holdingMonths', Number(v))} />
-        <PercentInput label="Agent commission %" value={model.flip.agentCommissionPercent} onChange={(v) => update('flip', 'agentCommissionPercent', v)} />
-        <PercentInput label="Sell closing %" value={model.flip.sellClosingCostPercent} onChange={(v) => update('flip', 'sellClosingCostPercent', v)} />
-        <Input label="Seller concessions" type="number" value={model.flip.sellerConcessions} onChange={(v) => update('flip', 'sellerConcessions', Number(v))} />
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Flip ARV"
+            tooltip="Projected resale price after renovation. This is the sale price used for profit, MAO, ROI, and hard-money payoff math."
+            type="number"
+            value={model.flip.arvOverride ?? ''}
+            onChange={(v) => updateFlip('arvOverride', v === '' ? null : Number(v))}
+          />
+          <Input
+            label="Flip rehab override"
+            tooltip="Optional flip-specific rehab budget before contingency. Leave blank to use the main rehab budget from Core."
+            type="number"
+            value={model.flip.rehabOverride ?? ''}
+            onChange={(v) => updateFlip('rehabOverride', v === '' ? null : Number(v))}
+          />
+          <PercentInput
+            label="Rehab contingency %"
+            tooltip="Adds a buffer on top of the flip rehab budget for overruns. Example: 10% on a $50,000 rehab adds $5,000 to invested capital."
+            value={model.flip.rehabContingencyPercent}
+            onChange={(v) => updateFlip('rehabContingencyPercent', v)}
+          />
+          <Input label="Flip hold months" type="number" value={model.flip.holdingMonths} onChange={(v) => updateFlip('holdingMonths', Number(v))} />
+        </div>
+
+        <div className={inlineSubsectionClassName}>
+          <p className="dashboard-kicker mb-2">Max allowable offer targets</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Target profit"
+              tooltip="Minimum net profit you want after cash invested, sale costs, payoff, and holding costs."
+              type="number"
+              value={model.flip.targetProfit}
+              onChange={(v) => updateFlip('targetProfit', Number(v))}
+            />
+            <PercentInput
+              label="Target ROI %"
+              tooltip="Minimum net profit divided by total cash invested. MAO uses the stricter of target profit and target ROI when both are entered."
+              value={model.flip.targetRoiPercent}
+              onChange={(v) => updateFlip('targetRoiPercent', v)}
+            />
+          </div>
+        </div>
+
+        <div className={inlineSubsectionClassName}>
+          <p className="dashboard-kicker mb-2">Exit costs</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PercentInput label="Agent commission %" value={model.flip.agentCommissionPercent} onChange={(v) => updateFlip('agentCommissionPercent', v)} />
+            <PercentInput label="Sell closing %" value={model.flip.sellClosingCostPercent} onChange={(v) => updateFlip('sellClosingCostPercent', v)} />
+            <Input label="Seller concessions" type="number" value={model.flip.sellerConcessions} onChange={(v) => updateFlip('sellerConcessions', Number(v))} />
+          </div>
+        </div>
+
+        <div className={inlineSubsectionClassName}>
+          <div className="mb-2 flex items-start justify-between gap-3">
+            <div>
+              <p className="dashboard-kicker">Flip lender</p>
+              <p className="dashboard-meta text-xs">Use hard-money terms when the flip is not using the main purchase loan.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select
+              label="Flip financing"
+              value={model.flip.hardMoneyEnabled ? 'hardMoney' : 'purchase'}
+              onChange={(v) => updateFlip('hardMoneyEnabled', v === 'hardMoney')}
+              options={[
+                { label: 'Use purchase financing', value: 'purchase' },
+                { label: 'Hard money', value: 'hardMoney' }
+              ]}
+            />
+            {model.flip.hardMoneyEnabled ? (
+              <>
+                <PercentInput
+                  label="Hard money LTC %"
+                  tooltip="Loan-to-cost against purchase price plus rehab including contingency."
+                  value={model.flip.hardMoneyLoanToCostPercent}
+                  onChange={(v) => updateFlip('hardMoneyLoanToCostPercent', v)}
+                />
+                <PercentInput label="Hard money rate %" value={model.flip.hardMoneyInterestRate} onChange={(v) => updateFlip('hardMoneyInterestRate', v)} />
+                <PercentInput label="Hard money points %" value={model.flip.hardMoneyPointsPercent} onChange={(v) => updateFlip('hardMoneyPointsPercent', v)} />
+                <Input label="Other lender fees" type="number" value={model.flip.hardMoneyOtherFees} onChange={(v) => updateFlip('hardMoneyOtherFees', Number(v))} />
+                <Input
+                  label="Minimum interest months"
+                  tooltip="If the lender charges minimum interest, interest cost uses the larger of this value or the actual hold months."
+                  type="number"
+                  value={model.flip.hardMoneyMinimumInterestMonths}
+                  onChange={(v) => updateFlip('hardMoneyMinimumInterestMonths', Number(v))}
+                />
+              </>
+            ) : (
+              <div className={inlineMutedPanelClassName}>
+                Purchase loan, cash, and HELOC settings from Core are used for flip debt service and payoff.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   };

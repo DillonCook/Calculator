@@ -1491,7 +1491,12 @@ describe('dashboard integration', () => {
 
     const flipResult = calculateDeal(defaultDealInput).flip;
 
-    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(flipResult.saleProceeds ?? 0));
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(
+      currencyFormatter.format(flipResult.calculationBreakdown?.flipMeta?.netProfit ?? 0)
+    );
+    expect(screen.getByText('Net profit')).toBeInTheDocument();
+    expect(screen.getAllByText('Max Offer').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Rehab Buffer').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Include reserves' })).not.toBeInTheDocument();
   });
 

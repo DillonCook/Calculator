@@ -1,5 +1,5 @@
 import { calculateDeal } from '@/lib/engine/deal-engine';
-import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
+import type { DealInputModel, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 
 interface ConstraintTargets {
   minMonthlyCashFlow: number;
@@ -23,7 +23,7 @@ export interface DealWorkoutRecommendation {
   constrainedByOperations: boolean;
   currentMonthlyCashFlow: number;
   currentDscr: number;
-  currentSaleProceeds: number;
+  currentNetProfit: number;
   scenarios: DealWorkoutScenario[];
 }
 
@@ -37,6 +37,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const roundCurrency = (value: number) => Math.round(value / 100) * 100;
 const roundPercent = (value: number) => Math.round(value * 1000) / 1000;
 const roundPurchasePrice = (value: number) => Math.max(roundCurrency(value), 100);
+const getFlipNetProfit = (output: StrategyOutput) =>
+  output.calculationBreakdown?.flipMeta?.netProfit ?? (output.saleProceeds ?? 0) - output.totalCashNeeded;
 
 const meetsTargetIrr = (model: DealInputModel, strategy: StrategyKey, targetIrr: number) => {
   const output = calculateDeal(model)[strategy];
@@ -71,7 +73,7 @@ const findPurchasePriceForMinCashFlow = (model: DealInputModel, strategy: Strate
 const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: ConstraintTargets = defaultTargets) => {
   const output = calculateDeal(model)[strategy];
   if (strategy === 'flip') {
-    return (output.saleProceeds ?? 0) >= 0;
+    return getFlipNetProfit(output) >= 0;
   }
 
   const hasNoDebt = model.purchase.financingType === 'cash' || model.purchase.downPaymentPercent >= 0.999;
@@ -120,7 +122,8 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
   const current = calculateDeal(model)[strategy];
 
   if (strategy === 'flip') {
-    const canWorkAlready = (current.saleProceeds ?? 0) >= 0;
+    const currentNetProfit = getFlipNetProfit(current);
+    const canWorkAlready = currentNetProfit >= 0;
 
     if (canWorkAlready) {
       return {
@@ -128,7 +131,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
         constrainedByOperations: false,
         currentMonthlyCashFlow: current.monthlyCashFlow,
         currentDscr: current.dscr,
-        currentSaleProceeds: current.saleProceeds ?? 0,
+        currentNetProfit,
         scenarios: []
       };
     }
@@ -143,7 +146,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
         constrainedByOperations: true,
         currentMonthlyCashFlow: current.monthlyCashFlow,
         currentDscr: current.dscr,
-        currentSaleProceeds: current.saleProceeds ?? 0,
+        currentNetProfit,
         scenarios: []
       };
     }
@@ -168,14 +171,14 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       constrainedByOperations: false,
       currentMonthlyCashFlow: current.monthlyCashFlow,
       currentDscr: current.dscr,
-      currentSaleProceeds: current.saleProceeds ?? 0,
+      currentNetProfit,
       scenarios:
         discount > 0
           ? [
               {
                 key: 'price-cut',
                 title: 'Lower purchase price',
-                description: `Cut purchase price by about $${roundCurrency(discount).toLocaleString()} to get this flip back to break-even net proceeds.`,
+                description: `Cut purchase price by about $${roundCurrency(discount).toLocaleString()} to get this flip back to break-even net profit.`,
                 adjustments: { purchasePrice: rounded }
               }
             ]
@@ -202,7 +205,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       constrainedByOperations,
       currentMonthlyCashFlow: current.monthlyCashFlow,
       currentDscr: current.dscr,
-      currentSaleProceeds: current.saleProceeds ?? 0,
+      currentNetProfit: current.saleProceeds ?? 0,
       scenarios: []
     };
   }
@@ -288,7 +291,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     constrainedByOperations: false,
     currentMonthlyCashFlow: current.monthlyCashFlow,
     currentDscr: current.dscr,
-    currentSaleProceeds: current.saleProceeds ?? 0,
+    currentNetProfit: current.saleProceeds ?? 0,
     scenarios
   };
 }

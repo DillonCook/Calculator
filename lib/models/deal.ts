@@ -201,12 +201,31 @@ export interface StrategyCalculationBreakdown {
   flipMeta?: {
     holdingMonths: number;
     salePrice: number;
+    saleCashReturned: number;
     purchasePrice: number;
+    baseRehabBudget: number;
+    rehabContingency: number;
+    rehabContingencyPercent: number;
     rehabBudget: number;
     buyClosingCosts: number;
+    pointsCost: number;
+    helocClosingCosts: number;
     agentCommission: number;
     sellClosingCosts: number;
     sellerConcessions: number;
+    debtPayoffAtSale: number;
+    cashInvestedBeforeHolding: number;
+    totalCashInvested: number;
+    targetProfit: number;
+    targetRoiPercent: number;
+    maxOfferForTargetProfit: number | null;
+    maxOfferForTargetRoi: number | null;
+    maxAllowableOffer: number | null;
+    hardMoneyEnabled: boolean;
+    hardMoneyLoanAmount: number;
+    hardMoneyInterestCost: number;
+    hardMoneyOtherFees: number;
+    hardMoneyMinimumInterestMonths: number;
     fixedHoldingCostsMonthly: number;
     variableHoldingCostsMonthly: number;
     lenderHoldingCostsMonthly: number;
@@ -230,9 +249,18 @@ export interface FlipInputs {
   holdingMonths: number;
   arvOverride: number | null;
   rehabOverride: number | null;
+  rehabContingencyPercent: number;
   agentCommissionPercent: number;
   sellClosingCostPercent: number;
   sellerConcessions: number;
+  targetProfit: number;
+  targetRoiPercent: number;
+  hardMoneyEnabled: boolean;
+  hardMoneyLoanToCostPercent: number;
+  hardMoneyInterestRate: number;
+  hardMoneyPointsPercent: number;
+  hardMoneyOtherFees: number;
+  hardMoneyMinimumInterestMonths: number;
 }
 
 export interface VariableExpenseCategory {
@@ -500,9 +528,18 @@ export const defaultDealInput: DealInputModel = {
     holdingMonths: 6,
     arvOverride: null,
     rehabOverride: null,
+    rehabContingencyPercent: 0.1,
     agentCommissionPercent: 0.06,
     sellClosingCostPercent: 0.02,
-    sellerConcessions: 3000
+    sellerConcessions: 3000,
+    targetProfit: 30000,
+    targetRoiPercent: 0.2,
+    hardMoneyEnabled: false,
+    hardMoneyLoanToCostPercent: 0.9,
+    hardMoneyInterestRate: 0.12,
+    hardMoneyPointsPercent: 0.02,
+    hardMoneyOtherFees: 0,
+    hardMoneyMinimumInterestMonths: 0
   },
   variableExpenses: [
     { key: 'power', label: 'Power', monthlyAmount: 300, appliesTo: { purchase: false, longTerm: false, airbnb: true, padSplit: true, flip: true } },

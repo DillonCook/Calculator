@@ -49,7 +49,7 @@ export const getProjectionMetrics = (
     modeledProfit,
     modeledMultiple,
     paybackMonths,
-    exitLabel: 'Projected sale proceeds'
+    exitLabel: output.strategy === 'flip' ? 'Projected sale cash returned' : 'Projected sale proceeds'
   };
 };
 

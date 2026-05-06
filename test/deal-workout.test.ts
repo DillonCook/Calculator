@@ -74,7 +74,7 @@ test('cash financing price-cut recommendation never suggests a zero purchase pri
 });
 
 
-test('flip workout only proposes purchase price fix based on net sale proceeds', () => {
+test('flip workout only proposes purchase price fix based on net profit', () => {
   const model = {
     ...defaultDealInput,
     purchase: {
@@ -95,7 +95,7 @@ test('flip workout only proposes purchase price fix based on net sale proceeds',
   const rec = buildDealWorkoutRecommendation(model, 'flip');
 
   assert.equal(rec.canWorkAlready, false);
-  assert.ok(rec.currentSaleProceeds < 0);
+  assert.ok(rec.currentNetProfit < 0);
   assert.equal(rec.scenarios.length, 1);
   assert.equal(rec.scenarios[0]?.key, 'price-cut');
   assert.equal(rec.scenarios[0]?.adjustments.downPaymentPercent, undefined);

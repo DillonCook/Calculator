@@ -70,7 +70,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
         </div>
         {strategy === 'flip' ? (
           <div className="dashboard-meta text-right text-[11px]">
-            <p>Net proceeds: {currencyFormatter.format(recommendation.currentSaleProceeds)}</p>
+            <p>Net profit: {currencyFormatter.format(recommendation.currentNetProfit)}</p>
           </div>
         ) : null}
       </div>
@@ -84,7 +84,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
       {recommendation.constrainedByOperations ? (
         <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-xs leading-snug text-amber-100 sm:text-sm">
           {strategy === 'flip'
-            ? 'This flip cannot be solved through financing tweaks. Improve resale value, reduce rehab/sell costs, or shorten hold costs to recover net proceeds.'
+            ? 'This flip cannot be solved through financing tweaks. Improve resale value, reduce rehab/sell costs, or shorten hold costs to recover net profit.'
             : 'Debt terms are not the blocker. Operating income is negative even with no debt, so you would need higher income or lower non-debt expenses.'}
         </p>
       ) : null}

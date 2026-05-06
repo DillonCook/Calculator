@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
-import { currencyFormatter } from '@/lib/formatters';
+import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
@@ -641,14 +641,25 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
   if (!meta) return null;
 
   const holdingMonths = Math.max(meta.holdingMonths, 1);
+  const saleCashReturned = meta.saleCashReturned ?? meta.netProfit + (meta.totalCashInvested ?? meta.holdingCostsTotal);
+  const totalCashInvested = meta.totalCashInvested ?? meta.holdingCostsTotal;
+  const cashInvestedBeforeHolding = meta.cashInvestedBeforeHolding ?? Math.max(totalCashInvested - meta.holdingCostsTotal, 0);
 
-  const costItems = [
-    { key: 'purchase', label: 'Purchase price', total: meta.purchasePrice },
-    { key: 'rehab', label: 'Rehab budget', total: meta.rehabBudget },
-    { key: 'buy-close', label: 'Buy closing costs', total: meta.buyClosingCosts },
+  const saleDeductionItems = [
     { key: 'agent', label: 'Agent commission', total: meta.agentCommission },
     { key: 'sell-close', label: 'Sell closing costs', total: meta.sellClosingCosts },
-    { key: 'concessions', label: 'Seller concessions', total: meta.sellerConcessions }
+    { key: 'concessions', label: 'Seller concessions', total: meta.sellerConcessions },
+    { key: 'debt-payoff', label: 'Debt payoff at sale', total: meta.debtPayoffAtSale ?? 0 }
+  ];
+
+  const basisItems = [
+    { key: 'purchase', label: 'Purchase price basis', total: meta.purchasePrice },
+    { key: 'base-rehab', label: 'Base rehab', total: meta.baseRehabBudget ?? meta.rehabBudget },
+    { key: 'rehab-buffer', label: `Rehab contingency (${percentFormatter.format(meta.rehabContingencyPercent ?? 0)})`, total: meta.rehabContingency ?? 0 },
+    { key: 'rehab', label: 'Total rehab', total: meta.rehabBudget },
+    { key: 'buy-close', label: 'Buy closing costs', total: meta.buyClosingCosts },
+    { key: 'points', label: meta.hardMoneyEnabled ? 'Hard money points' : 'Loan points', total: meta.pointsCost ?? 0 },
+    { key: 'heloc-close', label: 'HELOC closing costs', total: meta.helocClosingCosts ?? 0 }
   ];
 
   const holdingItems = [
@@ -657,7 +668,8 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
     { key: 'lender', label: 'Lender costs (debt service)', monthly: meta.lenderHoldingCostsMonthly, total: meta.lenderHoldingCostsMonthly * holdingMonths }
   ];
 
-  const totalCosts = costItems.reduce((sum, item) => sum + item.total, 0) + meta.holdingCostsTotal;
+  const totalSaleDeductions = saleDeductionItems.reduce((sum, item) => sum + item.total, 0);
+  const lenderCostTotal = (meta.hardMoneyInterestCost ?? 0) + (meta.pointsCost ?? 0) + (meta.hardMoneyOtherFees ?? 0);
 
   return (
     <div className="space-y-3"> 
@@ -667,14 +679,16 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
           <p className="text-lg font-semibold text-emerald-300">{currencyFormatter.format(meta.salePrice)}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted">Total costs</p>
-          <p className="text-lg font-semibold text-slate-200" style={getNegativeValueStyle(-totalCosts, { kind: 'currency' })}>
-            -{currencyFormatter.format(totalCosts)}
+          <p className="text-[11px] uppercase tracking-wide text-muted">Sale cash returned</p>
+          <p className="text-lg font-semibold text-slate-100">
+            {currencyFormatter.format(saleCashReturned)}
           </p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted">Holding period</p>
-          <p className="text-lg font-semibold text-slate-100">{holdingMonths} mo</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Total cash invested</p>
+          <p className="text-lg font-semibold text-slate-200" style={getNegativeValueStyle(-totalCashInvested, { kind: 'currency' })}>
+            -{currencyFormatter.format(totalCashInvested)}
+          </p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted">Net profit</p>
@@ -689,8 +703,8 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
 
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="section-inner space-y-2 rounded-xl p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">One-time costs</p>
-          {costItems.map((item) => (
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Sale deductions</p>
+          {saleDeductionItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
               <p className="text-slate-100">{item.label}</p>
               <p className="text-right text-slate-200" style={getNegativeValueStyle(-item.total, { kind: 'currency' })}>
@@ -698,6 +712,10 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
               </p>
             </div>
           ))}
+          <div className="mt-1 grid grid-cols-[1fr_auto] gap-2 border-t border-white/10 pt-2 text-sm">
+            <p className="text-slate-100">Sale cash returned</p>
+            <p className="text-right font-semibold text-slate-100">{currencyFormatter.format(saleCashReturned)}</p>
+          </div>
         </div>
 
         <div className="section-inner space-y-2 rounded-xl p-3">
@@ -724,10 +742,75 @@ const FlipFinancials = ({ breakdown }: { breakdown: NonNullable<StrategyOutput['
         </div>
       </div>
 
+      <div className="section-inner space-y-2 rounded-xl p-3">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Cash invested before holding</p>
+            <p className="text-right text-slate-200" style={getNegativeValueStyle(-cashInvestedBeforeHolding, { kind: 'currency' })}>
+              -{currencyFormatter.format(cashInvestedBeforeHolding)}
+            </p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Max allowable offer</p>
+            <p className="text-right text-slate-200">
+              {meta.maxAllowableOffer === null ? 'No fit' : currencyFormatter.format(meta.maxAllowableOffer)}
+            </p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">MAO targets</p>
+            <p className="text-right text-slate-200">
+              {currencyFormatter.format(meta.targetProfit ?? 0)} / {percentFormatter.format(meta.targetRoiPercent ?? 0)}
+            </p>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+            <p className="text-slate-100">Holding period</p>
+            <p className="text-right text-slate-200">{holdingMonths} mo</p>
+          </div>
+        </div>
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted">Purchase and rehab reference</summary>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {basisItems.map((item) => (
+              <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+                <p className="text-slate-100">{item.label}</p>
+                <p className="text-right text-slate-200">{currencyFormatter.format(item.total)}</p>
+              </div>
+            ))}
+          </div>
+        </details>
+      </div>
+
+      {meta.hardMoneyEnabled ? (
+        <div className="section-inner space-y-2 rounded-xl p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Hard money terms</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+              <p className="text-slate-100">Loan amount</p>
+              <p className="text-right text-slate-200">{currencyFormatter.format(meta.hardMoneyLoanAmount ?? 0)}</p>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+              <p className="text-slate-100">Interest cost</p>
+              <p className="text-right text-slate-200">{currencyFormatter.format(meta.hardMoneyInterestCost ?? 0)}</p>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+              <p className="text-slate-100">Points + fees</p>
+              <p className="text-right text-slate-200">{currencyFormatter.format((meta.pointsCost ?? 0) + (meta.hardMoneyOtherFees ?? 0))}</p>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2 text-sm">
+              <p className="text-slate-100">Total lender cost</p>
+              <p className="text-right text-slate-200">{currencyFormatter.format(lenderCostTotal)}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="section-inner rounded-xl p-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Net profit formula</p>
         <p className="mt-1 text-sm text-slate-200">
-          {currencyFormatter.format(meta.salePrice)} - {currencyFormatter.format(totalCosts)} ={' '}
+          {currencyFormatter.format(meta.salePrice)} - {currencyFormatter.format(totalSaleDeductions)} = {currencyFormatter.format(saleCashReturned)}
+        </p>
+        <p className="mt-1 text-sm text-slate-200">
+          {currencyFormatter.format(saleCashReturned)} - {currencyFormatter.format(totalCashInvested)} ={' '}
           <span
             className={`font-semibold ${meta.netProfit >= 0 ? 'text-emerald-300' : 'text-slate-200'}`}
             style={getNegativeValueStyle(meta.netProfit, { kind: 'currency' })}

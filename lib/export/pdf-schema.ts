@@ -28,6 +28,7 @@ export interface PdfReportSchema {
   taxAndInsuranceDetail: PdfReportSection;
   variableExpenseDetail: PdfReportSection;
   financingSnapshot: PdfReportSection;
+  flipAnalysis?: PdfReportSection;
   turnaroundStabilization?: PdfReportSection;
   assumptions: PdfReportSection;
   listingReference: PdfReportSection;
@@ -71,7 +72,8 @@ export const createPdfReportSchema = (
   selectedStrategy: StrategyKey = 'longTerm'
 ): PdfReportSchema => {
   const strategyOutput = getSelectedOutput(result, selectedStrategy);
-  const effectiveValue = selectedStrategy === 'flip' ? strategyOutput.saleProceeds ?? 0 : strategyOutput.monthlyCashFlow;
+  const flipMeta = selectedStrategy === 'flip' ? strategyOutput.calculationBreakdown?.flipMeta : undefined;
+  const effectiveValue = selectedStrategy === 'flip' ? flipMeta?.netProfit ?? 0 : strategyOutput.monthlyCashFlow;
   const fixedCostBreakdown = getFixedCostBreakdown(input.purchase);
   const cashToCloseValue =
     input.purchase.ownershipMode === 'owned'
@@ -94,6 +96,8 @@ export const createPdfReportSchema = (
   const turnaroundInputs = input.longTerm.turnaround;
   const holdYears = Math.max(0, input.assumptions.holdYears);
   const holdYearsLabel = holdYears === 1 ? '1 year' : `${holdYears} years`;
+  const flipHoldMonths = Math.max(flipMeta?.holdingMonths ?? input.flip.holdingMonths, 0);
+  const flipHoldLabel = flipHoldMonths === 1 ? '1 month' : `${flipHoldMonths} months`;
   const variableExpenses = variableExpenseStrategy
     ? input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy])
     : [];
@@ -120,14 +124,20 @@ export const createPdfReportSchema = (
       title: 'Performance Highlights',
       rows: [
         {
-          label: selectedStrategy === 'flip' ? 'Net Sale Proceeds' : isLongTermTurnaround ? 'Stabilized Monthly Cash Flow' : 'Monthly Cash Flow',
+          label: selectedStrategy === 'flip' ? 'Net Profit' : isLongTermTurnaround ? 'Stabilized Monthly Cash Flow' : 'Monthly Cash Flow',
           value: formatCurrency(effectiveValue)
         },
         { label: isLongTermTurnaround ? 'Stabilized Annual Cash Flow' : 'Annual Cash Flow', value: formatCurrency(strategyOutput.annualCashFlow) },
         { label: isLongTermTurnaround ? 'Stabilized NOI (Monthly)' : 'NOI (Monthly)', value: formatCurrency(strategyOutput.noiMonthly ?? 0) },
         { label: 'ROI', value: percentFormatter.format(strategyOutput.roi) },
         { label: 'IRR', value: percentFormatter.format(strategyOutput.irr) },
-        { label: `Projected Sale Proceeds (after holding for ${holdYearsLabel})`, value: formatCurrency(strategyOutput.saleProceeds ?? 0) }
+        {
+          label:
+            selectedStrategy === 'flip'
+              ? `Projected Sale Cash Returned (after ${flipHoldLabel})`
+              : `Projected Sale Proceeds (after holding for ${holdYearsLabel})`,
+          value: formatCurrency(strategyOutput.saleProceeds ?? 0)
+        }
       ]
     },
     underwritingWork: {
@@ -180,6 +190,24 @@ export const createPdfReportSchema = (
         { label: 'Points', value: percentFormatter.format(input.purchase.pointsPercent) }
       ]
     },
+    flipAnalysis:
+      selectedStrategy === 'flip' && flipMeta
+        ? {
+            title: 'Flip Targets & Funding',
+            rows: [
+              { label: 'Max allowable offer', value: flipMeta.maxAllowableOffer === null ? 'No purchase price meets targets' : formatCurrency(flipMeta.maxAllowableOffer) },
+              { label: 'Target profit', value: formatCurrency(flipMeta.targetProfit) },
+              { label: 'Target ROI', value: percentFormatter.format(flipMeta.targetRoiPercent) },
+              { label: 'Base rehab', value: formatCurrency(flipMeta.baseRehabBudget) },
+              { label: 'Rehab contingency', value: `${percentFormatter.format(flipMeta.rehabContingencyPercent)} (${formatCurrency(flipMeta.rehabContingency)})` },
+              { label: 'Total rehab', value: formatCurrency(flipMeta.rehabBudget) },
+              { label: 'Hard money enabled', value: flipMeta.hardMoneyEnabled ? 'Yes' : 'No' },
+              { label: 'Hard money loan amount', value: formatCurrency(flipMeta.hardMoneyLoanAmount) },
+              { label: 'Hard money interest cost', value: formatCurrency(flipMeta.hardMoneyInterestCost) },
+              { label: 'Points + lender fees', value: formatCurrency(flipMeta.pointsCost + flipMeta.hardMoneyOtherFees) }
+            ]
+          }
+        : undefined,
     turnaroundStabilization:
       selectedStrategy === 'longTerm' && turnaroundSummary?.enabled
         ? {

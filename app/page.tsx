@@ -67,7 +67,17 @@ type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
 type FeedbackSource = 'settings' | 'reminder';
 type FeedbackSubmitState = 'idle' | 'sending' | 'sent' | 'error';
 type FeedbackViewport = 'desktop' | 'mobile';
-type HeadlineMetricId = 'cashToClose' | 'capRate' | 'cashOnCash' | 'dscr' | 'roi' | 'irr';
+type HeadlineMetricId =
+  | 'cashToClose'
+  | 'capRate'
+  | 'cashOnCash'
+  | 'dscr'
+  | 'roi'
+  | 'irr'
+  | 'maxAllowableOffer'
+  | 'saleCashReturned'
+  | 'rehabContingency'
+  | 'hardMoneyCost';
 type ShareFeedbackAnchor = 'desktop-share' | 'mobile-menu-trigger' | 'deal-identity-share';
 type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: ShareFeedbackAnchor; fallbackUrl?: string };
 type SyncFeedbackTone = 'info' | 'success' | 'error';
@@ -97,9 +107,14 @@ const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
   { id: 'cashOnCash', label: 'Cash on Cash' },
   { id: 'dscr', label: 'DSCR' },
   { id: 'roi', label: 'ROI' },
-  { id: 'irr', label: 'IRR' }
+  { id: 'irr', label: 'IRR' },
+  { id: 'maxAllowableOffer', label: 'Max Offer' },
+  { id: 'saleCashReturned', label: 'Sale Cash' },
+  { id: 'rehabContingency', label: 'Rehab Buffer' },
+  { id: 'hardMoneyCost', label: 'Lender Cost' }
 ];
 const defaultHeadlineMetricOrder: HeadlineMetricId[] = ['cashToClose', 'capRate', 'cashOnCash', 'dscr', 'roi', 'irr'];
+const flipHeadlineMetricOrder: HeadlineMetricId[] = ['cashToClose', 'maxAllowableOffer', 'saleCashReturned', 'rehabContingency', 'hardMoneyCost', 'roi'];
 const KPI_ORDER_STORAGE_KEY = 'dealcooker-kpi-order:v1';
 const FEEDBACK_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-open-count:v1';
 const FEEDBACK_SENT_STORAGE_KEY = 'dealcooker-feedback-sent:v1';
@@ -1106,8 +1121,34 @@ export default function HomePage() {
   );
   const compactCompareSelection = compactProjectionStrategies;
   const renderHeadlineMetricCard = (metricId: HeadlineMetricId, layout: 'default' | 'compact' | 'inline' = 'default'): ReactNode => {
+    const flipMeta = activeOutput.calculationBreakdown?.flipMeta;
+
     switch (metricId) {
       case 'cashToClose':
+        if (activeStrategy === 'flip') {
+          return (
+            <KpiCard
+              label="Cash Invested"
+              value={currencyFormatter.format(activeOutput.totalCashNeeded)}
+              winner={activeModeLabel}
+              secondaryLabel="Before holding"
+              secondaryValue={currencyFormatter.format(flipMeta?.cashInvestedBeforeHolding ?? 0)}
+              definitions={[
+                {
+                  term: 'Cash Invested',
+                  description: 'All modeled cash in the flip, including cash invested before holding plus fixed, variable, and lender holding costs.'
+                },
+                {
+                  term: 'Before holding',
+                  description: 'Cash needed before monthly carry: down payment or hard-money gap, rehab with contingency, closing costs, points, and lender fees.'
+                }
+              ]}
+              layout={layout}
+              inlineValueScale="large"
+            />
+          );
+        }
+
         return (
             <KpiCard
               label="Cash to Close"
@@ -1129,6 +1170,102 @@ export default function HomePage() {
             inlineValueScale="large"
           />
         );
+      case 'maxAllowableOffer': {
+        const maxOffer = flipMeta?.maxAllowableOffer ?? null;
+        const targetSummary =
+          flipMeta && (flipMeta.targetProfit > 0 || flipMeta.targetRoiPercent > 0)
+            ? `${flipMeta.targetProfit > 0 ? currencyFormatter.format(flipMeta.targetProfit) : 'No profit target'} / ${
+                flipMeta.targetRoiPercent > 0 ? percentFormatter.format(flipMeta.targetRoiPercent) : 'No ROI target'
+              }`
+            : 'Set targets';
+
+        return (
+          <KpiCard
+            label="Max Offer"
+            value={maxOffer === null ? 'No fit' : currencyFormatter.format(maxOffer)}
+            numericValue={maxOffer ?? -1}
+            numericValueKind="currency"
+            winner={activeModeLabel}
+            secondaryLabel="Targets"
+            secondaryValue={targetSummary}
+            definitions={[
+              {
+                term: 'Max Offer',
+                description: 'Highest purchase price that still meets your target profit and target ROI. If both are set, the stricter target wins.'
+              }
+            ]}
+            layout={layout}
+            inlineValueScale="large"
+          />
+        );
+      }
+      case 'saleCashReturned':
+        return (
+          <KpiCard
+            label="Sale Cash"
+            value={currencyFormatter.format(flipMeta?.saleCashReturned ?? activeOutput.saleProceeds ?? 0)}
+            numericValue={flipMeta?.saleCashReturned ?? activeOutput.saleProceeds ?? 0}
+            numericValueKind="currency"
+            winner={activeModeLabel}
+            secondaryLabel="Debt payoff"
+            secondaryValue={currencyFormatter.format(flipMeta?.debtPayoffAtSale ?? 0)}
+            definitions={[
+              {
+                term: 'Sale Cash',
+                description: 'Cash returned at resale after agent commission, seller closing costs, concessions, and debt payoff.'
+              }
+            ]}
+            layout={layout}
+            inlineValueScale="large"
+          />
+        );
+      case 'rehabContingency':
+        return (
+          <KpiCard
+            label="Rehab Buffer"
+            value={currencyFormatter.format(flipMeta?.rehabContingency ?? 0)}
+            numericValue={flipMeta?.rehabContingency ?? 0}
+            numericValueKind="currency"
+            winner={activeModeLabel}
+            secondaryLabel={`${percentFormatter.format(flipMeta?.rehabContingencyPercent ?? 0)} contingency`}
+            secondaryValue={currencyFormatter.format(flipMeta?.rehabBudget ?? 0)}
+            definitions={[
+              {
+                term: 'Rehab Buffer',
+                description: 'Contingency dollars added on top of the base flip rehab budget. The secondary value is total rehab including the buffer.'
+              }
+            ]}
+            layout={layout}
+            inlineValueScale="large"
+          />
+        );
+      case 'hardMoneyCost': {
+        const lenderCost = (flipMeta?.hardMoneyInterestCost ?? 0) + (flipMeta?.pointsCost ?? 0) + (flipMeta?.hardMoneyOtherFees ?? 0);
+
+        return (
+          <KpiCard
+            label="Lender Cost"
+            value={flipMeta?.hardMoneyEnabled ? currencyFormatter.format(lenderCost) : 'Purchase loan'}
+            numericValue={flipMeta?.hardMoneyEnabled ? lenderCost : 0}
+            numericValueKind="currency"
+            winner={activeModeLabel}
+            secondaryLabel={flipMeta?.hardMoneyEnabled ? 'HM loan' : 'Debt payoff'}
+            secondaryValue={
+              flipMeta?.hardMoneyEnabled
+                ? currencyFormatter.format(flipMeta.hardMoneyLoanAmount)
+                : currencyFormatter.format(flipMeta?.debtPayoffAtSale ?? 0)
+            }
+            definitions={[
+              {
+                term: 'Lender Cost',
+                description: 'For hard-money flips this adds interest, points, and other lender fees. Otherwise the flip uses the purchase financing settings.'
+              }
+            ]}
+            layout={layout}
+            inlineValueScale="large"
+          />
+        );
+      }
       case 'capRate':
         return (
           <KpiCard
@@ -1284,6 +1421,7 @@ export default function HomePage() {
     (activeStrategy === 'purchase' && commercialDigestItems.length > 0) ||
     (activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0);
   const isFlipStrategy = activeStrategy === 'flip';
+  const activeHeadlineMetricIds = isFlipStrategy ? flipHeadlineMetricOrder : orderedHeadlineMetricIds;
   const supportsReserveToggle =
     activeStrategy === 'purchase' ||
     activeStrategy === 'longTerm' ||
@@ -1292,13 +1430,13 @@ export default function HomePage() {
     activeStrategy === 'brrrr';
   const includeReserves = includeReservesByStrategy[activeStrategy];
   const priorityMetricValue = isFlipStrategy
-    ? activeOutput.saleProceeds ?? 0
+    ? activeOutput.calculationBreakdown?.flipMeta?.netProfit ?? activeOutput.saleProceeds ?? 0
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
-  const priorityMetricTitle = isFlipStrategy ? 'Net sale proceeds' : isLongTermTurnaroundActive ? 'Stabilized monthly cash flow' : 'Monthly cash flow';
+  const priorityMetricTitle = isFlipStrategy ? 'Net profit' : isLongTermTurnaroundActive ? 'Stabilized monthly cash flow' : 'Monthly cash flow';
   const priorityMetricSubtitle = isFlipStrategy
-    ? 'Projected one-time proceeds after rehab, sale costs, and carry costs'
+    ? 'Projected profit after cash invested, sale costs, debt payoff, and carry costs'
     : isLongTermTurnaroundActive
       ? 'Run-rate cash flow after the first 12-month stabilization year.'
       : null;
@@ -4139,16 +4277,20 @@ export default function HomePage() {
   const headlineMetricSection = (
     <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
       <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-          className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
-        >
-          {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Reorder'}
-        </button>
+        {isFlipStrategy ? (
+          <span className="dashboard-meta text-[11px]">Flip-specific KPIs</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
+            className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+          >
+            {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Reorder'}
+          </button>
+        )}
       </div>
 
-      {isHeadlineMetricOrderEditorOpen ? (
+      {isHeadlineMetricOrderEditorOpen && !isFlipStrategy ? (
         <div className="section-inner mb-3 space-y-1 rounded-lg p-2">
           {orderedHeadlineMetricIds.map((metricId, index) => {
             const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
@@ -4185,7 +4327,7 @@ export default function HomePage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-2 max-[359px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 xl:grid-cols-6">
-        {orderedHeadlineMetricIds.map((metricId) => (
+        {activeHeadlineMetricIds.map((metricId) => (
           <div key={`headline-metric-${metricId}`} className="min-w-0 h-full [&>div]:h-full">
             {renderHeadlineMetricCard(metricId)}
           </div>
@@ -4198,7 +4340,7 @@ export default function HomePage() {
     <section className="dashboard-section-divider pt-3">
       <div className="dashboard-summary-band">
         <div className="dashboard-kpi-strip">
-          {orderedHeadlineMetricIds.map((metricId) => (
+          {activeHeadlineMetricIds.map((metricId) => (
             <div key={`desktop-headline-metric-${metricId}`} className="dashboard-kpi-strip-item">
               {renderHeadlineMetricCard(metricId, 'inline')}
             </div>

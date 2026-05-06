@@ -189,12 +189,31 @@ test('projection metrics treat flip exit cash as the full terminal return and ke
       flipMeta: {
         holdingMonths: 6,
         salePrice: 0,
+        saleCashReturned: 35000,
         purchasePrice: 0,
+        baseRehabBudget: 0,
+        rehabContingency: 0,
+        rehabContingencyPercent: 0,
         rehabBudget: 0,
         buyClosingCosts: 0,
+        pointsCost: 0,
+        helocClosingCosts: 0,
         agentCommission: 0,
         sellClosingCosts: 0,
         sellerConcessions: 0,
+        debtPayoffAtSale: 0,
+        cashInvestedBeforeHolding: 30000,
+        totalCashInvested: 30000,
+        targetProfit: 0,
+        targetRoiPercent: 0,
+        maxOfferForTargetProfit: null,
+        maxOfferForTargetRoi: null,
+        maxAllowableOffer: null,
+        hardMoneyEnabled: false,
+        hardMoneyLoanAmount: 0,
+        hardMoneyInterestCost: 0,
+        hardMoneyOtherFees: 0,
+        hardMoneyMinimumInterestMonths: 0,
         fixedHoldingCostsMonthly: 0,
         variableHoldingCostsMonthly: 0,
         lenderHoldingCostsMonthly: 0,
@@ -211,7 +230,7 @@ test('projection metrics treat flip exit cash as the full terminal return and ke
   near(metrics.modeledTotalReturn, 35000, 1e-6);
   near(metrics.modeledProfit, 5000, 1e-6);
   assert.equal(metrics.paybackMonths, 6);
-  assert.equal(metrics.exitLabel, 'Projected sale proceeds');
+  assert.equal(metrics.exitLabel, 'Projected sale cash returned');
 });
 
 test('purchase cash-to-close uses loan points on loan amount (not purchase price)', () => {
@@ -813,7 +832,7 @@ test('purchase automatic tax and insurance rates are configurable', () => {
   near(Math.abs(fixedLine?.monthly ?? 0), expectedFixedCosts, 0.0001);
 });
 
-test('flip monthly cash flow is zero and net proceeds are realized at exit', () => {
+test('flip monthly cash flow is zero and sale cash is realized at exit', () => {
   const result = calculateDeal(defaultDealInput);
 
   near(result.flip.monthlyCashFlow, 0);
@@ -830,29 +849,206 @@ test('long-term timeline covers Year 0..N and produces irr from cashflows', () =
 });
 
 
-test('flip IRR timeline exits at full terminal cash flow, not net profit only', () => {
-  const result = calculateDeal(defaultDealInput);
-  const { purchase: p, flip: f } = defaultDealInput;
+test('flip IRR timeline uses actual sale cash after debt payoff, not net profit only', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 200000,
+      rehabBudget: 30000,
+      arv: 300000,
+      downPaymentPercent: 0.25,
+      closingCostPercent: 0.02,
+      pointsPercent: 0.01,
+      interestRate: 0.06,
+      loanTermYears: 30,
+      amortizationType: 'PI' as const,
+      propertyTaxRatePercent: 0,
+      insuranceRatePercent: 0,
+      propertyTaxAnnualOverride: 0,
+      insuranceAnnualOverride: 0,
+      hoaMonthly: 0,
+      pmiMonthly: 0,
+      helocAmount: 0,
+      helocClosingCosts: 0
+    },
+    flip: {
+      ...defaultDealInput.flip,
+      holdingMonths: 6,
+      arvOverride: 300000,
+      rehabOverride: 30000,
+      rehabContingencyPercent: 0,
+      agentCommissionPercent: 0.06,
+      sellClosingCostPercent: 0.02,
+      sellerConcessions: 3000
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
+      ...expense,
+      monthlyAmount: 0
+    }))
+  };
+  const result = calculateDeal(model);
+  const { purchase: p, flip: f } = model;
 
-  const fixed = fixedCostsMonthly();
-  const variable = variableCostMonthly('flip');
-  const debtService = calculateMonthlyPayment(calculateLoanAmount(p.purchasePrice, p.downPaymentPercent), p.interestRate, p.loanTermYears);
-  const holdingCosts = f.holdingMonths * (fixed + variable + debtService);
+  const loanAmount = calculateLoanAmount(p.purchasePrice, p.downPaymentPercent);
+  const debtService = calculateMonthlyPayment(loanAmount, p.interestRate, p.loanTermYears);
+  const holdingCosts = f.holdingMonths * debtService;
   const totalCashInvested = result.purchase.totalCashNeeded + holdingCosts;
-
-  const netProfit =
-    p.arv -
-    p.purchasePrice -
-    p.rehabBudget -
-    p.purchasePrice * p.closingCostPercent -
-    p.arv * f.agentCommissionPercent -
-    p.arv * f.sellClosingCostPercent -
+  const remainingDebt = calculateRemainingBalance(loanAmount, p.interestRate, p.loanTermYears, f.holdingMonths / 12, p.amortizationType);
+  const saleCashReturned =
+    (f.arvOverride ?? 0) -
+    (f.arvOverride ?? 0) * f.agentCommissionPercent -
+    (f.arvOverride ?? 0) * f.sellClosingCostPercent -
     f.sellerConcessions -
-    holdingCosts;
+    remainingDebt;
+  const netProfit = saleCashReturned - totalCashInvested;
 
-  near(result.flip.cashFlowTimeline[0], -Math.abs(totalCashInvested));
-  near(result.flip.cashFlowTimeline[1], totalCashInvested + netProfit);
+  near(result.flip.totalCashNeeded, totalCashInvested, 0.01);
+  near(result.flip.saleProceeds ?? 0, saleCashReturned, 0.01);
+  near(result.flip.calculationBreakdown?.flipMeta?.netProfit ?? 0, netProfit, 0.01);
+  near(result.flip.cashFlowTimeline[0], -Math.abs(totalCashInvested), 0.01);
+  near(result.flip.cashFlowTimeline[1], saleCashReturned, 0.01);
+  near(result.flip.roi, netProfit / totalCashInvested, 0.0001);
   assert.notEqual(result.flip.cashFlowTimeline[1], netProfit);
+});
+
+test('flip rehab contingency increases invested capital and reduces net profit', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash' as const,
+      downPaymentPercent: 1,
+      purchasePrice: 200000,
+      rehabBudget: 50000,
+      arv: 320000,
+      closingCostPercent: 0,
+      propertyTaxRatePercent: 0,
+      insuranceRatePercent: 0,
+      propertyTaxAnnualOverride: 0,
+      insuranceAnnualOverride: 0,
+      hoaMonthly: 0,
+      pmiMonthly: 0,
+      helocAmount: 0,
+      helocClosingCosts: 0
+    },
+    flip: {
+      ...defaultDealInput.flip,
+      arvOverride: 320000,
+      rehabOverride: 50000,
+      rehabContingencyPercent: 0.15,
+      holdingMonths: 1,
+      agentCommissionPercent: 0,
+      sellClosingCostPercent: 0,
+      sellerConcessions: 0
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }))
+  };
+  const buffered = calculateDeal(model).flip;
+  const unbuffered = calculateDeal({
+    ...model,
+    flip: {
+      ...model.flip,
+      rehabContingencyPercent: 0
+    }
+  }).flip;
+
+  near(buffered.calculationBreakdown?.flipMeta?.baseRehabBudget ?? 0, 50000, 0.01);
+  near(buffered.calculationBreakdown?.flipMeta?.rehabContingency ?? 0, 7500, 0.01);
+  near(buffered.calculationBreakdown?.flipMeta?.rehabBudget ?? 0, 57500, 0.01);
+  near(buffered.totalCashNeeded - unbuffered.totalCashNeeded, 7500, 0.01);
+  near((unbuffered.calculationBreakdown?.flipMeta?.netProfit ?? 0) - (buffered.calculationBreakdown?.flipMeta?.netProfit ?? 0), 7500, 0.01);
+});
+
+test('flip hard money terms drive loan amount, interest, points, payoff, and net profit', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 200000,
+      rehabBudget: 50000,
+      arv: 320000,
+      closingCostPercent: 0,
+      propertyTaxRatePercent: 0,
+      insuranceRatePercent: 0,
+      propertyTaxAnnualOverride: 0,
+      insuranceAnnualOverride: 0,
+      hoaMonthly: 0,
+      pmiMonthly: 0,
+      helocAmount: 0,
+      helocClosingCosts: 0
+    },
+    flip: {
+      ...defaultDealInput.flip,
+      arvOverride: 320000,
+      rehabOverride: 50000,
+      rehabContingencyPercent: 0,
+      holdingMonths: 4,
+      agentCommissionPercent: 0,
+      sellClosingCostPercent: 0,
+      sellerConcessions: 0,
+      hardMoneyEnabled: true,
+      hardMoneyLoanToCostPercent: 0.9,
+      hardMoneyInterestRate: 0.12,
+      hardMoneyPointsPercent: 0.02,
+      hardMoneyOtherFees: 1500,
+      hardMoneyMinimumInterestMonths: 6
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }))
+  };
+  const result = calculateDeal(model).flip;
+  const meta = result.calculationBreakdown?.flipMeta;
+
+  near(meta?.hardMoneyLoanAmount ?? 0, 225000, 0.01);
+  near(meta?.pointsCost ?? 0, 4500, 0.01);
+  near(meta?.hardMoneyInterestCost ?? 0, 13500, 0.01);
+  near(meta?.cashInvestedBeforeHolding ?? 0, 31000, 0.01);
+  near(meta?.holdingCostsTotal ?? 0, 13500, 0.01);
+  near(meta?.debtPayoffAtSale ?? 0, 225000, 0.01);
+  near(meta?.saleCashReturned ?? 0, 95000, 0.01);
+  near(meta?.totalCashInvested ?? 0, 44500, 0.01);
+  near(meta?.netProfit ?? 0, 50500, 0.01);
+});
+
+test('flip max allowable offer uses the stricter target profit or ROI constraint', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash' as const,
+      downPaymentPercent: 1,
+      purchasePrice: 190000,
+      rehabBudget: 50000,
+      arv: 300000,
+      closingCostPercent: 0,
+      propertyTaxRatePercent: 0,
+      insuranceRatePercent: 0,
+      propertyTaxAnnualOverride: 0,
+      insuranceAnnualOverride: 0,
+      hoaMonthly: 0,
+      pmiMonthly: 0,
+      helocAmount: 0,
+      helocClosingCosts: 0
+    },
+    flip: {
+      ...defaultDealInput.flip,
+      arvOverride: 300000,
+      rehabOverride: 50000,
+      rehabContingencyPercent: 0,
+      holdingMonths: 1,
+      agentCommissionPercent: 0,
+      sellClosingCostPercent: 0,
+      sellerConcessions: 0,
+      targetProfit: 40000,
+      targetRoiPercent: 0.2
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }))
+  };
+  const meta = calculateDeal(model).flip.calculationBreakdown?.flipMeta;
+
+  near(meta?.maxOfferForTargetProfit ?? 0, 210000, 0.01);
+  near(meta?.maxOfferForTargetRoi ?? 0, 200000, 0.01);
+  near(meta?.maxAllowableOffer ?? 0, 200000, 0.01);
 });
 
 test('brrrr timeline nets refinance into year-0 capital, with no year-1 cash-back bump', () => {
@@ -1572,12 +1768,13 @@ test('REI Calculator regression fixture', () => {
   near(result.brrrr.roi, -1.5812330323, 1e-9);
 });
 
-test('Flip rehab override directly impacts net profit', () => {
+test('Flip rehab override directly impacts invested capital and net profit', () => {
   const baseModel = {
     ...defaultDealInput,
     flip: {
       ...defaultDealInput.flip,
-      rehabOverride: 25000
+      rehabOverride: 25000,
+      rehabContingencyPercent: 0
     }
   };
 
@@ -1590,7 +1787,8 @@ test('Flip rehab override directly impacts net profit', () => {
   });
 
   const cheapRehab = calculateDeal(baseModel);
-  assert.ok((expensiveRehab.flip.saleProceeds ?? 0) < (cheapRehab.flip.saleProceeds ?? 0));
+  near(expensiveRehab.flip.totalCashNeeded - cheapRehab.flip.totalCashNeeded, 35000, 0.01);
+  assert.ok((expensiveRehab.flip.calculationBreakdown?.flipMeta?.netProfit ?? 0) < (cheapRehab.flip.calculationBreakdown?.flipMeta?.netProfit ?? 0));
 });
 
 

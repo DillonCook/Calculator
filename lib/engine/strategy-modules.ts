@@ -1062,80 +1062,253 @@ export const calculateBrrrrStrategy = (
 
 export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
   const { flip, purchase } = input;
-  const flipArv = resolveStrategyArv(input, 'flip');
-  const flipRehabBudget = resolveRehabBudget(input, 'flip');
   const base = createBaseOutput('flip', 'Renovate-and-resell analysis with one-time net profit at exit and carry costs during hold.');
 
-  const salePrice = flipArv;
+  const salePrice = Math.max(resolveStrategyArv(input, 'flip'), 0);
+  const baseRehabBudget = Math.max(resolveRehabBudget(input, 'flip'), 0);
+  const rehabContingencyPercent = clampPercent(flip.rehabContingencyPercent);
+  const rehabContingency = baseRehabBudget * rehabContingencyPercent;
+  const flipRehabBudget = baseRehabBudget + rehabContingency;
   const agentCommission = salePrice * flip.agentCommissionPercent;
   const closingCosts = salePrice * flip.sellClosingCostPercent;
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
-  const fixedCosts = getMonthlyFixedCosts(input);
-  const debtService = getPurchaseLoanTerms(input).debtService;
   const holdingMonths = Math.max(flip.holdingMonths, 1);
+  const holdYears = holdingMonths / 12;
+  const targetProfit = Math.max(flip.targetProfit, 0);
+  const targetRoiPercent = Math.max(flip.targetRoiPercent, 0);
+  const hardMoneyEnabled = Boolean(flip.hardMoneyEnabled);
 
-  const buyClosingCosts = purchase.purchasePrice * purchase.closingCostPercent;
-  const monthlyHoldingCosts = fixedCosts + strategyVariableCosts + debtService;
-  const holdingCosts = monthlyHoldingCosts * holdingMonths;
+  const getHelocTerms = (model: DealInputModel) => {
+    const helocPrincipal = Math.max(model.purchase.helocAmount, 0);
+    const helocDebtService =
+      model.purchase.helocAmortizationType === 'IO'
+        ? calculateInterestOnlyPayment(helocPrincipal, model.purchase.helocRate)
+        : calculateMonthlyPayment(helocPrincipal, model.purchase.helocRate, model.purchase.helocTermYears);
+    const helocPayoff =
+      model.purchase.helocAmortizationType === 'IO'
+        ? helocPrincipal
+        : calculateRemainingBalance(helocPrincipal, model.purchase.helocRate, model.purchase.helocTermYears, holdYears, 'PI');
 
-  const netProfit =
-    salePrice -
-    purchase.purchasePrice -
-    flipRehabBudget -
-    buyClosingCosts -
-    agentCommission -
-    closingCosts -
-    flip.sellerConcessions -
-    holdingCosts;
+    return {
+      principal: helocPrincipal,
+      debtService: helocDebtService,
+      payoff: helocPayoff
+    };
+  };
 
-  const totalCashInvested = purchaseCashNeeded + holdingCosts;
-  const timeline = [-Math.abs(totalCashInvested), totalCashInvested + netProfit];
+  const calculateAtPurchasePrice = (purchasePrice: number) => {
+    const normalizedPurchasePrice = Math.max(purchasePrice, 0);
+    const modelAtPrice: DealInputModel = {
+      ...input,
+      purchase: {
+        ...purchase,
+        purchasePrice: normalizedPurchasePrice
+      }
+    };
+    const fixedCosts = getMonthlyFixedCosts(modelAtPrice);
+    const buyClosingCosts = purchase.ownershipMode === 'owned' ? 0 : Math.max(normalizedPurchasePrice * purchase.closingCostPercent, 0);
+    const helocClosingCosts = Math.max(purchase.helocClosingCosts, 0);
+    const helocTerms = getHelocTerms(modelAtPrice);
+    const hardMoneyLoanAmount = hardMoneyEnabled
+      ? Math.min(
+          Math.max((normalizedPurchasePrice + flipRehabBudget) * clampPercent(flip.hardMoneyLoanToCostPercent), 0),
+          normalizedPurchasePrice + flipRehabBudget
+        )
+      : 0;
+    const hardMoneyInterestMonths = Math.max(holdingMonths, Math.max(flip.hardMoneyMinimumInterestMonths, 0));
+    const hardMoneyInterestCost = hardMoneyEnabled
+      ? calculateInterestOnlyPayment(hardMoneyLoanAmount, Math.max(flip.hardMoneyInterestRate, 0)) * hardMoneyInterestMonths
+      : 0;
+    const hardMoneyOtherFees = hardMoneyEnabled ? Math.max(flip.hardMoneyOtherFees, 0) : 0;
+    const hardMoneyPointsCost = hardMoneyEnabled ? hardMoneyLoanAmount * clampPercent(flip.hardMoneyPointsPercent) : 0;
+    const purchaseLoanTerms = hardMoneyEnabled ? null : getPurchaseLoanTerms(modelAtPrice);
+    const purchaseLoanPoints =
+      hardMoneyEnabled || purchase.ownershipMode === 'owned' || purchase.financingType !== 'loan'
+        ? 0
+        : Math.max(calculateLoanAmount(normalizedPurchasePrice, purchase.downPaymentPercent) * purchase.pointsPercent, 0);
+    const pointsCost = hardMoneyEnabled ? hardMoneyPointsCost : purchaseLoanPoints;
+    const lenderHoldingCostsMonthly = hardMoneyEnabled
+      ? hardMoneyInterestCost / holdingMonths + helocTerms.debtService
+      : purchaseLoanTerms?.debtService ?? 0;
+    const holdingCosts = (fixedCosts + strategyVariableCosts + lenderHoldingCostsMonthly) * holdingMonths;
+    const debtPayoffAtSale = hardMoneyEnabled
+      ? hardMoneyLoanAmount + helocTerms.payoff
+      : buildAcquisitionTimelineDebts(modelAtPrice).reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
+    const cashInvestedBeforeHolding = hardMoneyEnabled
+      ? purchase.ownershipMode === 'owned'
+        ? Math.max(
+            Math.max(purchase.ownedMoneyDown, 0) +
+              Math.max(purchase.ownedAdditionalInvested, 0) +
+              flipRehabBudget +
+              buyClosingCosts +
+              pointsCost +
+              hardMoneyOtherFees +
+              helocClosingCosts -
+              hardMoneyLoanAmount -
+              helocTerms.principal,
+            0
+          )
+        : Math.max(
+            normalizedPurchasePrice +
+              flipRehabBudget +
+              buyClosingCosts +
+              pointsCost +
+              hardMoneyOtherFees +
+              helocClosingCosts -
+              hardMoneyLoanAmount -
+              helocTerms.principal,
+            0
+          )
+      : purchase.ownershipMode === 'owned'
+        ? Math.max(purchaseCashNeeded, 0) + flipRehabBudget
+        : calculateCashToClose(
+            normalizedPurchasePrice,
+            flipRehabBudget,
+            purchase.downPaymentPercent,
+            purchase.closingCostPercent,
+            purchase.pointsPercent,
+            purchase.financingType,
+            purchase.helocAmount,
+            purchase.helocClosingCosts
+          );
+    const saleCashReturned = salePrice - agentCommission - closingCosts - flip.sellerConcessions - debtPayoffAtSale;
+    const totalCashInvested = cashInvestedBeforeHolding + holdingCosts;
+    const netProfit = saleCashReturned - totalCashInvested;
+    const timeline = [-Math.abs(totalCashInvested), saleCashReturned];
+    const roi = calcTotalRoiFromTimeline(timeline);
+
+    return {
+      purchasePrice: normalizedPurchasePrice,
+      fixedCosts,
+      buyClosingCosts,
+      pointsCost,
+      helocClosingCosts,
+      hardMoneyLoanAmount,
+      hardMoneyInterestCost,
+      hardMoneyOtherFees,
+      hardMoneyMinimumInterestMonths: Math.max(flip.hardMoneyMinimumInterestMonths, 0),
+      lenderHoldingCostsMonthly,
+      holdingCosts,
+      debtPayoffAtSale,
+      cashInvestedBeforeHolding,
+      saleCashReturned,
+      totalCashInvested,
+      netProfit,
+      timeline,
+      roi
+    };
+  };
+
+  const financials = calculateAtPurchasePrice(purchase.purchasePrice);
+  const findMaxAllowableOffer = (passesTarget: (value: ReturnType<typeof calculateAtPurchasePrice>) => boolean): number | null => {
+    const high = Math.max(salePrice, purchase.purchasePrice, 1);
+    const lowFinancials = calculateAtPurchasePrice(0);
+    if (!passesTarget(lowFinancials)) return null;
+
+    let low = 0;
+    let highValue = high;
+
+    if (passesTarget(calculateAtPurchasePrice(highValue))) {
+      return highValue;
+    }
+
+    for (let index = 0; index < 40; index += 1) {
+      const midpoint = (low + highValue) / 2;
+      if (passesTarget(calculateAtPurchasePrice(midpoint))) {
+        low = midpoint;
+      } else {
+        highValue = midpoint;
+      }
+    }
+
+    return low;
+  };
+  const maxOfferForTargetProfit =
+    targetProfit > 0 ? findMaxAllowableOffer((value) => value.netProfit >= targetProfit) : null;
+  const maxOfferForTargetRoi =
+    targetRoiPercent > 0 ? findMaxAllowableOffer((value) => value.roi >= targetRoiPercent) : null;
+  const offerConstraints = [maxOfferForTargetProfit, maxOfferForTargetRoi].filter((value): value is number => typeof value === 'number');
+  const maxAllowableOffer = offerConstraints.length > 0 ? Math.min(...offerConstraints) : null;
 
   return {
     ...base,
     monthlyCashFlow: 0,
     annualCashFlow: 0,
-    cashOnCashReturn: totalCashInvested === 0 ? 0 : netProfit / totalCashInvested,
+    cashOnCashReturn: financials.totalCashInvested === 0 ? 0 : financials.netProfit / financials.totalCashInvested,
     dscr: 0,
-    roi: calcTotalRoiFromTimeline(timeline),
-    totalCashNeeded: purchaseCashNeeded + holdingCosts,
-    irr: calculateIrr(timeline),
-    saleProceeds: netProfit,
-    cashFlowTimeline: timeline,
+    roi: financials.roi,
+    totalCashNeeded: financials.totalCashInvested,
+    irr: calculateIrr(financials.timeline),
+    saleProceeds: financials.saleCashReturned,
+    cashFlowTimeline: financials.timeline,
     calculationBreakdown: {
       lines: [
         toLine('flip-sale-price', 'Sale price (projected)', salePrice / holdingMonths),
-        toLine('flip-acquisition-cost', 'Purchase price carry', -purchase.purchasePrice / holdingMonths),
+        toLine('flip-sale-cash-returned', 'Sale cash returned after payoff', financials.saleCashReturned / holdingMonths),
+        toLine('flip-cash-invested', 'Cash invested before holding', -financials.cashInvestedBeforeHolding / holdingMonths),
+        toLine('flip-purchase-price', 'Purchase price basis', -purchase.purchasePrice / holdingMonths),
+        toLine('flip-base-rehab', 'Base rehab', -baseRehabBudget / holdingMonths),
+        toLine('flip-rehab-contingency', 'Rehab contingency', -rehabContingency / holdingMonths),
         toLine('flip-rehab', 'Rehab', -flipRehabBudget / holdingMonths),
-        toLine('flip-buy-closing', 'Buy closing costs', -buyClosingCosts / holdingMonths),
+        toLine('flip-buy-closing', 'Buy closing costs', -financials.buyClosingCosts / holdingMonths),
+        toLine('flip-points', hardMoneyEnabled ? 'Hard money points' : 'Loan points', -financials.pointsCost / holdingMonths),
+        toLine('flip-heloc-closing', 'HELOC closing costs', -financials.helocClosingCosts / holdingMonths),
         toLine('flip-agent', 'Agent commission', -agentCommission / holdingMonths),
         toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / holdingMonths),
         toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / holdingMonths),
-        toLine('flip-fixed-holding', 'Holding: fixed costs', -fixedCosts),
+        toLine('flip-debt-payoff', 'Debt payoff at sale', -financials.debtPayoffAtSale / holdingMonths),
+        toLine('flip-hard-money-fees', 'Hard money other fees', -financials.hardMoneyOtherFees / holdingMonths),
+        toLine('flip-fixed-holding', 'Holding: fixed costs', -financials.fixedCosts),
         toLine('flip-variable-holding', 'Holding: variable expenses', -strategyVariableCosts),
-        toLine('flip-lender-holding', 'Holding: lender costs', -debtService),
-        toLine('flip-holding-total', 'Holding costs total', -monthlyHoldingCosts),
-        toLine('flip-net-profit', 'Net profit (one-time)', netProfit / holdingMonths)
+        toLine('flip-lender-holding', 'Holding: lender costs', -financials.lenderHoldingCostsMonthly),
+        toLine('flip-holding-total', 'Holding costs total', -(financials.holdingCosts / holdingMonths)),
+        toLine('flip-net-profit', 'Net profit (one-time)', financials.netProfit / holdingMonths)
       ],
       revenueMonthly: salePrice / holdingMonths,
-      sellerPaidExpensesMonthly: (purchase.purchasePrice + flipRehabBudget + buyClosingCosts + agentCommission + closingCosts + flip.sellerConcessions + holdingCosts) / holdingMonths,
-      debtServiceMonthly: debtService,
+      sellerPaidExpensesMonthly:
+        (financials.cashInvestedBeforeHolding +
+          agentCommission +
+          closingCosts +
+          flip.sellerConcessions +
+          financials.debtPayoffAtSale +
+          financials.holdingCosts) /
+        holdingMonths,
+      debtServiceMonthly: financials.lenderHoldingCostsMonthly,
       noiMonthly: 0,
       cashFlowMonthly: 0,
       flipMeta: {
         holdingMonths,
         salePrice,
+        saleCashReturned: financials.saleCashReturned,
         purchasePrice: purchase.purchasePrice,
+        baseRehabBudget,
+        rehabContingency,
+        rehabContingencyPercent,
         rehabBudget: flipRehabBudget,
-        buyClosingCosts,
+        buyClosingCosts: financials.buyClosingCosts,
+        pointsCost: financials.pointsCost,
+        helocClosingCosts: financials.helocClosingCosts,
         agentCommission,
         sellClosingCosts: closingCosts,
         sellerConcessions: flip.sellerConcessions,
-        fixedHoldingCostsMonthly: fixedCosts,
+        debtPayoffAtSale: financials.debtPayoffAtSale,
+        cashInvestedBeforeHolding: financials.cashInvestedBeforeHolding,
+        totalCashInvested: financials.totalCashInvested,
+        targetProfit,
+        targetRoiPercent,
+        maxOfferForTargetProfit,
+        maxOfferForTargetRoi,
+        maxAllowableOffer,
+        hardMoneyEnabled,
+        hardMoneyLoanAmount: financials.hardMoneyLoanAmount,
+        hardMoneyInterestCost: financials.hardMoneyInterestCost,
+        hardMoneyOtherFees: financials.hardMoneyOtherFees,
+        hardMoneyMinimumInterestMonths: financials.hardMoneyMinimumInterestMonths,
+        fixedHoldingCostsMonthly: financials.fixedCosts,
         variableHoldingCostsMonthly: strategyVariableCosts,
-        lenderHoldingCostsMonthly: debtService,
-        holdingCostsTotal: holdingCosts,
-        netProfit
+        lenderHoldingCostsMonthly: financials.lenderHoldingCostsMonthly,
+        holdingCostsTotal: financials.holdingCosts,
+        netProfit: financials.netProfit
       }
     }
   };
