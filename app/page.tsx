@@ -22,7 +22,14 @@ import { inputClass } from '@/components/dashboard/form-fields';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { isOwnerEmail } from '@/lib/admin-access';
 import { trackAnalyticsEvent } from '@/lib/analytics';
-import { createDealInVault, readDealsFromVault, removeDealFromVault, saveDealToVault } from '@/lib/deals-vault-service';
+import {
+  ANONYMOUS_DEAL_LIMIT,
+  canCreateSavedDeals,
+  createDealInVault,
+  readDealsFromVault,
+  removeDealFromVault,
+  saveDealToVault
+} from '@/lib/deals-vault-service';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
@@ -123,6 +130,7 @@ const SHARE_IMPORT_NOTICE_STORAGE_KEY = 'dealcooker-share-imported:v1';
 const FEEDBACK_PROMPT_DELAY_MS = 3000;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
 const SAMPLE_DEAL_NAME = 'Tampa Duplex - Sample Deal';
+const anonymousDealLimitMessage = `Sign in to save more than ${ANONYMOUS_DEAL_LIMIT} deals. You can still open, edit, export, or delete existing saved deals.`;
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const compactStrategyDescriptions: Record<StrategyKey, string> = {
@@ -740,6 +748,7 @@ export default function HomePage() {
   const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
   const [isDesktopDealVaultOpen, setIsDesktopDealVaultOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [hasResolvedInitialAuth, setHasResolvedInitialAuth] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -775,6 +784,31 @@ export default function HomePage() {
   const showSyncFeedback = useCallback((message: string, tone: SyncFeedbackTone = 'info') => {
     setSyncFeedback({ message, tone });
   }, []);
+
+  const hasVaultCapacityForNewDeals = useCallback(
+    (additionalDealCount = 1, currentDealCount = deals.length) =>
+      canCreateSavedDeals({
+        isSignedIn: Boolean(currentUser?.id),
+        currentDealCount,
+        additionalDealCount
+      }),
+    [currentUser?.id, deals.length]
+  );
+
+  const showAnonymousDealLimitPrompt = useCallback(() => {
+    triggerHapticFeedback('medium');
+    showSyncFeedback(anonymousDealLimitMessage, 'info');
+  }, [showSyncFeedback]);
+
+  const guardNewSavedDeals = useCallback(
+    (additionalDealCount = 1, currentDealCount = deals.length) => {
+      if (hasVaultCapacityForNewDeals(additionalDealCount, currentDealCount)) return true;
+      showAnonymousDealLimitPrompt();
+      return false;
+    },
+    [deals.length, hasVaultCapacityForNewDeals, showAnonymousDealLimitPrompt]
+  );
+
   const dealVaultRef = useRef<HTMLButtonElement | null>(null);
   const desktopHeaderActionsRef = useRef<HTMLDivElement | null>(null);
   const authControlsRef = useRef<HTMLDivElement | null>(null);
@@ -2095,13 +2129,17 @@ export default function HomePage() {
 
   useEffect(() => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
+    if (!supabase) {
+      setHasResolvedInitialAuth(true);
+      return;
+    }
 
     let isMounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
       applyAuthUser(data.session?.user ?? null);
+      setHasResolvedInitialAuth(true);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -2548,6 +2586,8 @@ export default function HomePage() {
   };
 
   const saveDealAs = (dealName: string, listingUrl: string) => {
+    if (!guardNewSavedDeals()) return;
+
     const nextPayload: DealInputModel = {
       ...attachDealUiState(model),
       purchase: {
@@ -2571,6 +2611,8 @@ export default function HomePage() {
     listingUrl: string,
     options?: { openIdentityEditor?: boolean; preserveBlankIdentity?: boolean }
   ) => {
+    if (!guardNewSavedDeals()) return null;
+
     const shouldPreserveBlankIdentity = options?.preserveBlankIdentity && requestedDealName.trim().length === 0 && listingUrl.trim().length === 0;
     const candidateName = shouldPreserveBlankIdentity ? '' : buildUniqueDealName(requestedDealName);
     const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
@@ -2595,6 +2637,8 @@ export default function HomePage() {
   };
 
   const loadSampleDeal = () => {
+    if (!guardNewSavedDeals()) return null;
+
     const sampleDealName = buildUniqueDealName(SAMPLE_DEAL_NAME);
     const samplePayload = buildSampleDealPayload();
     const nextProjectionStrategies = normalizeProjectionStrategySelection(defaultProjectionStrategies);
@@ -2629,6 +2673,8 @@ export default function HomePage() {
   };
 
   const duplicateScenario = (scenarioId: string) => {
+    if (!guardNewSavedDeals()) return;
+
     const scenario = deals.find((entry) => entry.scenarioId === scenarioId);
     if (!scenario) return;
 
@@ -2704,6 +2750,7 @@ export default function HomePage() {
     setIsSettingsOpen(false);
     setIsDesktopDealVaultOpen(false);
     const nextDeal = createNewDeal('', '', { openIdentityEditor: true, preserveBlankIdentity: true });
+    if (!nextDeal) return;
     pendingNewDealDraftRef.current = {
       initialDealName: nextDeal.dealName,
       previousDealId: activeDealId,
@@ -3418,7 +3465,13 @@ export default function HomePage() {
         return;
       }
 
-      const mergedDeals = mergeScenariosByLatest(readDealsFromVault(), importedDeals);
+      const currentDeals = readDealsFromVault();
+      const currentDealIds = new Set(currentDeals.map((deal) => deal.scenarioId));
+      const additionalDealCount = importedDeals.filter((deal) => !currentDealIds.has(deal.scenarioId)).length;
+
+      if (!guardNewSavedDeals(additionalDealCount, currentDeals.length)) return;
+
+      const mergedDeals = mergeScenariosByLatest(currentDeals, importedDeals);
       writeScenarios(mergedDeals);
       setDeals(mergedDeals);
 
@@ -3577,6 +3630,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (!hasResolvedInitialAuth) return;
+
     const params = new URLSearchParams(window.location.search);
     const sharedToken = params.get('s');
     if (!sharedToken) return;
@@ -3584,6 +3639,8 @@ export default function HomePage() {
     const parsed = decodeDealFromShareParam(sharedToken);
     const syncImportTimer = window.setTimeout(() => {
       if (!parsed) return;
+      if (!guardNewSavedDeals(1, readDealsFromVault().length)) return;
+
       const imported = createDealInVault(parsed, parsed.purchase.dealName);
       const nextDeals = saveDealToVault(imported);
       setDeals(nextDeals);
@@ -3599,7 +3656,7 @@ export default function HomePage() {
     window.history.replaceState({}, '', nextUrl);
 
     return () => window.clearTimeout(syncImportTimer);
-  }, []);
+  }, [guardNewSavedDeals, hasResolvedInitialAuth]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

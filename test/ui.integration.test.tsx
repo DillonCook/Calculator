@@ -142,6 +142,10 @@ const createSavedDeal = (dealName: string, updatedAt: string) =>
     },
     { createdAt: updatedAt, updatedAt }
   );
+const createSavedDealList = (count: number, prefix = 'Saved Deal') =>
+  Array.from({ length: count }, (_, index) =>
+    createSavedDeal(`${prefix} ${index + 1}`, `2026-01-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`)
+  );
 const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
@@ -1562,6 +1566,79 @@ describe('dashboard integration', () => {
       expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
       expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
     });
+  });
+
+  it('blocks anonymous users from creating a sixth saved deal', async () => {
+    writeScenarios(createSavedDealList(5, 'Anonymous Limit Deal'));
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('5 saved deals');
+
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Deal identity' })).not.toBeInTheDocument();
+    expect(screen.getByText('Sign in to save more than 5 deals. You can still open, edit, export, or delete existing saved deals.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('5 saved deals');
+  });
+
+  it('prevents backup import from bypassing the anonymous deal limit', async () => {
+    writeScenarios(createSavedDealList(5, 'Anonymous Backup Deal'));
+    const importedPayload = {
+      ...defaultDealInput,
+      purchase: {
+        ...defaultDealInput.purchase,
+        dealName: 'Blocked Backup Deal'
+      }
+    };
+    const importedDeal = createScenarioRecord(importedPayload, {
+      scenarioId: 'blocked-backup-deal',
+      dealName: importedPayload.purchase.dealName,
+      payload: importedPayload,
+      createdAt: '2026-04-20T12:00:00.000Z',
+      updatedAt: '2026-04-29T12:00:00.000Z'
+    });
+    const backupFile = new File(
+      [JSON.stringify({ app: 'DealCooker', schemaVersion: '1.0.0', deals: [importedDeal] })],
+      'dealcooker-vault-backup.json',
+      { type: 'application/json' }
+    );
+    const { container } = render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Import backup' }));
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).toBeInstanceOf(HTMLInputElement);
+    await user.upload(fileInput as HTMLInputElement, backupFile);
+
+    expect(screen.getByText('Sign in to save more than 5 deals. You can still open, edit, export, or delete existing saved deals.')).toBeInTheDocument();
+    expect(screen.queryByText('Blocked Backup Deal')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('5 saved deals');
+  });
+
+  it('allows signed-in users to save more than five deals', async () => {
+    authMockState.user = {
+      id: 'limit-user',
+      email: 'limit@example.com'
+    };
+    setScenarioStorageOwner('limit-user');
+    writeScenarios(createSavedDealList(5, 'Signed In Limit Deal'));
+    setScenarioStorageOwner(null);
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('5 saved deals');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+
+    expect(screen.getByRole('dialog', { name: 'Deal identity' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('6 saved deals');
   });
 
   it('deletes a deal directly from its desktop vault row without opening it first', async () => {

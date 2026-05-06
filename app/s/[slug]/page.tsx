@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { trackAnalyticsEvent } from '@/lib/analytics';
-import { createDealInVault, saveDealToVault } from '@/lib/deals-vault-service';
+import { ANONYMOUS_DEAL_LIMIT, canCreateSavedDeals, createDealInVault, readDealsFromVault, saveDealToVault } from '@/lib/deals-vault-service';
+import { upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
+import { setScenarioStorageOwner } from '@/lib/scenario-storage';
 import { fetchShareBySlug } from '@/lib/share-links';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 const SHARE_IMPORT_NOTICE_STORAGE_KEY = 'dealcooker-share-imported:v1';
 
@@ -34,8 +37,23 @@ export default function ShareResolverPage() {
       }
 
       void trackAnalyticsEvent('share_link_opened', { source: 'short_link' });
+      const supabase = getSupabaseClient();
+      const { data: sessionData } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+      const ownerId = sessionData.session?.user?.id ?? null;
+      setScenarioStorageOwner(ownerId);
+
+      if (!canCreateSavedDeals({ isSignedIn: Boolean(ownerId), currentDealCount: readDealsFromVault().length })) {
+        setStatus('error');
+        setErrorMessage(`Sign in to import more than ${ANONYMOUS_DEAL_LIMIT} saved deals.`);
+        void trackAnalyticsEvent('share_link_open_failed', { reason: 'anonymous_deal_limit' });
+        return;
+      }
+
       const imported = createDealInVault(share.payload_snapshot, share.payload_snapshot.purchase.dealName);
       saveDealToVault(imported);
+      if (ownerId) {
+        void upsertSupabaseScenario(ownerId, imported);
+      }
       window.sessionStorage.setItem(SHARE_IMPORT_NOTICE_STORAGE_KEY, imported.dealName);
       router.replace('/');
     };

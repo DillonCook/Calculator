@@ -1,6 +1,18 @@
 import type { DealInputModel, ScenarioRecord } from '@/lib/models/deal';
 import { createScenarioRecord, deleteScenario, readScenarios, upsertScenario } from '@/lib/scenario-storage';
 
+export const ANONYMOUS_DEAL_LIMIT = 5;
+
+export const canCreateSavedDeals = ({
+  isSignedIn,
+  currentDealCount,
+  additionalDealCount = 1
+}: {
+  isSignedIn: boolean;
+  currentDealCount: number;
+  additionalDealCount?: number;
+}) => additionalDealCount <= 0 || isSignedIn || currentDealCount + additionalDealCount <= ANONYMOUS_DEAL_LIMIT;
+
 export const readDealsFromVault = (): ScenarioRecord[] => readScenarios();
 
 export const saveDealToVault = (record: ScenarioRecord): ScenarioRecord[] => upsertScenario(record);
