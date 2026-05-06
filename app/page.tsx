@@ -1423,7 +1423,7 @@ export default function HomePage() {
     },
     {
       key: 'strategy' as const,
-      label: 'Rents/Inputs',
+      label: 'Strategy',
       summary: activeStrategyLabel
     },
     {

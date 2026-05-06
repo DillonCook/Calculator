@@ -344,7 +344,7 @@ describe('dashboard integration', () => {
     expect(projectionsButton).not.toBeDisabled();
   });
 
-  it('switches between core, expenses, rents/inputs, and IRR sections from the mobile input switcher', async () => {
+  it('switches between core, expenses, strategy, and IRR sections from the mobile input switcher', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -355,7 +355,7 @@ describe('dashboard integration', () => {
     const tablist = screen.getByRole('tablist', { name: 'Input section selection' });
     const coreTab = within(tablist).getByRole('tab', { name: /Core/i });
     const expensesTab = within(tablist).getByRole('tab', { name: /Expenses/i });
-    const strategyTab = within(tablist).getByRole('tab', { name: /Rents\/Inputs/i });
+    const strategyTab = within(tablist).getByRole('tab', { name: /Strategy/i });
     const irrTab = within(tablist).getByRole('tab', { name: /IRR/i });
 
     expect(coreTab).toHaveAttribute('aria-selected', 'true');
