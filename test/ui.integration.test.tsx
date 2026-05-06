@@ -566,6 +566,17 @@ describe('dashboard integration', () => {
             activeToday: 3,
             active7d: 7,
             active30d: 9,
+            activeAccountsToday: 2,
+            activeAccounts7d: 4,
+            activeAccounts30d: 6,
+            activeVisitorsToday: 3,
+            activeVisitors7d: 7,
+            activeVisitors30d: 9,
+            anonymousVisitorsToday: 1,
+            anonymousVisitors7d: 3,
+            anonymousVisitors30d: 3,
+            signedInEvents30d: 80,
+            anonymousEvents30d: 40,
             totalEvents30d: 120,
             pwaPromptShown30d: 8,
             pwaPromptAccepted30d: 4,
@@ -580,6 +591,8 @@ describe('dashboard integration', () => {
           charts: {
             dailyEvents: [{ day: '2026-05-05', count: 4 }],
             dailyActive: [{ day: '2026-05-05', count: 2 }],
+            dailyActiveAccounts: [{ day: '2026-05-05', count: 2 }],
+            dailyActiveVisitors: [{ day: '2026-05-05', count: 3 }],
             topEvents: [{ label: 'app_opened', count: 12 }],
             topRoutes: [{ label: '/', count: 12 }],
             displayModeCounts: [{ label: 'browser', count: 10 }],
@@ -617,6 +630,9 @@ describe('dashboard integration', () => {
 
     expect(await screen.findByText('DealCooker Admin')).toBeInTheDocument();
     expect(screen.getAllByText('5').length).toBeGreaterThan(0);
+    expect(screen.getByText('Account Activity vs Visitor Activity')).toBeInTheDocument();
+    expect(screen.getByText('Daily Active Accounts')).toBeInTheDocument();
+    expect(screen.getByText('Daily Visitor Identities')).toBeInTheDocument();
     expect(screen.getByText('Cannot read properties of undefined')).toBeInTheDocument();
     expect(screen.getByText('unhandledrejection')).toBeInTheDocument();
     expect(screen.getAllByText('/').length).toBeGreaterThan(0);

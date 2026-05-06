@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { ADMIN_OWNER_EMAIL, isOwnerEmail } from '@/lib/admin-access';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabaseClient';
@@ -19,6 +19,17 @@ type DashboardStats = {
     activeToday: number;
     active7d: number;
     active30d: number;
+    activeAccountsToday: number;
+    activeAccounts7d: number;
+    activeAccounts30d: number;
+    activeVisitorsToday: number;
+    activeVisitors7d: number;
+    activeVisitors30d: number;
+    anonymousVisitorsToday: number;
+    anonymousVisitors7d: number;
+    anonymousVisitors30d: number;
+    signedInEvents30d: number;
+    anonymousEvents30d: number;
     totalEvents30d: number;
     pwaPromptShown30d: number;
     pwaPromptAccepted30d: number;
@@ -33,6 +44,8 @@ type DashboardStats = {
   charts: {
     dailyEvents: Array<{ day: string; count: number }>;
     dailyActive: Array<{ day: string; count: number }>;
+    dailyActiveAccounts: Array<{ day: string; count: number }>;
+    dailyActiveVisitors: Array<{ day: string; count: number }>;
     topEvents: Array<{ label: string; count: number }>;
     topRoutes: Array<{ label: string; count: number }>;
     displayModeCounts: Array<{ label: string; count: number }>;
@@ -125,6 +138,15 @@ function MetricCard({ label, value, detail }: { label: string; value: number; de
       <p className="text-xs uppercase tracking-[0.16em] text-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-slate-100">{formatNumber(value)}</p>
       <p className="mt-1 text-xs text-muted">{detail}</p>
+    </section>
+  );
+}
+
+function ExplainerCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="section-shell section-shell-utility rounded-2xl p-4">
+      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
+      <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">{children}</div>
     </section>
   );
 }
@@ -338,10 +360,10 @@ export default function AdminAnalyticsPage() {
 
         <div className="grid gap-3 lg:grid-cols-3">
           <GaugeCard
-            label="30-day active"
-            value={metrics.active30d}
+            label="Active accounts"
+            value={metrics.activeAccounts30d}
             max={Math.max(1, metrics.totalUserAccounts)}
-            detail="Unique signed-in or anonymous devices"
+            detail="Signed-in user accounts active in 30 days"
           />
           <GaugeCard
             label="PWA installs"
@@ -359,19 +381,41 @@ export default function AdminAnalyticsPage() {
           />
         </div>
 
+        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+          <ExplainerCard title="Account Activity vs Visitor Activity">
+            <p>
+              <span className="font-semibold text-slate-100">Active accounts</span> only counts signed-in Supabase user accounts.
+              This is the number to compare against total user accounts.
+            </p>
+            <p>
+              <span className="font-semibold text-slate-100">Visitor identities</span> counts signed-in accounts plus anonymous browser/device IDs before sign-in.
+              It can be higher than user accounts when people browse without signing in, use multiple devices, clear storage, or install/open the PWA separately.
+            </p>
+          </ExplainerCard>
+          <section className="section-shell section-shell-utility rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-slate-100">30-day Audience Split</h2>
+            <div className="mt-3 grid gap-2">
+              <MetricCard label="Active accounts" value={metrics.activeAccounts30d} detail="Signed-in accounts with tracked activity" />
+              <MetricCard label="Anonymous visitors" value={metrics.anonymousVisitors30d} detail="Browser/device identities without a signed-in account" />
+              <MetricCard label="Visitor identities" value={metrics.activeVisitors30d} detail="Accounts plus anonymous browser/device identities" />
+            </div>
+          </section>
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard label="User accounts" value={metrics.totalUserAccounts} detail={`${formatNumber(metrics.newAccountCount7d)} new in 7 days`} />
           <MetricCard label="Saved deals" value={metrics.totalScenarios} detail={`${formatNumber(metrics.scenarioCreated30d)} created in 30 days`} />
           <MetricCard label="Share links" value={metrics.totalShareLinks} detail={`${formatNumber(metrics.shareLinksOpened30d)} opens in 30 days`} />
           <MetricCard label="Print opens" value={metrics.printOpens30d} detail="PDF/print workflow opens in 30 days" />
           <MetricCard label="Feedback" value={metrics.feedbackSent30d} detail="Feedback submissions in 30 days" />
-          <MetricCard label="Events" value={metrics.totalEvents30d} detail={`${formatNumber(metrics.active7d)} active in 7 days`} />
-          <MetricCard label="Today" value={metrics.activeToday} detail="Active users or devices today" />
+          <MetricCard label="Events" value={metrics.totalEvents30d} detail={`${formatNumber(metrics.signedInEvents30d)} signed-in / ${formatNumber(metrics.anonymousEvents30d)} anonymous sampled events`} />
+          <MetricCard label="Today" value={metrics.activeVisitorsToday} detail={`${formatNumber(metrics.activeAccountsToday)} accounts, ${formatNumber(metrics.anonymousVisitorsToday)} anonymous identities`} />
           <MetricCard label="Shares created" value={metrics.shareLinksCreated30d} detail="Share actions in 30 days" />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
-          <MiniTrend title="Daily Active" items={stats.charts.dailyActive} />
+          <MiniTrend title="Daily Active Accounts" items={stats.charts.dailyActiveAccounts} />
+          <MiniTrend title="Daily Visitor Identities" items={stats.charts.dailyActiveVisitors} />
           <MiniTrend title="Daily Events" items={stats.charts.dailyEvents} />
           <BarList title="Top Events" items={stats.charts.topEvents} />
           <BarList title="Top Routes" items={stats.charts.topRoutes} />

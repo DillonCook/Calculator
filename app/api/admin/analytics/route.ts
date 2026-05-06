@@ -66,25 +66,49 @@ const countBy = <T,>(items: T[], getKey: (item: T) => string | null | undefined)
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 };
 
-const identityKey = (event: AnalyticsEventRow) => {
-  if (event.user_id) return `user:${event.user_id}`;
+const visitorIdentityKey = (event: AnalyticsEventRow) => {
+  if (event.user_id) return `account:${event.user_id}`;
   if (event.anonymous_id) return `anon:${event.anonymous_id}`;
   if (event.session_id) return `session:${event.session_id}`;
   return null;
 };
 
-const countDistinctUsersSince = (events: AnalyticsEventRow[], since: Date) => {
+const accountIdentityKey = (event: AnalyticsEventRow) => event.user_id ? `account:${event.user_id}` : null;
+
+const anonymousIdentityKey = (event: AnalyticsEventRow) => {
+  if (event.user_id) return null;
+  if (event.anonymous_id) return `anon:${event.anonymous_id}`;
+  if (event.session_id) return `session:${event.session_id}`;
+  return null;
+};
+
+const countDistinctSince = (events: AnalyticsEventRow[], since: Date, getKey: (event: AnalyticsEventRow) => string | null) => {
   const unique = new Set<string>();
   const sinceMs = since.getTime();
 
   for (const event of events) {
     if (new Date(event.created_at).getTime() < sinceMs) continue;
-    const key = identityKey(event);
+    const key = getKey(event);
     if (key) unique.add(key);
   }
 
   return unique.size;
 };
+
+const buildDailyDistinct = (
+  events: AnalyticsEventRow[],
+  dayKeys: string[],
+  getKey: (event: AnalyticsEventRow) => string | null
+) =>
+  dayKeys.map((day) => {
+    const unique = new Set<string>();
+    for (const event of events) {
+      if (event.created_at.slice(0, 10) !== day) continue;
+      const key = getKey(event);
+      if (key) unique.add(key);
+    }
+    return { day, count: unique.size };
+  });
 
 const eventCount = (events: AnalyticsEventRow[], eventName: string) => events.filter((event) => event.event_name === eventName).length;
 
@@ -212,15 +236,8 @@ export async function GET(request: Request) {
     count: analyticsEvents.filter((event) => event.created_at.slice(0, 10) === day).length
   }));
 
-  const dailyActive = dayKeys.map((day) => {
-    const unique = new Set<string>();
-    for (const event of analyticsEvents) {
-      if (event.created_at.slice(0, 10) !== day) continue;
-      const key = identityKey(event);
-      if (key) unique.add(key);
-    }
-    return { day, count: unique.size };
-  });
+  const dailyActiveVisitors = buildDailyDistinct(analyticsEvents, dayKeys, visitorIdentityKey);
+  const dailyActiveAccounts = buildDailyDistinct(analyticsEvents, dayKeys, accountIdentityKey);
 
   const topEvents = countBy(analyticsEvents, (event) => event.event_name).slice(0, 10);
   const topRoutes = countBy(analyticsEvents, (event) => event.route).slice(0, 10);
@@ -256,9 +273,20 @@ export async function GET(request: Request) {
         newAccountCount7d,
         totalScenarios: scenariosResult.count,
         totalShareLinks: sharesResult.count,
-        activeToday: countDistinctUsersSince(analyticsEvents, today),
-        active7d: countDistinctUsersSince(analyticsEvents, since7),
-        active30d: countDistinctUsersSince(analyticsEvents, since30),
+        activeToday: countDistinctSince(analyticsEvents, today, visitorIdentityKey),
+        active7d: countDistinctSince(analyticsEvents, since7, visitorIdentityKey),
+        active30d: countDistinctSince(analyticsEvents, since30, visitorIdentityKey),
+        activeAccountsToday: countDistinctSince(analyticsEvents, today, accountIdentityKey),
+        activeAccounts7d: countDistinctSince(analyticsEvents, since7, accountIdentityKey),
+        activeAccounts30d: countDistinctSince(analyticsEvents, since30, accountIdentityKey),
+        activeVisitorsToday: countDistinctSince(analyticsEvents, today, visitorIdentityKey),
+        activeVisitors7d: countDistinctSince(analyticsEvents, since7, visitorIdentityKey),
+        activeVisitors30d: countDistinctSince(analyticsEvents, since30, visitorIdentityKey),
+        anonymousVisitorsToday: countDistinctSince(analyticsEvents, today, anonymousIdentityKey),
+        anonymousVisitors7d: countDistinctSince(analyticsEvents, since7, anonymousIdentityKey),
+        anonymousVisitors30d: countDistinctSince(analyticsEvents, since30, anonymousIdentityKey),
+        signedInEvents30d: analyticsEvents.filter((event) => event.user_id).length,
+        anonymousEvents30d: analyticsEvents.filter((event) => !event.user_id).length,
         totalEvents30d: analyticsCountResult.error ? analyticsEvents.length : analyticsCountResult.count,
         pwaPromptShown30d: eventCounts.get('pwa_install_prompt_shown') ?? eventCount(analyticsEvents, 'pwa_install_prompt_shown'),
         pwaPromptAccepted30d: eventCounts.get('pwa_install_prompt_accepted') ?? eventCount(analyticsEvents, 'pwa_install_prompt_accepted'),
@@ -272,7 +300,9 @@ export async function GET(request: Request) {
       },
       charts: {
         dailyEvents,
-        dailyActive,
+        dailyActive: dailyActiveVisitors,
+        dailyActiveAccounts,
+        dailyActiveVisitors,
         topEvents,
         topRoutes,
         displayModeCounts,
