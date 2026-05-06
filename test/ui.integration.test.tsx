@@ -1976,6 +1976,9 @@ describe('dashboard integration', () => {
     await user.click(screen.getByRole('tab', { name: /Expenses/i }));
 
     expect(screen.getByRole('button', { name: 'Add variable expense' })).toBeInTheDocument();
+    const variableExpenseEditor = screen.getByLabelText('Variable expense editor');
+    expect(variableExpenseEditor.parentElement).toHaveClass('expenses-variable-flat');
+    expect(variableExpenseEditor.parentElement).not.toHaveClass('section-inner');
 
     const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
     const firstLabel = screen.getByLabelText('Expense label 1');

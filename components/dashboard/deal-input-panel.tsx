@@ -707,7 +707,7 @@ export function DealInputPanel({
   const showCoreSectionTabs = !forcedCoreSection;
   const contentSectionClassName = isEmbedded ? 'space-y-3' : 'section-inner rounded-xl p-2.5 sm:p-3';
   const infoNoteClassName = isEmbedded ? 'workbench-note' : 'section-inner-muted rounded-lg px-2.5 py-2 text-xs text-muted';
-  const variableExpenseSectionClassName = isEmbedded ? 'workbench-subsection space-y-3' : 'section-inner mt-2.5 rounded-[1.35rem] p-3 sm:mt-3 sm:p-3.5';
+  const variableExpenseSectionClassName = isEmbedded ? 'workbench-subsection space-y-3' : 'expenses-variable-flat';
   const knownOverlayShellClassName = isEmbedded ? 'workbench-note' : 'section-inner-muted mt-2 rounded-lg p-2.5';
 
   return (
