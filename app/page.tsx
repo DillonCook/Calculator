@@ -358,8 +358,8 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopStrategyInputs',
-    title: 'Click Rents for Plan-Specific Numbers',
-    body: 'Use Rents after you choose your approach. That is where the income and plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Click Rents/Inputs for Plan-Specific Numbers',
+    body: 'Use Rents/Inputs after you choose your approach. That is where plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'desktopIrr',
@@ -405,8 +405,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileStrategyInputs',
-    title: 'Tap Rents for Plan-Specific Numbers',
-    body: 'Use Rents after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Tap Rents/Inputs for Plan-Specific Numbers',
+    body: 'Use Rents/Inputs after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'mobileIrr',
@@ -1389,7 +1389,7 @@ export default function HomePage() {
     },
     {
       key: 'strategy' as const,
-      label: 'Rents',
+      label: 'Rents/Inputs',
       summary: activeStrategyLabel
     },
     {
@@ -5958,7 +5958,7 @@ export default function HomePage() {
                           : 'btn-selector btn-selector-input text-slate-200'
                       }`}
                     >
-                    Rents
+                    Rents/Inputs
                   </button>
                   <button
                       ref={desktopExpensesButtonRef}

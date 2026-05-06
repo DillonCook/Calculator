@@ -111,7 +111,7 @@ import { encodeDealToShareParam } from '../lib/share-link';
 
 const getStrategyButton = (label: string) =>
   within(screen.getByLabelText('Desktop strategy selector')).getByRole('button', { name: label });
-const getStrategyInputsWorkspace = () => screen.getByLabelText('Rents workspace');
+const getStrategyInputsWorkspace = () => screen.getByLabelText('Rents/Inputs workspace');
 const setViewport = (width: number) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -340,7 +340,7 @@ describe('dashboard integration', () => {
     expect(projectionsButton).not.toBeDisabled();
   });
 
-  it('switches between core, expenses, rents, and IRR sections from the mobile input switcher', async () => {
+  it('switches between core, expenses, rents/inputs, and IRR sections from the mobile input switcher', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -351,7 +351,7 @@ describe('dashboard integration', () => {
     const tablist = screen.getByRole('tablist', { name: 'Input section selection' });
     const coreTab = within(tablist).getByRole('tab', { name: /Core/i });
     const expensesTab = within(tablist).getByRole('tab', { name: /Expenses/i });
-    const strategyTab = within(tablist).getByRole('tab', { name: /Rents/i });
+    const strategyTab = within(tablist).getByRole('tab', { name: /Rents\/Inputs/i });
     const irrTab = within(tablist).getByRole('tab', { name: /IRR/i });
 
     expect(coreTab).toHaveAttribute('aria-selected', 'true');
@@ -366,14 +366,14 @@ describe('dashboard integration', () => {
     await user.click(strategyTab);
 
     expect(strategyTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('heading', { name: 'Rents' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rents/Inputs' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
 
     await user.click(irrTab);
 
     expect(irrTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'IRR and timeline inputs' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Rents' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Rents/Inputs' })).not.toBeInTheDocument();
   });
 
   it('opens recent deals from the compact header', async () => {
