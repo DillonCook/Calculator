@@ -25,7 +25,14 @@ const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
           : (payload.purchase?.financingType ?? defaultDealInput.purchase.financingType)
     },
     commercial: { ...defaultDealInput.commercial, ...payload.commercial },
-    longTerm: { ...defaultDealInput.longTerm, ...payload.longTerm },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      ...payload.longTerm,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        ...(payload.longTerm?.turnaround ?? {})
+      }
+    },
     airbnb: { ...defaultDealInput.airbnb, ...payload.airbnb },
     padSplit: { ...defaultDealInput.padSplit, ...payload.padSplit },
     brrrr: { ...defaultDealInput.brrrr, ...payload.brrrr },

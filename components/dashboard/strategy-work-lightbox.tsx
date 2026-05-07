@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { DealInputModel, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
@@ -43,6 +43,258 @@ interface WorkBreakdownGroup {
   totalMonthly: number;
   totalAnnual: number;
 }
+
+type WorkChartItem = {
+  key: string;
+  label: string;
+  value: number;
+};
+
+type ExpenseChartData = {
+  title: string;
+  caption: string;
+  totalLabel: string;
+  items: WorkChartItem[];
+  maxLegendColumns?: number;
+};
+
+type WaterfallStepKind = 'absolute' | 'delta' | 'subtotal' | 'result';
+
+type WaterfallStep = {
+  key: string;
+  label: string;
+  amount: number;
+  kind: WaterfallStepKind;
+};
+
+type WaterfallData = {
+  title: string;
+  caption: string;
+  steps: WaterfallStep[];
+  note?: string;
+};
+
+type DonutSlice = WorkChartItem & {
+  color: string;
+  percent: number;
+};
+
+const workChartPalette = ['#38bdf8', '#fb8b23', '#34d399', '#f59e0b', '#60a5fa', '#f472b6', '#94a3b8'];
+const donutCenter = 50;
+const donutOuterRadius = 49;
+const donutInnerRadius = 29;
+
+const formatCompactCurrency = (value: number) => {
+  const sign = value < 0 ? '-' : '';
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue >= 1000000) {
+    const compactValue = absoluteValue / 1000000;
+    return `${sign}$${compactValue >= 10 ? compactValue.toFixed(0) : compactValue.toFixed(1)}M`;
+  }
+
+  if (absoluteValue >= 10000) {
+    return `${sign}$${(absoluteValue / 1000).toFixed(0)}K`;
+  }
+
+  if (absoluteValue >= 1000) {
+    return `${sign}$${(absoluteValue / 1000).toFixed(1)}K`;
+  }
+
+  return `${sign}${currencyFormatter.format(absoluteValue)}`;
+};
+
+const formatSignedCurrency = (value: number) => {
+  if (value < 0) return `-${currencyFormatter.format(Math.abs(value))}`;
+  return currencyFormatter.format(value);
+};
+
+const getChartItemAmount = (line: StrategyCalculationLineItem) => {
+  if (Math.abs(line.monthly) > 0.005) return Math.abs(line.monthly);
+  return Math.abs(line.annual / 12);
+};
+
+const isTenantPlacementLine = (line: StrategyCalculationLineItem) => /tenant-placement|tenant placement/i.test(`${line.key} ${line.label}`);
+
+const summarizeChartItems = (items: WorkChartItem[]) => {
+  const grouped = new Map<string, WorkChartItem>();
+
+  items.forEach((item) => {
+    if (!Number.isFinite(item.value) || item.value <= 0.005) return;
+    const key = item.label.toLowerCase();
+    const existing = grouped.get(key);
+    if (existing) {
+      grouped.set(key, { ...existing, value: existing.value + item.value });
+    } else {
+      grouped.set(key, item);
+    }
+  });
+
+  return Array.from(grouped.values()).sort((a, b) => b.value - a.value);
+};
+
+const buildDonutSlices = (items: WorkChartItem[]): DonutSlice[] => {
+  const summarizedItems = summarizeChartItems(items);
+  if (summarizedItems.length === 0) return [];
+
+  const total = summarizedItems.reduce((sum, item) => sum + item.value, 0);
+
+  return summarizedItems.map((item, index) => ({
+    ...item,
+    color: workChartPalette[index % workChartPalette.length],
+    percent: total > 0 ? item.value / total : 0
+  }));
+};
+
+const getDonutPoint = (radius: number, angleDegrees: number) => {
+  const angleRadians = ((angleDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: donutCenter + radius * Math.cos(angleRadians),
+    y: donutCenter + radius * Math.sin(angleRadians)
+  };
+};
+
+const buildDonutSegmentPath = (startAngle: number, endAngle: number) => {
+  if (endAngle - startAngle >= 359.99) {
+    return [
+      `M ${donutCenter} ${donutCenter - donutOuterRadius}`,
+      `A ${donutOuterRadius} ${donutOuterRadius} 0 1 1 ${donutCenter} ${donutCenter + donutOuterRadius}`,
+      `A ${donutOuterRadius} ${donutOuterRadius} 0 1 1 ${donutCenter} ${donutCenter - donutOuterRadius}`,
+      'Z',
+      `M ${donutCenter} ${donutCenter - donutInnerRadius}`,
+      `A ${donutInnerRadius} ${donutInnerRadius} 0 1 0 ${donutCenter} ${donutCenter + donutInnerRadius}`,
+      `A ${donutInnerRadius} ${donutInnerRadius} 0 1 0 ${donutCenter} ${donutCenter - donutInnerRadius}`,
+      'Z'
+    ].join(' ');
+  }
+
+  const outerStart = getDonutPoint(donutOuterRadius, startAngle);
+  const outerEnd = getDonutPoint(donutOuterRadius, endAngle);
+  const innerEnd = getDonutPoint(donutInnerRadius, endAngle);
+  const innerStart = getDonutPoint(donutInnerRadius, startAngle);
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${donutOuterRadius} ${donutOuterRadius} 0 ${largeArcFlag} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${donutInnerRadius} ${donutInnerRadius} 0 ${largeArcFlag} 0 ${innerStart.x} ${innerStart.y}`,
+    'Z'
+  ].join(' ');
+};
+
+const buildExpenseChartData = (
+  activeStrategy: StrategyKey,
+  expenseGroup: WorkBreakdownGroup | undefined,
+  debtGroup: WorkBreakdownGroup | undefined,
+  breakdown: NonNullable<StrategyOutput['calculationBreakdown']>
+): ExpenseChartData | null => {
+  if (activeStrategy === 'flip' && breakdown.flipMeta) {
+    const meta = breakdown.flipMeta;
+    const holdingMonths = Math.max(meta.holdingMonths, 1);
+    const items = summarizeChartItems([
+      { key: 'agent', label: 'Agent commission', value: meta.agentCommission },
+      { key: 'sell-closing', label: 'Sell closing costs', value: meta.sellClosingCosts },
+      { key: 'concessions', label: 'Seller concessions', value: meta.sellerConcessions },
+      { key: 'fixed-holding', label: 'Fixed holding costs', value: meta.fixedHoldingCostsMonthly * holdingMonths },
+      { key: 'variable-holding', label: 'Variable expenses', value: meta.variableHoldingCostsMonthly * holdingMonths },
+      { key: 'lender-holding', label: 'Lender holding costs', value: meta.lenderHoldingCostsMonthly * holdingMonths },
+      { key: 'debt-payoff', label: 'Debt payoff', value: meta.debtPayoffAtSale }
+    ]);
+
+    return items.length > 0
+      ? {
+          title: 'Flip cost mix',
+          caption: 'Sale deductions, debt payoff, and holding costs across the modeled flip.',
+          totalLabel: 'Modeled outflows',
+          items,
+          maxLegendColumns: 2
+        }
+      : null;
+  }
+
+  if (activeStrategy === 'brrrr' && breakdown.brrrrMeta) {
+    const meta = breakdown.brrrrMeta;
+    const items = summarizeChartItems([
+      { key: 'holding-expenses', label: 'Holding expenses', value: meta.monthlyHoldingExpenses },
+      { key: 'fixed-carry', label: 'Fixed carrying costs', value: meta.fixedHoldingCostsMonthly },
+      { key: 'variable-carry', label: 'Variable expenses', value: meta.variableHoldingCostsMonthly },
+      { key: 'first-loan-carry', label: 'First-loan carrying costs', value: meta.lenderHoldingCostsMonthly },
+      { key: 'refi-debt', label: 'Refi debt service', value: meta.refinanceDebt }
+    ]);
+
+    return items.length > 0
+      ? {
+          title: 'BRRRR cost mix',
+          caption: 'Monthly carrying costs before refi plus the modeled post-refi debt service.',
+          totalLabel: 'Monthly costs',
+          items
+        }
+      : null;
+  }
+
+  const items = summarizeChartItems(
+    [
+      ...(expenseGroup?.lines.filter((line) => !isTenantPlacementLine(line)) ?? []),
+      ...(debtGroup?.lines ?? [])
+    ].map((line) => ({
+      key: line.key,
+      label: line.label,
+      value: getChartItemAmount(line)
+    }))
+  );
+
+  return items.length > 0
+    ? {
+        title: 'Monthly cost mix',
+        caption: '',
+        totalLabel: 'Monthly costs',
+        items
+      }
+    : null;
+};
+
+const buildWaterfallData = (breakdown: NonNullable<StrategyOutput['calculationBreakdown']>): WaterfallData | null => {
+  if (breakdown.flipMeta) {
+    const meta = breakdown.flipMeta;
+    const saleCashReturned = meta.saleCashReturned ?? meta.netProfit + (meta.totalCashInvested ?? meta.holdingCostsTotal);
+    const totalCashInvested = meta.totalCashInvested ?? meta.holdingCostsTotal;
+
+    return {
+      title: 'Sale waterfall',
+      caption: 'How resale price moves through exit costs, payoff, invested cash, and net profit.',
+      steps: [
+        { key: 'sale-price', label: 'Sale price', amount: meta.salePrice, kind: 'absolute' },
+        { key: 'agent', label: 'Agent commission', amount: -meta.agentCommission, kind: 'delta' },
+        { key: 'sell-closing', label: 'Sell closing costs', amount: -meta.sellClosingCosts, kind: 'delta' },
+        { key: 'concessions', label: 'Seller concessions', amount: -meta.sellerConcessions, kind: 'delta' },
+        { key: 'debt-payoff', label: 'Debt payoff', amount: -meta.debtPayoffAtSale, kind: 'delta' },
+        { key: 'sale-cash', label: 'Sale cash', amount: saleCashReturned, kind: 'subtotal' },
+        { key: 'cash-invested', label: 'Cash invested', amount: -totalCashInvested, kind: 'delta' },
+        { key: 'net-profit', label: 'Net profit', amount: meta.netProfit, kind: 'result' }
+      ]
+    };
+  }
+
+  if (breakdown.brrrrMeta) {
+    const meta = breakdown.brrrrMeta;
+
+    return {
+      title: 'Refi waterfall',
+      caption: 'How refi proceeds are reduced by closing costs and first-loan payoff.',
+      steps: [
+        { key: 'refi-loan', label: 'Refi loan', amount: meta.refiLoanAmount, kind: 'absolute' },
+        { key: 'refi-closing', label: 'Refi closing', amount: -meta.refiClosingCosts, kind: 'delta' },
+        { key: 'first-loan-payoff', label: 'First-loan payoff', amount: -meta.initialLoanPayoff, kind: 'delta' },
+        { key: 'cash-back', label: 'Cash back', amount: meta.cashBackAtRefiNet, kind: 'result' }
+      ],
+      note: `${currencyFormatter.format(meta.investedAtPurchase)} invested - ${currencyFormatter.format(meta.cashBackAtRefiNet)} cash back = ${currencyFormatter.format(meta.investedAfterRefi)} left in deal`
+    };
+  }
+
+  return null;
+};
 
 const Row = ({ line }: { line: StrategyCalculationLineItem }) => (
   <div className="section-inner grid grid-cols-1 gap-1.5 rounded-lg px-3 py-2 text-xs sm:grid-cols-[1.2fr_1fr_1fr] sm:gap-2 sm:text-sm">
@@ -422,6 +674,232 @@ const TooltipLineList = ({ lines }: { lines: StrategyCalculationLineItem[] }) =>
     ))}
   </div>
 );
+
+const ExpenseDonutCard = ({ data }: { data: ExpenseChartData }) => {
+  const [activeSliceKey, setActiveSliceKey] = useState<string | null>(null);
+  const slices = buildDonutSlices(data.items);
+  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  let offsetPercent = 0;
+  const gradientStops = slices
+    .map((slice) => {
+      const startPercent = offsetPercent;
+      const endPercent = offsetPercent + slice.percent * 100;
+      offsetPercent = endPercent;
+      return `${slice.color} ${startPercent.toFixed(2)}% ${endPercent.toFixed(2)}%`;
+    })
+    .join(', ');
+  const maxLegendColumns = data.maxLegendColumns ?? 5;
+  const legendColumnCount = slices.length > 3 ? Math.min(Math.ceil(slices.length / 3), maxLegendColumns) : 1;
+  let segmentStartAngle = 0;
+  const segments = slices.map((slice) => {
+    const startAngle = segmentStartAngle;
+    const endAngle = startAngle + slice.percent * 360;
+    segmentStartAngle = endAngle;
+
+    return {
+      ...slice,
+      path: buildDonutSegmentPath(startAngle, endAngle)
+    };
+  });
+  const activeSlice = slices.find((slice) => slice.key === activeSliceKey) ?? null;
+
+  if (slices.length === 0 || total <= 0) return null;
+
+  return (
+    <section className="work-visual-card rounded-xl p-2" aria-label={data.title}>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2 px-0.5">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">{data.title}</p>
+          {data.caption ? <p className="mt-1 text-[11px] text-muted">{data.caption}</p> : null}
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] uppercase tracking-wide text-muted">{data.totalLabel}</p>
+          <p className="text-sm font-semibold text-slate-100">{currencyFormatter.format(total)}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-[148px_minmax(0,1fr)] sm:items-center">
+        <div className="mx-auto">
+          <div
+            className="work-pie-ring relative grid h-36 w-36 place-items-center rounded-full"
+            style={{ background: `conic-gradient(${gradientStops})` }}
+            role="img"
+            aria-label={`${data.title} chart totaling ${currencyFormatter.format(total)}`}
+          >
+            <div className="work-pie-core absolute inset-[21%] rounded-full" aria-hidden="true" />
+            <div className="relative z-10 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-muted">Total</p>
+              <p className="text-lg font-semibold text-slate-100">{formatCompactCurrency(total)}</p>
+            </div>
+            <svg className="absolute inset-0 z-20 h-full w-full overflow-visible" viewBox="0 0 100 100" aria-label={`${data.title} slice hover labels`}>
+              {segments.map((slice) => {
+                const sliceLabel = `${slice.label} slice: ${currencyFormatter.format(slice.value)}, ${percentFormatter.format(slice.percent)}`;
+
+                return (
+                  <path
+                    key={slice.key}
+                    d={slice.path}
+                    fill={slice.color}
+                    fillOpacity={activeSliceKey === slice.key ? 0.18 : 0.001}
+                    fillRule="evenodd"
+                    className="work-pie-slice-hit"
+                    tabIndex={0}
+                    aria-label={sliceLabel}
+                    onBlur={() => setActiveSliceKey(null)}
+                    onFocus={() => setActiveSliceKey(slice.key)}
+                    onMouseEnter={() => setActiveSliceKey(slice.key)}
+                    onMouseLeave={() => setActiveSliceKey(null)}
+                  >
+                    <title>{sliceLabel}</title>
+                  </path>
+                );
+              })}
+            </svg>
+            {activeSlice ? (
+              <div className="work-pie-tooltip pointer-events-none absolute left-1/2 top-[calc(100%+0.4rem)] z-30 w-max max-w-[154px] -translate-x-1/2 rounded-md px-2 py-1 text-center" role="status">
+                <p className="text-xs font-semibold leading-tight text-slate-100">{activeSlice.label}</p>
+                <p className="text-[10px] leading-tight text-muted">
+                  {currencyFormatter.format(activeSlice.value)} | {percentFormatter.format(activeSlice.percent)}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div
+          className="grid gap-x-2 gap-y-1.5"
+          style={{ gridTemplateColumns: `repeat(${legendColumnCount}, minmax(0, 1fr))` }}
+        >
+          {slices.map((slice) => (
+            <div key={slice.key} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-1.5 rounded-md bg-white/[0.025] px-1.5 py-1 text-xs">
+              <span className="mt-1 h-2 w-2 rounded-full" style={{ backgroundColor: slice.color }} aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold leading-tight text-slate-100">{slice.label}</p>
+                <p className="break-words text-xs leading-tight text-muted">
+                  {currencyFormatter.format(slice.value)} | {percentFormatter.format(slice.percent)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const getWaterfallColor = (step: WaterfallStep) => {
+  if (step.kind === 'result') return step.amount >= 0 ? '#34d399' : '#fb7185';
+  if (step.kind === 'subtotal') return '#38bdf8';
+  if (step.kind === 'delta') return step.amount >= 0 ? '#34d399' : '#fb8b23';
+  return '#60a5fa';
+};
+
+const WaterfallCard = ({ data }: { data: WaterfallData }) => {
+  const titleId = useId();
+  const width = 100;
+  const height = 74;
+  const paddingX = 5;
+  const paddingTop = 7;
+  const paddingBottom = 12;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const chartWidth = width - paddingX * 2;
+  const stepWidth = chartWidth / Math.max(data.steps.length, 1);
+  const barWidth = Math.max(Math.min(stepWidth * 0.52, 8), 3);
+  let cumulative = 0;
+  const bars = data.steps.map((step, index) => {
+    const start = step.kind === 'delta' ? cumulative : 0;
+    const end = step.kind === 'delta' ? cumulative + step.amount : step.amount;
+    cumulative = end;
+
+    return {
+      ...step,
+      index,
+      start,
+      end
+    };
+  });
+  const domainValues = bars.flatMap((bar) => [bar.start, bar.end, 0]);
+  const minValue = Math.min(...domainValues);
+  const maxValue = Math.max(...domainValues);
+  const range = Math.max(maxValue - minValue, Math.max(Math.abs(maxValue), Math.abs(minValue), 1) * 0.18, 1);
+  const paddedMin = minValue - range * 0.12;
+  const paddedMax = maxValue + range * 0.12;
+  const domainRange = Math.max(paddedMax - paddedMin, 1);
+  const toY = (value: number) => paddingTop + ((paddedMax - value) / domainRange) * chartHeight;
+  const zeroY = toY(0);
+
+  return (
+    <section className="work-visual-card rounded-xl p-3" aria-label={data.title}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">{data.title}</p>
+          <p className="mt-1 text-[11px] text-muted">{data.caption}</p>
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full" role="img" aria-labelledby={titleId} preserveAspectRatio="none">
+        <title id={titleId}>{data.title}</title>
+        <line x1={paddingX} x2={width - paddingX} y1={zeroY} y2={zeroY} stroke="rgba(148, 163, 184, 0.36)" strokeDasharray="3 3" strokeWidth="0.6" />
+        {bars.map((bar, index) => {
+          const x = paddingX + stepWidth * index + stepWidth / 2;
+          const yStart = toY(bar.start);
+          const yEnd = toY(bar.end);
+          const y = Math.min(yStart, yEnd);
+          const barHeight = Math.max(Math.abs(yStart - yEnd), 1);
+          const nextBar = bars[index + 1];
+          const connectorY = toY(bar.end);
+          const nextX = paddingX + stepWidth * (index + 1) + stepWidth / 2;
+
+          return (
+            <g key={bar.key}>
+              {nextBar ? (
+                <line
+                  x1={x + barWidth / 2}
+                  x2={nextX - barWidth / 2}
+                  y1={connectorY}
+                  y2={connectorY}
+                  stroke="rgba(148, 163, 184, 0.32)"
+                  strokeWidth="0.7"
+                />
+              ) : null}
+              <rect
+                x={x - barWidth / 2}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                rx="1.3"
+                fill={getWaterfallColor(bar)}
+                opacity={bar.kind === 'delta' ? 0.92 : 1}
+              />
+              <text x={x} y={height - 3.4} textAnchor="middle" style={{ fill: 'var(--work-visual-axis)', fontSize: '3.6px' }}>
+                {index + 1}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="mt-2 grid gap-1.5">
+        {data.steps.map((step, index) => (
+          <div key={step.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+            <span className="grid h-4 w-4 place-items-center rounded-full text-[9px] font-semibold text-slate-950" style={{ backgroundColor: getWaterfallColor(step) }}>
+              {index + 1}
+            </span>
+            <p className="min-w-0 truncate text-slate-100">{step.label}</p>
+            <p
+              className={`text-right font-medium ${step.amount >= 0 ? 'text-slate-100' : 'text-slate-200'}`}
+              style={getNegativeValueStyle(step.amount, { kind: 'currency' })}
+            >
+              {formatSignedCurrency(step.amount)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {data.note ? <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-muted">{data.note}</p> : null}
+    </section>
+  );
+};
 
 const BrrrrFinancials = ({ breakdown, output }: { breakdown: NonNullable<StrategyOutput['calculationBreakdown']>; output: StrategyOutput }) => {
   const meta = breakdown.brrrrMeta;
@@ -863,12 +1341,22 @@ export function StrategyWorkLightbox({
   const monthlyIncomeTotal = Math.max(incomeGroup?.totalMonthly ?? 0, 0);
   const monthlyExpenseTotal = Math.abs(expenseGroup?.totalMonthly ?? 0);
   const monthlyDebtTotal = Math.abs(debtGroup?.totalMonthly ?? 0);
+  const expenseChartData = breakdown ? buildExpenseChartData(activeStrategy, expenseGroup, debtGroup, breakdown) : null;
+  const waterfallData = breakdown ? buildWaterfallData(breakdown) : null;
+  const visualGridClassName = expenseChartData && waterfallData ? 'grid gap-3 lg:grid-cols-2' : 'grid gap-3';
   const content = (
     <>
       {!breakdown ? (
         <p className="section-inner rounded-lg p-3 text-sm text-muted">No breakdown available for this strategy yet.</p>
       ) : (
         <div className="space-y-3">
+          {expenseChartData || waterfallData ? (
+            <div className={visualGridClassName}>
+              {expenseChartData ? <ExpenseDonutCard data={expenseChartData} /> : null}
+              {waterfallData ? <WaterfallCard data={waterfallData} /> : null}
+            </div>
+          ) : null}
+
           {activeStrategy === 'brrrr' && breakdown.brrrrMeta ? (
             <BrrrrFinancials breakdown={breakdown} output={output} />
           ) : activeStrategy === 'flip' && breakdown.flipMeta ? (
@@ -983,9 +1471,6 @@ export function StrategyWorkLightbox({
           <div>
             <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
             <h3 className="mt-1 text-lg font-semibold">{strategyLabel} calculations</h3>
-            <p className="mt-1 text-sm text-muted">
-              Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.
-            </p>
           </div>
           {content}
         </div>
@@ -1000,7 +1485,6 @@ export function StrategyWorkLightbox({
           <div>
             <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
             <h3 className="text-xl font-semibold">{strategyLabel} calculations</h3>
-            <p className="text-sm text-muted">Line-item math behind each strategy&apos;s outcome, including dedicated BRRRR capital and flip profit breakdowns.</p>
           </div>
           <button type="button" onClick={onClose} className="section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs text-muted">
             Close

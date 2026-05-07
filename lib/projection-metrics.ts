@@ -161,7 +161,13 @@ const resolveBaseValue = (strategy: StrategyOutput['strategy'], input: DealInput
     input.purchase.ownershipMode === 'owned' ? Math.max(input.purchase.ownedPurchasePrice, 0) : Math.max(input.purchase.purchasePrice, 0);
   const purchaseBaseValue = input.purchase.arv > 0 ? input.purchase.arv : acquisitionBasisPrice;
 
-  if (strategy === 'longTerm') return input.longTerm.arvOverride && input.longTerm.arvOverride > 0 ? input.longTerm.arvOverride : purchaseBaseValue;
+  if (strategy === 'longTerm') {
+    if (input.longTerm.turnaround.enabled && input.longTerm.turnaround.stabilizedArvOverride && input.longTerm.turnaround.stabilizedArvOverride > 0) {
+      return input.longTerm.turnaround.stabilizedArvOverride;
+    }
+
+    return input.longTerm.arvOverride && input.longTerm.arvOverride > 0 ? input.longTerm.arvOverride : purchaseBaseValue;
+  }
   if (strategy === 'airbnb') return input.airbnb.arvOverride && input.airbnb.arvOverride > 0 ? input.airbnb.arvOverride : purchaseBaseValue;
   if (strategy === 'padSplit') return input.padSplit.arvOverride && input.padSplit.arvOverride > 0 ? input.padSplit.arvOverride : purchaseBaseValue;
   if (strategy === 'brrrr') return input.brrrr.arvOverride && input.brrrr.arvOverride > 0 ? input.brrrr.arvOverride : purchaseBaseValue;

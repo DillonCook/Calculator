@@ -93,6 +93,7 @@ export interface LongTermTurnaroundInputs {
   enabled: boolean;
   stabilizedGrossRentMonthly: number;
   stabilizedOtherIncomeMonthly: number;
+  stabilizedArvOverride: number | null;
   laundryIncomeMonthly: number;
   vendingMiscIncomeMonthly: number;
   garageIncomeMonthly: number;
@@ -333,6 +334,8 @@ export interface LongTermTurnaroundSummaryOutput {
   saleProceeds: number;
   cashFlowTimeline: number[];
   impliedValueAtExitCap: number;
+  stabilizedArvOverride: number | null;
+  modeledExitValue: number;
   capOnCost: number;
   equityCreated: number;
 }
@@ -465,6 +468,7 @@ export const defaultDealInput: DealInputModel = {
       enabled: false,
       stabilizedGrossRentMonthly: 0,
       stabilizedOtherIncomeMonthly: 0,
+      stabilizedArvOverride: null,
       laundryIncomeMonthly: 0,
       vendingMiscIncomeMonthly: 0,
       garageIncomeMonthly: 0,

@@ -349,7 +349,10 @@ const calculateLongTermTurnaroundSummary = (
   const impliedValueAtExitCap = annualNoi / exitRefiCapRatePercent;
   const totalProjectBasis = getTotalProjectBasis(input, rehabBudgetForStabilization);
   const capOnCost = totalProjectBasis <= 0 ? 0 : annualNoi / totalProjectBasis;
-  const equityCreated = impliedValueAtExitCap - totalProjectBasis;
+  const stabilizedArvOverride =
+    turnaround.stabilizedArvOverride && turnaround.stabilizedArvOverride > 0 ? turnaround.stabilizedArvOverride : null;
+  const modeledExitValue = stabilizedArvOverride ?? impliedValueAtExitCap;
+  const equityCreated = modeledExitValue - totalProjectBasis;
   const currentGrossIncomeMonthly =
     input.longTerm.annualRevenueOverride && input.longTerm.annualRevenueOverride > 0
       ? input.longTerm.annualRevenueOverride / 12
@@ -371,8 +374,8 @@ const calculateLongTermTurnaroundSummary = (
   const turnaroundYearCashFlowPreTax = turnaroundYearNoi - debtService * 12;
 
   const timelineArv =
-    input.longTerm.arvOverride && input.longTerm.arvOverride > 0
-      ? input.longTerm.arvOverride
+    modeledExitValue > 0
+      ? modeledExitValue
       : impliedValueAtExitCap > 0
         ? impliedValueAtExitCap
         : input.purchase.arv;
@@ -428,6 +431,8 @@ const calculateLongTermTurnaroundSummary = (
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
     impliedValueAtExitCap,
+    stabilizedArvOverride,
+    modeledExitValue,
     capOnCost,
     equityCreated
   };

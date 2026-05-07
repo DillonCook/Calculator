@@ -1669,6 +1669,11 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('PadSplit'));
+    const workspace = getStrategyInputsWorkspace();
+    await user.clear(within(workspace).getByLabelText('Rentable rooms'));
+    await user.type(within(workspace).getByLabelText('Rentable rooms'), '5');
+    await user.clear(within(workspace).getByLabelText('Weekly rate / room'));
+    await user.type(within(workspace).getByLabelText('Weekly rate / room'), '200');
     await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
 
     const dialog = screen.getByRole('dialog', { name: 'Strategy Work Lightbox' });
@@ -1677,8 +1682,20 @@ describe('dashboard integration', () => {
     expect(within(dialog).getAllByText('Income').length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText('Expenses').length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText('Debt service').length).toBeGreaterThan(0);
-    expect(within(dialog).getByText('Property tax')).toBeInTheDocument();
-    expect(within(dialog).getByText('Insurance')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Property tax').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('Insurance').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText('Tenant placement fees')).toBeInTheDocument();
+    expect(within(dialog).getByText('Monthly cost mix')).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: /Monthly cost mix chart totaling/i })).toBeInTheDocument();
+
+    const costMixSection = within(dialog).getByText('Monthly cost mix').closest('section');
+    expect(costMixSection).not.toBeNull();
+    expect(within(costMixSection as HTMLElement).getByText('Debt service')).toBeInTheDocument();
+    expect(within(costMixSection as HTMLElement).queryByText('Tenant placement fees')).not.toBeInTheDocument();
+    expect(within(costMixSection as HTMLElement).queryByText('Other')).not.toBeInTheDocument();
+
+    await user.hover(within(costMixSection as HTMLElement).getByLabelText(/^Debt service slice:/i));
+    expect(within(costMixSection as HTMLElement).getByRole('status')).toHaveTextContent('Debt service');
   });
 
   it('BRRRR show work exposes capital-in and refi math sections', async () => {
@@ -1694,6 +1711,21 @@ describe('dashboard integration', () => {
     expect(screen.getAllByText('Cash back at refi').length).toBeGreaterThan(0);
     expect(screen.getByText('Cash left in deal')).toBeInTheDocument();
     expect(screen.getByText('Refi math')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Refi waterfall' })).toBeInTheDocument();
+  });
+
+  it('flip show work exposes expense visuals and sale waterfall', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    await user.click(getStrategyButton('Flip'));
+    await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
+
+    const dialog = screen.getByRole('dialog', { name: 'Strategy Work Lightbox' });
+    expect(within(dialog).getByText('Flip calculations')).toBeInTheDocument();
+    expect(within(dialog).getByText('Flip cost mix')).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: /Flip cost mix chart totaling/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: 'Sale waterfall' })).toBeInTheDocument();
   });
 
   it('save as flow persists a deal in the vault list', async () => {
@@ -1718,12 +1750,33 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('Long-Term'));
-    const strategyArv = within(getStrategyInputsWorkspace()).getByRole('spinbutton', { name: /Exit value override/i });
+    const workspace = getStrategyInputsWorkspace();
+    const strategyArv = within(workspace).getByRole('spinbutton', { name: /Long Term ARV/i });
+    const inputLabels = within(workspace)
+      .getAllByRole('spinbutton')
+      .map((input) => input.getAttribute('aria-label'));
 
     await user.clear(strategyArv);
     await user.type(strategyArv, '365000');
 
     expect(strategyArv).toHaveValue(365000);
+    expect(inputLabels.slice(-2)).toEqual(['Long Term ARV', 'Annual revenue (optional)']);
+
+    await user.click(getStrategyButton('BRRRR'));
+    expect(
+      within(getStrategyInputsWorkspace())
+        .getAllByRole('spinbutton')
+        .map((input) => input.getAttribute('aria-label'))
+        .slice(-1)[0]
+    ).toBe('BRRRR ARV');
+
+    await user.click(getStrategyButton('Flip'));
+    expect(
+      within(getStrategyInputsWorkspace())
+        .getAllByRole('spinbutton')
+        .map((input) => input.getAttribute('aria-label'))
+        .slice(-1)[0]
+    ).toBe('Flip ARV');
   });
 
   it('uses the split Long-Term strategy button to toggle turnaround mode', async () => {
@@ -1735,6 +1788,7 @@ describe('dashboard integration', () => {
 
     expect(within(selector).getByRole('button', { name: 'Long-Term turnaround' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(getStrategyInputsWorkspace()).getByText('Stabilize scenario (12-month underwrite)')).toBeInTheDocument();
+    expect(within(getStrategyInputsWorkspace()).getByRole('spinbutton', { name: 'Stabilized ARV' })).toBeInTheDocument();
 
     await user.click(within(selector).getByRole('button', { name: 'Long-Term' }));
 
@@ -1917,11 +1971,23 @@ describe('dashboard integration', () => {
     await user.click(getStrategyButton('Airbnb'));
     workspace = getStrategyInputsWorkspace();
     expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(
+      within(workspace)
+        .getAllByRole('spinbutton')
+        .map((input) => input.getAttribute('aria-label'))
+        .slice(-2)
+    ).toEqual(['STR ARV', 'Annual revenue (optional)']);
 
     await user.click(getStrategyButton('PadSplit'));
     workspace = getStrategyInputsWorkspace();
     expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
     expect(within(workspace).getByLabelText('PM flat fee / mo', { selector: 'input' })).toBeInTheDocument();
+    expect(
+      within(workspace)
+        .getAllByRole('spinbutton')
+        .map((input) => input.getAttribute('aria-label'))
+        .slice(-2)
+    ).toEqual(['PadSplit ARV', 'Annual revenue (optional)']);
   });
 
   it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {

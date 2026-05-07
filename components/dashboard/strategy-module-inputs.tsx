@@ -154,19 +154,6 @@ export function StrategyModuleInputs({
       return (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label="Exit value override"
-              tooltip="Optional. In regular long-term mode this overrides the sale value used for IRR/ROI. In turnaround mode it overrides the exit-cap implied value; leave it blank to let the stabilized cap-rate value drive the timeline."
-              type="number"
-              value={model.longTerm.arvOverride ?? ''}
-              onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))}
-            />
-            <Input
-              label="Annual revenue (optional)"
-              type="number"
-              value={model.longTerm.annualRevenueOverride ?? ''}
-              onChange={(v) => update('longTerm', 'annualRevenueOverride', v === '' ? null : Number(v))}
-            />
             <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
             <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
             <PercentInput
@@ -178,6 +165,19 @@ export function StrategyModuleInputs({
             <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
             <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
             <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
+            <Input
+              label="Long Term ARV"
+              tooltip="Optional. Overrides the long-term sale value used for regular long-term IRR and ROI. Turnaround mode has a separate Stabilized ARV below."
+              type="number"
+              value={model.longTerm.arvOverride ?? ''}
+              onChange={(v) => update('longTerm', 'arvOverride', v === '' ? null : Number(v))}
+            />
+            <Input
+              label="Annual revenue (optional)"
+              type="number"
+              value={model.longTerm.annualRevenueOverride ?? ''}
+              onChange={(v) => update('longTerm', 'annualRevenueOverride', v === '' ? null : Number(v))}
+            />
           </div>
 
           {model.longTerm.turnaround.enabled ? (
@@ -275,9 +275,16 @@ export function StrategyModuleInputs({
                 />
                 <PercentInput
                   label="Exit/Refi cap rate %"
-                  tooltip="Values stabilized NOI for the turnaround scenario. If Exit value override is blank, this implied value is also used for projected sale proceeds, IRR, and ROI."
+                  tooltip="Values stabilized NOI for the turnaround scenario. If Stabilized ARV is blank, this implied value is also used for projected sale proceeds, IRR, and ROI."
                   value={model.longTerm.turnaround.exitRefiCapRatePercent}
                   onChange={(v) => updateLongTermTurnaround('exitRefiCapRatePercent', v)}
+                />
+                <Input
+                  label="Stabilized ARV"
+                  tooltip="Optional stabilized value for turnaround exits. Leave blank to use the value implied by stabilized NOI and the exit/refi cap rate."
+                  type="number"
+                  value={model.longTerm.turnaround.stabilizedArvOverride ?? ''}
+                  onChange={(v) => updateLongTermTurnaround('stabilizedArvOverride', v === '' ? null : Number(v))}
                 />
               </div>
             </section>
@@ -289,13 +296,6 @@ export function StrategyModuleInputs({
     if (active === 'airbnb') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
-          <Input
-            label="Annual revenue (optional)"
-            type="number"
-            value={model.airbnb.annualRevenueOverride ?? ''}
-            onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}
-          />
           <Input label="ADR" type="number" value={model.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
           <PercentInput label="Occupancy %" value={model.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
           <Input label="Nights per month" type="number" value={model.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
@@ -307,6 +307,13 @@ export function StrategyModuleInputs({
           <PercentInput label="Maintenance %" value={model.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
           <PercentInput label="CapEx %" value={model.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
           <Input label="STR furnishing (one-time)" type="number" value={model.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
+          <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
+          <Input
+            label="Annual revenue (optional)"
+            type="number"
+            value={model.airbnb.annualRevenueOverride ?? ''}
+            onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}
+          />
         </div>
       );
     }
@@ -314,13 +321,6 @@ export function StrategyModuleInputs({
     if (active === 'padSplit') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
-          <Input
-            label="Annual revenue (optional)"
-            type="number"
-            value={model.padSplit.annualRevenueOverride ?? ''}
-            onChange={(v) => update('padSplit', 'annualRevenueOverride', v === '' ? null : Number(v))}
-          />
           <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
           <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
           <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
@@ -357,6 +357,13 @@ export function StrategyModuleInputs({
           <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
           <PercentInput label="CapEx reserve %" value={model.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
           <Input label="Furnishing (one-time)" type="number" value={model.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
+          <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
+          <Input
+            label="Annual revenue (optional)"
+            type="number"
+            value={model.padSplit.annualRevenueOverride ?? ''}
+            onChange={(v) => update('padSplit', 'annualRevenueOverride', v === '' ? null : Number(v))}
+          />
         </div>
       );
     }
@@ -364,7 +371,6 @@ export function StrategyModuleInputs({
     if (active === 'brrrr') {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="BRRRR ARV" type="number" value={model.brrrr.arvOverride ?? ''} onChange={(v) => update('brrrr', 'arvOverride', v === '' ? null : Number(v))} />
           <Input label="BRRRR rehab override" type="number" value={model.brrrr.rehabOverride ?? ''} onChange={(v) => update('brrrr', 'rehabOverride', v === '' ? null : Number(v))} />
           <Input label="Hold months" type="number" value={model.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
           <Input
@@ -390,6 +396,7 @@ export function StrategyModuleInputs({
               { label: 'PadSplit', value: 'padSplit' }
             ]}
           />
+          <Input label="BRRRR ARV" type="number" value={model.brrrr.arvOverride ?? ''} onChange={(v) => update('brrrr', 'arvOverride', v === '' ? null : Number(v))} />
         </div>
       );
     }
@@ -397,13 +404,6 @@ export function StrategyModuleInputs({
     return (
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            label="Flip ARV"
-            tooltip="Projected resale price after renovation. This is the sale price used for profit, MAO, ROI, and hard-money payoff math."
-            type="number"
-            value={model.flip.arvOverride ?? ''}
-            onChange={(v) => updateFlip('arvOverride', v === '' ? null : Number(v))}
-          />
           <Input
             label="Flip rehab override"
             tooltip="Optional flip-specific rehab budget before contingency. Leave blank to use the main rehab budget from Core."
@@ -490,6 +490,16 @@ export function StrategyModuleInputs({
               </div>
             )}
           </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Flip ARV"
+            tooltip="Projected resale price after renovation. This is the sale price used for profit, MAO, ROI, and hard-money payoff math."
+            type="number"
+            value={model.flip.arvOverride ?? ''}
+            onChange={(v) => updateFlip('arvOverride', v === '' ? null : Number(v))}
+          />
         </div>
       </div>
     );

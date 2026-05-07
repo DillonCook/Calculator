@@ -92,7 +92,7 @@ export const createPdfReportSchema = (
   const turnaroundSummary = selectedStrategy === 'longTerm' ? strategyOutput.longTermTurnaroundSummary : undefined;
   const isLongTermTurnaround = selectedStrategy === 'longTerm' && Boolean(turnaroundSummary?.enabled);
   const selectedStrategyLabel = isLongTermTurnaround ? 'Long-Term Turnaround' : strategyLabels[selectedStrategy];
-  const hasTurnaroundExitValueOverride = isLongTermTurnaround && input.longTerm.arvOverride !== null && input.longTerm.arvOverride > 0;
+  const hasStabilizedArvOverride = isLongTermTurnaround && input.longTerm.turnaround.stabilizedArvOverride !== null && input.longTerm.turnaround.stabilizedArvOverride > 0;
   const turnaroundInputs = input.longTerm.turnaround;
   const holdYears = Math.max(0, input.assumptions.holdYears);
   const holdYearsLabel = holdYears === 1 ? '1 year' : `${holdYears} years`;
@@ -232,9 +232,9 @@ export const createPdfReportSchema = (
               { label: 'PM fee %', value: percentFormatter.format(turnaroundInputs.managementFeePercent) },
               { label: 'Exit/Refi cap rate %', value: percentFormatter.format(turnaroundInputs.exitRefiCapRatePercent) },
               {
-                label: 'Exit value basis',
-                value: hasTurnaroundExitValueOverride
-                  ? `Exit value override (${formatCurrency(input.longTerm.arvOverride ?? 0)})`
+                label: 'Stabilized value basis',
+                value: hasStabilizedArvOverride
+                  ? `Stabilized ARV (${formatCurrency(input.longTerm.turnaround.stabilizedArvOverride ?? 0)})`
                   : `Implied value @ exit cap (${formatCurrency(turnaroundSummary.impliedValueAtExitCap)})`
               },
               { label: 'First-year turnaround cash flow', value: formatCurrency(turnaroundSummary.turnaroundYearCashFlowPreTax) },

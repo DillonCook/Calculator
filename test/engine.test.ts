@@ -567,6 +567,52 @@ test('long-term turnaround mode computes stabilized outputs and show-work lines'
   assert.ok(result.longTerm.calculationBreakdown?.lines.some((line) => line.key === 'lt-stab-noi'));
 });
 
+test('long-term turnaround uses separate stabilized ARV instead of regular long-term ARV', () => {
+  const model = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      purchasePrice: 500000,
+      arv: 500000
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      arvOverride: 950000,
+      grossRentMonthly: 2200,
+      turnaround: {
+        ...defaultDealInput.longTerm.turnaround,
+        enabled: true,
+        stabilizedGrossRentMonthly: 5200,
+        exitRefiCapRatePercent: 0.06
+      }
+    }
+  };
+
+  const regularArvOnly = calculateDeal(model).longTerm.longTermTurnaroundSummary;
+  assert.ok(regularArvOnly);
+  near(regularArvOnly.modeledExitValue, regularArvOnly.impliedValueAtExitCap, 0.01);
+
+  const stabilizedArvModel = {
+    ...model,
+    longTerm: {
+      ...model.longTerm,
+      turnaround: {
+        ...model.longTerm.turnaround,
+        stabilizedArvOverride: 720000
+      }
+    }
+  };
+  const stabilizedArvSummary = calculateDeal(stabilizedArvModel).longTerm.longTermTurnaroundSummary;
+  assert.ok(stabilizedArvSummary);
+  near(stabilizedArvSummary.stabilizedArvOverride ?? 0, 720000, 0.01);
+  near(stabilizedArvSummary.modeledExitValue, 720000, 0.01);
+  near(
+    stabilizedArvSummary.equityCreated,
+    720000 - stabilizedArvModel.purchase.purchasePrice - stabilizedArvModel.longTerm.turnaround.rehabBudgetForStabilization,
+    0.01
+  );
+});
+
 test('long-term and turnaround modes clamp negative operating inputs that would inflate returns', () => {
   const model = {
     ...defaultDealInput,
@@ -1864,7 +1910,7 @@ test('pdf schema promotes long-term turnaround stabilized metrics when enabled',
   assert.ok(report.strategyHighlights.rows.some((row) => row.label === 'Stabilized Annual Cash Flow'));
   assert.ok(report.strategyHighlights.rows.some((row) => row.label === 'Stabilized NOI (Monthly)'));
   assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'Projection basis'));
-  assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'Exit value basis' && row.value.includes('Implied value @ exit cap')));
+  assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'Stabilized value basis' && row.value.includes('Implied value @ exit cap')));
   assert.ok(report.turnaroundStabilization?.rows.some((row) => row.label === 'First-year turnaround cash flow'));
 });
 
