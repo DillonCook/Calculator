@@ -366,8 +366,8 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopStrategyInputs',
-    title: 'Click Rents/Inputs for Plan-Specific Numbers',
-    body: 'Use Rents/Inputs after you choose your approach. That is where plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Click Strategy for Plan-Specific Numbers',
+    body: 'Use Strategy after you choose your approach. That is where plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'desktopIrr',
@@ -413,8 +413,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileStrategyInputs',
-    title: 'Tap Rents/Inputs for Plan-Specific Numbers',
-    body: 'Use Rents/Inputs after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Tap Strategy for Plan-Specific Numbers',
+    body: 'Use Strategy after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'mobileIrr',
@@ -4422,7 +4422,7 @@ export default function HomePage() {
   const desktopInputViewportClassName =
     'pr-1 [overflow-anchor:none]';
   const desktopWorkspaceShellClassName =
-    'grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(36rem,1.1fr)] 2xl:grid-cols-[minmax(0,0.84fr)_minmax(40rem,1.16fr)]';
+    'grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(36rem,1.1fr)] 2xl:grid-cols-[minmax(0,0.84fr)_minmax(40rem,1.16fr)]';
   const desktopUtilityButtonClassName =
     'header-utility-button tap-feedback shrink-0';
 
@@ -4463,12 +4463,14 @@ export default function HomePage() {
                 >
                   <defs>
                     <linearGradient id="cashflowBarPosGradCompact" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5CCBFF" stopOpacity="0.56" />
-                      <stop offset="100%" stopColor="#1E4778" stopOpacity="0.08" />
+                      <stop offset="0%" stopColor="#2ED6FF" stopOpacity="0.72" />
+                      <stop offset="58%" stopColor="#028FEA" stopOpacity="0.36" />
+                      <stop offset="100%" stopColor="#063C74" stopOpacity="0.1" />
                     </linearGradient>
                     <linearGradient id="cashflowBarNegGradCompact" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF9A55" stopOpacity="0.5" />
-                      <stop offset="100%" stopColor="#5B2B16" stopOpacity="0.09" />
+                      <stop offset="0%" stopColor="#FF9A1F" stopOpacity="0.76" />
+                      <stop offset="58%" stopColor="#F97316" stopOpacity="0.38" />
+                      <stop offset="100%" stopColor="#6B2404" stopOpacity="0.1" />
                     </linearGradient>
                   </defs>
                   {monthlyCashFlowBarData.map((bar, index) => (
@@ -4480,7 +4482,7 @@ export default function HomePage() {
                       height={bar.height}
                       rx={bar.width / 2}
                       fill={bar.isNegative ? 'url(#cashflowBarNegGradCompact)' : 'url(#cashflowBarPosGradCompact)'}
-                      opacity={0.52}
+                      opacity={0.66}
                     >
                       {!prefersReducedMotion ? (
                         <animate
@@ -5633,12 +5635,14 @@ export default function HomePage() {
                   >
                     <defs>
                       <linearGradient id="cashflowBarPosGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#5CCBFF" stopOpacity="0.56" />
-                        <stop offset="100%" stopColor="#1E4778" stopOpacity="0.08" />
+                        <stop offset="0%" stopColor="#2ED6FF" stopOpacity="0.72" />
+                        <stop offset="58%" stopColor="#028FEA" stopOpacity="0.36" />
+                        <stop offset="100%" stopColor="#063C74" stopOpacity="0.1" />
                       </linearGradient>
                       <linearGradient id="cashflowBarNegGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#FF9A55" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#5B2B16" stopOpacity="0.09" />
+                        <stop offset="0%" stopColor="#FF9A1F" stopOpacity="0.76" />
+                        <stop offset="58%" stopColor="#F97316" stopOpacity="0.38" />
+                        <stop offset="100%" stopColor="#6B2404" stopOpacity="0.1" />
                       </linearGradient>
                     </defs>
                     {monthlyCashFlowBarData.map((bar, index) => (
@@ -5650,7 +5654,7 @@ export default function HomePage() {
                         height={bar.height}
                         rx={bar.width / 2}
                         fill={bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
-                        opacity={0.52}
+                        opacity={0.66}
                       >
                         {!prefersReducedMotion ? (
                           <animate
@@ -6015,7 +6019,7 @@ export default function HomePage() {
                           : 'btn-selector btn-selector-input text-slate-200'
                       }`}
                     >
-                    Rents/Inputs
+                    Strategy
                   </button>
                   <button
                       ref={desktopExpensesButtonRef}

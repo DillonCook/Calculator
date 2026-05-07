@@ -19,7 +19,7 @@ export function StrategyInputsWorkspace({ activeStrategy, model, onChange, embed
 
   if (embedded) {
     return (
-      <section aria-label="Rents/Inputs workspace" className="[overflow-anchor:none]">
+      <section aria-label="Strategy workspace" className="[overflow-anchor:none]">
         {content}
       </section>
     );
@@ -27,7 +27,7 @@ export function StrategyInputsWorkspace({ activeStrategy, model, onChange, embed
 
   return (
     <section
-      aria-label="Rents/Inputs workspace"
+      aria-label="Strategy workspace"
       className="section-shell section-shell-input overflow-hidden rounded-[1.7rem] shadow-soft [overflow-anchor:none]"
     >
       {content}

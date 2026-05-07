@@ -45,6 +45,7 @@ export function StrategyComparison({
 }: StrategyComparisonProps) {
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
   const [isBoardOpen, setIsBoardOpen] = useState(lockBoardOpen ? true : defaultBoardOpen);
+  const [expandedCashFlowKey, setExpandedCashFlowKey] = useState<StrategyKey | null>(null);
   const rows = useMemo(() => {
     const selectedStrategies =
       visibleStrategies && visibleStrategies.length > 0
@@ -103,6 +104,33 @@ export function StrategyComparison({
       };
     });
   }, [data, holdYears, input, rows]);
+  const expandedCashFlowRow = expandedCashFlowKey ? cashFlowRows.find((row) => row.key === expandedCashFlowKey) ?? null : null;
+  const expandedCashFlowStats = useMemo(() => {
+    if (!expandedCashFlowRow || expandedCashFlowRow.chartPoints.length === 0) return null;
+
+    const points = expandedCashFlowRow.chartPoints;
+    const total = points.reduce((sum, point) => sum + point.value, 0);
+    const average = total / points.length;
+    const best = points.reduce((currentBest, point) => (point.value > currentBest.value ? point : currentBest), points[0]);
+    const worst = points.reduce((currentWorst, point) => (point.value < currentWorst.value ? point : currentWorst), points[0]);
+    const firstPositive = points.find((point) => point.value > 0) ?? null;
+    const ending = points[points.length - 1];
+
+    return {
+      total,
+      average,
+      best,
+      worst,
+      firstPositive,
+      ending
+    };
+  }, [expandedCashFlowRow]);
+
+  useEffect(() => {
+    if (expandedCashFlowKey && !cashFlowRows.some((row) => row.key === expandedCashFlowKey)) {
+      setExpandedCashFlowKey(null);
+    }
+  }, [cashFlowRows, expandedCashFlowKey]);
 
   const inlineComparisonCards = (
     <div className="space-y-2 sm:space-y-3">
@@ -226,11 +254,16 @@ export function StrategyComparison({
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="dashboard-kicker text-[10px]">Cash flow trend</p>
-                      <p className="dashboard-meta mt-1 text-[10px]">Operating cash flow only.</p>
                     </div>
-                    <p className="dashboard-meta text-[10px]">Scale {currencyFormatter.format(cashFlowRow.operatingMaxAbs)}</p>
                   </div>
-                  <CashFlowGraph points={cashFlowRow.chartPoints} compact />
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCashFlowKey(row.key)}
+                    className="cash-flow-chart-trigger tap-feedback"
+                    aria-label={`Open ${row.label} cash flow trend details`}
+                  >
+                    <CashFlowGraph points={cashFlowRow.chartPoints} compact />
+                  </button>
                 </section>
               </div>
             </div>
@@ -377,11 +410,10 @@ export function StrategyComparison({
 
   const cashFlowModelingContent = (
     <div className="grid gap-3 sm:grid-cols-2">
-      {cashFlowRows.map((row) => (
+        {cashFlowRows.map((row) => (
         <div key={row.key} className="dashboard-block rounded-xl p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">{row.label}</p>
-            <p className="dashboard-meta text-xs">Operating scale: {currencyFormatter.format(row.operatingMaxAbs)}</p>
           </div>
           <CashFlowGraph points={row.chartPoints} />
         </div>
@@ -394,15 +426,10 @@ export function StrategyComparison({
       <section aria-label="Strategy comparison board" className="projection-board-glass section-shell section-shell-projection min-w-0 max-w-full overflow-hidden rounded-2xl p-3 shadow-soft sm:p-5">
         {inlineModelingViews ? (
           showInlineHeader ? (
-            <div className="dashboard-block mb-4 rounded-[1.2rem] p-4">
-              <div>
-                <div>
-                  <p className="dashboard-kicker">Projections board</p>
-                  <h2 className="mt-1 text-lg font-semibold text-slate-100">Compare modeled outcomes side by side</h2>
-                </div>
-              </div>
+            <div className="desktop-input-rail-section projection-board-selector-header mb-4">
+              <p className="desktop-input-rail-heading">Projections board</p>
               {onToggleVisibleStrategy ? (
-                <div aria-label="Projections board strategy selection" role="group" className="mt-4 flex flex-wrap gap-2">
+                <div aria-label="Projections board strategy selection" role="group" className="flex flex-wrap gap-1.5">
                   {strategyOrder.map((strategy) => {
                     const isSelected = rows.some((row) => row.key === strategy);
 
@@ -461,6 +488,72 @@ export function StrategyComparison({
           </div>
         )}
       </section>
+
+      {expandedCashFlowRow && expandedCashFlowStats ? (
+        <div
+          className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${expandedCashFlowRow.label} cash flow trend details`}
+        >
+          <div className="section-shell section-shell-projection max-h-[90vh] w-full max-w-7xl overflow-y-auto rounded-2xl p-4 shadow-soft sm:p-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="dashboard-kicker">{expandedCashFlowRow.label}</p>
+                <h3 className="text-xl font-semibold">Cash flow trend</h3>
+                <p className="mt-1 text-xs text-muted">Final-period sale or refinance cash is removed so the line stays focused on operations.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpandedCashFlowKey(null)}
+                className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,2.15fr)_minmax(13.5rem,0.55fr)]">
+              <section className="dashboard-block rounded-xl p-3 sm:p-4">
+                <CashFlowGraph points={expandedCashFlowRow.chartPoints} expanded />
+              </section>
+
+              <aside className="grid content-start gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <CompactMetric
+                  label="Ending year"
+                  value={`${formatYearLabel(expandedCashFlowStats.ending.year)} ${currencyFormatter.format(expandedCashFlowStats.ending.value)}`}
+                  toneStyle={getNegativeValueStyle(expandedCashFlowStats.ending.value, { kind: 'currency' })}
+                />
+                <CompactMetric
+                  label="Total cash flow"
+                  value={currencyFormatter.format(expandedCashFlowStats.total)}
+                  toneStyle={getNegativeValueStyle(expandedCashFlowStats.total, { kind: 'currency' })}
+                />
+                <CompactMetric
+                  label="Average / year"
+                  value={currencyFormatter.format(expandedCashFlowStats.average)}
+                  toneStyle={getNegativeValueStyle(expandedCashFlowStats.average, { kind: 'currency' })}
+                />
+                <CompactMetric
+                  label="Best year"
+                  value={`${formatYearLabel(expandedCashFlowStats.best.year)} ${currencyFormatter.format(expandedCashFlowStats.best.value)}`}
+                  toneStyle={getNegativeValueStyle(expandedCashFlowStats.best.value, { kind: 'currency' })}
+                />
+                <CompactMetric
+                  label="Worst year"
+                  value={`${formatYearLabel(expandedCashFlowStats.worst.year)} ${currencyFormatter.format(expandedCashFlowStats.worst.value)}`}
+                  toneStyle={getNegativeValueStyle(expandedCashFlowStats.worst.value, { kind: 'currency' })}
+                />
+                <CompactMetric
+                  label="First positive"
+                  value={expandedCashFlowStats.firstPositive ? formatYearLabel(expandedCashFlowStats.firstPositive.year) : 'Not in hold'}
+                  toneStyle={expandedCashFlowStats.firstPositive ? { color: '#86efac' } : { color: '#fde68a' }}
+                />
+              </aside>
+            </div>
+
+          </div>
+        </div>
+      ) : null}
 
       {!inlineModelingViews && activeModal === 'equity' ? (
         <div
@@ -662,6 +755,25 @@ function formatHoldLabel(holdMonths: number) {
   return `${holdMonths} mo`;
 }
 
+function formatYearLabel(year: number) {
+  return `Year ${year}`;
+}
+
+function formatCompactChartCurrency(value: number) {
+  const absoluteValue = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+
+  if (absoluteValue >= 1_000_000) {
+    return `${sign}$${(absoluteValue / 1_000_000).toFixed(1)}M`;
+  }
+
+  if (absoluteValue >= 1_000) {
+    return `${sign}$${(absoluteValue / 1_000).toFixed(1)}K`;
+  }
+
+  return currencyFormatter.format(value);
+}
+
 function formatBreakEvenLabel(paybackMonths: number | null) {
   if (paybackMonths === null) return 'Not in hold';
   if (paybackMonths <= 0) return '0 mo';
@@ -697,11 +809,20 @@ function ModelBar({
   );
 }
 
-function CashFlowGraph({ points, compact = false }: { points: { year: number; value: number }[]; compact?: boolean }) {
-  const yAxisLabelId = useId();
-  const width = 100;
-  const height = compact ? 78 : 100;
-  const padding = compact ? 6 : 8;
+function CashFlowGraph({
+  points,
+  compact = false,
+  expanded = false
+}: {
+  points: { year: number; value: number }[];
+  compact?: boolean;
+  expanded?: boolean;
+}) {
+  const chartId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const width = expanded ? 320 : compact ? 160 : 190;
+  const height = expanded ? 150 : compact ? 72 : 92;
+  const padding = expanded ? 12 : compact ? 8 : 10;
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
@@ -727,29 +848,49 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
     };
   });
 
-  const barGap = Math.max(points.length - 1, 1);
-  const stepX = chartWidth / barGap;
-  const barWidth = Math.max(Math.min(stepX * 0.62, compact ? 5 : 6), compact ? 1.8 : 2.25);
-
-  const bars = points.map((point, index) => {
+  const pointGap = Math.max(points.length - 1, 1);
+  const stepX = chartWidth / pointGap;
+  const chartPoints = points.map((point, index) => {
     const xCenter = points.length <= 1 ? width / 2 : padding + index * stepX;
     const valueY = toY(point.value);
-    const barTop = Math.min(valueY, zeroY);
-    const barHeight = Math.max(Math.abs(zeroY - valueY), 1);
 
     return {
       ...point,
       x: xCenter,
-      barTop,
-      barHeight,
-      isPositive: point.value >= 0,
+      y: valueY,
       index
     };
   });
+  const linePath = buildLinePath(chartPoints);
+  const chartBottomY = height - padding;
+  const areaPath =
+    chartPoints.length > 0
+      ? `${linePath} L ${chartPoints[chartPoints.length - 1].x} ${chartBottomY} L ${chartPoints[0].x} ${chartBottomY} Z`
+      : '';
+  const activePoint = hoveredPointIndex === null ? null : chartPoints[hoveredPointIndex] ?? null;
+  const tooltipLabel = activePoint ? `${formatYearLabel(activePoint.year)}: ${expanded ? currencyFormatter.format(activePoint.value) : formatCompactChartCurrency(activePoint.value)}` : '';
+  const tooltipWidth = expanded ? 74 : compact ? 54 : 62;
+  const tooltipHeight = expanded ? 13 : 12;
+  const tooltipX = activePoint
+    ? Math.max(padding, Math.min(activePoint.x + 4, width - padding - tooltipWidth))
+    : 0;
+  const tooltipY = activePoint
+    ? Math.max(padding + 1, activePoint.y - tooltipHeight - 4)
+    : 0;
+  const verticalGridPoints = chartPoints.filter((point, index) => {
+    if (expanded) return true;
+    if (index === 0 || index === chartPoints.length - 1) return true;
+    return index % Math.max(Math.ceil(chartPoints.length / 5), 1) === 0;
+  });
+  const finalValue = chartPoints.at(-1)?.value ?? 0;
+  const toneClassName = finalValue >= 0 ? 'cash-flow-chart-positive-tone' : 'cash-flow-chart-negative-tone';
+  const lineGradientId = `${chartId}-line`;
+  const areaGradientId = `${chartId}-area`;
+  const glowFilterId = `${chartId}-glow`;
 
   return (
     <div className={compact ? 'space-y-1' : 'space-y-2'}>
-      <div className={`cash-flow-chart-shell rounded-lg border ${compact ? 'p-0' : 'p-2 sm:p-2.5'}`}>
+      <div className={`cash-flow-chart-shell ${toneClassName} rounded-lg border ${compact ? 'p-0' : 'p-2 sm:p-2.5'} ${expanded ? 'cash-flow-chart-shell-expanded' : ''}`}>
         {!compact ? (
           <div className="mb-1 flex items-center justify-between text-[10px] text-muted">
             <p className="pl-0.5">Annual cash flow</p>
@@ -769,12 +910,30 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
 
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className={compact ? 'h-24 w-full' : 'h-40 w-full sm:h-44'}
+            className="cash-flow-line-svg"
             role="img"
-            aria-labelledby={yAxisLabelId}
-            preserveAspectRatio="none"
+            aria-label="Cash flow trend chart"
+            preserveAspectRatio="xMidYMid meet"
           >
-            <title id={yAxisLabelId}>Cash flow operating-year bar chart with zoomed annual cash flow axis</title>
+            <defs>
+              <linearGradient id={lineGradientId} x1="0" y1="0" x2="100" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="var(--cash-flow-chart-line-start)" />
+                <stop offset="58%" stopColor="var(--cash-flow-chart-line-mid)" />
+                <stop offset="100%" stopColor="var(--cash-flow-chart-line-end)" />
+              </linearGradient>
+              <linearGradient id={areaGradientId} x1="0" y1={padding} x2="0" y2={height - padding} gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="var(--cash-flow-chart-area-start)" />
+                <stop offset="58%" stopColor="var(--cash-flow-chart-area-mid)" />
+                <stop offset="100%" stopColor="var(--cash-flow-chart-area-end)" />
+              </linearGradient>
+              <filter id={glowFilterId} x="-25%" y="-35%" width="150%" height="170%">
+                <feGaussianBlur stdDeviation={compact ? '1.5' : '2.2'} result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
 
             {yTicks.map((tick) => (
               <line
@@ -789,51 +948,120 @@ function CashFlowGraph({ points, compact = false }: { points: { year: number; va
               />
             ))}
 
-            {bars.map((bar) => (
-              <g key={`${bar.year}-${bar.value}-${bar.index}`}>
+            {verticalGridPoints.map((point) => (
+              <line
+                key={`vertical-grid-${point.year}-${point.index}`}
+                x1={point.x}
+                x2={point.x}
+                y1={padding}
+                y2={height - padding}
+                stroke="var(--cash-flow-chart-grid)"
+                strokeWidth="0.65"
+                opacity="0.78"
+              />
+            ))}
+
+            {areaPath ? <path d={areaPath} fill={`url(#${areaGradientId})`} opacity="0.9" /> : null}
+            {linePath ? (
+              <>
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke="var(--cash-flow-chart-glow)"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={expanded ? 5.6 : compact ? 3.7 : 4.6}
+                  opacity={expanded ? 0.2 : 0.23}
+                  filter={`url(#${glowFilterId})`}
+                />
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke={`url(#${lineGradientId})`}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={expanded ? 2.05 : compact ? 1.55 : 2.1}
+                  filter={`url(#${glowFilterId})`}
+                />
+              </>
+            ) : null}
+
+            {chartPoints.map((point) => {
+              const isFinalPoint = point.index === chartPoints.length - 1;
+              const isActivePoint = hoveredPointIndex === point.index;
+              const dotRadius = isActivePoint
+                ? expanded ? 2.95 : compact ? 2.35 : 2.65
+                : isFinalPoint ? (expanded ? 2.35 : compact ? 1.85 : 2.25) : expanded ? 1.25 : compact ? 0.82 : 1.1;
+
+              return (
+                <g
+                  key={`${point.year}-${point.value}-${point.index}`}
+                  className="cash-flow-chart-point"
+                  onMouseEnter={() => setHoveredPointIndex(point.index)}
+                  onMouseLeave={() => setHoveredPointIndex(null)}
+                  onFocus={() => setHoveredPointIndex(point.index)}
+                  onBlur={() => setHoveredPointIndex(null)}
+                  aria-label={`${formatYearLabel(point.year)} cash flow ${currencyFormatter.format(point.value)}`}
+                >
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={expanded ? 5.2 : compact ? 4.1 : 4.6}
+                    fill="transparent"
+                    pointerEvents="all"
+                  />
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={dotRadius}
+                    fill="var(--cash-flow-chart-dot)"
+                    stroke="var(--cash-flow-chart-dot-ring)"
+                    strokeWidth={isFinalPoint || isActivePoint ? 0.7 : 0.45}
+                    opacity={isFinalPoint || isActivePoint ? 1 : 0.78}
+                    filter={isActivePoint ? `url(#${glowFilterId})` : undefined}
+                  />
+                  <text
+                    x={point.x}
+                    y={height - 3}
+                    textAnchor="middle"
+                    style={{ fill: 'var(--cash-flow-chart-axis)', fontSize: compact ? '3.4px' : '4.4px' }}
+                  >
+                    {point.year}
+                  </text>
+                </g>
+              );
+            })}
+
+            {activePoint ? (
+              <g className="cash-flow-chart-tooltip" pointerEvents="none">
                 <rect
-                  x={bar.x - barWidth / 2}
-                  y={bar.barTop}
-                  width={barWidth}
-                  height={bar.barHeight}
-                  rx="1.4"
-                  fill={bar.isPositive ? 'var(--cash-flow-chart-positive)' : 'var(--cash-flow-chart-negative)'}
-                  opacity={bar.year === 0 ? 0.85 : 1}
-                >
-                  <animate
-                    attributeName="height"
-                    from="0"
-                    to={String(bar.barHeight)}
-                    dur="0.55s"
-                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
-                    fill="freeze"
-                  />
-                  <animate
-                    attributeName="y"
-                    from={String(zeroY)}
-                    to={String(bar.barTop)}
-                    dur="0.55s"
-                    begin={`${Math.min(bar.index * 0.03, 0.36)}s`}
-                    fill="freeze"
-                  />
-                </rect>
+                  x={tooltipX}
+                  y={tooltipY}
+                  width={tooltipWidth}
+                  height={tooltipHeight}
+                  rx="3"
+                />
                 <text
-                  x={bar.x}
-                  y={height - 3}
+                  x={tooltipX + tooltipWidth / 2}
+                  y={tooltipY + (expanded ? 8.7 : 8.2)}
                   textAnchor="middle"
-                  style={{ fill: 'var(--cash-flow-chart-axis)', fontSize: compact ? '3.4px' : '4.4px' }}
+                  style={{ fontSize: expanded ? '4.6px' : compact ? '3.7px' : '4.1px' }}
                 >
-                  {bar.year}
+                  {tooltipLabel}
                 </text>
               </g>
-            ))}
+            ) : null}
           </svg>
         </div>
       </div>
 
-      <div className={`flex items-center justify-end ${compact ? 'text-[10px]' : 'text-[11px]'} text-muted`}>
-        <span>Year {Math.max(points.at(-1)?.year ?? 1, 1)}</span>
-      </div>
     </div>
   );
+}
+
+function buildLinePath(points: { x: number; y: number }[]) {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 }

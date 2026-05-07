@@ -111,7 +111,7 @@ import { encodeDealToShareParam } from '../lib/share-link';
 
 const getStrategyButton = (label: string) =>
   within(screen.getByLabelText('Desktop strategy selector')).getByRole('button', { name: label });
-const getStrategyInputsWorkspace = () => screen.getByLabelText('Rents/Inputs workspace');
+const getStrategyInputsWorkspace = () => screen.getByLabelText('Strategy workspace');
 const setViewport = (width: number) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -370,14 +370,14 @@ describe('dashboard integration', () => {
     await user.click(strategyTab);
 
     expect(strategyTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('heading', { name: 'Rents/Inputs' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Strategy' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
 
     await user.click(irrTab);
 
     expect(irrTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'IRR and timeline inputs' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Rents/Inputs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Strategy' })).not.toBeInTheDocument();
   });
 
   it('opens recent deals from the compact header', async () => {
@@ -1517,6 +1517,22 @@ describe('dashboard integration', () => {
     expect(within(board).getAllByText('Total Invested').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Modeled Exit').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Cash flow trend').length).toBeGreaterThan(0);
+  });
+
+  it('opens expanded cash flow trend details from a desktop projection card', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const board = screen.getByLabelText('Strategy comparison board');
+
+    await user.click(within(board).getAllByRole('button', { name: /Open .* cash flow trend details/i })[0]);
+
+    const dialog = screen.getByRole('dialog', { name: /cash flow trend details/i });
+    expect(within(dialog).getByText('Total cash flow')).toBeInTheDocument();
+    expect(within(dialog).getByText('Average / year')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/Year \d+/).length).toBeGreaterThan(0);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: /cash flow trend details/i })).not.toBeInTheDocument();
   });
 
   it('filters the desktop projections board per deal from local board controls', async () => {
