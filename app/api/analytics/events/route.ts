@@ -9,6 +9,7 @@ const MAX_RELEASE_LENGTH = 120;
 const allowedEventNamePattern = /^[a-z0-9_:. -]{2,80}$/;
 const allowedEventNames = new Set([
   'app_opened',
+  'deal_review_requested',
   'feedback_sent',
   'pwa_installed',
   'pwa_install_prompt_accepted',

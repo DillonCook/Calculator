@@ -14,35 +14,39 @@ const sections = [
     body: 'The Service provides analytical estimates for educational and informational purposes only. It does not constitute financial, legal, accounting, or tax advice. You are solely responsible for independent diligence and consulting qualified professionals before making decisions.'
   },
   {
-    title: '4. User Responsibilities',
+    title: '4. Deal Review Requests',
+    body: 'Deal review requests are optional follow-up requests based on the information you submit. A licensed real estate broker or local review partner may review the submitted deal details, but any response remains informational and does not replace your independent diligence or professional advice.'
+  },
+  {
+    title: '5. User Responsibilities',
     body: 'You agree to provide accurate input data, comply with all applicable laws, and refrain from attempting to disrupt or abuse the Service. You are responsible for your account security, devices, and any exported or shared data.'
   },
   {
-    title: '5. Disclaimer of Warranties',
+    title: '6. Disclaimer of Warranties',
     body: 'The Service is provided "as is" and "as available" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, non-infringement, availability, or accuracy of projections.'
   },
   {
-    title: '6. Limitation of Liability',
+    title: '7. Limitation of Liability',
     body: 'To the fullest extent permitted by law, Dillon Cook shall not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, revenue, data, goodwill, or business opportunities arising from your use of the Service.'
   },
   {
-    title: '7. Indemnification',
+    title: '8. Indemnification',
     body: 'You agree to defend, indemnify, and hold harmless Dillon Cook from claims, liabilities, damages, and expenses arising from your use of the Service, violation of these Terms, or violation of law.'
   },
   {
-    title: '8. Feedback',
+    title: '9. Feedback',
     body: 'If you submit feedback, suggestions, bug reports, or ideas, you grant Dillon Cook the right to use them to improve, modify, market, operate, or support the Service without compensation or obligation to you.'
   },
   {
-    title: '9. Termination',
+    title: '10. Termination',
     body: 'We may suspend or terminate access to the Service at any time for misuse, legal risk, or operational reasons. Sections intended to survive termination remain effective.'
   },
   {
-    title: '10. Governing Law',
+    title: '11. Governing Law',
     body: 'These Terms are governed by applicable law in your operating jurisdiction, unless superseded by mandatory consumer protections.'
   },
   {
-    title: '11. Updates to Terms',
+    title: '12. Updates to Terms',
     body: 'We may revise these Terms from time to time. Continued use after updates means you accept the revised Terms.'
   }
 ];
@@ -54,7 +58,7 @@ export default function TermsPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Terms of Use</h1>
-          <p className="text-xs text-muted">Effective date: April 29, 2026</p>
+          <p className="text-xs text-muted">Effective date: May 7, 2026</p>
           <p className="text-sm text-muted">These terms help protect DealCooker, its owner, and the intellectual property behind the Service while setting clear user expectations.</p>
         </div>
 

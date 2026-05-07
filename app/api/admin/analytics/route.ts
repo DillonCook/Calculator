@@ -29,6 +29,21 @@ type ClientErrorRow = {
   metadata: Record<string, unknown> | null;
 };
 
+type FeedbackSubmissionRow = {
+  created_at: string;
+  status: string;
+  resend_email_id: string | null;
+  resend_status: number | null;
+  resend_error: string | null;
+  contact_name: string | null;
+  contact_email: string;
+  source: string | null;
+  viewport: string | null;
+  route: string | null;
+  app_release: string | null;
+  message: string;
+};
+
 const getBearerToken = (request: Request) => {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -189,6 +204,7 @@ export async function GET(request: Request) {
     'share_link_created',
     'share_link_opened',
     'print_opened',
+    'deal_review_requested',
     'feedback_sent'
   ];
 
@@ -196,15 +212,20 @@ export async function GET(request: Request) {
     usersResult,
     scenariosResult,
     sharesResult,
+    dealReviewRequestsResult,
+    feedbackSubmissionsCountResult,
     analyticsCountResult,
     analyticsResult,
     eventCountResults,
     errorsCountResult,
-    errorsResult
+    errorsResult,
+    feedbackSubmissionsResult
   ] = await Promise.all([
     listAllUsers(supabase),
     countTableRows(supabase, 'scenarios'),
     countTableRows(supabase, 'shares'),
+    countTableRowsSince(supabase, 'deal_review_requests', since30),
+    countTableRowsSince(supabase, 'feedback_submissions', since30),
     countTableRowsSince(supabase, 'analytics_events', since30),
     supabase
       .from('analytics_events')
@@ -219,12 +240,19 @@ export async function GET(request: Request) {
       .select('created_at, severity, source, operation, message, stack, route, release, metadata')
       .gte('created_at', since7.toISOString())
       .order('created_at', { ascending: false })
-      .limit(1000)
+      .limit(1000),
+    supabase
+      .from('feedback_submissions')
+      .select('created_at, status, resend_email_id, resend_status, resend_error, contact_name, contact_email, source, viewport, route, app_release, message')
+      .gte('created_at', since30.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(25)
   ]);
 
   const analyticsEvents = analyticsResult.error ? [] : ((analyticsResult.data ?? []) as AnalyticsEventRow[]);
   const errors = errorsResult.error ? [] : ((errorsResult.data ?? []) as ClientErrorRow[]);
   const recentErrors = errors.slice(0, 25);
+  const recentFeedback = feedbackSubmissionsResult.error ? [] : ((feedbackSubmissionsResult.data ?? []) as FeedbackSubmissionRow[]);
   const eventCounts = new Map(
     eventCountResults.filter((result) => !result.error).map((result) => [result.eventName, result.count])
   );
@@ -260,13 +288,16 @@ export async function GET(request: Request) {
         usersResult.error ? `Unable to list auth users: ${usersResult.error}` : null,
         scenariosResult.error ? `Unable to count scenarios: ${scenariosResult.error}` : null,
         sharesResult.error ? `Unable to count shares: ${sharesResult.error}` : null,
+        dealReviewRequestsResult.error ? `Unable to count deal review requests: ${dealReviewRequestsResult.error}` : null,
+        feedbackSubmissionsCountResult.error ? `Unable to count stored feedback submissions: ${feedbackSubmissionsCountResult.error}` : null,
         analyticsCountResult.error ? `Unable to count analytics events: ${analyticsCountResult.error}` : null,
         analyticsResult.error ? `Analytics table is not ready: ${analyticsResult.error.message}` : null,
         analyticsEvents.length >= 10000 ? 'Recent analytics sample hit 10,000 rows. Headline counts are exact, but charts and recent-event lists may be sampled.' : null,
         ...eventCountWarnings,
         errorsCountResult.error ? `Unable to count client errors: ${errorsCountResult.error}` : null,
         errorsResult.error ? `Unable to load client errors: ${errorsResult.error.message}` : null,
-        errors.length >= 1000 ? 'Recent client-error sample hit 1,000 rows. Error patterns may be sampled.' : null
+        errors.length >= 1000 ? 'Recent client-error sample hit 1,000 rows. Error patterns may be sampled.' : null,
+        feedbackSubmissionsResult.error ? `Unable to load stored feedback submissions: ${feedbackSubmissionsResult.error.message}` : null
       ].filter(Boolean),
       metrics: {
         totalUserAccounts: users.length,
@@ -295,7 +326,12 @@ export async function GET(request: Request) {
         shareLinksCreated30d: eventCounts.get('share_link_created') ?? eventCount(analyticsEvents, 'share_link_created'),
         shareLinksOpened30d: eventCounts.get('share_link_opened') ?? eventCount(analyticsEvents, 'share_link_opened'),
         printOpens30d: eventCounts.get('print_opened') ?? eventCount(analyticsEvents, 'print_opened'),
-        feedbackSent30d: eventCounts.get('feedback_sent') ?? eventCount(analyticsEvents, 'feedback_sent'),
+        dealReviewRequests30d: dealReviewRequestsResult.error
+          ? eventCounts.get('deal_review_requested') ?? eventCount(analyticsEvents, 'deal_review_requested')
+          : dealReviewRequestsResult.count,
+        feedbackSent30d: feedbackSubmissionsCountResult.error
+          ? eventCounts.get('feedback_sent') ?? eventCount(analyticsEvents, 'feedback_sent')
+          : feedbackSubmissionsCountResult.count,
         clientErrors7d: errorsCountResult.error ? errors.length : errorsCountResult.count
       },
       charts: {
@@ -316,6 +352,7 @@ export async function GET(request: Request) {
         release: event.release,
         signedIn: Boolean(event.user_id)
       })),
+      recentFeedback,
       recentErrors
     },
     { headers: { 'Cache-Control': 'no-store' } }

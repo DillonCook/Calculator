@@ -74,6 +74,8 @@ type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
 type FeedbackSource = 'settings' | 'reminder';
 type FeedbackSubmitState = 'idle' | 'sending' | 'sent' | 'error';
 type FeedbackViewport = 'desktop' | 'mobile';
+type DealReviewSubmitState = 'idle' | 'sending' | 'sent' | 'error';
+type DealReviewSource = 'desktop_header' | 'mobile_header';
 type HeadlineMetricId =
   | 'cashToClose'
   | 'capRate'
@@ -129,6 +131,8 @@ const FEEDBACK_LAST_SENT_OPEN_COUNT_STORAGE_KEY = 'dealcooker-feedback-last-sent
 const SHARE_IMPORT_NOTICE_STORAGE_KEY = 'dealcooker-share-imported:v1';
 const FEEDBACK_PROMPT_DELAY_MS = 3000;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
+const DEAL_REVIEW_NOTES_MAX_LENGTH = 1800;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SAMPLE_DEAL_NAME = 'Tampa Duplex - Sample Deal';
 const anonymousDealLimitMessage = `Sign in to save more than ${ANONYMOUS_DEAL_LIMIT} deals. You can still open, edit, export, or delete existing saved deals.`;
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
@@ -168,6 +172,17 @@ const quickScanDetails: Record<StrategyKey, string[]> = {
     'Timeline discipline and exit pricing accuracy are the core profit levers.'
   ]
 };
+
+const dealReviewFocusOptions = [
+  'Purchase decision',
+  'Offer price',
+  'Rent assumptions',
+  'Rehab budget',
+  'Financing structure',
+  'Strategy fit',
+  'Exit value',
+  'General review'
+];
 
 const getViewportStorageKey = (baseKey: string, viewport: FeedbackViewport) => `${baseKey}:${viewport}`;
 
@@ -745,6 +760,17 @@ export default function HomePage() {
   const [feedbackDraft, setFeedbackDraft] = useState('');
   const [feedbackSubmitState, setFeedbackSubmitState] = useState<FeedbackSubmitState>('idle');
   const [feedbackSubmitMessage, setFeedbackSubmitMessage] = useState<string | null>(null);
+  const [isDealReviewOpen, setIsDealReviewOpen] = useState(false);
+  const [dealReviewName, setDealReviewName] = useState('');
+  const [dealReviewEmail, setDealReviewEmail] = useState('');
+  const [dealReviewPhone, setDealReviewPhone] = useState('');
+  const [dealReviewMarket, setDealReviewMarket] = useState('');
+  const [dealReviewFocus, setDealReviewFocus] = useState(dealReviewFocusOptions[0]);
+  const [dealReviewNotes, setDealReviewNotes] = useState('');
+  const [dealReviewConsent, setDealReviewConsent] = useState(false);
+  const [dealReviewSource, setDealReviewSource] = useState<DealReviewSource>('desktop_header');
+  const [dealReviewSubmitState, setDealReviewSubmitState] = useState<DealReviewSubmitState>('idle');
+  const [dealReviewSubmitMessage, setDealReviewSubmitMessage] = useState<string | null>(null);
   const [isDealIdentityOpen, setIsDealIdentityOpen] = useState(false);
   const [isDesktopDealVaultOpen, setIsDesktopDealVaultOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1433,7 +1459,7 @@ export default function HomePage() {
     }
   ];
   const activeDealDisplayName = model.purchase.dealName || 'New Deal';
-  const isHeaderModalOpen = isStrategyWorkOpen || isDealIdentityOpen || isDesktopDealVaultOpen || compactSheetView !== null;
+  const isHeaderModalOpen = isStrategyWorkOpen || isDealIdentityOpen || isDesktopDealVaultOpen || isDealReviewOpen || compactSheetView !== null;
   const headerChromeMutedClass = isHeaderModalOpen
     ? 'pointer-events-none select-none blur-[6px] opacity-30 saturate-[0.7] transition duration-200 ease-out'
     : 'transition duration-200 ease-out';
@@ -3520,6 +3546,134 @@ export default function HomePage() {
     triggerHapticFeedback('light');
   };
 
+  const openDealReviewRequest = (source: DealReviewSource = 'desktop_header') => {
+    const contact = getFeedbackContactFromUser(currentUser);
+    setDealReviewName(contact.name);
+    setDealReviewEmail(contact.email);
+    setDealReviewPhone(contact.phone);
+    setDealReviewMarket('');
+    setDealReviewFocus(dealReviewFocusOptions[0]);
+    setDealReviewNotes('');
+    setDealReviewConsent(false);
+    setDealReviewSource(source);
+    setDealReviewSubmitState('idle');
+    setDealReviewSubmitMessage(null);
+    setIsAuthMenuOpen(false);
+    setIsSettingsOpen(false);
+    setCompactSheetView(null);
+    setIsDealReviewOpen(true);
+    triggerHapticFeedback('light');
+  };
+
+  const closeDealReviewRequest = () => {
+    if (dealReviewSubmitState === 'sending') return;
+    setIsDealReviewOpen(false);
+  };
+
+  const submitDealReviewRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (dealReviewSubmitState === 'sending') return;
+
+    const email = dealReviewEmail.trim();
+    const name = dealReviewName.trim();
+    const phone = dealReviewPhone.trim();
+    const market = dealReviewMarket.trim();
+    const notes = dealReviewNotes.trim();
+
+    if (!email || !emailPattern.test(email)) {
+      setDealReviewSubmitState('error');
+      setDealReviewSubmitMessage('Add a valid email so the reviewer can follow up.');
+      return;
+    }
+
+    if (!dealReviewConsent) {
+      setDealReviewSubmitState('error');
+      setDealReviewSubmitMessage('Confirm that this deal and your contact details can be shared for review.');
+      return;
+    }
+
+    setDealReviewSubmitState('sending');
+    setDealReviewSubmitMessage(null);
+
+    try {
+      const route = typeof window === 'undefined' ? appUrl : `${window.location.origin}${window.location.pathname}`;
+      const response = await fetch('/api/deal-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact: {
+            name,
+            email,
+            phone
+          },
+          request: {
+            market,
+            reviewFocus: dealReviewFocus,
+            notes,
+            consentAccepted: dealReviewConsent
+          },
+          deal: {
+            dealName: activeDealDisplayName,
+            listingUrl: model.purchase.listingUrl ? normalizeListingUrl(model.purchase.listingUrl) : '',
+            activeStrategy,
+            activeStrategyLabel,
+            purchase: {
+              purchasePrice: model.purchase.purchasePrice,
+              rehabBudget: model.purchase.rehabBudget,
+              arv: model.purchase.arv
+            },
+            result: {
+              monthlyCashFlow: activeOutput.monthlyCashFlow,
+              totalCashNeeded: activeOutput.totalCashNeeded,
+              cashOnCashReturn: activeOutput.cashOnCashReturn,
+              roi: activeOutput.roi,
+              irr: activeOutput.irr,
+              dscr: activeOutput.dscr
+            },
+            snapshot: attachDealUiState(model)
+          },
+          context: {
+            source: dealReviewSource,
+            route,
+            appRelease: appReleaseLabel,
+            userAgent: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
+            signedIn: Boolean(currentUser),
+            userId: currentUser?.id ?? null,
+            activeDeal: activeDealDisplayName,
+            activeDealId: activeDealId || null,
+            activeStrategy,
+            projectionStrategies: compactSelectedStrategies,
+            savedDealCount: deals.length
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await getFeedbackSubmitErrorMessage(response));
+      }
+
+      setDealReviewSubmitState('sent');
+      setDealReviewSubmitMessage('Deal review request sent.');
+      triggerHapticFeedback('light');
+      void trackAnalyticsEvent('deal_review_requested', {
+        source: dealReviewSource,
+        activeStrategy,
+        signedIn: Boolean(currentUser?.id),
+        hasListingUrl: Boolean(model.purchase.listingUrl)
+      });
+    } catch (error) {
+      reportClientError({
+        source: 'deal-review',
+        operation: 'submit',
+        severity: 'error',
+        message: toClientErrorMessage(error),
+        userId: currentUser?.id ?? null
+      });
+      setDealReviewSubmitState('error');
+      setDealReviewSubmitMessage(toClientErrorMessage(error) || 'Deal review request could not be sent. Try again in a moment.');
+    }
+  };
+
   const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (feedbackSubmitState === 'sending') return;
@@ -3848,7 +4002,88 @@ export default function HomePage() {
       </Link>
     ) : null;
 
-  const settingsMenuContent = (
+  const renderSettingsActionsSection = ({ includeListingAction = false }: { includeListingAction?: boolean } = {}) => (
+    <div className="settings-section settings-section-actions space-y-1.5">
+      <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Actions</p>
+      <div className="settings-action-stack grid gap-2">
+        {includeListingAction && model.purchase.listingUrl ? (
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback('light');
+              window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer');
+            }}
+            className="tap-feedback section-action section-action-utility btn-listing-active inline-flex w-full items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-100"
+          >
+            <span>View listing</span>
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => openFeedbackComposer('settings')}
+          className="btn-primary btn-new-deal tap-feedback settings-feedback-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
+        >
+          Send feedback
+        </button>
+        <Link
+          href="/help"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            setIsSettingsOpen(false);
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Help &amp; methodology
+        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            loadSampleDeal();
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Load sample deal
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            replayQuickTutorial();
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Replay quick tutorial
+        </button>
+        {!isPwaInstalled && isMobileViewport ? (
+          <button
+            type="button"
+            onClick={openInstallPromptFromSettings}
+            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+          >
+            Download the app!
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('medium');
+            resetOutputOrderingPreferences();
+            resetSettingsDefaults();
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Reset settings and order
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSettingsMenuContent = ({ includeActions = true }: { includeActions?: boolean } = {}) => (
     <div className="settings-panel settings-panel-layout">
       <div className="settings-section settings-section-defaults space-y-1.5">
         <p className="settings-section-kicker text-[11px] uppercase tracking-wide">New Deal Defaults</p>
@@ -4020,68 +4255,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="settings-section settings-section-actions space-y-1.5">
-        <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Actions</p>
-        <div className="settings-action-stack grid gap-2">
-          <button
-            type="button"
-            onClick={() => openFeedbackComposer('settings')}
-            className="btn-primary btn-new-deal tap-feedback settings-feedback-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
-          >
-            Send feedback
-          </button>
-          <Link
-            href="/help"
-            onClick={() => {
-              triggerHapticFeedback('light');
-              setIsSettingsOpen(false);
-            }}
-            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-          >
-            Help &amp; methodology
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticFeedback('light');
-              loadSampleDeal();
-            }}
-            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-          >
-            Load sample deal
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticFeedback('light');
-              replayQuickTutorial();
-            }}
-            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-          >
-            Replay quick tutorial
-          </button>
-          {!isPwaInstalled && isMobileViewport ? (
-            <button
-              type="button"
-              onClick={openInstallPromptFromSettings}
-              className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-            >
-              Download the app!
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticFeedback('medium');
-              resetOutputOrderingPreferences();
-              resetSettingsDefaults();
-            }}
-            className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
-          >
-            Reset settings and order
-          </button>
-        </div>
-      </div>
+      {includeActions ? renderSettingsActionsSection() : null}
     </div>
   );
 
@@ -4333,53 +4507,9 @@ export default function HomePage() {
 
   const headlineMetricSection = (
     <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
-      <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-        {isFlipStrategy ? (
+      {isFlipStrategy ? (
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
           <span className="dashboard-meta text-[11px]">Flip-specific KPIs</span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsHeadlineMetricOrderEditorOpen((prev) => !prev)}
-            className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
-          >
-            {isHeadlineMetricOrderEditorOpen ? 'Done' : 'Reorder'}
-          </button>
-        )}
-      </div>
-
-      {isHeadlineMetricOrderEditorOpen && !isFlipStrategy ? (
-        <div className="section-inner mb-3 space-y-1 rounded-lg p-2">
-          {orderedHeadlineMetricIds.map((metricId, index) => {
-            const metricLabel = headlineMetricOptions.find((option) => option.id === metricId)?.label ?? metricId;
-
-            return (
-              <div key={`kpi-order-${metricId}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-                <p className="truncate text-xs text-slate-200">
-                  {index + 1}. {metricLabel}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label={`Move ${metricLabel} up`}
-                    onClick={() => moveHeadlineMetricItem(index, index - 1)}
-                    disabled={index === 0}
-                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                  >
-                    Up
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move ${metricLabel} down`}
-                    onClick={() => moveHeadlineMetricItem(index, index + 1)}
-                    disabled={index === orderedHeadlineMetricIds.length - 1}
-                    className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                  >
-                    Down
-                  </button>
-                </div>
-              </div>
-            );
-          })}
         </div>
       ) : null}
 
@@ -4425,6 +4555,37 @@ export default function HomePage() {
     'grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(36rem,1.1fr)] 2xl:grid-cols-[minmax(0,0.84fr)_minmax(40rem,1.16fr)]';
   const desktopUtilityButtonClassName =
     'header-utility-button tap-feedback shrink-0';
+  const renderDealReviewIcon = (idPrefix: string) => {
+    const gradientId = `${idPrefix}-gradient`;
+    const shapeId = `${idPrefix}-shape`;
+
+    return (
+      <svg viewBox="0 0 20 20" className="deal-review-icon h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.55" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradientId} x1="-4" y1="2" x2="24" y2="18" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#2f95ff" />
+            <stop offset="36%" stopColor="#77c7ff" />
+            <stop offset="62%" stopColor="#fb8b23" />
+            <stop offset="100%" stopColor="#ffd09c" />
+            <animateTransform attributeName="gradientTransform" type="translate" values="-10 0; 10 0; -10 0" dur="2.4s" repeatCount="indefinite" />
+          </linearGradient>
+          <g id={shapeId}>
+            <path d="M4.5 5.25h7.25a2.75 2.75 0 0 1 2.75 2.75v6.25H7.25A2.75 2.75 0 0 1 4.5 11.5V5.25Z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7 8h5M7 10.5h3.25" strokeLinecap="round" />
+            <path d="M13.25 4.25 14 2.75l.75 1.5 1.5.75-1.5.75L14 7.25l-.75-1.5-1.5-.75 1.5-.75Z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="m12.75 14.25 2 2 3.25-4" strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        </defs>
+        <use className="deal-review-icon-stroke-base" href={`#${shapeId}`} />
+        <use className="deal-review-icon-stroke-gradient" href={`#${shapeId}`} stroke={`url(#${gradientId})`} />
+        <g className="deal-review-icon-sparkles" fill="currentColor" stroke="none">
+          <circle className="deal-review-icon-spark deal-review-icon-spark-1" cx="16.6" cy="4.1" r="0.55" />
+          <circle className="deal-review-icon-spark deal-review-icon-spark-2" cx="5.6" cy="3.7" r="0.42" />
+          <circle className="deal-review-icon-spark deal-review-icon-spark-3" cx="17.2" cy="15.7" r="0.48" />
+        </g>
+      </svg>
+    );
+  };
 
   const desktopPerformanceDashboard = (
     <div ref={desktopCompareSectionRef} className="[overflow-anchor:none]">
@@ -4861,46 +5022,6 @@ export default function HomePage() {
 
       <MobileSheet open={compactSheetView === 'menu'} title="Settings" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => {
-                setCompactSheetView(null);
-                void shareCurrentDeal('mobile-menu-trigger');
-              }}
-              className="btn-primary rounded-xl px-4 py-3 text-sm font-semibold"
-            >
-              Send link
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                triggerHapticFeedback('light');
-                void trackAnalyticsEvent('print_opened', { surface: 'mobile_menu', strategy: activeStrategy });
-                window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
-              }}
-                className="tap-feedback section-action section-action-utility rounded-xl px-4 py-3 text-sm font-medium text-slate-100"
-              >
-              Print to PDF
-            </button>
-            {model.purchase.listingUrl ? (
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHapticFeedback('light');
-                  window.open(normalizeListingUrl(model.purchase.listingUrl), '_blank', 'noopener,noreferrer');
-                }}
-                className="tap-feedback section-action section-action-utility btn-listing-active inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-slate-100"
-              >
-                <span>View listing</span>
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                  <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
-                </svg>
-              </button>
-            ) : null}
-          </div>
-
           <section className="section-shell section-shell-utility rounded-2xl p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -4933,8 +5054,12 @@ export default function HomePage() {
           </section>
 
           <section className="settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
+            {renderSettingsActionsSection({ includeListingAction: true })}
+          </section>
+
+          <section className="settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
             <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted">Settings</p>
-            {settingsMenuContent}
+            {renderSettingsMenuContent({ includeActions: false })}
           </section>
         </div>
       </MobileSheet>
@@ -5185,6 +5310,196 @@ export default function HomePage() {
     </div>
   ) : null;
 
+  const dealReviewDialog = isDealReviewOpen ? (
+    <div
+      className="feedback-reminder-backdrop fixed inset-0 z-[235] flex items-start justify-center px-4 py-5 sm:items-center"
+      role="presentation"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top), 1.25rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1.25rem)'
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deal-review-title"
+        className="feedback-reminder-panel deal-review-panel max-h-[calc(100dvh-2.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl p-4 shadow-soft sm:p-5"
+      >
+        <form className="space-y-4" onSubmit={submitDealReviewRequest}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="settings-section-kicker text-[11px] uppercase tracking-wide">Deal review</p>
+              <h2 id="deal-review-title" className="mt-1 text-lg font-semibold">
+                Request a second opinion
+              </h2>
+              <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
+                Send this deal snapshot for a practical review of your assumptions, offer range, and strategy fit.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeDealReviewRequest}
+              className="tap-feedback section-action section-action-utility inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
+              aria-label="Close deal review request"
+            >
+              X
+            </button>
+          </div>
+
+          <section className="section-inner rounded-xl px-3 py-2.5">
+            <div className="grid gap-2 text-xs text-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-100">{activeDealDisplayName}</p>
+                <p className="mt-0.5 truncate">Active strategy: {activeStrategyLabel}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <span className="dashboard-pill">{currencyFormatter.format(activeOutput.totalCashNeeded)} needed</span>
+                <span className="dashboard-pill">{currencyFormatter.format(activeOutput.monthlyCashFlow)}/mo</span>
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Name</span>
+              <input
+                aria-label="Name"
+                value={dealReviewName}
+                onChange={(event) => {
+                  setDealReviewName(event.target.value);
+                  if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+                }}
+                className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                placeholder="Your name"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Email</span>
+              <input
+                aria-label="Email"
+                type="email"
+                value={dealReviewEmail}
+                onChange={(event) => {
+                  setDealReviewEmail(event.target.value);
+                  if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+                }}
+                className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Phone</span>
+              <input
+                aria-label="Phone"
+                value={dealReviewPhone}
+                onChange={(event) => {
+                  setDealReviewPhone(event.target.value);
+                  if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+                }}
+                className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                placeholder="Optional"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="settings-section-label text-[11px]">Market / location</span>
+              <input
+                aria-label="Market / location"
+                value={dealReviewMarket}
+                onChange={(event) => {
+                  setDealReviewMarket(event.target.value);
+                  if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+                }}
+                className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                placeholder="City, state, or ZIP"
+              />
+            </label>
+          </div>
+
+          <label className="block space-y-1.5">
+            <span className="settings-section-label text-[11px]">What should be reviewed?</span>
+            <select
+              aria-label="What should be reviewed?"
+              value={dealReviewFocus}
+              onChange={(event) => {
+                setDealReviewFocus(event.target.value);
+                if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+              }}
+              className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+            >
+              {dealReviewFocusOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="settings-section-label text-[11px]">Notes</span>
+            <textarea
+              aria-label="Notes"
+              value={dealReviewNotes}
+              onChange={(event) => {
+                setDealReviewNotes(event.target.value.slice(0, DEAL_REVIEW_NOTES_MAX_LENGTH));
+                if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+              }}
+              maxLength={DEAL_REVIEW_NOTES_MAX_LENGTH}
+              rows={4}
+              className="feedback-input min-h-28 w-full resize-y rounded-xl border px-3 py-2 text-sm outline-none"
+              placeholder="What decision are you trying to make?"
+            />
+            <span className="block text-right text-[10px] text-muted">
+              {dealReviewNotes.length}/{DEAL_REVIEW_NOTES_MAX_LENGTH}
+            </span>
+          </label>
+
+          <label className="section-inner-muted flex items-start gap-3 rounded-xl px-3 py-2.5 text-xs leading-relaxed text-muted">
+            <input
+              type="checkbox"
+              checked={dealReviewConsent}
+              onChange={(event) => {
+                setDealReviewConsent(event.target.checked);
+                if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
+              }}
+              className="mt-1 h-4 w-4 shrink-0 accent-[#fb8b23]"
+              required
+            />
+            <span>
+              Share this deal, contact info, and calculator inputs for review. A licensed real estate broker may review it and follow up; outside-market requests may be referred to a local review partner. This is not financial, legal, tax, or investment advice.
+            </span>
+          </label>
+
+          {dealReviewSubmitMessage ? (
+            <p
+              role="status"
+              className={`text-xs ${dealReviewSubmitState === 'sent' ? 'text-accent' : dealReviewSubmitState === 'error' ? 'text-red-300' : 'text-muted'}`}
+            >
+              {dealReviewSubmitMessage}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="submit"
+              disabled={dealReviewSubmitState === 'sending' || dealReviewSubmitState === 'sent'}
+              className="btn-primary btn-new-deal tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {dealReviewSubmitState === 'sending' ? 'Sending...' : dealReviewSubmitState === 'sent' ? 'Sent' : 'Send for review'}
+            </button>
+            <button
+              type="button"
+              onClick={closeDealReviewRequest}
+              className="tap-feedback section-action section-action-utility min-h-10 rounded-xl px-3 py-2 text-sm font-medium"
+            >
+              {dealReviewSubmitState === 'sent' ? 'Done' : 'Cancel'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  ) : null;
+
   const compactShell = (
     <>
       <section ref={mobileStrategyTabsRef} className="section-shell section-shell-input sticky top-2 z-30 space-y-2 rounded-2xl p-2 backdrop-blur">
@@ -5344,31 +5659,7 @@ export default function HomePage() {
               </div>
 
               <div className={headerChromeMutedClass}>
-                <button
-                  type="button"
-                  onClick={openDealIdentityEditor}
-                  className="tap-feedback section-inner w-full rounded-xl px-3 py-2 text-left"
-                  aria-label="Edit active deal details"
-                >
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Current Deal</p>
-                  <div className="mt-1 flex items-center justify-between gap-3">
-                    <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
-                    <span className="header-deal-chip shrink-0 rounded-full px-2 py-0.5 text-[11px]">
-                      Edit
-                    </span>
-                  </div>
-                </button>
-              </div>
-
-              <div className={headerChromeMutedClass}>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={launchNewDeal}
-                    className="btn-primary btn-new-deal rounded-xl px-3 py-2.5 text-sm font-semibold"
-                  >
-                    New deal
-                  </button>
+                <div className="mobile-header-deal">
                   <button
                     ref={compactDealsButtonRef}
                     type="button"
@@ -5376,9 +5667,116 @@ export default function HomePage() {
                       triggerHapticFeedback('light');
                       setCompactSheetView('deals');
                     }}
-                    className="tap-feedback section-action section-action-utility rounded-xl px-3 py-2.5 text-sm font-medium text-slate-100"
+                    className="tap-feedback mobile-header-deal-main"
+                    aria-label="Deal Vault"
                   >
-                    Deal Vault
+                    <div className="desktop-header-deal-copy">
+                      <p className="dashboard-kicker header-deal-meta">Deal Vault</p>
+                      <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
+                      <p className="header-deal-meta truncate text-[11px]">
+                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                      </p>
+                    </div>
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M7.5 4.5 12.5 10l-5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openDealIdentityEditor}
+                    className="header-utility-button tap-feedback mobile-header-edit-button shrink-0"
+                    aria-label="Edit active deal details"
+                    title="Edit active deal details"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M4.5 13.75V16h2.25l7-7-2.25-2.25-7 7Z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="m10.5 6.5 2.25 2.25" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className={headerChromeMutedClass}>
+                <div className="mobile-header-action-grid">
+                  <button
+                    type="button"
+                    onClick={launchNewDeal}
+                    className="btn-primary btn-new-deal mobile-header-new-deal rounded-xl px-3 py-2.5 text-sm font-semibold"
+                  >
+                    New deal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void shareCurrentDeal('mobile-menu-trigger')}
+                    className="header-utility-button tap-feedback mobile-header-action-button btn-link"
+                    aria-label="Send link"
+                    title="Send link"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="m7.5 9.5 5 3" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="5.5" cy="10" r="1.5" />
+                      <circle cx="14.5" cy="6.5" r="1.5" />
+                      <circle cx="14.5" cy="13.5" r="1.5" />
+                    </svg>
+                    <span className="sr-only">Send link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      void trackAnalyticsEvent('print_opened', { surface: 'mobile_header', strategy: activeStrategy });
+                      window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="header-utility-button tap-feedback mobile-header-action-button"
+                    aria-label="Report"
+                    title="Report"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M6 2.75h5.25L15 6.5v10.75H6a1 1 0 0 1-1-1V3.75a1 1 0 0 1 1-1Z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M11.25 2.75V6.5H15M7.75 10h4.5M7.75 12.75h3.25" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="sr-only">Report</span>
+                  </button>
+                  {model.purchase.listingUrl ? (
+                    <Link
+                      href={normalizeListingUrl(model.purchase.listingUrl)}
+                      className="header-utility-button tap-feedback mobile-header-action-button btn-listing-active"
+                      aria-label="View listing"
+                      title="View listing"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                      </svg>
+                      <span className="sr-only">View listing</span>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="header-utility-button tap-feedback mobile-header-action-button"
+                      aria-label="View listing"
+                      title="View listing"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10.5 5.5 4.75 11.25" strokeLinecap="round" />
+                      </svg>
+                      <span className="sr-only">View listing</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openDealReviewRequest('mobile_header')}
+                    className="header-utility-button tap-feedback mobile-header-action-button btn-deal-review"
+                    aria-label="Request deal review"
+                    title="Request deal review"
+                  >
+                    {renderDealReviewIcon('mobile-deal-review-icon')}
+                    <span className="sr-only">Request deal review</span>
                   </button>
                 </div>
               </div>
@@ -5481,6 +5879,16 @@ export default function HomePage() {
                       <span className="sr-only">View listing</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => openDealReviewRequest('desktop_header')}
+                    className={`${desktopUtilityButtonClassName} btn-deal-review`}
+                    aria-label="Request deal review"
+                    title="Request deal review"
+                  >
+                    {renderDealReviewIcon('desktop-deal-review-icon')}
+                    <span className="sr-only">Request deal review</span>
+                  </button>
                   <div className="relative">
                     <button
                       type="button"
@@ -5585,7 +5993,7 @@ export default function HomePage() {
                               {renderAdminDashboardLink('inline-flex w-auto min-w-[10rem] items-center justify-center')}
                             </div>
                           ) : null}
-                          {settingsMenuContent}
+                          {renderSettingsMenuContent()}
                         </div>
                       ) : null}
                     </div>
@@ -6093,6 +6501,7 @@ export default function HomePage() {
       {desktopDealVaultSheet}
       {feedbackReminderDialog}
       {feedbackComposerDialog}
+      {dealReviewDialog}
 
       <OnboardingTour
         open={isOnboardingOpen}

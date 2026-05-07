@@ -3,7 +3,7 @@ import Link from 'next/link';
 const privacySections = [
   {
     title: '1. Data We Process',
-    body: 'Dillon Cook, doing business as DealCooker ("we", "us", or "our"), processes scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, feedback submissions, product usage events, install-related events, and sanitized technical error logs required to run and improve the Service.'
+    body: 'Dillon Cook, doing business as DealCooker ("we", "us", or "our"), processes scenario inputs, calculation preferences, account identifiers, cloud sync records, share-link snapshots, deal-review requests, feedback submissions, product usage events, install-related events, and sanitized technical error logs required to run and improve the Service.'
   },
   {
     title: '2. How We Use Data',
@@ -14,23 +14,27 @@ const privacySections = [
     body: 'When you create a share link, a deal snapshot may be stored for link resolution and generally expires after 30 days. Anyone with the link can potentially access that snapshot. Avoid including sensitive personal data in scenario fields.'
   },
   {
-    title: '4. Cookies and Local Storage',
+    title: '4. Deal Review Requests',
+    body: 'If you request a deal review, we use the deal snapshot, calculator inputs, contact details, notes, and market information you submit to evaluate the request and follow up. A licensed real estate broker or local review partner may receive the request when needed to respond.'
+  },
+  {
+    title: '5. Cookies and Local Storage',
     body: 'The Service relies on browser storage, essential auth storage, and Supabase session handling for saved scenarios, settings, account access, and offline-friendly behavior. Disabling storage may limit app behavior.'
   },
   {
-    title: '5. Data Retention',
+    title: '6. Data Retention',
     body: 'Local data remains on your device until deleted by you, your browser, or app controls. Cloud-synced scenarios remain associated with your account until deleted or until account-retention processes are applied. Error logs are retained only as long as operationally useful.'
   },
   {
-    title: '6. Security',
+    title: '7. Security',
     body: 'We implement reasonable safeguards including account-scoped storage and row-level access controls, but no method of storage or transmission is fully secure. You should avoid storing highly sensitive data in this Service.'
   },
   {
-    title: '7. Your Rights',
+    title: '8. Your Rights',
     body: 'Depending on your jurisdiction, you may have rights to access, correct, delete, or restrict processing of personal information. You can contact Dillon Cook at dillon@theinvestoragent.io for privacy-related requests.'
   },
   {
-    title: '8. Policy Changes',
+    title: '9. Policy Changes',
     body: 'We may update this Privacy Policy from time to time. Material changes will be reflected by an updated effective date.'
   }
 ];
@@ -42,7 +46,7 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Privacy Policy</h1>
-          <p className="text-xs text-muted">Effective date: May 5, 2026</p>
+          <p className="text-xs text-muted">Effective date: May 7, 2026</p>
           <p className="text-sm text-muted">This policy explains how Dillon Cook, doing business as DealCooker, handles data and how users can make informed sharing decisions.</p>
         </div>
 

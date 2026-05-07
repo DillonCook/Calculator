@@ -195,6 +195,7 @@ describe('dashboard integration', () => {
 
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request deal review' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Print to PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'View listing' })).toBeDisabled();
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
@@ -321,7 +322,12 @@ describe('dashboard integration', () => {
     expect(mobileViewSwitcher.parentElement).toBe(document.body);
     expect(screen.getByText(/For educational and informational purposes only/i).closest('footer')).toHaveClass('app-footer');
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deal Vault' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deal Vault' })).toHaveTextContent('1 saved deal');
+    expect(screen.queryByText('Current Deal')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Report' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View listing' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Request deal review' })).toBeInTheDocument();
     expect(resultsButton).not.toBeDisabled();
     expect(projectionsButton).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
@@ -329,6 +335,7 @@ describe('dashboard integration', () => {
     await user.click(resultsButton);
     expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reorder' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Inputs' }));
 
@@ -589,6 +596,7 @@ describe('dashboard integration', () => {
             shareLinksCreated30d: 4,
             shareLinksOpened30d: 6,
             printOpens30d: 2,
+            dealReviewRequests30d: 1,
             feedbackSent30d: 1,
             clientErrors7d: 5
           },
@@ -610,6 +618,22 @@ describe('dashboard integration', () => {
               route: '/',
               release: 'abc123',
               signedIn: true
+            }
+          ],
+          recentFeedback: [
+            {
+              created_at: '2026-05-05T15:57:00.000Z',
+              status: 'email_accepted',
+              resend_email_id: 'email_test_123',
+              resend_status: 200,
+              resend_error: null,
+              contact_name: 'Feedback Tester',
+              contact_email: 'feedback@example.com',
+              source: 'settings',
+              viewport: 'desktop',
+              route: '/',
+              app_release: 'abc123',
+              message: 'The app said sent and this is stored for admin review.'
             }
           ],
           recentErrors: [
@@ -637,6 +661,9 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Account Activity vs Visitor Activity')).toBeInTheDocument();
     expect(screen.getByText('Daily Active Accounts')).toBeInTheDocument();
     expect(screen.getByText('Daily Visitor Identities')).toBeInTheDocument();
+    expect(screen.getByText('Recent Feedback')).toBeInTheDocument();
+    expect(screen.getByText('The app said sent and this is stored for admin review.')).toBeInTheDocument();
+    expect(screen.getByText('Resend email_test_123')).toBeInTheDocument();
     expect(screen.getByText('Cannot read properties of undefined')).toBeInTheDocument();
     expect(screen.getByText('unhandledrejection')).toBeInTheDocument();
     expect(screen.getAllByText('/').length).toBeGreaterThan(0);
@@ -710,6 +737,75 @@ describe('dashboard integration', () => {
     });
     expect(window.localStorage.getItem(FEEDBACK_SENT_KEY)).toBe('1');
     expect(within(dialog).getByText('Feedback sent. Thank you.')).toBeInTheDocument();
+    fetchSpy.mockRestore();
+  });
+
+  it('sends the active desktop deal for review with contact and consent', async () => {
+    authMockState.user = {
+      id: 'review-user-1',
+      email: 'reviewer@example.com',
+      user_metadata: {
+        full_name: 'Review Requester',
+        phone: '555-2222'
+      }
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    render(<HomePage />);
+    await flushAuthEffects();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Request deal review' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Request a second opinion' });
+    expect(within(dialog).getByText(/licensed real estate broker may review/i)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Email')).toHaveValue('reviewer@example.com');
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Review Requester');
+    expect(within(dialog).getByLabelText('Phone')).toHaveValue('555-2222');
+
+    await user.type(within(dialog).getByLabelText('Market / location'), 'Tampa, FL');
+    await user.selectOptions(within(dialog).getByLabelText('What should be reviewed?'), 'Offer price');
+    await user.type(within(dialog).getByLabelText('Notes'), 'Should I write this offer as-is or ask for a concession?');
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'Send for review' }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/deal-review',
+        expect.objectContaining({
+          method: 'POST'
+        })
+      );
+    });
+
+    const requestBody = JSON.parse((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(requestBody.contact).toMatchObject({
+      email: 'reviewer@example.com',
+      name: 'Review Requester',
+      phone: '555-2222'
+    });
+    expect(requestBody.request).toMatchObject({
+      market: 'Tampa, FL',
+      reviewFocus: 'Offer price',
+      consentAccepted: true
+    });
+    expect(requestBody.deal).toMatchObject({
+      dealName: 'New Deal',
+      activeStrategy: expect.any(String),
+      snapshot: expect.any(Object)
+    });
+    expect(requestBody.context).toMatchObject({
+      source: 'desktop_header',
+      signedIn: true,
+      userId: 'review-user-1',
+      savedDealCount: expect.any(Number)
+    });
+    expect(within(dialog).getByText('Deal review request sent.')).toBeInTheDocument();
     fetchSpy.mockRestore();
   });
 
@@ -1051,7 +1147,7 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Account created. Check your email, then sign in here.')).toBeInTheDocument();
   });
 
-  it('closes the mobile menu after copying a share link', async () => {
+  it('copies a share link from the compact header action', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -1064,15 +1160,11 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
-
-    const dialog = screen.getByRole('dialog', { name: 'Settings' });
-    await user.click(within(dialog).getByRole('button', { name: 'Send link' }));
+    await user.click(screen.getByRole('button', { name: 'Send link' }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
+      expect(screen.getByText('Link copied.')).toBeInTheDocument();
     });
-    expect(screen.getByText('Link copied.')).toBeInTheDocument();
   });
 
   it('caps compact recent deals to the ten most recent entries by default', async () => {
@@ -1171,8 +1263,11 @@ describe('dashboard integration', () => {
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
 
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getAllByRole('button', { name: 'Send link' }).length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByRole('button', { name: 'Print to PDF' }).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByRole('button', { name: 'Send link' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Print to PDF' })).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Actions')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Send feedback' })).toBeInTheDocument();
+    expect((dialog.textContent ?? '').indexOf('Account')).toBeLessThan((dialog.textContent ?? '').indexOf('Actions'));
     expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
   });
 

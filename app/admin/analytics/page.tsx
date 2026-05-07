@@ -38,6 +38,7 @@ type DashboardStats = {
     shareLinksCreated30d: number;
     shareLinksOpened30d: number;
     printOpens30d: number;
+    dealReviewRequests30d: number;
     feedbackSent30d: number;
     clientErrors7d: number;
   };
@@ -53,6 +54,20 @@ type DashboardStats = {
     errorPatterns: Array<{ label: string; count: number }>;
   };
   recentEvents: Array<{ eventName: string; createdAt: string; route: string | null; release: string | null; signedIn: boolean }>;
+  recentFeedback: Array<{
+    created_at: string;
+    status: string;
+    resend_email_id: string | null;
+    resend_status: number | null;
+    resend_error: string | null;
+    contact_name: string | null;
+    contact_email: string;
+    source: string | null;
+    viewport: string | null;
+    route: string | null;
+    app_release: string | null;
+    message: string;
+  }>;
   recentErrors: Array<{
     created_at: string;
     severity: string;
@@ -197,6 +212,42 @@ function MiniTrend({ title, items }: { title: string; items: Array<{ day: string
         <span>{items.at(-1)?.day.slice(5) ?? ''}</span>
       </div>
     </section>
+  );
+}
+
+function RecentFeedbackCard({ feedback }: { feedback: DashboardStats['recentFeedback'][number] }) {
+  const statusTone = feedback.status === 'email_accepted' ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-orange-300/35 bg-orange-500/10 text-orange-100';
+
+  return (
+    <div className="section-inner rounded-xl px-3 py-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusTone}`}>
+              {feedback.status.replaceAll('_', ' ')}
+            </span>
+            <span className="font-semibold text-slate-100">{feedback.contact_name || feedback.contact_email}</span>
+            {feedback.contact_name ? <span className="text-muted">{feedback.contact_email}</span> : null}
+          </div>
+          <p className="mt-2 break-words text-slate-200">{feedback.message}</p>
+        </div>
+        <span className="shrink-0 text-muted">{dateFormatter.format(new Date(feedback.created_at))}</span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+        <span>{feedback.source ?? 'unknown'} / {feedback.viewport ?? 'unknown'}</span>
+        <span>{feedback.route ?? 'No route'}</span>
+        {feedback.resend_email_id ? <span>Resend {feedback.resend_email_id}</span> : null}
+        {feedback.resend_status ? <span>HTTP {feedback.resend_status}</span> : null}
+      </div>
+
+      {feedback.resend_error ? (
+        <details className="mt-2 rounded-lg border border-white/10 bg-black/15 px-2 py-1.5">
+          <summary className="cursor-pointer text-[11px] font-semibold text-slate-200">Delivery response</summary>
+          <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-300">{feedback.resend_error}</pre>
+        </details>
+      ) : null}
+    </div>
   );
 }
 
@@ -407,6 +458,7 @@ export default function AdminAnalyticsPage() {
           <MetricCard label="Saved deals" value={metrics.totalScenarios} detail={`${formatNumber(metrics.scenarioCreated30d)} created in 30 days`} />
           <MetricCard label="Share links" value={metrics.totalShareLinks} detail={`${formatNumber(metrics.shareLinksOpened30d)} opens in 30 days`} />
           <MetricCard label="Print opens" value={metrics.printOpens30d} detail="PDF/print workflow opens in 30 days" />
+          <MetricCard label="Deal reviews" value={metrics.dealReviewRequests30d} detail="Review requests in 30 days" />
           <MetricCard label="Feedback" value={metrics.feedbackSent30d} detail="Feedback submissions in 30 days" />
           <MetricCard label="Events" value={metrics.totalEvents30d} detail={`${formatNumber(metrics.signedInEvents30d)} signed-in / ${formatNumber(metrics.anonymousEvents30d)} anonymous sampled events`} />
           <MetricCard label="Today" value={metrics.activeVisitorsToday} detail={`${formatNumber(metrics.activeAccountsToday)} accounts, ${formatNumber(metrics.anonymousVisitorsToday)} anonymous identities`} />
@@ -422,6 +474,17 @@ export default function AdminAnalyticsPage() {
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
+          <section className="section-shell section-shell-utility rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-slate-100">Recent Feedback</h2>
+            <p className="mt-1 text-xs text-muted">Stored feedback with Resend delivery ids when the email API accepts a message.</p>
+            <div className="mt-3 space-y-2">
+              {stats.recentFeedback.length === 0 ? <p className="text-sm text-muted">No stored feedback in the last 30 days.</p> : null}
+              {stats.recentFeedback.map((feedback, index) => (
+                <RecentFeedbackCard key={`${feedback.created_at}-${feedback.contact_email}-${index}`} feedback={feedback} />
+              ))}
+            </div>
+          </section>
+
           <section className="section-shell section-shell-utility rounded-2xl p-4">
             <h2 className="text-sm font-semibold text-slate-100">Recent Events</h2>
             <div className="mt-3 space-y-2">

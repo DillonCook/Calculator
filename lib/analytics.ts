@@ -2,6 +2,7 @@ import { getSupabaseClient } from '@/lib/supabaseClient';
 
 export type AnalyticsEventName =
   | 'app_opened'
+  | 'deal_review_requested'
   | 'feedback_sent'
   | 'pwa_installed'
   | 'pwa_install_prompt_accepted'
