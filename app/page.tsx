@@ -6072,20 +6072,22 @@ export default function HomePage() {
         </>
         ) : null}
       </div>
-      <footer className="app-footer section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; 2026 Dillon Cook. DealCooker is a product created by Dillon Cook. All rights reserved.</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href="/help" className="hover:text-accent">Help</Link>
-            <Link href="/legal" className="hover:text-accent">Legal Center</Link>
-            <Link href="/legal/terms" className="hover:text-accent">Terms</Link>
-            <Link href="/legal/privacy" className="hover:text-accent">Privacy</Link>
+      <div className="lg:pt-3">
+        <footer className="app-footer section-shell section-shell-utility rounded-2xl p-4 text-xs text-muted">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p>&copy; 2026 Dillon Cook. DealCooker is a product created by Dillon Cook. All rights reserved.</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/help" className="hover:text-accent">Help</Link>
+              <Link href="/legal" className="hover:text-accent">Legal Center</Link>
+              <Link href="/legal/terms" className="hover:text-accent">Terms</Link>
+              <Link href="/legal/privacy" className="hover:text-accent">Privacy</Link>
+            </div>
           </div>
-        </div>
-        <p className="mt-2 text-[11px] text-muted/90">
-          For educational and informational purposes only. Not financial, legal, tax, or investment advice.
-        </p>
-      </footer>
+          <p className="mt-2 text-[11px] text-muted/90">
+            For educational and informational purposes only. Not financial, legal, tax, or investment advice.
+          </p>
+        </footer>
+      </div>
 
       {dealIdentitySheet}
       {desktopDealVaultSheet}
