@@ -69,7 +69,6 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
-type DesktopInputWorkspace = 'dealSetup' | 'strategyInputs' | 'expenses';
 type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
 type FeedbackSource = 'settings' | 'reminder';
 type FeedbackSubmitState = 'idle' | 'sending' | 'sent' | 'error';
@@ -132,6 +131,7 @@ const SHARE_IMPORT_NOTICE_STORAGE_KEY = 'dealcooker-share-imported:v1';
 const FEEDBACK_PROMPT_DELAY_MS = 3000;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
 const DEAL_REVIEW_NOTES_MAX_LENGTH = 1800;
+const DEAL_REVIEW_SUBMISSIONS_ENABLED = false;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SAMPLE_DEAL_NAME = 'Tampa Duplex - Sample Deal';
 const anonymousDealLimitMessage = `Sign in to save more than ${ANONYMOUS_DEAL_LIMIT} deals. You can still open, edit, export, or delete existing saved deals.`;
@@ -371,18 +371,18 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopCore',
-    title: 'Click Purchase to Enter the Basics',
-    body: 'Start with Purchase when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
+    title: 'Purchase Terms Stay Open',
+    body: 'Start in the Purchase lane when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
     id: 'desktopExpenses',
-    title: 'Click Expenses for Monthly Costs',
-    body: 'Open Expenses when you are ready to add taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
+    title: 'Expenses Stay Beside It',
+    body: 'Use the Expenses lane for taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
   },
   {
     id: 'desktopStrategyInputs',
-    title: 'Click Strategy for Plan-Specific Numbers',
-    body: 'Use Strategy after you choose your approach. That is where plan-specific numbers change, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Strategy Assumptions Are Live',
+    body: 'Use the Strategy lane for plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'desktopIrr',
@@ -391,8 +391,8 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopResults',
-    title: 'Results Stay Visible Here',
-    body: 'As you update the deal, this dashboard keeps the main numbers in view. This is where you check cash flow, returns, and the overall verdict without switching screens.'
+    title: 'The Verdict Stays Up Top',
+    body: 'As you update the deal, this ribbon keeps the main numbers in view so you can check cash flow, returns, and the overall verdict without switching screens.'
   },
   {
     id: 'desktopCompare',
@@ -725,7 +725,6 @@ export default function HomePage() {
   const [isLightMode, setIsLightMode] = useState(false);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [desktopInputWorkspace, setDesktopInputWorkspace] = useState<DesktopInputWorkspace>('dealSetup');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
     purchase: true,
@@ -853,9 +852,6 @@ export default function HomePage() {
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const desktopStrategyInputsRef = useRef<HTMLDivElement | null>(null);
   const desktopCompareSectionRef = useRef<HTMLDivElement | null>(null);
-  const desktopDealSetupButtonRef = useRef<HTMLButtonElement | null>(null);
-  const desktopStrategyInputsButtonRef = useRef<HTMLButtonElement | null>(null);
-  const desktopExpensesButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -922,6 +918,20 @@ export default function HomePage() {
   const longTermTurnaroundSummary = activeStrategy === 'longTerm' ? activeOutput.longTermTurnaroundSummary : undefined;
   const isLongTermTurnaroundActive = activeStrategy === 'longTerm' && Boolean(longTermTurnaroundSummary?.enabled);
   const activeModeLabel = isLongTermTurnaroundActive ? 'Long-Term Turnaround' : activeStrategyLabels[activeStrategy];
+  const longTermPurchaseOutput = useMemo(() => {
+    if (!model.longTerm.turnaround.enabled) return result.longTerm;
+
+    return calculateDeal({
+      ...model,
+      longTerm: {
+        ...model.longTerm,
+        turnaround: {
+          ...model.longTerm.turnaround,
+          enabled: false
+        }
+      }
+    }).longTerm;
+  }, [model, result.longTerm]);
   const baseCommercialDigestItems = useMemo<DigestItem<CommercialDigestKey>[]>(() => {
     if (!commercialSummary) return [];
 
@@ -1149,21 +1159,6 @@ export default function HomePage() {
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
-  const onboardingDesktopWorkspace =
-    isOnboardingOpen && !isMobileViewport
-      ? currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopExpenses'
-        ? 'expenses'
-        : currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopCore'
-          ? 'dealSetup'
-          : currentOnboardingSteps[onboardingStepIndex]?.id === 'desktopStrategyInputs'
-            ? 'strategyInputs'
-          : undefined
-      : undefined;
-
-  useEffect(() => {
-    if (!onboardingDesktopWorkspace) return;
-    setDesktopInputWorkspace(onboardingDesktopWorkspace);
-  }, [onboardingDesktopWorkspace]);
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -1181,7 +1176,9 @@ export default function HomePage() {
   );
   const compactCompareSelection = compactProjectionStrategies;
   const renderHeadlineMetricCard = (metricId: HeadlineMetricId, layout: 'default' | 'compact' | 'inline' = 'default'): ReactNode => {
-    const flipMeta = activeOutput.calculationBreakdown?.flipMeta;
+    const metricOutput = isLongTermTurnaroundActive ? longTermPurchaseOutput : activeOutput;
+    const metricModeLabel = isLongTermTurnaroundActive ? activeStrategyLabels.longTerm : activeModeLabel;
+    const flipMeta = metricOutput.calculationBreakdown?.flipMeta;
 
     switch (metricId) {
       case 'cashToClose':
@@ -1189,8 +1186,8 @@ export default function HomePage() {
           return (
             <KpiCard
               label="Cash Invested"
-              value={currencyFormatter.format(activeOutput.totalCashNeeded)}
-              winner={activeModeLabel}
+              value={currencyFormatter.format(metricOutput.totalCashNeeded)}
+              winner={metricModeLabel}
               secondaryLabel="Before holding"
               secondaryValue={currencyFormatter.format(flipMeta?.cashInvestedBeforeHolding ?? 0)}
               definitions={[
@@ -1213,9 +1210,9 @@ export default function HomePage() {
             <KpiCard
               label="Cash to Close"
               value={currencyFormatter.format(cashToCloseValue)}
-              winner={activeModeLabel}
+              winner={metricModeLabel}
               secondaryLabel="Total cash invested"
-              secondaryValue={currencyFormatter.format(activeOutput.totalCashNeeded)}
+              secondaryValue={currencyFormatter.format(metricOutput.totalCashNeeded)}
             definitions={[
               {
                 term: 'Cash to Close',
@@ -1245,7 +1242,7 @@ export default function HomePage() {
             value={maxOffer === null ? 'No fit' : currencyFormatter.format(maxOffer)}
             numericValue={maxOffer ?? -1}
             numericValueKind="currency"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             secondaryLabel="Targets"
             secondaryValue={targetSummary}
             definitions={[
@@ -1263,10 +1260,10 @@ export default function HomePage() {
         return (
           <KpiCard
             label="Sale Cash"
-            value={currencyFormatter.format(flipMeta?.saleCashReturned ?? activeOutput.saleProceeds ?? 0)}
-            numericValue={flipMeta?.saleCashReturned ?? activeOutput.saleProceeds ?? 0}
+            value={currencyFormatter.format(flipMeta?.saleCashReturned ?? metricOutput.saleProceeds ?? 0)}
+            numericValue={flipMeta?.saleCashReturned ?? metricOutput.saleProceeds ?? 0}
             numericValueKind="currency"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             secondaryLabel="Debt payoff"
             secondaryValue={currencyFormatter.format(flipMeta?.debtPayoffAtSale ?? 0)}
             definitions={[
@@ -1286,7 +1283,7 @@ export default function HomePage() {
             value={currencyFormatter.format(flipMeta?.rehabContingency ?? 0)}
             numericValue={flipMeta?.rehabContingency ?? 0}
             numericValueKind="currency"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             secondaryLabel={`${percentFormatter.format(flipMeta?.rehabContingencyPercent ?? 0)} contingency`}
             secondaryValue={currencyFormatter.format(flipMeta?.rehabBudget ?? 0)}
             definitions={[
@@ -1308,7 +1305,7 @@ export default function HomePage() {
             value={flipMeta?.hardMoneyEnabled ? currencyFormatter.format(lenderCost) : 'Purchase loan'}
             numericValue={flipMeta?.hardMoneyEnabled ? lenderCost : 0}
             numericValueKind="currency"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             secondaryLabel={flipMeta?.hardMoneyEnabled ? 'HM loan' : 'Debt payoff'}
             secondaryValue={
               flipMeta?.hardMoneyEnabled
@@ -1330,11 +1327,11 @@ export default function HomePage() {
         return (
           <KpiCard
             label="Cap Rate"
-            value={percentFormatter.format(activeOutput.capRate)}
-            numericValue={activeOutput.capRate}
+            value={percentFormatter.format(metricOutput.capRate)}
+            numericValue={metricOutput.capRate}
             numericValueKind="percent"
             helper="Annual NOI / current property value"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1343,11 +1340,11 @@ export default function HomePage() {
         return (
           <KpiCard
             label="Cash on Cash"
-            value={percentFormatter.format(activeOutput.cashOnCashReturn)}
-            numericValue={activeOutput.cashOnCashReturn}
+            value={percentFormatter.format(metricOutput.cashOnCashReturn)}
+            numericValue={metricOutput.cashOnCashReturn}
             numericValueKind="percent"
             helper="Annual cash flow / total cash invested"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1356,12 +1353,12 @@ export default function HomePage() {
         return (
           <KpiCard
             label="DSCR"
-            value={activeOutput.dscr.toFixed(2)}
-            numericValue={activeOutput.dscr}
+            value={metricOutput.dscr.toFixed(2)}
+            numericValue={metricOutput.dscr}
             numericValueKind="ratio"
             numericValueBaseline={1}
             helper="NOI / annual debt service"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1370,11 +1367,11 @@ export default function HomePage() {
         return (
           <KpiCard
             label="ROI"
-            value={percentFormatter.format(activeOutput.roi)}
-            numericValue={activeOutput.roi}
+            value={percentFormatter.format(metricOutput.roi)}
+            numericValue={metricOutput.roi}
             numericValueKind="percent"
             helper="Total profit / total cash invested"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
           />
@@ -1383,11 +1380,11 @@ export default function HomePage() {
         return (
           <KpiCard
             label="IRR"
-            value={percentFormatter.format(activeOutput.irr)}
-            numericValue={activeOutput.irr}
+            value={percentFormatter.format(metricOutput.irr)}
+            numericValue={metricOutput.irr}
             numericValueKind="percent"
             helper="Discounted return from yearly cashflow timeline"
-            winner={activeModeLabel}
+            winner={metricModeLabel}
             definitions={[
               {
                 term: 'IRR (Internal Rate of Return)',
@@ -1471,7 +1468,7 @@ export default function HomePage() {
         : 'border-accent/45 bg-accent/12 text-slate-100'
     : '';
   const quickScanPoints = quickScanDetails[activeStrategy];
-  const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, notes: activeOutput.notes, points: quickScanPoints } : undefined;
+  const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, points: quickScanPoints } : undefined;
   const orderedHeadlineMetricIds = normalizeHeadlineMetricOrder(headlineMetricOrder);
   const showTargetIrrInput =
     model.purchase.financingType === 'cash' &&
@@ -1494,12 +1491,10 @@ export default function HomePage() {
     : supportsReserveToggle && !includeReserves
       ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
       : activeOutput.monthlyCashFlow;
-  const priorityMetricTitle = isFlipStrategy ? 'Net profit' : isLongTermTurnaroundActive ? 'Stabilized monthly cash flow' : 'Monthly cash flow';
+  const priorityMetricTitle = isFlipStrategy ? 'Net profit' : 'Monthly cash flow';
   const priorityMetricSubtitle = isFlipStrategy
     ? 'Projected profit after cash invested, sale costs, debt payoff, and carry costs'
-    : isLongTermTurnaroundActive
-      ? 'Run-rate cash flow after the first 12-month stabilization year.'
-      : null;
+    : null;
   const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
 
   const profileImageUrl = useMemo(() => {
@@ -1722,7 +1717,6 @@ export default function HomePage() {
 
   const openDesktopStrategyWorkspace = (nextStrategy: StrategyKey) => {
     handleStrategyChange(nextStrategy);
-    setDesktopInputWorkspace('strategyInputs');
   };
 
   useEffect(() => {
@@ -1795,11 +1789,9 @@ export default function HomePage() {
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
     if (step.id === 'desktopDeals') return dealVaultRef.current;
     if (step.id === 'desktopStrategy') return desktopStrategyTabsRef.current;
-    if (step.id === 'desktopCore') return getFirstVisibleElement(desktopDealSetupButtonRef.current, desktopCoreSectionRef.current);
-    if (step.id === 'desktopExpenses') return getFirstVisibleElement(desktopExpensesButtonRef.current, desktopExpensesSectionRef.current);
-    if (step.id === 'desktopStrategyInputs') {
-      return getFirstVisibleElement(desktopStrategyInputsButtonRef.current, desktopStrategyInputsRef.current, desktopStrategyTabsRef.current);
-    }
+    if (step.id === 'desktopCore') return desktopCoreSectionRef.current;
+    if (step.id === 'desktopExpenses') return desktopExpensesSectionRef.current;
+    if (step.id === 'desktopStrategyInputs') return desktopStrategyInputsRef.current;
     if (step.id === 'desktopIrr') return irrStreamRef.current;
     if (step.id === 'desktopResults') return desktopResultsSectionRef.current;
     if (step.id === 'desktopCompare') return desktopCompareSectionRef.current;
@@ -2783,7 +2775,6 @@ export default function HomePage() {
       scenarioId: nextDeal.scenarioId
     };
     setCompactMode('inputs');
-    setDesktopInputWorkspace('dealSetup');
   };
 
   const closeDealIdentityEditor = () => {
@@ -3572,6 +3563,12 @@ export default function HomePage() {
 
   const submitDealReviewRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!DEAL_REVIEW_SUBMISSIONS_ENABLED) {
+      setDealReviewSubmitState('idle');
+      setDealReviewSubmitMessage('Paid deal analysis is coming soon. Submissions are temporarily disabled.');
+      return;
+    }
+
     if (dealReviewSubmitState === 'sending') return;
 
     const email = dealReviewEmail.trim();
@@ -4524,35 +4521,18 @@ export default function HomePage() {
   );
 
   const desktopHeadlineMetricSection = (
-    <section className="dashboard-section-divider pt-3">
-      <div className="dashboard-summary-band">
-        <div className="dashboard-kpi-strip">
-          {activeHeadlineMetricIds.map((metricId) => (
-            <div key={`desktop-headline-metric-${metricId}`} className="dashboard-kpi-strip-item">
-              {renderHeadlineMetricCard(metricId, 'inline')}
-            </div>
-          ))}
-        </div>
-
-        <div ref={irrStreamRef} className="min-w-0">
-          <TimelineCard
-            output={result[activeStrategy]}
-            assumptions={model.assumptions}
-            defaultOpen={Boolean(activeDealId)}
-            collapsible={false}
-            summaryVariant="compact"
-            onAssumptionsChange={updateAssumptions}
-            showTargetIrrInput={showTargetIrrInput}
-            layoutVariant="strip"
-          />
-        </div>
+    <div className="dashboard-summary-band">
+      <div className="dashboard-kpi-strip desktop-outcome-kpi-strip">
+        {activeHeadlineMetricIds.map((metricId) => (
+          <div key={`desktop-headline-metric-${metricId}`} className="dashboard-kpi-strip-item">
+            {renderHeadlineMetricCard(metricId, 'inline')}
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   );
   const desktopInputViewportClassName =
     'pr-1 [overflow-anchor:none]';
-  const desktopWorkspaceShellClassName =
-    'grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(36rem,1.1fr)] 2xl:grid-cols-[minmax(0,0.84fr)_minmax(40rem,1.16fr)]';
   const desktopUtilityButtonClassName =
     'header-utility-button tap-feedback shrink-0';
   const renderDealReviewIcon = (idPrefix: string) => {
@@ -4978,16 +4958,16 @@ export default function HomePage() {
                       type="button"
                       aria-label="Long-Term turnaround"
                       aria-pressed={isTurnaroundActive}
-                      title="Turnaround"
                       onClick={() => {
                         triggerHapticFeedback('light');
                         setLongTermTurnaroundEnabled(true);
                         handleStrategyChange(strategy);
                         setCompactSheetView(null);
                       }}
-                      className={`tap-feedback btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
+                      className={`tap-feedback hoverbox-trigger btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
                         isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active text-white' : 'text-slate-200'
                       }`}
+                      data-hoverbox="Turnaround"
                     >
                       <TurnaroundIcon className="h-5 w-5" />
                     </button>
@@ -5076,7 +5056,6 @@ export default function HomePage() {
             <section className="section-shell section-shell-analysis rounded-2xl p-3">
               <p className="section-eyebrow-analysis text-xs uppercase tracking-[0.16em]">Quick scan</p>
               <h3 className="mt-1 text-base font-semibold text-slate-100">{strategyQuickScan.title}</h3>
-              <p className="mt-1 text-sm text-muted">{strategyQuickScan.notes}</p>
               <ul className="mt-3 space-y-2 text-sm text-slate-200">
                 {strategyQuickScan.points.map((point) => (
                   <li key={point} className="flex gap-2">
@@ -5332,9 +5311,6 @@ export default function HomePage() {
               <h2 id="deal-review-title" className="mt-1 text-lg font-semibold">
                 Request a second opinion
               </h2>
-              <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
-                Send this deal snapshot for a practical review of your assumptions, offer range, and strategy fit.
-              </p>
             </div>
             <button
               type="button"
@@ -5357,6 +5333,13 @@ export default function HomePage() {
                 <span className="dashboard-pill">{currencyFormatter.format(activeOutput.monthlyCashFlow)}/mo</span>
               </div>
             </div>
+          </section>
+
+          <section className="section-inner-muted rounded-xl border border-orange-300/25 bg-orange-500/10 px-3 py-2.5 text-xs leading-relaxed text-orange-50">
+            <p className="font-semibold text-orange-100">Coming soon: paid broker review</p>
+            <p className="mt-1 text-orange-100/85">
+              This will launch as a paid feature for deal-level feedback on offer range, assumptions, strategy fit, and next steps from a licensed broker or approved review partner.
+            </p>
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -5425,7 +5408,7 @@ export default function HomePage() {
                 setDealReviewFocus(event.target.value);
                 if (dealReviewSubmitState !== 'sending') setDealReviewSubmitState('idle');
               }}
-              className="feedback-input w-full rounded-xl border px-3 py-2 text-sm outline-none"
+              className="feedback-input deal-review-select w-full rounded-xl border px-3 py-2 text-sm outline-none"
             >
               {dealReviewFocusOptions.map((option) => (
                 <option key={option} value={option}>
@@ -5482,7 +5465,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="submit"
-              disabled={dealReviewSubmitState === 'sending' || dealReviewSubmitState === 'sent'}
+              disabled={!DEAL_REVIEW_SUBMISSIONS_ENABLED || dealReviewSubmitState === 'sending' || dealReviewSubmitState === 'sent'}
               className="btn-primary btn-new-deal tap-feedback min-h-10 rounded-xl px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
             >
               {dealReviewSubmitState === 'sending' ? 'Sending...' : dealReviewSubmitState === 'sent' ? 'Sent' : 'Send for review'}
@@ -5684,9 +5667,9 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={openDealIdentityEditor}
-                    className="header-utility-button tap-feedback mobile-header-edit-button shrink-0"
+                    className="header-utility-button hoverbox-trigger tap-feedback mobile-header-edit-button shrink-0"
                     aria-label="Edit active deal details"
-                    title="Edit active deal details"
+                    data-hoverbox="Edit active deal details"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                       <path d="M4.5 13.75V16h2.25l7-7-2.25-2.25-7 7Z" strokeLinecap="round" strokeLinejoin="round" />
@@ -5708,9 +5691,9 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => void shareCurrentDeal('mobile-menu-trigger')}
-                    className="header-utility-button tap-feedback mobile-header-action-button btn-link"
+                    className="header-utility-button hoverbox-trigger tap-feedback mobile-header-action-button btn-link"
                     aria-label="Send link"
-                    title="Send link"
+                    data-hoverbox="Send link"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                       <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -5728,9 +5711,9 @@ export default function HomePage() {
                       void trackAnalyticsEvent('print_opened', { surface: 'mobile_header', strategy: activeStrategy });
                       window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
                     }}
-                    className="header-utility-button tap-feedback mobile-header-action-button"
+                    className="header-utility-button hoverbox-trigger tap-feedback mobile-header-action-button"
                     aria-label="Report"
-                    title="Report"
+                    data-hoverbox="Report"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                       <path d="M6 2.75h5.25L15 6.5v10.75H6a1 1 0 0 1-1-1V3.75a1 1 0 0 1 1-1Z" strokeLinecap="round" strokeLinejoin="round" />
@@ -5741,9 +5724,9 @@ export default function HomePage() {
                   {model.purchase.listingUrl ? (
                     <Link
                       href={normalizeListingUrl(model.purchase.listingUrl)}
-                      className="header-utility-button tap-feedback mobile-header-action-button btn-listing-active"
+                      className="header-utility-button hoverbox-trigger tap-feedback mobile-header-action-button btn-listing-active"
                       aria-label="View listing"
-                      title="View listing"
+                      data-hoverbox="View listing"
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -5757,9 +5740,9 @@ export default function HomePage() {
                     <button
                       type="button"
                       disabled
-                      className="header-utility-button tap-feedback mobile-header-action-button"
+                      className="header-utility-button hoverbox-trigger tap-feedback mobile-header-action-button"
                       aria-label="View listing"
-                      title="View listing"
+                      data-hoverbox="View listing"
                     >
                       <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                         <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
@@ -5771,9 +5754,9 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => openDealReviewRequest('mobile_header')}
-                    className="header-utility-button tap-feedback mobile-header-action-button btn-deal-review"
+                    className="header-utility-button hoverbox-trigger tap-feedback mobile-header-action-button btn-deal-review"
                     aria-label="Request deal review"
-                    title="Request deal review"
+                    data-hoverbox="Request deal review"
                   >
                     {renderDealReviewIcon('mobile-deal-review-icon')}
                     <span className="sr-only">Request deal review</span>
@@ -5837,9 +5820,9 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={openDealIdentityEditor}
-                      className={desktopUtilityButtonClassName}
+                      className={`${desktopUtilityButtonClassName} hoverbox-trigger`}
                       aria-label="Edit active deal details"
-                      title="Edit active deal details"
+                      data-hoverbox="Edit active deal details"
                     >
                       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                         <path d="M4.5 13.75V16h2.25l7-7-2.25-2.25-7 7Z" strokeLinecap="round" strokeLinejoin="round" />
@@ -5852,9 +5835,9 @@ export default function HomePage() {
                   {model.purchase.listingUrl ? (
                     <Link
                       href={normalizeListingUrl(model.purchase.listingUrl)}
-                      className={`${desktopUtilityButtonClassName} btn-listing-active`}
+                      className={`${desktopUtilityButtonClassName} hoverbox-trigger btn-listing-active`}
                       aria-label="View listing"
-                      title="View listing"
+                      data-hoverbox="View listing"
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -5868,9 +5851,9 @@ export default function HomePage() {
                     <button
                       type="button"
                       disabled
-                      className={desktopUtilityButtonClassName}
+                      className={`${desktopUtilityButtonClassName} hoverbox-trigger`}
                       aria-label="View listing"
-                      title="View listing"
+                      data-hoverbox="View listing"
                     >
                       <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                         <path d="M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
@@ -5882,9 +5865,9 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => openDealReviewRequest('desktop_header')}
-                    className={`${desktopUtilityButtonClassName} btn-deal-review`}
+                    className={`${desktopUtilityButtonClassName} hoverbox-trigger btn-deal-review`}
                     aria-label="Request deal review"
-                    title="Request deal review"
+                    data-hoverbox="Request deal review"
                   >
                     {renderDealReviewIcon('desktop-deal-review-icon')}
                     <span className="sr-only">Request deal review</span>
@@ -5893,9 +5876,9 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={() => void shareCurrentDeal('desktop-share')}
-                      className={`${desktopUtilityButtonClassName} btn-link`}
+                      className={`${desktopUtilityButtonClassName} hoverbox-trigger btn-link`}
                       aria-label="Send link"
-                      title="Send link"
+                      data-hoverbox="Send link"
                     >
                       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                         <path d="M7.5 10.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -5911,9 +5894,9 @@ export default function HomePage() {
                   <Link
                     href={printToPdfUrl}
                     onClick={() => void trackAnalyticsEvent('print_opened', { surface: 'desktop_header', strategy: activeStrategy })}
-                    className={`${desktopUtilityButtonClassName} btn-pdf`}
+                    className={`${desktopUtilityButtonClassName} hoverbox-trigger btn-pdf`}
                     aria-label="Print to PDF"
-                    title="Print to PDF"
+                    data-hoverbox="Print to PDF"
                     target="_blank"
                   >
                     <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
@@ -6021,10 +6004,10 @@ export default function HomePage() {
 
         {!isMobileViewport ? (
         <>
-        <section ref={desktopResultsSectionRef} className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft xl:p-5">
-          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap space-y-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch">
-            <div className="results-hero-main priority-kpi-stable relative isolate">
+        <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
+          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap">
+            <div className="desktop-outcome-grid">
+            <div className="results-hero-main desktop-outcome-primary priority-kpi-stable relative isolate">
               {!isFlipStrategy ? (
                 <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
                   <div
@@ -6090,7 +6073,7 @@ export default function HomePage() {
                 </div>
               ) : null}
               <div className="relative z-10 flex flex-col gap-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="priority-kpi-header flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 pr-3">
                     <div className="flex items-center gap-2">
                       <p className="dashboard-kicker">{priorityMetricTitle}</p>
@@ -6098,20 +6081,8 @@ export default function HomePage() {
                     </div>
                     {priorityMetricSubtitle ? <p className="dashboard-meta mt-1 text-sm">{priorityMetricSubtitle}</p> : null}
                   </div>
-                  <span className="dashboard-pill shrink-0">{activeStrategyLabel}</span>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <p
-                    className={`text-4xl font-semibold tracking-tight sm:text-6xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
-                    data-testid="kpi-priority-metric"
-                    style={priorityMetricNegativeStyle}
-                  >
-                    {currencyFormatter.format(priorityMetricValue)}
-                  </p>
-
                   {supportsReserveToggle ? (
-                    <div className="flex shrink-0 items-center sm:pb-1">
+                    <div className="priority-reserve-toggle-slot flex shrink-0 items-center">
                       <div className="reserve-toggle-shell inline-flex rounded-lg border border-white/15 bg-black/20 p-0.5">
                         <button
                           type="button"
@@ -6143,52 +6114,67 @@ export default function HomePage() {
                     </div>
                   ) : null}
                 </div>
+
+                <div className="flex flex-col gap-3">
+                  <p
+                    className={`priority-kpi-value text-4xl font-semibold tracking-tight sm:text-5xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
+                    data-testid="kpi-priority-metric"
+                    style={priorityMetricNegativeStyle}
+                  >
+                    {currencyFormatter.format(priorityMetricValue)}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {activeStrategy === 'purchase' && commercialSummary ? (
-              <section className="results-hero-support">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="dashboard-kicker">Commercial snapshot</p>
-                    <h3 className="mt-1 text-base font-semibold">Underwriting signals</h3>
-                  </div>
-                  <div className="dashboard-meta text-right text-[11px]">
-                    <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
-                    <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
-                  </div>
-                </div>
-                <div className="results-hero-support-grid mt-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                  <div className="results-hero-stat">
-                    <p className="dashboard-kicker text-[11px]">Occupancy headroom</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-100">
-                      {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
-                    </p>
-                  </div>
-                  <div className="results-hero-stat">
-                    <p className="dashboard-kicker text-[11px]">Debt efficiency</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-100">
-                      Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
-                    </p>
-                  </div>
-                  <div className="results-hero-stat">
-                    <p className="dashboard-kicker text-[11px]">Risk drag</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-100">
-                      {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
-                    </p>
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <DealWorkoutCard
-                model={model}
-                strategy={activeStrategy}
-                targetIrrPercent={model.assumptions.targetIrrPercent}
-                onApply={applyDealWorkoutScenario}
-              />
-            )}
+            <div className="desktop-outcome-metrics">
+              {desktopHeadlineMetricSection}
             </div>
-            {desktopHeadlineMetricSection}
+
+            <div className="desktop-outcome-actions">
+              {activeStrategy === 'purchase' && commercialSummary ? (
+                <section className="results-hero-support">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="dashboard-kicker">Commercial snapshot</p>
+                      <h3 className="mt-1 text-base font-semibold">Underwriting signals</h3>
+                    </div>
+                    <div className="dashboard-meta text-right text-[11px]">
+                      <p>Leased: {commercialSummary.occupiedSqft.toLocaleString()} sf</p>
+                      <p>GLA: {commercialSummary.grossLeasableAreaSqft.toLocaleString()} sf</p>
+                    </div>
+                  </div>
+                  <div className="results-hero-support-grid mt-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                    <div className="results-hero-stat">
+                      <p className="dashboard-kicker text-[11px]">Occupancy headroom</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-100">
+                        {percentFormatter.format(commercialSummary.physicalOccupancyPercent)} now vs {percentFormatter.format(commercialSummary.breakEvenOccupancyPercent)} break-even
+                      </p>
+                    </div>
+                    <div className="results-hero-stat">
+                      <p className="dashboard-kicker text-[11px]">Debt efficiency</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-100">
+                        Debt yield {percentFormatter.format(commercialSummary.debtYield)} on {currencyFormatter.format(commercialSummary.annualNoi)} NOI
+                      </p>
+                    </div>
+                    <div className="results-hero-stat">
+                      <p className="dashboard-kicker text-[11px]">Risk drag</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-100">
+                        {currencyFormatter.format(commercialSummary.annualEconomicVacancyLoss + commercialSummary.annualCreditLoss)} annual from vacancy and credit loss
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                <DealWorkoutCard
+                  model={model}
+                  strategy={activeStrategy}
+                  targetIrrPercent={model.assumptions.targetIrrPercent}
+                  onApply={applyDealWorkoutScenario}
+                />
+              )}
+            </div>
+            </div>
           </div>
         </section>
         {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
@@ -6363,120 +6349,87 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        <div className={desktopWorkspaceShellClassName}>
-          <div className="space-y-4 xl:space-y-5 [overflow-anchor:none]">
-            {desktopPerformanceDashboard}
+        <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
+          <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
+            <div className="desktop-builder-heading">
+              <p className="desktop-input-rail-heading">Deal builder</p>
+              <h2 className="text-lg font-semibold text-slate-100">Inputs</h2>
+            </div>
+            <StrategyTabs
+              active={activeStrategy}
+              onChange={openDesktopStrategyWorkspace}
+              longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+              onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
+              quickScan={strategyQuickScan}
+              embeddedInRail
+              actionSlot={
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setIsStrategyWorkOpen(true);
+                  }}
+                  className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
+                >
+                  Show work
+                </button>
+              }
+            />
           </div>
 
-          {!isMobileViewport ? (
-            <section className="desktop-input-rail section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
-              <div ref={desktopStrategyTabsRef} className="desktop-input-rail-section">
-                <div>
-                  <p className="desktop-input-rail-heading">Strategies</p>
-                </div>
-                <StrategyTabs
-                  active={activeStrategy}
-                  onChange={openDesktopStrategyWorkspace}
-                  longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
-                  onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
-                  quickScan={strategyQuickScan}
-                  embeddedInRail
-                  actionSlot={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHapticFeedback('light');
-                        setIsStrategyWorkOpen(true);
-                      }}
-                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
-                    >
-                      Show work
-                    </button>
-                  }
-                />
-              </div>
+          <div className="desktop-deal-builder-grid">
+            <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
+              <DealInputPanel
+                value={model}
+                onChange={updateModel}
+                resolveListingDealName={resolveListingDealName}
+                defaultAdvancedOptionsOpen={false}
+                forcedCoreSection="purchaseFinancing"
+                titleOverride="Purchase"
+                contentViewportClassName={desktopInputViewportClassName}
+                variant="embedded"
+              />
+            </div>
+            <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
+              <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
+            </div>
+            <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
+              <DealInputPanel
+                value={model}
+                onChange={updateModel}
+                resolveListingDealName={resolveListingDealName}
+                defaultAdvancedOptionsOpen={false}
+                forcedCoreSection="expenses"
+                contentViewportClassName={desktopInputViewportClassName}
+                variant="embedded"
+              />
+            </div>
+          </div>
+        </section>
 
-              <div className="desktop-input-rail-section">
-                <div>
-                  <p className="desktop-input-rail-heading">Inputs</p>
-                </div>
-                <div aria-label="Desktop input workspace selection" role="tablist" className="desktop-input-switcher">
-                    <button
-                      ref={desktopDealSetupButtonRef}
-                      type="button"
-                      role="tab"
-                      aria-selected={desktopInputWorkspace === 'dealSetup'}
-                      onClick={() => setDesktopInputWorkspace('dealSetup')}
-                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
-                        desktopInputWorkspace === 'dealSetup'
-                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
-                          : 'btn-selector btn-selector-input text-slate-200'
-                      }`}
-                    >
-                    Purchase
-                  </button>
-                  <button
-                      ref={desktopStrategyInputsButtonRef}
-                      type="button"
-                      role="tab"
-                      aria-selected={desktopInputWorkspace === 'strategyInputs'}
-                      onClick={() => setDesktopInputWorkspace('strategyInputs')}
-                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
-                        desktopInputWorkspace === 'strategyInputs'
-                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
-                          : 'btn-selector btn-selector-input text-slate-200'
-                      }`}
-                    >
-                    Strategy
-                  </button>
-                  <button
-                      ref={desktopExpensesButtonRef}
-                      type="button"
-                      role="tab"
-                      aria-selected={desktopInputWorkspace === 'expenses'}
-                      onClick={() => setDesktopInputWorkspace('expenses')}
-                      className={`tap-feedback btn-brand-profile flex min-h-[2.625rem] items-center justify-center rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
-                        desktopInputWorkspace === 'expenses'
-                          ? 'btn-selector btn-selector-input btn-selector-active text-white'
-                          : 'btn-selector btn-selector-input text-slate-200'
-                      }`}
-                    >
-                    Expenses
-                  </button>
-                </div>
-              </div>
-
-              <div className="desktop-input-rail-section desktop-input-rail-workspace">
-              <div ref={desktopCoreSectionRef} className={desktopInputWorkspace === 'dealSetup' ? 'block' : 'hidden'}>
-                <DealInputPanel
-                  value={model}
-                  onChange={updateModel}
-                  resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={false}
-                  forcedCoreSection="purchaseFinancing"
-                  titleOverride="Purchase"
-                  contentViewportClassName={desktopInputViewportClassName}
-                  variant="embedded"
-                />
-              </div>
-              <div ref={desktopStrategyInputsRef} className={desktopInputWorkspace === 'strategyInputs' ? 'block' : 'hidden'}>
-                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
-              </div>
-              <div ref={desktopExpensesSectionRef} className={desktopInputWorkspace === 'expenses' ? 'block' : 'hidden'}>
-                <DealInputPanel
-                  value={model}
-                  onChange={updateModel}
-                  resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={false}
-                  forcedCoreSection="expenses"
-                  contentViewportClassName={desktopInputViewportClassName}
-                  variant="embedded"
-                />
-              </div>
-              </div>
-            </section>
-          ) : null}
-        </div>
+        <section className="desktop-analysis-dock [overflow-anchor:none]">
+          <div className="desktop-analysis-heading">
+            <p className="desktop-input-rail-heading">Analysis dock</p>
+            <h2 className="text-lg font-semibold text-slate-100">Projections</h2>
+          </div>
+          <div className="desktop-analysis-grid">
+            <div className="desktop-analysis-projections min-w-0">
+              {desktopPerformanceDashboard}
+            </div>
+            <div ref={irrStreamRef} className="desktop-analysis-timeline min-w-0">
+              <TimelineCard
+                output={result[activeStrategy]}
+                assumptions={model.assumptions}
+                defaultOpen={Boolean(activeDealId)}
+                collapsible={false}
+                summaryVariant="compact"
+                onAssumptionsChange={updateAssumptions}
+                showTargetIrrInput={showTargetIrrInput}
+                layoutVariant="strip"
+              />
+            </div>
+          </div>
+        </section>
         </>
         ) : null}
       </div>

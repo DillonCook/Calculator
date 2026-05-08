@@ -46,13 +46,13 @@ function VaultActionButton({
 }) {
   const className =
     tone === 'primary'
-      ? 'btn-primary btn-vault tap-feedback min-h-10 w-10 rounded-lg text-sm font-semibold'
+      ? 'btn-primary btn-vault hoverbox-trigger tap-feedback min-h-10 w-10 rounded-lg text-sm font-semibold'
       : tone === 'danger'
-        ? 'tap-feedback min-h-10 w-10 rounded-lg border border-red-500/45 bg-red-500/12 text-sm font-semibold text-red-100 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50'
-        : 'tap-feedback section-action section-action-utility min-h-10 w-10 rounded-lg text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50';
+        ? 'hoverbox-trigger tap-feedback min-h-10 w-10 rounded-lg border border-red-500/45 bg-red-500/12 text-sm font-semibold text-red-100 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50'
+        : 'hoverbox-trigger tap-feedback section-action section-action-utility min-h-10 w-10 rounded-lg text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50';
 
   return (
-    <button type="button" aria-label={ariaLabel} title={title} onClick={onClick} disabled={disabled} className={className}>
+    <button type="button" aria-label={ariaLabel} data-hoverbox={title} onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
   );
@@ -158,13 +158,13 @@ export function DealsVaultPanel({
             <button
               type="button"
               aria-label="Load sample deal"
-              title="Load sample deal"
+              data-hoverbox="Load sample deal"
               onClick={() => {
                 triggerHapticFeedback('light');
                 onLoadSampleDeal();
                 onRequestClose?.();
               }}
-              className="tap-feedback section-action section-action-utility min-h-10 rounded-lg px-3 text-xs font-semibold text-slate-200"
+              className="hoverbox-trigger tap-feedback section-action section-action-utility min-h-10 rounded-lg px-3 text-xs font-semibold text-slate-200"
             >
               Sample
             </button>

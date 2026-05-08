@@ -262,8 +262,8 @@ export function TimelineCard({
           <p className="dashboard-kicker">Projected annual cash flow</p>
           <p className="dashboard-meta text-[11px]">Years 0 through {Math.max(output.cashFlowTimeline.length - 1, 0)}</p>
         </div>
-        <div className="scrollbar-premium mt-2 overflow-x-auto pb-1">
-          <div className="dashboard-irr-strip-flow-row">
+        <div className="dashboard-irr-flow-scroll scrollbar-premium mt-2 overflow-y-auto pr-1">
+          <div className="dashboard-irr-strip-flow-grid">
             {output.cashFlowTimeline.map((flow, index) => (
               <article key={index} className="dashboard-irr-flow-chip">
                 <p className="dashboard-meta text-xs">Year {index}</p>

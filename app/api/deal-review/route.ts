@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 const resendApiKey = process.env.RESEND_API_KEY;
 const dealReviewToEmail = process.env.DEAL_REVIEW_TO_EMAIL || process.env.FEEDBACK_TO_EMAIL || 'dillon@theinvestoragent.io';
 const dealReviewFromEmail = process.env.DEAL_REVIEW_FROM_EMAIL || process.env.FEEDBACK_FROM_EMAIL || 'DealCooker <noreply@dealcooker.app>';
+const dealReviewSubmissionsEnabled = process.env.DEAL_REVIEW_SUBMISSIONS_ENABLED === '1';
 const MAX_FIELD_LENGTH = 240;
 const MAX_NOTES_LENGTH = 1800;
 const MAX_JSON_LENGTH = 18000;
@@ -55,6 +56,10 @@ const dealReviewResponse = (error: string, status: number) =>
   NextResponse.json({ ok: false, error }, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function POST(request: Request) {
+  if (!dealReviewSubmissionsEnabled) {
+    return dealReviewResponse('Paid deal analysis is coming soon.', 403);
+  }
+
   let rawBody: unknown;
 
   try {

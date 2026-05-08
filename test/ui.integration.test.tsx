@@ -250,25 +250,27 @@ describe('dashboard integration', () => {
 
   it('keeps Advanced Options collapsed by default in desktop inputs', async () => {
     render(<HomePage />);
-    const user = userEvent.setup();
 
-    expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Desktop input workspace selection')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchase' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Strategy workspace')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Expenses' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
-
-    expect(screen.getByRole('button', { name: /^Advanced Options/ })).toHaveAttribute('aria-expanded', 'false');
+    const advancedOptionButtons = screen.getAllByRole('button', { name: /^Advanced Options/ });
+    expect(advancedOptionButtons.length).toBeGreaterThan(0);
+    advancedOptionButtons.forEach((button) => {
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
   });
 
   it('exposes editable automatic tax and insurance rates in expenses', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
-
     const taxRate = screen.getByLabelText(/Auto Tax %/i, { selector: 'input' });
-    const insuranceRate = screen.getByLabelText(/Auto Insurance %/i, { selector: 'input' });
+    const insuranceRate = screen.getByLabelText(/Auto Ins\. %/i, { selector: 'input' });
     const taxOverride = screen.getByLabelText(/Tax Override/i, { selector: 'input' });
-    const insuranceOverride = screen.getByLabelText(/Insurance Override/i, { selector: 'input' });
+    const insuranceOverride = screen.getByLabelText(/Ins\. Override/i, { selector: 'input' });
     const expectedTaxPlaceholder = currencyFormatter.format(
       defaultDealInput.purchase.purchasePrice * defaultDealInput.purchase.propertyTaxRatePercent
     );
@@ -740,7 +742,7 @@ describe('dashboard integration', () => {
     fetchSpy.mockRestore();
   });
 
-  it('sends the active desktop deal for review with contact and consent', async () => {
+  it('previews the paid deal review flow while submissions are disabled', async () => {
     authMockState.user = {
       id: 'review-user-1',
       email: 'reviewer@example.com',
@@ -763,49 +765,23 @@ describe('dashboard integration', () => {
     await user.click(screen.getByRole('button', { name: 'Request deal review' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Request a second opinion' });
+    expect(within(dialog).getByText('Coming soon: paid broker review')).toBeInTheDocument();
     expect(within(dialog).getByText(/licensed real estate broker may review/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/paid feature for deal-level feedback/i)).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Email')).toHaveValue('reviewer@example.com');
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Review Requester');
     expect(within(dialog).getByLabelText('Phone')).toHaveValue('555-2222');
+    expect(within(dialog).getByPlaceholderText('What decision are you trying to make?')).toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText('Market / location'), 'Tampa, FL');
     await user.selectOptions(within(dialog).getByLabelText('What should be reviewed?'), 'Offer price');
     await user.type(within(dialog).getByLabelText('Notes'), 'Should I write this offer as-is or ask for a concession?');
     await user.click(within(dialog).getByRole('checkbox'));
-    await user.click(within(dialog).getByRole('button', { name: 'Send for review' }));
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        '/api/deal-review',
-        expect.objectContaining({
-          method: 'POST'
-        })
-      );
-    });
-
-    const requestBody = JSON.parse((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(requestBody.contact).toMatchObject({
-      email: 'reviewer@example.com',
-      name: 'Review Requester',
-      phone: '555-2222'
-    });
-    expect(requestBody.request).toMatchObject({
-      market: 'Tampa, FL',
-      reviewFocus: 'Offer price',
-      consentAccepted: true
-    });
-    expect(requestBody.deal).toMatchObject({
-      dealName: 'New Deal',
-      activeStrategy: expect.any(String),
-      snapshot: expect.any(Object)
-    });
-    expect(requestBody.context).toMatchObject({
-      source: 'desktop_header',
-      signedIn: true,
-      userId: 'review-user-1',
-      savedDealCount: expect.any(Number)
-    });
-    expect(within(dialog).getByText('Deal review request sent.')).toBeInTheDocument();
+    const submitButton = within(dialog).getByRole('button', { name: 'Send for review' });
+    expect(submitButton).toBeDisabled();
+    await user.click(submitButton);
+    expect(fetchSpy).not.toHaveBeenCalledWith('/api/deal-review', expect.anything());
     fetchSpy.mockRestore();
   });
 
@@ -1907,6 +1883,51 @@ describe('dashboard integration', () => {
     expect(screen.queryByText('Stabilize scenario (12-month underwrite)')).not.toBeInTheDocument();
   });
 
+  it('keeps top long-term KPIs on purchase numbers while turnaround outputs show stabilized numbers', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const selector = screen.getByLabelText('Desktop strategy selector');
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term turnaround' }));
+
+    const stabilizedRent = within(getStrategyInputsWorkspace()).getByRole('spinbutton', {
+      name: 'Stabilized gross monthly rent'
+    });
+    await user.clear(stabilizedRent);
+    await user.type(stabilizedRent, '8000');
+
+    const baselineLongTerm = calculateDeal(defaultDealInput).longTerm;
+    const stabilizedModel = {
+      ...defaultDealInput,
+      longTerm: {
+        ...defaultDealInput.longTerm,
+        turnaround: {
+          ...defaultDealInput.longTerm.turnaround,
+          enabled: true,
+          stabilizedGrossRentMonthly: 8000
+        }
+      }
+    };
+    const stabilizedSummary = calculateDeal(stabilizedModel).longTerm.longTermTurnaroundSummary;
+
+    expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
+      percentFormatter.format(baselineLongTerm.cashOnCashReturn)
+    );
+    expect(screen.getByTestId('kpi-cap-rate')).toHaveTextContent(
+      percentFormatter.format(baselineLongTerm.capRate)
+    );
+    expect(screen.getByLabelText('Cash on Cash strategy context')).toHaveTextContent('Long-Term');
+
+    const turnaroundOutputs = screen.getByText('Long-term turnaround outputs').closest('section');
+    expect(turnaroundOutputs).not.toBeNull();
+    const turnaroundQueries = within(turnaroundOutputs as HTMLElement);
+
+    expect(turnaroundQueries.getAllByText('Cash-on-Cash (Stabilized)').length).toBeGreaterThan(0);
+    expect(turnaroundQueries.getAllByText(percentFormatter.format(stabilizedSummary?.cashOnCashReturn ?? 0)).length).toBeGreaterThan(0);
+    expect(turnaroundQueries.getAllByText('Cap Rate (Stabilized)').length).toBeGreaterThan(0);
+    expect(turnaroundQueries.getAllByText(percentFormatter.format(stabilizedSummary?.capRate ?? 0)).length).toBeGreaterThan(0);
+  });
+
   it('allows decimal precision for percent and numeric text fields without rounding', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -2105,16 +2126,17 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('tab', { name: 'Expenses' }));
-
     const header = document.querySelector('.variable-expense-header');
     expect(header).not.toBeNull();
     if (header) {
       expect(within(header).getByText('Expense')).toBeInTheDocument();
       expect(within(header).getByText('Unit')).toBeInTheDocument();
       expect(within(header).getByText('Amount')).toBeInTheDocument();
-      expect(within(header).getByText('Strategies')).toBeInTheDocument();
+      expect(within(header).getByText('Applies to')).toBeInTheDocument();
     }
+
+    const variableExpenseEditor = screen.getByLabelText('Variable expense editor');
+    expect(screen.queryByRole('button', { name: 'Power applies to Commercial' })).not.toBeInTheDocument();
 
     const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
     const firstLabel = screen.getByLabelText('Expense label 1');
@@ -2127,10 +2149,18 @@ describe('dashboard integration', () => {
     expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Utilities Master monthly input cadence' })).toHaveAttribute('aria-pressed', 'false');
 
+    await user.click(screen.getByRole('button', { name: 'Select strategies' }));
+    expect(screen.queryByRole('button', { name: 'Utilities Master annual input cadence' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Utilities Master amount')).not.toBeInTheDocument();
     const commercialToggle = screen.getByRole('button', { name: 'Utilities Master applies to Commercial' });
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     await user.click(commercialToggle);
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Done selecting' }));
+    expect(screen.queryByRole('button', { name: 'Utilities Master applies to Commercial' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Utilities Master annual input cadence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Utilities Master amount')).toBeInTheDocument();
+    expect(within(variableExpenseEditor).getByLabelText('Utilities Master active strategies')).toHaveTextContent('Commercial');
 
     await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
 
@@ -2167,10 +2197,19 @@ describe('dashboard integration', () => {
     await user.click(annualCadence);
     expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
 
+    expect(screen.queryByRole('button', { name: 'Mobile Utilities applies to Commercial' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Select strategies' }));
+    expect(screen.queryByRole('button', { name: 'Mobile Utilities annual input cadence' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Mobile Utilities amount')).not.toBeInTheDocument();
     const commercialToggle = screen.getByRole('button', { name: 'Mobile Utilities applies to Commercial' });
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     await user.click(commercialToggle);
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Done selecting' }));
+    expect(screen.queryByRole('button', { name: 'Mobile Utilities applies to Commercial' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mobile Utilities annual input cadence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Mobile Utilities amount')).toBeInTheDocument();
+    expect(within(variableExpenseEditor).getByLabelText('Mobile Utilities active strategies')).toHaveTextContent('Commercial');
 
     await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
     expect(screen.getAllByLabelText(/Expense label/i).length).toBe(beforeCount + 1);

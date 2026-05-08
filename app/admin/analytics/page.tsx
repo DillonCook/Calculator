@@ -200,9 +200,9 @@ function MiniTrend({ title, items }: { title: string; items: Array<{ day: string
         {items.map((item) => (
           <div key={item.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-1">
             <div
-              className="min-h-1 rounded-t bg-orange-300"
+              className="hoverbox-trigger min-h-1 rounded-t bg-orange-300"
               style={{ height: `${Math.max(4, (item.count / max) * 100)}%` }}
-              title={`${item.day}: ${item.count}`}
+              data-hoverbox={`${item.day}: ${item.count}`}
             />
           </div>
         ))}

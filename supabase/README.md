@@ -24,6 +24,7 @@ Apply the SQL files in `migrations/` before inviting private production users.
 - `RESEND_API_KEY` for feedback and deal-review delivery
 - `FEEDBACK_TO_EMAIL=dillon@theinvestoragent.io` recommended so production does not depend on the fallback
 - `FEEDBACK_FROM_EMAIL` optional; defaults to `DealCooker <noreply@dealcooker.app>` and must use a Resend-verified sender/domain
+- `DEAL_REVIEW_SUBMISSIONS_ENABLED=1` only when the paid deal-analysis entitlement flow is ready
 - `DEAL_REVIEW_TO_EMAIL` optional; defaults to `FEEDBACK_TO_EMAIL` or `dillon@theinvestoragent.io`
 - `DEAL_REVIEW_FROM_EMAIL` optional; defaults to `FEEDBACK_FROM_EMAIL` or `DealCooker <noreply@dealcooker.app>`
 

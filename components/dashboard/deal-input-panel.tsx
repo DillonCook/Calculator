@@ -554,6 +554,7 @@ export function DealInputPanel({
   const isEmbedded = variant === 'embedded';
   const [activeCoreSection, setActiveCoreSection] = useState<CoreInputSection>('purchaseFinancing');
   const [expenseCadenceByKey, setExpenseCadenceByKey] = useState<Record<string, VariableExpenseInputMode>>({});
+  const [isVariableExpenseStrategyEditorOpen, setIsVariableExpenseStrategyEditorOpen] = useState(false);
   const [knownDraft, setKnownDraft] = useState('');
   const [knownFeedback, setKnownFeedback] = useState<string | null>(null);
   const [knownClassificationOverrides, setKnownClassificationOverrides] = useState<Record<string, KnownDisplayClassification>>({});
@@ -919,14 +920,14 @@ export function DealInputPanel({
                     </div>
                     <div className="grid grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2 [&_.dashboard-field-label>span:first-child]:whitespace-nowrap">
                       <PercentInput
-                        label="Auto Insurance %"
+                        label="Auto Ins. %"
                         value={resolveInsuranceRatePercent(value.purchase)}
                         onChange={(v) => update('purchase', 'insuranceRatePercent', v)}
                         tooltip="Used for automatic annual insurance unless you enter an insurance override."
                       />
                       <div className="min-w-0 border-l border-slate-500/20 pl-2">
                         <Input
-                          label="Insurance Override"
+                          label="Ins. Override"
                           type="number"
                           placeholder={currencyFormatter.format(autoInsuranceAnnual)}
                           allowEmptyNumber
@@ -954,7 +955,17 @@ export function DealInputPanel({
                 )}
 
                 <div className={variableExpenseSectionClassName}>
-                  <div className="flex justify-end">
+                  <div className="variable-expense-toolbar">
+                    <button
+                      type="button"
+                      onClick={() => setIsVariableExpenseStrategyEditorOpen((open) => !open)}
+                      aria-pressed={isVariableExpenseStrategyEditorOpen}
+                      className={`tap-feedback section-action rounded-xl px-3 py-2 text-xs font-semibold ${
+                        isVariableExpenseStrategyEditorOpen ? 'section-action-analysis text-slate-100' : 'section-action-input text-slate-200'
+                      }`}
+                    >
+                      {isVariableExpenseStrategyEditorOpen ? 'Done selecting' : 'Select strategies'}
+                    </button>
                     <button
                       type="button"
                       onClick={addVariableExpense}
@@ -965,20 +976,27 @@ export function DealInputPanel({
                   </div>
 
                   <div className="variable-expense-shell mt-3" aria-label="Variable expense editor">
-                    <div className="variable-expense-header" aria-hidden="true">
+                    <div
+                      className={`variable-expense-header ${isVariableExpenseStrategyEditorOpen ? 'variable-expense-header-selecting' : ''}`}
+                      aria-hidden="true"
+                    >
                       <span>Expense</span>
-                      <span>Unit</span>
-                      <span>Amount</span>
-                      <span>Strategies</span>
+                      {!isVariableExpenseStrategyEditorOpen ? <span>Unit</span> : null}
+                      {!isVariableExpenseStrategyEditorOpen ? <span>Amount</span> : null}
+                      <span>{isVariableExpenseStrategyEditorOpen ? 'Strategies' : 'Applies to'}</span>
                     </div>
 
                     <div className="variable-expense-list">
                     {value.variableExpenses.map((expense, index) => {
                       const cadence = getExpenseCadence(expense.key);
                       const expenseLabel = expense.label.trim() || `Expense ${index + 1}`;
+                      const activeStrategies = variableExpenseStrategyOrder.filter((strategy) => expense.appliesTo[strategy]);
 
                       return (
-                        <article key={expense.key} className="variable-expense-row">
+                        <article
+                          key={expense.key}
+                          className={`variable-expense-row ${isVariableExpenseStrategyEditorOpen ? 'variable-expense-row-editing-strategies' : ''}`}
+                        >
                           <label className="variable-expense-row-label">
                             <span className="sr-only">Expense</span>
                             <input
@@ -991,74 +1009,96 @@ export function DealInputPanel({
                             />
                           </label>
 
-                          <div className="variable-expense-row-cadence">
-                            <div className="variable-expense-cadence" role="group" aria-label={`${expenseLabel} cadence`} data-cadence={cadence}>
-                              {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
-                                const active = cadence === mode;
-                                return (
-                                  <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => setExpenseCadence(expense.key, mode)}
-                                    aria-pressed={active}
-                                    aria-label={`${expenseLabel} ${mode} input cadence`}
-                                    title={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
-                                    data-active={active}
-                                    className="variable-expense-cadence-btn tap-feedback"
-                                  >
-                                    {mode === 'monthly' ? 'Mo' : 'Yr'}
-                                  </button>
-                                );
-                              })}
+                          {!isVariableExpenseStrategyEditorOpen ? (
+                            <div className="variable-expense-row-cadence">
+                              <div className="variable-expense-cadence" role="group" aria-label={`${expenseLabel} cadence`} data-cadence={cadence}>
+                                {(['monthly', 'annual'] as VariableExpenseInputMode[]).map((mode) => {
+                                  const active = cadence === mode;
+                                  return (
+                                    <button
+                                      key={mode}
+                                      type="button"
+                                      onClick={() => setExpenseCadence(expense.key, mode)}
+                                      aria-pressed={active}
+                                      aria-label={`${expenseLabel} ${mode} input cadence`}
+                                      data-hoverbox={mode === 'monthly' ? 'Monthly input' : 'Annual input'}
+                                      data-active={active}
+                                      className="variable-expense-cadence-btn hoverbox-trigger tap-feedback"
+                                    >
+                                      {mode === 'monthly' ? 'Mo' : 'Yr'}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          ) : null}
 
-                          <label className="variable-expense-row-amount">
-                            <span className="sr-only">Amount</span>
-                            <input
-                              aria-label={`${expenseLabel} amount`}
-                              className="variable-expense-amount-input"
-                              type="number"
-                              step="0.01"
-                              value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
-                              onChange={(event) => {
-                                const rawValue = Number(event.target.value);
-                                const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
-                                updateVariableExpense(index, {
-                                  monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
-                                });
-                              }}
-                            />
-                          </label>
+                          {!isVariableExpenseStrategyEditorOpen ? (
+                            <label className="variable-expense-row-amount">
+                              <span className="sr-only">Amount</span>
+                              <input
+                                aria-label={`${expenseLabel} amount`}
+                                className="variable-expense-amount-input"
+                                type="number"
+                                step="0.01"
+                                value={formatVariableExpenseInput(expense.monthlyAmount, cadence)}
+                                onChange={(event) => {
+                                  const rawValue = Number(event.target.value);
+                                  const parsedValue = Number.isFinite(rawValue) ? rawValue : 0;
+                                  updateVariableExpense(index, {
+                                    monthlyAmount: cadence === 'annual' ? parsedValue / 12 : parsedValue
+                                  });
+                                }}
+                              />
+                            </label>
+                          ) : null}
 
                           <div className="variable-expense-row-strategies">
-                            <div className="variable-expense-strategies" role="group" aria-label={`${expenseLabel} strategies`}>
-                              {variableExpenseStrategyOrder.map((strategy) => {
-                                const active = expense.appliesTo[strategy];
-                                return (
-                                  <button
-                                    key={strategy}
-                                    type="button"
-                                    aria-label={`${expenseLabel} applies to ${strategyToggleLabels[strategy]}`}
-                                    aria-pressed={active}
-                                    data-active={active}
-                                    onClick={() =>
-                                      updateVariableExpense(index, {
-                                        appliesTo: { ...expense.appliesTo, [strategy]: !active }
-                                      })
-                                    }
-                                    className="variable-expense-chip tap-feedback"
-                                  >
+                            {isVariableExpenseStrategyEditorOpen ? (
+                              <div className="variable-expense-strategies" role="group" aria-label={`${expenseLabel} strategies`}>
+                                {variableExpenseStrategyOrder.map((strategy) => {
+                                  const active = expense.appliesTo[strategy];
+                                  return (
+                                    <button
+                                      key={strategy}
+                                      type="button"
+                                      aria-label={`${expenseLabel} applies to ${strategyToggleLabels[strategy]}`}
+                                      aria-pressed={active}
+                                      data-active={active}
+                                      onClick={() =>
+                                        updateVariableExpense(index, {
+                                          appliesTo: { ...expense.appliesTo, [strategy]: !active }
+                                        })
+                                      }
+                                      className="variable-expense-chip tap-feedback"
+                                    >
+                                      <span
+                                        className="variable-expense-chip-label"
+                                        data-mobile-label={strategyToggleCompactLabels[strategy]}
+                                      >
+                                        {strategyToggleLabels[strategy]}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="variable-expense-active-strategies" aria-label={`${expenseLabel} active strategies`}>
+                                {activeStrategies.length > 0 ? (
+                                  activeStrategies.map((strategy) => (
                                     <span
-                                      className="variable-expense-chip-label"
+                                      key={strategy}
+                                      className="variable-expense-active-badge"
                                       data-mobile-label={strategyToggleCompactLabels[strategy]}
                                     >
                                       {strategyToggleLabels[strategy]}
                                     </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                                  ))
+                                ) : (
+                                  <span className="variable-expense-active-empty">None</span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="variable-expense-row-delete">

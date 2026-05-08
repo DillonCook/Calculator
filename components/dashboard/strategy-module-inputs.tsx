@@ -184,7 +184,7 @@ export function StrategyModuleInputs({
             <section className={inlineSubsectionClassName}>
               <div className="mb-2">
                 <p className="dashboard-kicker">Stabilize scenario (12-month underwrite)</p>
-                <p className="text-xs text-muted">Headline metrics use the stabilized run-rate; IRR/ROI carry the first 12 months from regular long-term inputs.</p>
+                <p className="text-xs text-muted">Turnaround outputs below use the stabilized run-rate; IRR/ROI carry the first 12 months from regular long-term inputs.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
