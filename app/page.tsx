@@ -4964,10 +4964,9 @@ export default function HomePage() {
                         handleStrategyChange(strategy);
                         setCompactSheetView(null);
                       }}
-                      className={`tap-feedback hoverbox-trigger btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
+                      className={`tap-feedback btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
                         isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active text-white' : 'text-slate-200'
                       }`}
-                      data-hoverbox="Turnaround"
                     >
                       <TurnaroundIcon className="h-5 w-5" />
                     </button>

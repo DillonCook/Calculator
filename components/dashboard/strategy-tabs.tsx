@@ -92,31 +92,35 @@ export function StrategyTabs({
           return (
             <div
               key={strategy.key}
-              className={`long-term-strategy-combo grid min-h-[2.35rem] w-full shrink-0 grid-cols-[2fr_1fr] overflow-hidden rounded-xl sm:w-auto ${
-                isActive ? 'long-term-strategy-combo-active' : ''
-              }`}
+              className="turnaround-hoverbox-shell hoverbox-trigger w-full shrink-0 sm:w-auto"
+              data-hoverbox="Turnaround"
             >
-              <button
-                className={`tap-feedback btn-brand-profile btn-selector btn-selector-input min-h-[2.35rem] rounded-none px-2.5 py-1.5 text-[0.8125rem] whitespace-nowrap transition-all duration-200 ease-out ${
-                  isRegularActive ? 'btn-selector-active' : ''
+              <div
+                className={`long-term-strategy-combo grid min-h-[2.35rem] w-full grid-cols-[2fr_1fr] overflow-hidden rounded-xl ${
+                  isActive ? 'long-term-strategy-combo-active' : ''
                 }`}
-                onClick={() => selectLongTermMode(false)}
-                type="button"
               >
-                {strategy.label}
-              </button>
-              <button
-                className={`tap-feedback hoverbox-trigger btn-brand-profile btn-selector btn-selector-input turnaround-strategy-toggle min-h-[2.35rem] rounded-none px-2 py-1.5 text-[0.8125rem] transition-all duration-200 ease-out ${
-                  isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active' : ''
-                }`}
-                onClick={() => selectLongTermMode(true)}
-                type="button"
-                aria-label="Long-Term turnaround"
-                aria-pressed={isTurnaroundActive}
-                data-hoverbox="Turnaround"
-              >
-                <TurnaroundIcon className="mx-auto h-4 w-4" />
-              </button>
+                <button
+                  className={`tap-feedback btn-brand-profile btn-selector btn-selector-input min-h-[2.35rem] rounded-none px-2.5 py-1.5 text-[0.8125rem] whitespace-nowrap transition-all duration-200 ease-out ${
+                    isRegularActive ? 'btn-selector-active' : ''
+                  }`}
+                  onClick={() => selectLongTermMode(false)}
+                  type="button"
+                >
+                  {strategy.label}
+                </button>
+                <button
+                  className={`tap-feedback btn-brand-profile btn-selector btn-selector-input turnaround-strategy-toggle min-h-[2.35rem] rounded-none px-2 py-1.5 text-[0.8125rem] transition-all duration-200 ease-out ${
+                    isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active' : ''
+                  }`}
+                  onClick={() => selectLongTermMode(true)}
+                  type="button"
+                  aria-label="Long-Term turnaround"
+                  aria-pressed={isTurnaroundActive}
+                >
+                  <TurnaroundIcon className="mx-auto h-4 w-4" />
+                </button>
+              </div>
             </div>
           );
         }
