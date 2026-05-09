@@ -114,8 +114,6 @@ export function KpiCard({
   const tooltipAnchorRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<HTMLButtonElement | null>(null);
   const tooltipPanelRef = useRef<HTMLDivElement | null>(null);
-  const primaryValueRef = useRef<HTMLParagraphElement | null>(null);
-  const secondaryValueRef = useRef<HTMLParagraphElement | null>(null);
   const chartPoints = useMemo(() => buildChartPoints(chartSeries), [chartSeries]);
   const linePath = useMemo(() => buildSmoothPath(chartPoints), [chartPoints]);
   const areaPath = useMemo(() => (linePath ? `${linePath} L 100 40 L 0 40 Z` : ''), [linePath]);
@@ -161,28 +159,6 @@ export function KpiCard({
       closeTooltipTimerRef.current = null;
     }, 90);
   };
-
-  useEffect(() => {
-    if (typeof primaryValueRef.current?.animate === 'function') {
-      primaryValueRef.current.animate(
-        [
-          { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
-          { opacity: 1, transform: 'translateY(0) scale(1)' }
-        ],
-        { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-      );
-    }
-
-    if (typeof secondaryValueRef.current?.animate === 'function') {
-      secondaryValueRef.current.animate(
-        [
-          { opacity: 0.55, transform: 'translateY(4px) scale(0.985)' },
-          { opacity: 1, transform: 'translateY(0) scale(1)' }
-        ],
-        { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-      );
-    }
-  }, [value, secondaryValue]);
 
   useEffect(() => {
     if (!isTooltipOpen) return;
@@ -335,7 +311,6 @@ export function KpiCard({
       {winner && isInline ? <span className="sr-only" aria-label={`${label} strategy context`}>{winner}</span> : null}
 
       <p
-        ref={primaryValueRef}
         className={`relative z-10 font-semibold leading-tight ${
           isInline ? (tone === 'success' ? 'kpi-strip-value kpi-strip-value-success' : 'kpi-strip-value') : tone === 'success' ? 'text-emerald-300' : 'text-white'
         } ${
@@ -358,7 +333,6 @@ export function KpiCard({
           <div className="relative z-10 mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <p className="dashboard-meta text-[10px]">{secondaryLabel}</p>
             <p
-              ref={secondaryValueRef}
               className="kpi-strip-secondary-value text-[10px] font-semibold"
               data-testid={`kpi-${slugify(secondaryLabel)}`}
             >
@@ -369,7 +343,6 @@ export function KpiCard({
           <div className={`section-inner-muted relative z-10 rounded-lg ${isCompact ? 'mt-1 px-2 py-1.5' : 'mt-2 px-2 py-1.5 sm:px-2.5 sm:py-2'}`}>
             <p className={`dashboard-meta ${isCompact ? 'text-[10px]' : 'text-[11px] sm:text-xs'}`}>{secondaryLabel}</p>
             <p
-              ref={secondaryValueRef}
               className={`font-semibold text-white ${isCompact ? 'text-xs' : 'text-sm sm:text-[1.05rem]'}`}
               data-testid={`kpi-${slugify(secondaryLabel)}`}
             >

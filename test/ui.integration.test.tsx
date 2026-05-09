@@ -702,14 +702,18 @@ describe('dashboard integration', () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send feedback' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Email')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Name')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Phone')).not.toBeInTheDocument();
 
-    await user.type(within(dialog).getByLabelText('Feedback'), 'This is clear feedback from inside the app.');
+    const feedbackInput = within(dialog).getByLabelText('Feedback');
+    const feedbackMessage = 'This is clear feedback from inside the app.';
+    await user.type(feedbackInput, feedbackMessage);
     await user.click(within(dialog).getByRole('button', { name: 'Send feedback' }));
 
     await waitFor(() => {
@@ -722,7 +726,7 @@ describe('dashboard integration', () => {
     });
 
     const requestBody = JSON.parse((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(requestBody.message).toBe('This is clear feedback from inside the app.');
+    expect(requestBody.message).toBe(feedbackMessage);
     expect(requestBody.contact).toMatchObject({
       email: 'feedback@example.com',
       name: 'Feedback Tester',
@@ -739,6 +743,11 @@ describe('dashboard integration', () => {
     });
     expect(window.localStorage.getItem(FEEDBACK_SENT_KEY)).toBe('1');
     expect(within(dialog).getByText('Feedback sent. Thank you.')).toBeInTheDocument();
+    expect(feedbackInput).toBeDisabled();
+    expect(feedbackInput).toHaveValue(feedbackMessage);
+    expect(within(dialog).getByRole('button', { name: 'Sent' })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Sent' }));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     fetchSpy.mockRestore();
   });
 
@@ -1473,7 +1482,12 @@ describe('dashboard integration', () => {
     expect(commercialOutputs).not.toBeNull();
     expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
     expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-revealed');
+    expect(within(commercialOutputs as HTMLElement).getByText('Commercial underwriting digest')).toBeInTheDocument();
+    expect(within(commercialOutputs as HTMLElement).getByText('Live from inputs')).toBeInTheDocument();
     expect(within(commercialOutputs as HTMLElement).getAllByText('Annual NOI').length).toBeGreaterThan(0);
+    expect(screen.getByText('Basis and financing')).toBeInTheDocument();
+    expect(screen.getByText('Strategy assumptions')).toBeInTheDocument();
+    expect(screen.getByText('Operating burden')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Strategy inputs' })).not.toBeInTheDocument();
   });
 
@@ -1520,6 +1534,7 @@ describe('dashboard integration', () => {
     );
 
     expect(screen.getByTestId('kpi-cash-to-close')).toHaveTextContent(expected);
+    await waitFor(() => expect(screen.getByTestId('kpi-priority-metric')).toHaveClass('priority-kpi-value-motion'));
   });
 
   it('top KPI cards follow the active strategy tab', async () => {
@@ -1531,6 +1546,7 @@ describe('dashboard integration', () => {
     const airbnbResult = calculateDeal(defaultDealInput).airbnb;
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(airbnbResult.monthlyCashFlow));
+    expect(screen.getByTestId('kpi-priority-metric')).not.toHaveClass('priority-kpi-value-motion');
     expect(screen.getByTestId('kpi-cash-on-cash')).toHaveTextContent(
       percentFormatter.format(airbnbResult.cashOnCashReturn)
     );
@@ -1973,6 +1989,8 @@ describe('dashboard integration', () => {
     const turnaroundQueries = within(turnaroundOutputs as HTMLElement);
     const stabilizedCashFlow = currencyFormatter.format(stabilizedSummary?.cashFlowPreTaxMonthly ?? 0);
 
+    expect(turnaroundQueries.getByText('Stabilized run-rate digest')).toBeInTheDocument();
+    expect(turnaroundQueries.getByText('Live from inputs')).toBeInTheDocument();
     expect(turnaroundQueries.getAllByText('Cash Flow (Pre-Tax)').length).toBeGreaterThan(0);
     expect(turnaroundQueries.getAllByText(stabilizedCashFlow).length).toBeGreaterThan(0);
     expect(screen.getByTestId('kpi-priority-metric')).not.toHaveTextContent(stabilizedCashFlow);

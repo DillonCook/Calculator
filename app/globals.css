@@ -1643,12 +1643,45 @@ html {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
+  .scenario-digest-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding-bottom: 0.62rem;
+  }
+
+  .scenario-digest-title {
+    margin-top: 0.22rem;
+    color: #f4f8fc;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .scenario-digest-live-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    border: 1px solid rgba(108, 177, 255, 0.25);
+    border-radius: 999px;
+    background: rgba(69, 134, 205, 0.14);
+    color: #d9ecff;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
   .scenario-digest-grid {
     align-items: stretch;
   }
 
   .scenario-digest-card {
     min-width: 0;
+  }
+
+  .scenario-digest-value {
+    display: block;
+    transform-origin: left center;
   }
 
   .scenario-flip-flow {
@@ -1776,6 +1809,11 @@ html {
     margin-top: -0.15rem;
   }
 
+  .priority-kpi-value-motion {
+    display: block;
+    transform-origin: left center;
+  }
+
   .priority-kpi-header {
     min-width: 0;
   }
@@ -1819,6 +1857,62 @@ html {
 
   .desktop-builder-lane {
     min-width: 0;
+  }
+
+  .desktop-lane-anchor {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 3;
+    display: flex;
+    min-height: 2rem;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 0.75rem;
+    background: rgba(8, 16, 29, 0.78);
+    padding: 0.36rem 0.5rem;
+    -webkit-backdrop-filter: blur(12px) saturate(1.04);
+    backdrop-filter: blur(12px) saturate(1.04);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .desktop-lane-anchor span,
+  .desktop-lane-anchor small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-lane-anchor span {
+    color: #f2f7ff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .desktop-lane-anchor small {
+    color: #8fa7bd;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .desktop-lane-anchor-purchase {
+    border-color: rgba(122, 166, 219, 0.13);
+  }
+
+  .desktop-lane-anchor-strategy {
+    border-color: rgba(88, 164, 255, 0.18);
+    background: rgba(12, 31, 54, 0.78);
+  }
+
+  .desktop-lane-anchor-expenses {
+    border-color: rgba(251, 139, 35, 0.18);
+    background: rgba(35, 24, 15, 0.72);
   }
 
   .desktop-builder-lane + .desktop-builder-lane {
@@ -3441,6 +3535,14 @@ html {
     box-shadow: 0 0 0 3px rgba(118, 171, 236, 0.14);
   }
 
+  .feedback-input:disabled {
+    cursor: not-allowed;
+    border-color: rgba(148, 163, 184, 0.14);
+    background: rgba(148, 163, 184, 0.08);
+    color: rgba(226, 232, 240, 0.58);
+    box-shadow: none;
+  }
+
   .deal-review-select {
     background-color: rgba(17, 30, 46, 0.94);
     color: #eef6ff;
@@ -4342,6 +4444,20 @@ html {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
+.theme-light .scenario-digest-header {
+  border-bottom-color: rgba(112, 141, 178, 0.16);
+}
+
+.theme-light .scenario-digest-title {
+  color: var(--dc-light-text-strong);
+}
+
+.theme-light .scenario-digest-live-pill {
+  border-color: rgba(75, 122, 177, 0.26);
+  background: rgba(232, 241, 252, 0.92);
+  color: var(--dc-light-blue-strong);
+}
+
 .theme-light .results-hero-stat {
   border-top-color: rgba(112, 141, 178, 0.16);
 }
@@ -4363,6 +4479,32 @@ html {
 
 .theme-light .desktop-input-rail-heading {
   color: #58718a;
+}
+
+.theme-light .desktop-lane-anchor {
+  border-color: rgba(112, 141, 178, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 8px 16px rgba(68, 96, 132, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+}
+
+.theme-light .desktop-lane-anchor span {
+  color: var(--dc-light-text-strong);
+}
+
+.theme-light .desktop-lane-anchor small {
+  color: var(--dc-light-muted-soft);
+}
+
+.theme-light .desktop-lane-anchor-strategy {
+  border-color: rgba(75, 122, 177, 0.22);
+  background: rgba(239, 246, 253, 0.94);
+}
+
+.theme-light .desktop-lane-anchor-expenses {
+  border-color: rgba(219, 122, 49, 0.2);
+  background: rgba(255, 248, 241, 0.92);
 }
 
 .theme-light .quick-scan-panel {
@@ -4520,6 +4662,13 @@ html {
 .theme-light .feedback-input:focus {
   border-color: rgba(74, 119, 182, 0.48);
   box-shadow: 0 0 0 3px rgba(74, 119, 182, 0.12);
+}
+
+.theme-light .feedback-input:disabled {
+  border-color: rgba(117, 137, 163, 0.16);
+  background: rgba(226, 236, 247, 0.78);
+  color: rgba(83, 103, 123, 0.62);
+  box-shadow: none;
 }
 
 .theme-light .deal-review-select {
@@ -5301,6 +5450,22 @@ input[type='number'] {
   }
 }
 
+@keyframes scenario-digest-value-update {
+  from {
+    opacity: 0.58;
+    transform: translate3d(0, 4px, 0);
+  }
+
+  55% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .scenario-digest-collapse {
     transition:
@@ -5319,6 +5484,21 @@ input[type='number'] {
 
   .scenario-digest-collapse-exiting .scenario-digest-collapse-inner {
     animation: scenario-digest-exit 560ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .scenario-digest-value {
+    animation: scenario-digest-value-update 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .priority-kpi-value-motion {
+    animation: scenario-digest-value-update 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .desktop-lane-anchor {
+    transition:
+      background-color 220ms ease,
+      border-color 220ms ease,
+      box-shadow 220ms ease;
   }
 
   .cashflow-ribbon-bar {
@@ -5397,6 +5577,9 @@ input[type='number'] {
   .scenario-digest-collapse,
   .scenario-digest-section,
   .scenario-digest-card,
+  .scenario-digest-value,
+  .priority-kpi-value-motion,
+  .desktop-lane-anchor,
   .scenario-flip-flow,
   .scenario-digest-extra-grid {
     transition: none !important;
@@ -5416,6 +5599,9 @@ input[type='number'] {
   .scenario-digest-collapse,
   .scenario-digest-section,
   .scenario-digest-card,
+  .scenario-digest-value,
+  .priority-kpi-value-motion,
+  .desktop-lane-anchor,
   .scenario-flip-flow,
   .scenario-digest-extra-grid {
     opacity: 1 !important;

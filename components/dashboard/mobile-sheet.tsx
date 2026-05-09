@@ -154,13 +154,15 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
         opacity: Math.max(0.56, 1 - dragOffset / 240)
       } as CSSProperties)
     : undefined;
+  const isActiveDialog = open || isVisible;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[180] overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
+      className={`fixed inset-0 z-[180] overflow-hidden${isActiveDialog ? '' : ' pointer-events-none'}`}
+      role={isActiveDialog ? 'dialog' : undefined}
+      aria-modal={isActiveDialog ? true : undefined}
+      aria-label={isActiveDialog ? title : undefined}
+      aria-hidden={isActiveDialog ? undefined : true}
     >
       <button
         type="button"

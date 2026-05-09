@@ -510,7 +510,8 @@ const DigestMetricCard = memo(function DigestMetricCard({
     <article className={`scenario-digest-card dashboard-block min-w-0 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-2.5 py-2'}`}>
       <p className={`dashboard-meta truncate ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>{item.label}</p>
       <p
-        className={`${isMobile ? 'mt-0.5 text-xs leading-tight' : 'mt-1 text-sm'} truncate font-semibold text-slate-100`}
+        key={`${item.key}-${item.value}`}
+        className={`scenario-digest-value ${isMobile ? 'mt-0.5 text-xs leading-tight' : 'mt-1 text-sm'} truncate font-semibold text-slate-100`}
         style={getDigestMetricStyle(item)}
       >
         {item.value}
@@ -1743,6 +1744,32 @@ export default function HomePage() {
     ? 'Projected profit after cash invested, sale costs, debt payoff, and carry costs'
     : null;
   const priorityMetricNegativeStyle = getNegativeValueStyle(priorityMetricValue, { kind: 'currency' });
+  const formattedPriorityMetricValue = currencyFormatter.format(priorityMetricValue);
+  const priorityMetricMotionContext = `${activeModeLabel}:${priorityMetricTitle}`;
+  const priorityMetricMotionSourceRef = useRef<{ context: string; value: number } | null>(null);
+  const [priorityMetricMotion, setPriorityMetricMotion] = useState({ key: 0, context: '' });
+  useEffect(() => {
+    const previous = priorityMetricMotionSourceRef.current;
+
+    if (previous) {
+      if (previous.context === priorityMetricMotionContext && !Object.is(previous.value, priorityMetricValue)) {
+        setPriorityMetricMotion((current) => ({
+          key: current.key + 1,
+          context: priorityMetricMotionContext
+        }));
+      } else if (previous.context !== priorityMetricMotionContext) {
+        setPriorityMetricMotion((current) => (current.context ? { key: current.key, context: '' } : current));
+      }
+    }
+
+    priorityMetricMotionSourceRef.current = {
+      context: priorityMetricMotionContext,
+      value: priorityMetricValue
+    };
+  }, [priorityMetricMotionContext, priorityMetricValue]);
+  const shouldAnimatePriorityMetric =
+    !prefersReducedMotion && priorityMetricMotion.key > 0 && priorityMetricMotion.context === priorityMetricMotionContext;
+  const priorityMetricMotionClass = shouldAnimatePriorityMetric ? 'priority-kpi-value-motion' : '';
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -3778,6 +3805,8 @@ export default function HomePage() {
     setFeedbackSubmitState('idle');
     setFeedbackSubmitMessage(null);
     setIsFeedbackPromptOpen(false);
+    setIsSettingsOpen(false);
+    setCompactSheetView(null);
     setIsFeedbackComposerOpen(true);
     triggerHapticFeedback('light');
   };
@@ -3918,7 +3947,7 @@ export default function HomePage() {
 
   const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (feedbackSubmitState === 'sending') return;
+    if (feedbackSubmitState === 'sending' || feedbackSubmitState === 'sent') return;
 
     const message = feedbackDraft.trim();
     const contact = getFeedbackContactFromUser(currentUser);
@@ -3974,7 +4003,6 @@ export default function HomePage() {
 
       markFeedbackSubmitted(viewport);
       setFeedbackSubmitState('sent');
-      setFeedbackDraft('');
       setFeedbackSubmitMessage('Feedback sent. Thank you.');
       triggerHapticFeedback('light');
       void trackAnalyticsEvent('feedback_sent', { source: feedbackSource, viewport, signedIn: Boolean(currentUser?.id) });
@@ -4829,7 +4857,7 @@ export default function HomePage() {
   const compactResultsView = (
     <>
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
-        <div key={`strategy-headline-mobile-${activeStrategy}`} className="panel-swap space-y-4">
+        <div className="space-y-4">
           <div className="results-hero-main priority-kpi-stable relative isolate">
             {!isFlipStrategy ? (
               <div className="pointer-events-none absolute inset-0 z-0 select-none" aria-hidden="true">
@@ -4887,11 +4915,12 @@ export default function HomePage() {
 
             <div className="relative z-10 mt-3 flex flex-col gap-3">
               <p
-                className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
+                key={`priority-kpi-mobile-${priorityMetricMotion.key}`}
+                className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
                 data-testid="kpi-priority-metric"
                 style={priorityMetricNegativeStyle}
               >
-                {currencyFormatter.format(priorityMetricValue)}
+                {formattedPriorityMetricValue}
               </p>
 
               {supportsReserveToggle ? (
@@ -5461,6 +5490,7 @@ export default function HomePage() {
             <textarea
               value={feedbackDraft}
               onChange={(event) => {
+                if (feedbackSubmitState === 'sent') return;
                 setFeedbackDraft(event.target.value.slice(0, FEEDBACK_MESSAGE_MAX_LENGTH));
                 if (feedbackSubmitState !== 'sending') {
                   setFeedbackSubmitState('idle');
@@ -5470,6 +5500,7 @@ export default function HomePage() {
               maxLength={FEEDBACK_MESSAGE_MAX_LENGTH}
               aria-label="Feedback"
               required
+              disabled={feedbackSubmitState === 'sending' || feedbackSubmitState === 'sent'}
               rows={5}
               className="feedback-input min-h-32 w-full resize-y rounded-xl border px-3 py-2 text-sm outline-none"
               placeholder="What felt confusing, broken, or worth improving?"
@@ -6229,7 +6260,7 @@ export default function HomePage() {
         {!isMobileViewport ? (
         <>
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
-          <div key={`strategy-headline-${activeStrategy}`} className="panel-swap">
+          <div>
             <div className="desktop-outcome-grid">
             <div className="results-hero-main desktop-outcome-primary priority-kpi-stable relative isolate">
               {!isFlipStrategy ? (
@@ -6321,11 +6352,12 @@ export default function HomePage() {
 
                 <div className="flex flex-col gap-3">
                   <p
-                    className={`priority-kpi-value text-4xl font-semibold tracking-tight sm:text-5xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'}`}
+                    key={`priority-kpi-desktop-${priorityMetricMotion.key}`}
+                    className={`priority-kpi-value text-4xl font-semibold tracking-tight sm:text-5xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
                     data-testid="kpi-priority-metric"
                     style={priorityMetricNegativeStyle}
                   >
-                    {currencyFormatter.format(priorityMetricValue)}
+                    {formattedPriorityMetricValue}
                   </p>
                 </div>
               </div>
@@ -6395,10 +6427,14 @@ export default function HomePage() {
             <div key={displayedDigestMode ?? 'scenario-digest'} className="scenario-digest-collapse-inner">
               {displayedDigestMode === 'commercial' ? (
               <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="dashboard-kicker">Commercial outputs</p>
-                    <p className="dashboard-meta hidden text-[11px] sm:block">Digest view for faster leasing and risk decisions</p>
+                <div className="scenario-digest-header mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="dashboard-kicker">Commercial outputs</p>
+                      <span className="scenario-digest-live-pill">Live from inputs</span>
+                    </div>
+                    <p className="scenario-digest-title">Commercial underwriting digest</p>
+                    <p className="dashboard-meta hidden text-[11px] sm:block">Leasing, risk, debt, and income signals</p>
                   </div>
                   <button
                     type="button"
@@ -6480,10 +6516,14 @@ export default function HomePage() {
             ) : null}
             {displayedDigestMode === 'turnaround' ? (
               <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="dashboard-kicker">Long-term turnaround outputs</p>
-                    <p className="dashboard-meta hidden text-[11px] sm:block">Stabilized run-rate metrics with first-year turnaround drag in IRR/ROI</p>
+                <div className="scenario-digest-header mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="dashboard-kicker">Long-term turnaround outputs</p>
+                      <span className="scenario-digest-live-pill">Live from inputs</span>
+                    </div>
+                    <p className="scenario-digest-title">Stabilized run-rate digest</p>
+                    <p className="dashboard-meta hidden text-[11px] sm:block">First-year drag separated from stabilized upside</p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="section-tag section-tag-analysis">Stabilized</span>
@@ -6601,6 +6641,10 @@ export default function HomePage() {
 
             <div className="desktop-deal-builder-grid">
               <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
+                <div className="desktop-lane-anchor desktop-lane-anchor-purchase">
+                  <span>Purchase</span>
+                  <small>Basis and financing</small>
+                </div>
                 <DealInputPanel
                   value={model}
                   onChange={updateModel}
@@ -6613,9 +6657,17 @@ export default function HomePage() {
                 />
               </div>
               <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
+                <div className="desktop-lane-anchor desktop-lane-anchor-strategy">
+                  <span>{activeStrategyLabel}</span>
+                  <small>Strategy assumptions</small>
+                </div>
                 <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
               </div>
               <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
+                <div className="desktop-lane-anchor desktop-lane-anchor-expenses">
+                  <span>Expenses</span>
+                  <small>Operating burden</small>
+                </div>
                 <DealInputPanel
                   value={model}
                   onChange={updateModel}
