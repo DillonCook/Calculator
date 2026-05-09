@@ -1640,6 +1640,7 @@ html {
   .scenario-digest-section {
     transform-origin: top center;
     contain: layout paint style;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .scenario-digest-grid {
@@ -4334,6 +4335,10 @@ html {
 .theme-light .dashboard-secondary-shell {
   border-color: rgba(112, 141, 178, 0.14);
   background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.theme-light .scenario-digest-section {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 

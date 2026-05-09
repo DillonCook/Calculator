@@ -6394,7 +6394,7 @@ export default function HomePage() {
           {isScenarioDigestRendered ? (
             <div key={displayedDigestMode ?? 'scenario-digest'} className="scenario-digest-collapse-inner">
               {displayedDigestMode === 'commercial' ? (
-              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="dashboard-kicker">Commercial outputs</p>
@@ -6479,7 +6479,7 @@ export default function HomePage() {
               </section>
             ) : null}
             {displayedDigestMode === 'turnaround' ? (
-              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="dashboard-kicker">Long-term turnaround outputs</p>
