@@ -3,7 +3,20 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction
+} from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
 import { DealInputPanel } from '@/components/dashboard/deal-input-panel';
@@ -269,6 +282,179 @@ interface DigestItem<K extends string> {
   rawKind?: NegativeValueKind;
 }
 
+type ScenarioDigestMode = 'commercial' | 'turnaround';
+
+interface ScenarioDigestContent {
+  mode: ScenarioDigestMode;
+  items: DigestItem<string>[];
+  showAllMobile: boolean;
+}
+
+interface ScenarioDigestPanelState {
+  content: ScenarioDigestContent | null;
+  open: boolean;
+  exiting: boolean;
+}
+
+const SCENARIO_DIGEST_COLLAPSE_MS = 1250;
+const SCENARIO_DIGEST_CONTENT_EXIT_MS = 560;
+const SCENARIO_DIGEST_EXIT_UNMOUNT_MS = SCENARIO_DIGEST_CONTENT_EXIT_MS + 80;
+const SCENARIO_DIGEST_FLOW_SCROLLBAR_SUPPRESSED_CLASS = 'scenario-flip-flow-scrollbar-suppressed';
+const emptyScenarioDigestPanelState = (): ScenarioDigestPanelState => ({
+  content: null,
+  open: false,
+  exiting: false
+});
+const useScenarioDigestPanel = (content: ScenarioDigestContent | null): ScenarioDigestPanelState => {
+  const [panel, setPanel] = useState<ScenarioDigestPanelState>(() => emptyScenarioDigestPanelState());
+
+  useLayoutEffect(() => {
+    let closeTimer: number | undefined;
+
+    if (content) {
+      setPanel({
+        content,
+        open: true,
+        exiting: false
+      });
+    } else {
+      setPanel((current) => {
+        if (!current.content) return current;
+        if (current.exiting) return current;
+
+        return {
+          ...current,
+          open: false,
+          exiting: true
+        };
+      });
+      closeTimer = window.setTimeout(() => {
+        setPanel((current) => (!current.open ? emptyScenarioDigestPanelState() : current));
+      }, SCENARIO_DIGEST_EXIT_UNMOUNT_MS);
+    }
+
+    return () => {
+      if (closeTimer !== undefined) window.clearTimeout(closeTimer);
+    };
+  }, [content]);
+
+  return {
+    content: content ?? panel.content,
+    open: Boolean(content),
+    exiting: !content && panel.exiting
+  };
+};
+const getTranslateYFromTransform = (transform: string) => {
+  if (!transform || transform === 'none') return 0;
+
+  const matrix3dMatch = transform.match(/^matrix3d\((.+)\)$/);
+  if (matrix3dMatch) {
+    const values = matrix3dMatch[1].split(',').map((value) => Number.parseFloat(value.trim()));
+    return Number.isFinite(values[13]) ? values[13] : 0;
+  }
+
+  const matrixMatch = transform.match(/^matrix\((.+)\)$/);
+  if (matrixMatch) {
+    const values = matrixMatch[1].split(',').map((value) => Number.parseFloat(value.trim()));
+    return Number.isFinite(values[5]) ? values[5] : 0;
+  }
+
+  return 0;
+};
+const useDigestFlowTransition = () => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const firstTopRef = useRef<number | null>(null);
+  const motionUntilRef = useRef(0);
+  const animationRef = useRef<Animation | null>(null);
+  const scrollbarSuppressTimerRef = useRef<number | undefined>(undefined);
+
+  const clearScrollbarSuppressTimer = useCallback(() => {
+    if (scrollbarSuppressTimerRef.current === undefined || typeof window === 'undefined') return;
+    window.clearTimeout(scrollbarSuppressTimerRef.current);
+    scrollbarSuppressTimerRef.current = undefined;
+  }, []);
+
+  const releaseLocalScrollbars = useCallback(() => {
+    clearScrollbarSuppressTimer();
+    ref.current?.classList.remove(SCENARIO_DIGEST_FLOW_SCROLLBAR_SUPPRESSED_CLASS);
+  }, [clearScrollbarSuppressTimer]);
+
+  const prepare = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    const node = ref.current;
+    if (!node) return;
+
+    firstTopRef.current = node.getBoundingClientRect().top;
+    motionUntilRef.current = window.performance.now() + SCENARIO_DIGEST_COLLAPSE_MS + 350;
+    node.classList.add(SCENARIO_DIGEST_FLOW_SCROLLBAR_SUPPRESSED_CLASS);
+    clearScrollbarSuppressTimer();
+    scrollbarSuppressTimerRef.current = window.setTimeout(() => {
+      releaseLocalScrollbars();
+    }, SCENARIO_DIGEST_COLLAPSE_MS + 220);
+  }, [clearScrollbarSuppressTimer, releaseLocalScrollbars]);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const node = ref.current;
+    if (!node) return;
+
+    const nextTop = node.getBoundingClientRect().top;
+    const firstTop = firstTopRef.current;
+
+    if (firstTop === null) return;
+    firstTopRef.current = null;
+    if (window.performance.now() > motionUntilRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const layoutDelta = firstTop - nextTop;
+    if (Math.abs(layoutDelta) < 1) return;
+
+    const computedTransform = window.getComputedStyle(node).transform;
+    const activeTransformY = getTranslateYFromTransform(computedTransform);
+    const startY = activeTransformY + layoutDelta;
+
+    const previousAnimation = animationRef.current;
+    animationRef.current = null;
+    previousAnimation?.cancel();
+
+    node.style.willChange = 'transform';
+    const animation = node.animate(
+      [
+        { transform: `translate3d(0, ${startY}px, 0)` },
+        { transform: 'translate3d(0, 0, 0)' }
+      ],
+      {
+        duration: SCENARIO_DIGEST_COLLAPSE_MS,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        fill: 'both'
+      }
+    );
+
+    animationRef.current = animation;
+    animation.onfinish = () => {
+      if (animationRef.current !== animation) return;
+      animationRef.current = null;
+      node.style.willChange = '';
+      animation.cancel();
+    };
+    animation.oncancel = () => {
+      if (animationRef.current !== animation) return;
+      animationRef.current = null;
+      node.style.willChange = '';
+    };
+  });
+
+  useEffect(() => {
+    return () => {
+      animationRef.current?.cancel();
+      releaseLocalScrollbars();
+    };
+  }, [releaseLocalScrollbars]);
+
+  return { ref, prepare };
+};
 const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
 const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
 const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
@@ -300,6 +486,38 @@ const defaultLongTermTurnaroundDigestOrder: LongTermTurnaroundDigestKey[] = [
 const valuationPercentDigestKeys = new Set<string>(['stab-cap-rate', 'stab-coc', 'stab-irr']);
 const commercialDigestKeySet = new Set<CommercialDigestKey>(defaultCommercialDigestOrder);
 const longTermTurnaroundDigestKeySet = new Set<LongTermTurnaroundDigestKey>(defaultLongTermTurnaroundDigestOrder);
+const shouldColorDigestMetric = (item: DigestItem<string>) => {
+  if (item.rawKind === 'currency') return true;
+  if (item.rawKind === 'ratio') return true;
+  if (item.rawKind === 'percent') return valuationPercentDigestKeys.has(item.key);
+  return false;
+};
+const getDigestMetricStyle = (item: DigestItem<string>) => {
+  if (!shouldColorDigestMetric(item)) return undefined;
+  const rawKind = item.rawKind ?? 'plain';
+  return getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: rawKind, baseline: rawKind === 'ratio' ? 1 : 0 });
+};
+const DigestMetricCard = memo(function DigestMetricCard({
+  item,
+  variant
+}: {
+  item: DigestItem<string>;
+  variant: 'mobile' | 'desktop';
+}) {
+  const isMobile = variant === 'mobile';
+
+  return (
+    <article className={`scenario-digest-card dashboard-block min-w-0 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-2.5 py-2'}`}>
+      <p className={`dashboard-meta truncate ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>{item.label}</p>
+      <p
+        className={`${isMobile ? 'mt-0.5 text-xs leading-tight' : 'mt-1 text-sm'} truncate font-semibold text-slate-100`}
+        style={getDigestMetricStyle(item)}
+      >
+        {item.value}
+      </p>
+    </article>
+  );
+});
 const normalizeHeadlineMetricOrder = (value: unknown): HeadlineMetricId[] => {
   const normalized: HeadlineMetricId[] = [];
   const input = Array.isArray(value) ? value : [];
@@ -1012,11 +1230,7 @@ export default function HomePage() {
       .map((key) => lookup.get(key))
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }, [baseCommercialDigestItems, commercialDigestOrder]);
-  const mobileCommercialOutputDefaultCount = 4;
-  const mobileCommercialDigestItems = showAllCommercialMobileOutputs
-    ? commercialDigestItems
-    : commercialDigestItems.slice(0, mobileCommercialOutputDefaultCount);
-  const hasHiddenCommercialMobileOutputs = commercialDigestItems.length > mobileCommercialOutputDefaultCount;
+  const showCommercialDigestSection = activeStrategy === 'purchase' && commercialDigestItems.length > 0;
   const baseLongTermTurnaroundDigestItems = useMemo<DigestItem<LongTermTurnaroundDigestKey>[]>(() => {
     if (!longTermTurnaroundSummary?.enabled) return [];
 
@@ -1085,22 +1299,54 @@ export default function HomePage() {
       .map((key) => lookup.get(key))
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }, [baseLongTermTurnaroundDigestItems, longTermTurnaroundDigestOrder]);
+  const showLongTermTurnaroundDigestSection = activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0;
+  const visibleDigestContent = useMemo<ScenarioDigestContent | null>(() => {
+    if (showCommercialDigestSection) {
+      return {
+        mode: 'commercial',
+        items: commercialDigestItems,
+        showAllMobile: showAllCommercialMobileOutputs
+      };
+    }
+
+    if (showLongTermTurnaroundDigestSection) {
+      return {
+        mode: 'turnaround',
+        items: longTermTurnaroundDigestItems,
+        showAllMobile: showAllLongTermTurnaroundMobileOutputs
+      };
+    }
+
+    return null;
+  }, [
+    commercialDigestItems,
+    longTermTurnaroundDigestItems,
+    showAllCommercialMobileOutputs,
+    showAllLongTermTurnaroundMobileOutputs,
+    showCommercialDigestSection,
+    showLongTermTurnaroundDigestSection
+  ]);
+  const scenarioDigestPanel = useScenarioDigestPanel(visibleDigestContent);
+  const { ref: desktopPostDigestFlowRef, prepare: prepareDesktopDigestFlip } = useDigestFlowTransition();
+  const displayedDigestMode = scenarioDigestPanel.content?.mode;
+  const displayedCommercialDigestItems =
+    displayedDigestMode === 'commercial' ? scenarioDigestPanel.content?.items ?? [] : commercialDigestItems;
+  const displayedLongTermTurnaroundDigestItems =
+    displayedDigestMode === 'turnaround' ? scenarioDigestPanel.content?.items ?? [] : longTermTurnaroundDigestItems;
+  const displayedShowAllCommercialMobileOutputs =
+    displayedDigestMode === 'commercial' ? Boolean(scenarioDigestPanel.content?.showAllMobile) : showAllCommercialMobileOutputs;
+  const displayedShowAllLongTermTurnaroundMobileOutputs =
+    displayedDigestMode === 'turnaround' ? Boolean(scenarioDigestPanel.content?.showAllMobile) : showAllLongTermTurnaroundMobileOutputs;
+  const mobileCommercialOutputDefaultCount = 4;
+  const primaryMobileCommercialDigestItems = displayedCommercialDigestItems.slice(0, mobileCommercialOutputDefaultCount);
+  const additionalMobileCommercialDigestItems = displayedCommercialDigestItems.slice(mobileCommercialOutputDefaultCount);
+  const hasHiddenCommercialMobileOutputs = additionalMobileCommercialDigestItems.length > 0;
   const mobileLongTermTurnaroundOutputDefaultCount = 4;
-  const mobileLongTermTurnaroundDigestItems = showAllLongTermTurnaroundMobileOutputs
-    ? longTermTurnaroundDigestItems
-    : longTermTurnaroundDigestItems.slice(0, mobileLongTermTurnaroundOutputDefaultCount);
-  const hasHiddenLongTermTurnaroundMobileOutputs = longTermTurnaroundDigestItems.length > mobileLongTermTurnaroundOutputDefaultCount;
-  const shouldColorDigestMetric = (item: DigestItem<string>) => {
-    if (item.rawKind === 'currency') return true;
-    if (item.rawKind === 'ratio') return true;
-    if (item.rawKind === 'percent') return valuationPercentDigestKeys.has(item.key);
-    return false;
-  };
-  const getDigestMetricStyle = (item: DigestItem<string>) => {
-    if (!shouldColorDigestMetric(item)) return undefined;
-    const rawKind = item.rawKind ?? 'plain';
-    return getNegativeValueStyle(item.rawValue ?? Number.NaN, { kind: rawKind, baseline: rawKind === 'ratio' ? 1 : 0 });
-  };
+  const primaryMobileLongTermTurnaroundDigestItems = displayedLongTermTurnaroundDigestItems.slice(0, mobileLongTermTurnaroundOutputDefaultCount);
+  const additionalMobileLongTermTurnaroundDigestItems = displayedLongTermTurnaroundDigestItems.slice(mobileLongTermTurnaroundOutputDefaultCount);
+  const hasHiddenLongTermTurnaroundMobileOutputs = additionalMobileLongTermTurnaroundDigestItems.length > 0;
+  const isScenarioDigestRendered = Boolean(scenarioDigestPanel.content);
+  const isScenarioDigestExiting = scenarioDigestPanel.exiting;
   const cashToCloseValue = useMemo(() => {
     const { purchase } = model;
 
@@ -1475,8 +1721,8 @@ export default function HomePage() {
     ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(activeStrategy);
   const hasMoreMetricsContent =
     Boolean(strategyQuickScan) ||
-    (activeStrategy === 'purchase' && commercialDigestItems.length > 0) ||
-    (activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0);
+    showCommercialDigestSection ||
+    showLongTermTurnaroundDigestSection;
   const isFlipStrategy = activeStrategy === 'flip';
   const activeHeadlineMetricIds = isFlipStrategy ? flipHeadlineMetricOrder : orderedHeadlineMetricIds;
   const supportsReserveToggle =
@@ -1486,11 +1732,12 @@ export default function HomePage() {
     activeStrategy === 'padSplit' ||
     activeStrategy === 'brrrr';
   const includeReserves = includeReservesByStrategy[activeStrategy];
+  const priorityMetricOutput = isLongTermTurnaroundActive ? longTermPurchaseOutput : activeOutput;
   const priorityMetricValue = isFlipStrategy
     ? activeOutput.calculationBreakdown?.flipMeta?.netProfit ?? activeOutput.saleProceeds ?? 0
     : supportsReserveToggle && !includeReserves
-      ? activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow
-      : activeOutput.monthlyCashFlow;
+      ? priorityMetricOutput.monthlyCashFlowExcludingReserves ?? priorityMetricOutput.monthlyCashFlow
+      : priorityMetricOutput.monthlyCashFlow;
   const priorityMetricTitle = isFlipStrategy ? 'Net profit' : 'Monthly cash flow';
   const priorityMetricSubtitle = isFlipStrategy
     ? 'Projected profit after cash invested, sale costs, debt payoff, and carry costs'
@@ -1566,8 +1813,8 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const timelineWithoutAcquisitionYear = activeOutput.cashFlowTimeline.slice(1);
-    const terminalSaleProceeds = activeOutput.saleProceeds ?? 0;
+    const timelineWithoutAcquisitionYear = priorityMetricOutput.cashFlowTimeline.slice(1);
+    const terminalSaleProceeds = priorityMetricOutput.saleProceeds ?? 0;
     const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
       index === array.length - 1 ? value - terminalSaleProceeds : value
     );
@@ -1576,15 +1823,16 @@ export default function HomePage() {
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
         if (supportsReserveToggle && !includeReserves) {
-          const reserveDelta = (activeOutput.monthlyCashFlowExcludingReserves ?? activeOutput.monthlyCashFlow) - activeOutput.monthlyCashFlow;
+          const reserveDelta =
+            (priorityMetricOutput.monthlyCashFlowExcludingReserves ?? priorityMetricOutput.monthlyCashFlow) - priorityMetricOutput.monthlyCashFlow;
           return value + reserveDelta * 12;
         }
         return value;
       });
     }
 
-    return Array.from({ length: 12 }, (_, index) => activeOutput.monthlyCashFlow * (0.82 + index * 0.03));
-  }, [activeOutput, includeReserves, isFlipStrategy, supportsReserveToggle]);
+    return Array.from({ length: 12 }, (_, index) => priorityMetricOutput.monthlyCashFlow * (0.82 + index * 0.03));
+  }, [includeReserves, isFlipStrategy, priorityMetricOutput, supportsReserveToggle]);
 
   const monthlyCashFlowBarData = useMemo(() => {
     if (!monthlyCashFlowChartSeries.length) return [];
@@ -1620,11 +1868,6 @@ export default function HomePage() {
     });
   }, [monthlyCashFlowChartSeries]);
 
-  const cashFlowBarsAnimationKey = useMemo(
-    () => `${activeStrategy}:${monthlyCashFlowChartSeries.map((value) => value.toFixed(2)).join('|')}`,
-    [activeStrategy, monthlyCashFlowChartSeries]
-  );
-
   const loadScenario = (payload: DealInputModel, dealId?: string) => {
     const nextUiState = resolveDealUiState(payload);
     activeDealUiStatePresenceRef.current = {
@@ -1649,6 +1892,7 @@ export default function HomePage() {
   };
 
   const setLongTermTurnaroundEnabled = (enabled: boolean) => {
+    prepareDesktopDigestFlip();
     updateModel((current) => {
       if (current.longTerm.turnaround.enabled === enabled) return current;
 
@@ -1704,6 +1948,7 @@ export default function HomePage() {
   };
 
   const handleStrategyChange = (nextStrategy: StrategyKey) => {
+    prepareDesktopDigestFlip();
     if (nextStrategy !== activeStrategy) {
       void trackAnalyticsEvent('strategy_selected', { strategy: nextStrategy });
     }
@@ -4597,7 +4842,6 @@ export default function HomePage() {
                   }}
                 />
                 <svg
-                  key={`cashflow-ribbon-compact-${activeStrategy}-${cashFlowBarsAnimationKey}`}
                   viewBox="0 0 100 40"
                   className="cashflow-ribbon-mask absolute inset-x-0 bottom-0 h-[42%] w-full"
                   preserveAspectRatio="none"
@@ -4616,7 +4860,8 @@ export default function HomePage() {
                   </defs>
                   {monthlyCashFlowBarData.map((bar, index) => (
                     <rect
-                      key={`${bar.key}-compact-${cashFlowBarsAnimationKey}`}
+                      key={`${bar.key}-compact`}
+                      className="cashflow-ribbon-bar"
                       x={bar.x}
                       y={bar.y}
                       width={bar.width}
@@ -4624,28 +4869,8 @@ export default function HomePage() {
                       rx={bar.width / 2}
                       fill={bar.isNegative ? 'url(#cashflowBarNegGradCompact)' : 'url(#cashflowBarPosGradCompact)'}
                       opacity={0.66}
-                    >
-                      {!prefersReducedMotion ? (
-                        <animate
-                          attributeName="height"
-                          from="0"
-                          to={String(bar.height)}
-                          dur="0.75s"
-                          begin={`${Math.min(index * 0.02, 0.32)}s`}
-                          fill="freeze"
-                        />
-                      ) : null}
-                      {!prefersReducedMotion ? (
-                        <animate
-                          attributeName="y"
-                          from="34"
-                          to={String(bar.y)}
-                          dur="0.75s"
-                          begin={`${Math.min(index * 0.02, 0.32)}s`}
-                          fill="freeze"
-                        />
-                      ) : null}
-                    </rect>
+                      style={prefersReducedMotion ? undefined : { animationDelay: `${Math.min(index * 18, 260)}ms` }}
+                    />
                   ))}
                 </svg>
               </div>
@@ -6018,7 +6243,6 @@ export default function HomePage() {
                     }}
                   />
                   <svg
-                    key={`cashflow-ribbon-${activeStrategy}-${cashFlowBarsAnimationKey}`}
                     viewBox="0 0 100 40"
                     className="cashflow-ribbon-mask absolute inset-x-0 bottom-0 h-[42%] w-full"
                     preserveAspectRatio="none"
@@ -6037,7 +6261,8 @@ export default function HomePage() {
                     </defs>
                     {monthlyCashFlowBarData.map((bar, index) => (
                       <rect
-                        key={`${bar.key}-${cashFlowBarsAnimationKey}`}
+                        key={bar.key}
+                        className="cashflow-ribbon-bar"
                         x={bar.x}
                         y={bar.y}
                         width={bar.width}
@@ -6045,28 +6270,8 @@ export default function HomePage() {
                         rx={bar.width / 2}
                         fill={bar.isNegative ? 'url(#cashflowBarNegGrad)' : 'url(#cashflowBarPosGrad)'}
                         opacity={0.66}
-                      >
-                        {!prefersReducedMotion ? (
-                          <animate
-                            attributeName="height"
-                            from="0"
-                            to={String(bar.height)}
-                            dur="0.75s"
-                            begin={`${Math.min(index * 0.02, 0.32)}s`}
-                            fill="freeze"
-                          />
-                        ) : null}
-                        {!prefersReducedMotion ? (
-                          <animate
-                            attributeName="y"
-                            from="34"
-                            to={String(bar.y)}
-                            dur="0.75s"
-                            begin={`${Math.min(index * 0.02, 0.32)}s`}
-                            fill="freeze"
-                          />
-                        ) : null}
-                      </rect>
+                        style={prefersReducedMotion ? undefined : { animationDelay: `${Math.min(index * 18, 260)}ms` }}
+                      />
                     ))}
                   </svg>
                 </div>
@@ -6176,259 +6381,278 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-        {activeStrategy === 'purchase' && commercialDigestItems.length > 0 ? (
-          <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="dashboard-kicker">Commercial outputs</p>
-                <p className="dashboard-meta hidden text-[11px] sm:block">Digest view for faster leasing and risk decisions</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCommercialOrderEditorOpen((prev) => !prev)}
-                className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
-              >
-                {isCommercialOrderEditorOpen ? 'Done' : 'Reorder'}
-              </button>
-            </div>
-            {isCommercialOrderEditorOpen ? (
-              <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
-                {commercialDigestItems.map((item, index) => (
-                  <div key={`order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-                    <p className="truncate text-xs text-slate-200">
-                      {index + 1}. {item.label}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label={`Move ${item.label} up`}
-                        onClick={() => moveCommercialDigestItem(index, index - 1)}
-                        disabled={index === 0}
-                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Move ${item.label} down`}
-                        onClick={() => moveCommercialDigestItem(index, index + 1)}
-                        disabled={index === commercialDigestItems.length - 1}
-                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                      >
-                        Down
-                      </button>
-                    </div>
+        <div
+          className={[
+            'scenario-digest-collapse',
+            scenarioDigestPanel.open ? 'scenario-digest-collapse-open scenario-digest-collapse-revealed' : '',
+            isScenarioDigestExiting ? 'scenario-digest-collapse-exiting' : ''
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-hidden={!scenarioDigestPanel.open}
+        >
+          {isScenarioDigestRendered ? (
+            <div key={displayedDigestMode ?? 'scenario-digest'} className="scenario-digest-collapse-inner">
+              {displayedDigestMode === 'commercial' ? (
+              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="dashboard-kicker">Commercial outputs</p>
+                    <p className="dashboard-meta hidden text-[11px] sm:block">Digest view for faster leasing and risk decisions</p>
                   </div>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="grid grid-cols-2 gap-1.5 sm:hidden">
-              {mobileCommercialDigestItems.map((item) => (
-                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2 py-1.5">
-                  <p className="dashboard-meta truncate text-[10px]">{item.label}</p>
-                  <p
-                    className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
-                    style={getDigestMetricStyle(item)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      prepareDesktopDigestFlip();
+                      setIsCommercialOrderEditorOpen((prev) => !prev);
+                    }}
+                    className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
                   >
-                    {item.value}
-                  </p>
-                </article>
-              ))}
+                    {isCommercialOrderEditorOpen ? 'Done' : 'Reorder'}
+                  </button>
+                </div>
+                {isCommercialOrderEditorOpen ? (
+                  <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
+                    {displayedCommercialDigestItems.map((item, index) => (
+                      <div key={`order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
+                        <p className="truncate text-xs text-slate-200">
+                          {index + 1}. {item.label}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Move ${item.label} up`}
+                            onClick={() => moveCommercialDigestItem(index, index - 1)}
+                            disabled={index === 0}
+                            className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Move ${item.label} down`}
+                            onClick={() => moveCommercialDigestItem(index, index + 1)}
+                            disabled={index === displayedCommercialDigestItems.length - 1}
+                            className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                          >
+                            Down
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="scenario-digest-grid grid grid-cols-2 gap-1.5 sm:hidden">
+                  {primaryMobileCommercialDigestItems.map((item) => (
+                    <DigestMetricCard key={item.key} item={item} variant="mobile" />
+                  ))}
+                </div>
+                {hasHiddenCommercialMobileOutputs ? (
+                  <div
+                    className={`scenario-digest-extra-grid scenario-digest-grid grid grid-cols-2 gap-1.5 sm:hidden ${
+                      displayedShowAllCommercialMobileOutputs ? 'scenario-digest-extra-grid-open' : ''
+                    }`}
+                    aria-hidden={!displayedShowAllCommercialMobileOutputs}
+                  >
+                    {additionalMobileCommercialDigestItems.map((item) => (
+                      <DigestMetricCard key={item.key} item={item} variant="mobile" />
+                    ))}
+                  </div>
+                ) : null}
+                {hasHiddenCommercialMobileOutputs ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      prepareDesktopDigestFlip();
+                      setShowAllCommercialMobileOutputs((prev) => !prev);
+                    }}
+                    className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+                  >
+                    {displayedShowAllCommercialMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
+                  </button>
+                ) : null}
+                <div className="scenario-digest-grid hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-5">
+                  {displayedCommercialDigestItems.map((item) => (
+                    <DigestMetricCard key={item.key} item={item} variant="desktop" />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {displayedDigestMode === 'turnaround' ? (
+              <section className="scenario-digest-section dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="dashboard-kicker">Long-term turnaround outputs</p>
+                    <p className="dashboard-meta hidden text-[11px] sm:block">Stabilized run-rate metrics with first-year turnaround drag in IRR/ROI</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="section-tag section-tag-analysis">Stabilized</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        prepareDesktopDigestFlip();
+                        setIsLongTermTurnaroundOrderEditorOpen((prev) => !prev);
+                      }}
+                      className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                    >
+                      {isLongTermTurnaroundOrderEditorOpen ? 'Done' : 'Reorder'}
+                    </button>
+                  </div>
+                </div>
+                {isLongTermTurnaroundOrderEditorOpen ? (
+                  <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
+                    {displayedLongTermTurnaroundDigestItems.map((item, index) => (
+                      <div key={`lt-order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
+                        <p className="truncate text-xs text-slate-200">
+                          {index + 1}. {item.label}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Move ${item.label} up`}
+                            onClick={() => moveLongTermTurnaroundDigestItem(index, index - 1)}
+                            disabled={index === 0}
+                            className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Move ${item.label} down`}
+                            onClick={() => moveLongTermTurnaroundDigestItem(index, index + 1)}
+                            disabled={index === displayedLongTermTurnaroundDigestItems.length - 1}
+                            className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
+                          >
+                            Down
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="scenario-digest-grid grid grid-cols-2 gap-1.5 sm:hidden">
+                  {primaryMobileLongTermTurnaroundDigestItems.map((item) => (
+                    <DigestMetricCard key={item.key} item={item} variant="mobile" />
+                  ))}
+                </div>
+                {hasHiddenLongTermTurnaroundMobileOutputs ? (
+                  <div
+                    className={`scenario-digest-extra-grid scenario-digest-grid grid grid-cols-2 gap-1.5 sm:hidden ${
+                      displayedShowAllLongTermTurnaroundMobileOutputs ? 'scenario-digest-extra-grid-open' : ''
+                    }`}
+                    aria-hidden={!displayedShowAllLongTermTurnaroundMobileOutputs}
+                  >
+                    {additionalMobileLongTermTurnaroundDigestItems.map((item) => (
+                      <DigestMetricCard key={item.key} item={item} variant="mobile" />
+                    ))}
+                  </div>
+                ) : null}
+                {hasHiddenLongTermTurnaroundMobileOutputs ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      prepareDesktopDigestFlip();
+                      setShowAllLongTermTurnaroundMobileOutputs((prev) => !prev);
+                    }}
+                    className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
+                  >
+                    {displayedShowAllLongTermTurnaroundMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
+                  </button>
+                ) : null}
+                <div className="scenario-digest-grid hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-4">
+                  {displayedLongTermTurnaroundDigestItems.map((item) => (
+                    <DigestMetricCard key={item.key} item={item} variant="desktop" />
+                  ))}
+                </div>
+              </section>
+            ) : null}
             </div>
-            {hasHiddenCommercialMobileOutputs ? (
-              <button
-                type="button"
-                onClick={() => setShowAllCommercialMobileOutputs((prev) => !prev)}
-                className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
-              >
-                {showAllCommercialMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
-              </button>
-            ) : null}
+          ) : null}
+        </div>
 
-            <div className="hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-5">
-              {commercialDigestItems.map((item) => (
-                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2.5 py-2">
-                  <p className="dashboard-meta truncate text-[11px]">{item.label}</p>
-                  <p
-                    className="mt-1 truncate text-sm font-semibold text-slate-100"
-                    style={getDigestMetricStyle(item)}
+        <div ref={desktopPostDigestFlowRef} className="scenario-flip-flow">
+          <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
+            <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
+              <div className="desktop-builder-heading">
+                <p className="desktop-input-rail-heading">Deal builder</p>
+                <h2 className="text-lg font-semibold text-slate-100">Inputs</h2>
+              </div>
+              <StrategyTabs
+                active={activeStrategy}
+                onChange={openDesktopStrategyWorkspace}
+                longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+                onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
+                quickScan={strategyQuickScan}
+                embeddedInRail
+                actionSlot={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback('light');
+                      setIsStrategyWorkOpen(true);
+                    }}
+                    className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
                   >
-                    {item.value}
-                  </p>
-                </article>
-              ))}
+                    Show work
+                  </button>
+                }
+              />
+            </div>
+
+            <div className="desktop-deal-builder-grid">
+              <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
+                <DealInputPanel
+                  value={model}
+                  onChange={updateModel}
+                  resolveListingDealName={resolveListingDealName}
+                  defaultAdvancedOptionsOpen={false}
+                  forcedCoreSection="purchaseFinancing"
+                  titleOverride="Purchase"
+                  contentViewportClassName={desktopInputViewportClassName}
+                  variant="embedded"
+                />
+              </div>
+              <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
+                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
+              </div>
+              <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
+                <DealInputPanel
+                  value={model}
+                  onChange={updateModel}
+                  resolveListingDealName={resolveListingDealName}
+                  defaultAdvancedOptionsOpen={false}
+                  forcedCoreSection="expenses"
+                  contentViewportClassName={desktopInputViewportClassName}
+                  variant="embedded"
+                />
+              </div>
             </div>
           </section>
-        ) : null}
-        {activeStrategy === 'longTerm' && longTermTurnaroundDigestItems.length > 0 ? (
-          <section className="dashboard-secondary-shell section-shell section-shell-analysis rounded-2xl p-3 shadow-soft">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="dashboard-kicker">Long-term turnaround outputs</p>
-                <p className="dashboard-meta hidden text-[11px] sm:block">Stabilized run-rate metrics with first-year turnaround drag in IRR/ROI</p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="section-tag section-tag-analysis">Stabilized</span>
-                <button
-                  type="button"
-                  onClick={() => setIsLongTermTurnaroundOrderEditorOpen((prev) => !prev)}
-                  className="section-action section-action-analysis rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
-                >
-                  {isLongTermTurnaroundOrderEditorOpen ? 'Done' : 'Reorder'}
-                </button>
-              </div>
+
+          <section className="desktop-analysis-dock [overflow-anchor:none]">
+            <div className="desktop-analysis-heading">
+              <p className="desktop-input-rail-heading">Analysis dock</p>
+              <h2 className="text-lg font-semibold text-slate-100">Projections</h2>
             </div>
-            {isLongTermTurnaroundOrderEditorOpen ? (
-              <div className="dashboard-block mb-2 space-y-1 rounded-lg p-2">
-                {longTermTurnaroundDigestItems.map((item, index) => (
-                  <div key={`lt-order-${item.key}`} className="section-inner-muted flex items-center justify-between gap-2 rounded-md px-2 py-1.5">
-                    <p className="truncate text-xs text-slate-200">
-                      {index + 1}. {item.label}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label={`Move ${item.label} up`}
-                        onClick={() => moveLongTermTurnaroundDigestItem(index, index - 1)}
-                        disabled={index === 0}
-                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Move ${item.label} down`}
-                        onClick={() => moveLongTermTurnaroundDigestItem(index, index + 1)}
-                        disabled={index === longTermTurnaroundDigestItems.length - 1}
-                        className="h-6 min-w-6 rounded border border-white/15 bg-black/20 px-1 text-[10px] text-slate-200 disabled:opacity-40"
-                      >
-                        Down
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            <div className="desktop-analysis-grid">
+              <div className="desktop-analysis-projections min-w-0">
+                {desktopPerformanceDashboard}
               </div>
-            ) : null}
-            <div className="grid grid-cols-2 gap-1.5 sm:hidden">
-              {mobileLongTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2 py-1.5">
-                  <p className="dashboard-meta truncate text-[10px]">{item.label}</p>
-                  <p
-                    className="mt-0.5 truncate text-xs font-semibold leading-tight text-slate-100"
-                    style={getDigestMetricStyle(item)}
-                  >
-                    {item.value}
-                  </p>
-                </article>
-              ))}
-            </div>
-            {hasHiddenLongTermTurnaroundMobileOutputs ? (
-              <button
-                type="button"
-                onClick={() => setShowAllLongTermTurnaroundMobileOutputs((prev) => !prev)}
-                className="section-action section-action-analysis mt-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-200 sm:hidden"
-              >
-                {showAllLongTermTurnaroundMobileOutputs ? 'Show fewer outputs' : 'Show all outputs'}
-              </button>
-            ) : null}
-            <div className="hidden gap-2 sm:grid sm:grid-cols-3 lg:grid-cols-4">
-              {longTermTurnaroundDigestItems.map((item) => (
-                <article key={item.key} className="dashboard-block min-w-0 rounded-lg px-2.5 py-2">
-                  <p className="dashboard-meta truncate text-[11px]">{item.label}</p>
-                  <p
-                    className="mt-1 truncate text-sm font-semibold text-slate-100"
-                    style={getDigestMetricStyle(item)}
-                  >
-                    {item.value}
-                  </p>
-                </article>
-              ))}
+              <div ref={irrStreamRef} className="desktop-analysis-timeline min-w-0">
+                <TimelineCard
+                  output={result[activeStrategy]}
+                  assumptions={model.assumptions}
+                  defaultOpen={Boolean(activeDealId)}
+                  collapsible={false}
+                  summaryVariant="compact"
+                  onAssumptionsChange={updateAssumptions}
+                  showTargetIrrInput={showTargetIrrInput}
+                  layoutVariant="strip"
+                />
+              </div>
             </div>
           </section>
-        ) : null}
-
-        <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
-          <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
-            <div className="desktop-builder-heading">
-              <p className="desktop-input-rail-heading">Deal builder</p>
-              <h2 className="text-lg font-semibold text-slate-100">Inputs</h2>
-            </div>
-            <StrategyTabs
-              active={activeStrategy}
-              onChange={openDesktopStrategyWorkspace}
-              longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
-              onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
-              quickScan={strategyQuickScan}
-              embeddedInRail
-              actionSlot={
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHapticFeedback('light');
-                    setIsStrategyWorkOpen(true);
-                  }}
-                  className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
-                >
-                  Show work
-                </button>
-              }
-            />
-          </div>
-
-          <div className="desktop-deal-builder-grid">
-            <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
-              <DealInputPanel
-                value={model}
-                onChange={updateModel}
-                resolveListingDealName={resolveListingDealName}
-                defaultAdvancedOptionsOpen={false}
-                forcedCoreSection="purchaseFinancing"
-                titleOverride="Purchase"
-                contentViewportClassName={desktopInputViewportClassName}
-                variant="embedded"
-              />
-            </div>
-            <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
-              <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
-            </div>
-            <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
-              <DealInputPanel
-                value={model}
-                onChange={updateModel}
-                resolveListingDealName={resolveListingDealName}
-                defaultAdvancedOptionsOpen={false}
-                forcedCoreSection="expenses"
-                contentViewportClassName={desktopInputViewportClassName}
-                variant="embedded"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="desktop-analysis-dock [overflow-anchor:none]">
-          <div className="desktop-analysis-heading">
-            <p className="desktop-input-rail-heading">Analysis dock</p>
-            <h2 className="text-lg font-semibold text-slate-100">Projections</h2>
-          </div>
-          <div className="desktop-analysis-grid">
-            <div className="desktop-analysis-projections min-w-0">
-              {desktopPerformanceDashboard}
-            </div>
-            <div ref={irrStreamRef} className="desktop-analysis-timeline min-w-0">
-              <TimelineCard
-                output={result[activeStrategy]}
-                assumptions={model.assumptions}
-                defaultOpen={Boolean(activeDealId)}
-                collapsible={false}
-                summaryVariant="compact"
-                onAssumptionsChange={updateAssumptions}
-                showTargetIrrInput={showTargetIrrInput}
-                layoutVariant="strip"
-              />
-            </div>
-          </div>
-        </section>
+        </div>
         </>
         ) : null}
       </div>

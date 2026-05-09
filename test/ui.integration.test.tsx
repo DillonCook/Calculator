@@ -1469,6 +1469,11 @@ describe('dashboard integration', () => {
     await user.type(rentInput, '30');
 
     expect(rentInput).toHaveValue(30);
+    const commercialOutputs = screen.getByText('Commercial outputs').closest('section');
+    expect(commercialOutputs).not.toBeNull();
+    expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-revealed');
+    expect(within(commercialOutputs as HTMLElement).getAllByText('Annual NOI').length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: 'Strategy inputs' })).not.toBeInTheDocument();
   });
 
@@ -1883,6 +1888,48 @@ describe('dashboard integration', () => {
     expect(screen.queryByText('Stabilize scenario (12-month underwrite)')).not.toBeInTheDocument();
   });
 
+  it('keeps commercial and turnaround output panels visible while switching strategies repeatedly', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const selector = screen.getByLabelText('Desktop strategy selector');
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term turnaround' }));
+    let turnaroundOutputs = screen.getByText('Long-term turnaround outputs').closest('section');
+    expect(turnaroundOutputs).not.toBeNull();
+    expect(turnaroundOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(within(turnaroundOutputs as HTMLElement).getAllByText('Cash Flow (Pre-Tax)').length).toBeGreaterThan(0);
+
+    await user.click(within(selector).getByRole('button', { name: 'Airbnb' }));
+    expect(turnaroundOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-exiting');
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term turnaround' }));
+    turnaroundOutputs = screen.getByText('Long-term turnaround outputs').closest('section');
+    expect(turnaroundOutputs).not.toBeNull();
+    expect(turnaroundOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(within(turnaroundOutputs as HTMLElement).getAllByText('Cash Flow (Pre-Tax)').length).toBeGreaterThan(0);
+
+    await user.click(within(selector).getByRole('button', { name: 'Commercial' }));
+    let commercialOutputs = screen.getByText('Commercial outputs').closest('section');
+    expect(commercialOutputs).not.toBeNull();
+    expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(within(commercialOutputs as HTMLElement).getAllByText('Annual NOI').length).toBeGreaterThan(0);
+
+    await user.click(within(selector).getByRole('button', { name: 'Airbnb' }));
+    expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-exiting');
+
+    await user.click(within(selector).getByRole('button', { name: 'Commercial' }));
+    commercialOutputs = screen.getByText('Commercial outputs').closest('section');
+    expect(commercialOutputs).not.toBeNull();
+    expect(commercialOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(within(commercialOutputs as HTMLElement).getAllByText('Annual NOI').length).toBeGreaterThan(0);
+
+    await user.click(within(selector).getByRole('button', { name: 'Long-Term turnaround' }));
+    turnaroundOutputs = screen.getByText('Long-term turnaround outputs').closest('section');
+    expect(turnaroundOutputs).not.toBeNull();
+    expect(turnaroundOutputs?.closest('.scenario-digest-collapse')).toHaveClass('scenario-digest-collapse-open');
+    expect(within(turnaroundOutputs as HTMLElement).getAllByText('Cash Flow (Pre-Tax)').length).toBeGreaterThan(0);
+  });
+
   it('keeps top long-term KPIs on purchase numbers while turnaround outputs show stabilized numbers', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -1916,12 +1963,19 @@ describe('dashboard integration', () => {
     expect(screen.getByTestId('kpi-cap-rate')).toHaveTextContent(
       percentFormatter.format(baselineLongTerm.capRate)
     );
+    expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(
+      currencyFormatter.format(baselineLongTerm.monthlyCashFlow)
+    );
     expect(screen.getByLabelText('Cash on Cash strategy context')).toHaveTextContent('Long-Term');
 
     const turnaroundOutputs = screen.getByText('Long-term turnaround outputs').closest('section');
     expect(turnaroundOutputs).not.toBeNull();
     const turnaroundQueries = within(turnaroundOutputs as HTMLElement);
+    const stabilizedCashFlow = currencyFormatter.format(stabilizedSummary?.cashFlowPreTaxMonthly ?? 0);
 
+    expect(turnaroundQueries.getAllByText('Cash Flow (Pre-Tax)').length).toBeGreaterThan(0);
+    expect(turnaroundQueries.getAllByText(stabilizedCashFlow).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-priority-metric')).not.toHaveTextContent(stabilizedCashFlow);
     expect(turnaroundQueries.getAllByText('Cash-on-Cash (Stabilized)').length).toBeGreaterThan(0);
     expect(turnaroundQueries.getAllByText(percentFormatter.format(stabilizedSummary?.cashOnCashReturn ?? 0)).length).toBeGreaterThan(0);
     expect(turnaroundQueries.getAllByText('Cap Rate (Stabilized)').length).toBeGreaterThan(0);
