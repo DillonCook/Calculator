@@ -295,7 +295,7 @@ export function KpiCard({
       ) : null}
       <div className={`relative z-10 min-w-0 ${isInline ? 'flex justify-center' : ''}`}>
         <div className={`inline-flex min-w-0 max-w-full items-center ${isInline ? 'justify-center gap-1' : 'gap-1.5'}`}>
-          <p className={`dashboard-kicker min-w-0 truncate font-semibold leading-tight ${isInline ? 'kpi-strip-label text-center text-[11px] sm:text-xs' : isCompact ? 'text-[clamp(0.9rem,1.5vw,1.08rem)]' : 'text-[clamp(0.98rem,1.7vw,1.18rem)] sm:text-[1.06rem]'}`}>{label}</p>
+          <p className={`dashboard-kicker min-w-0 truncate font-semibold leading-tight ${isInline ? 'kpi-strip-label text-center text-[15px] sm:text-base' : isCompact ? 'text-[clamp(0.9rem,1.5vw,1.08rem)]' : 'text-[clamp(0.98rem,1.7vw,1.18rem)] sm:text-[1.06rem]'}`}>{label}</p>
           {tooltipTrigger}
         </div>
       </div>

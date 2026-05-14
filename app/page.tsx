@@ -4906,7 +4906,7 @@ export default function HomePage() {
 
             <div className="relative z-10 pr-16">
               <div className="flex items-center gap-2">
-                <p className="dashboard-kicker">{priorityMetricTitle}</p>
+                <p className="dashboard-kicker kpi-strip-label text-[15px] sm:text-base">{priorityMetricTitle}</p>
                 {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
               </div>
               {priorityMetricSubtitle ? <p className="dashboard-meta mt-1 text-sm">{priorityMetricSubtitle}</p> : null}
@@ -6311,7 +6311,7 @@ export default function HomePage() {
                 <div className="priority-kpi-header flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 pr-3">
                     <div className="flex items-center gap-2">
-                      <p className="dashboard-kicker">{priorityMetricTitle}</p>
+                      <p className="dashboard-kicker kpi-strip-label text-[15px] sm:text-base">{priorityMetricTitle}</p>
                       {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
                     </div>
                     {priorityMetricSubtitle ? <p className="dashboard-meta mt-1 text-sm">{priorityMetricSubtitle}</p> : null}

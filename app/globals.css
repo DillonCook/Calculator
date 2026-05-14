@@ -1112,6 +1112,22 @@ html {
     color: #97a8ba;
   }
 
+  .strategy-input-group {
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+    padding-top: 0.85rem;
+  }
+
+  .strategy-input-group:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .strategy-input-group-title {
+    margin-bottom: 0.5rem;
+    color: #d4deea;
+    letter-spacing: 0;
+  }
+
   .dashboard-pill {
     display: inline-flex;
     align-items: center;
@@ -1206,7 +1222,7 @@ html {
 
   .kpi-strip-label {
     color: #d4deea;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
   }
 
   .kpi-strip-value {
@@ -4276,6 +4292,14 @@ html {
 
 .theme-light .dashboard-meta {
   color: #607894;
+}
+
+.theme-light .strategy-input-group {
+  border-top-color: rgba(112, 141, 178, 0.16);
+}
+
+.theme-light .strategy-input-group-title {
+  color: #385873;
 }
 
 .theme-light .dashboard-pill {

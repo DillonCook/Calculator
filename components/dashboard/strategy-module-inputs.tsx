@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 
@@ -12,6 +13,27 @@ interface StrategyModuleInputsProps {
   onToggleCollapsed?: () => void;
   animateContent?: boolean;
   variant?: 'panel' | 'embedded';
+}
+
+const inputGridClassName = 'grid gap-3 sm:grid-cols-2';
+
+function StrategyInputGroup({
+  title,
+  children,
+  embedded = false,
+  className = ''
+}: {
+  title: string;
+  children: ReactNode;
+  embedded?: boolean;
+  className?: string;
+}) {
+  return (
+    <section className={`strategy-input-group ${embedded ? 'strategy-input-group-embedded' : ''} ${className}`}>
+      <p className="dashboard-kicker strategy-input-group-title">{title}</p>
+      <div className={inputGridClassName}>{children}</div>
+    </section>
+  );
 }
 
 export function StrategyModuleInputs({
@@ -65,7 +87,7 @@ export function StrategyModuleInputs({
               Physical occupancy by leased area: <span className="font-semibold text-slate-100">{commercialOccupancyPercent.toFixed(1)}%</span>
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <StrategyInputGroup embedded={isEmbedded} title="Core rent roll">
             <Input
               label="Gross leasable area (sq ft)"
               tooltip="Total rentable square footage in the property, including currently vacant units or suites."
@@ -94,6 +116,8 @@ export function StrategyModuleInputs({
               value={model.commercial.nnnRecoveryPerSqftYear}
               onChange={(v) => update('commercial', 'nnnRecoveryPerSqftYear', Number(v))}
             />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Operating assumptions">
             <PercentInput
               label="Vacancy reserve %"
               tooltip="Economic vacancy assumption applied to occupied income to stay conservative."
@@ -133,6 +157,8 @@ export function StrategyModuleInputs({
               value={model.commercial.leasingCommissionsReservePerSqftYear}
               onChange={(v) => update('commercial', 'leasingCommissionsReservePerSqftYear', Number(v))}
             />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Projection assumptions">
             <PercentInput
               label="Commercial rent growth %"
               tooltip="Year-over-year growth assumption for rent and recoverable revenue."
@@ -145,7 +171,7 @@ export function StrategyModuleInputs({
               value={model.commercial.annualExpenseGrowthPercent}
               onChange={(v) => update('commercial', 'annualExpenseGrowthPercent', v)}
             />
-          </div>
+          </StrategyInputGroup>
         </div>
       );
     }
@@ -153,18 +179,22 @@ export function StrategyModuleInputs({
     if (active === 'longTerm') {
       return (
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <StrategyInputGroup embedded={isEmbedded} title="Core income">
             <Input label="Gross rent / mo" type="number" value={model.longTerm.grossRentMonthly} onChange={(v) => update('longTerm', 'grossRentMonthly', Number(v))} />
             <Input label="Other income / mo" type="number" value={model.longTerm.otherIncomeMonthly} onChange={(v) => update('longTerm', 'otherIncomeMonthly', Number(v))} />
+            <PercentInput label="Vacancy %" value={model.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Operating assumptions">
+            <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
+            <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
+            <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
             <PercentInput
               label="Tenant placement fee % (1st month rent)"
               value={model.longTerm.tenantPlacementFeePercent}
               onChange={(v) => update('longTerm', 'tenantPlacementFeePercent', v)}
             />
-            <PercentInput label="Vacancy %" value={model.longTerm.vacancyPercent} onChange={(v) => update('longTerm', 'vacancyPercent', v)} />
-            <PercentInput label="Management fee %" value={model.longTerm.managementFeePercent} onChange={(v) => update('longTerm', 'managementFeePercent', v)} />
-            <PercentInput label="Maintenance %" value={model.longTerm.maintenancePercent} onChange={(v) => update('longTerm', 'maintenancePercent', v)} />
-            <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Optional overrides">
             <Input
               label="Long Term ARV"
               tooltip="Optional. Overrides the long-term sale value used for regular long-term IRR and ROI. Turnaround mode has a separate Stabilized ARV below."
@@ -178,7 +208,7 @@ export function StrategyModuleInputs({
               value={model.longTerm.annualRevenueOverride ?? ''}
               onChange={(v) => update('longTerm', 'annualRevenueOverride', v === '' ? null : Number(v))}
             />
-          </div>
+          </StrategyInputGroup>
 
           {model.longTerm.turnaround.enabled ? (
             <section className={inlineSubsectionClassName}>
@@ -295,115 +325,144 @@ export function StrategyModuleInputs({
 
     if (active === 'airbnb') {
       return (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="ADR" type="number" value={model.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
-          <PercentInput label="Occupancy %" value={model.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
-          <Input label="Nights per month" type="number" value={model.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
-          <Input label="Avg nights per booking" type="number" value={model.airbnb.averageNightsPerBooking} onChange={(v) => update('airbnb', 'averageNightsPerBooking', Number(v))} />
-          <Input label="Cleaning fee charged" type="number" value={model.airbnb.cleaningFeeCharged} onChange={(v) => update('airbnb', 'cleaningFeeCharged', Number(v))} />
-          <Input label="Cleaner cost / turn" type="number" value={model.airbnb.cleanerCostPerTurn} onChange={(v) => update('airbnb', 'cleanerCostPerTurn', Number(v))} />
-          <PercentInput label="Platform fee %" value={model.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', v)} />
-          <PercentInput label="Management fee %" value={model.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
-          <PercentInput label="Maintenance %" value={model.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
-          <PercentInput label="CapEx %" value={model.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
-          <Input label="STR furnishing (one-time)" type="number" value={model.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
-          <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
-          <Input
-            label="Annual revenue (optional)"
-            type="number"
-            value={model.airbnb.annualRevenueOverride ?? ''}
-            onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}
-          />
+        <div className="space-y-3">
+          <StrategyInputGroup embedded={isEmbedded} title="Core booking revenue">
+            <Input label="ADR" type="number" value={model.airbnb.adr} onChange={(v) => update('airbnb', 'adr', Number(v))} />
+            <PercentInput label="Occupancy %" value={model.airbnb.occupancyPercent} onChange={(v) => update('airbnb', 'occupancyPercent', v)} />
+            <Input label="Nights per month" type="number" value={model.airbnb.nightsPerMonth} onChange={(v) => update('airbnb', 'nightsPerMonth', Number(v))} />
+            <Input label="Avg nights per booking" type="number" value={model.airbnb.averageNightsPerBooking} onChange={(v) => update('airbnb', 'averageNightsPerBooking', Number(v))} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Cleaning and platform">
+            <Input label="Cleaning fee charged" type="number" value={model.airbnb.cleaningFeeCharged} onChange={(v) => update('airbnb', 'cleaningFeeCharged', Number(v))} />
+            <Input label="Cleaner cost / turn" type="number" value={model.airbnb.cleanerCostPerTurn} onChange={(v) => update('airbnb', 'cleanerCostPerTurn', Number(v))} />
+            <PercentInput label="Platform fee %" value={model.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', v)} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Operating assumptions">
+            <PercentInput label="Management fee %" value={model.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
+            <PercentInput label="Maintenance %" value={model.airbnb.maintenancePercent} onChange={(v) => update('airbnb', 'maintenancePercent', v)} />
+            <PercentInput label="CapEx %" value={model.airbnb.capexPercent} onChange={(v) => update('airbnb', 'capexPercent', v)} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Optional setup and overrides">
+            <Input label="STR furnishing (one-time)" type="number" value={model.airbnb.furnishingOneTime} onChange={(v) => update('airbnb', 'furnishingOneTime', Number(v))} />
+            <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
+            <Input
+              label="Annual revenue (optional)"
+              type="number"
+              value={model.airbnb.annualRevenueOverride ?? ''}
+              onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}
+            />
+          </StrategyInputGroup>
         </div>
       );
     }
 
     if (active === 'padSplit') {
       return (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
-          <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
-          <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
-          <Input label="Weeks per month" type="number" step="0.0001" value={model.padSplit.weeksPerMonth} onChange={(v) => update('padSplit', 'weeksPerMonth', Number(v))} />
-          <Input label="Other income / mo" type="number" value={model.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
-          <Input
-            label="Turnover / cleaning per move-out"
-            tooltip="Cleaning or turnover cost for each room move-out."
-            type="number"
-            value={model.padSplit.turnoverCostPerMoveOut}
-            onChange={(v) => update('padSplit', 'turnoverCostPerMoveOut', Number(v))}
-          />
-          <Input
-            label="Total move-outs / year"
-            tooltip="Total property-level tenant move-outs per year. Each move-out triggers one turnover/cleaning cost and one PadSplit tenant-placement fee equal to 10 days of weekly room rent."
-            type="number"
-            value={model.padSplit.moveOutsPerYear}
-            onChange={(v) => update('padSplit', 'moveOutsPerYear', Number(v))}
-          />
-          <PercentInput label="Platform fee %" value={model.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
-          <PercentInput
-            label="Management fee %"
-            tooltip="Percent-based property-management fee on effective gross revenue. Use PM flat fee / mo when the manager charges a fixed amount instead."
-            value={model.padSplit.managementFeePercent}
-            onChange={(v) => update('padSplit', 'managementFeePercent', v)}
-          />
-          <Input
-            label="PM flat fee / mo"
-            tooltip="Optional fixed monthly property-management charge. This is added on top of Management fee %, so set the percentage to 0 if the manager charges only a flat fee."
-            type="number"
-            value={model.padSplit.propertyManagementFeeMonthly ?? 0}
-            onChange={(v) => update('padSplit', 'propertyManagementFeeMonthly', Number(v))}
-          />
-          <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
-          <PercentInput label="CapEx reserve %" value={model.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
-          <Input label="Furnishing (one-time)" type="number" value={model.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
-          <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
-          <Input
-            label="Annual revenue (optional)"
-            type="number"
-            value={model.padSplit.annualRevenueOverride ?? ''}
-            onChange={(v) => update('padSplit', 'annualRevenueOverride', v === '' ? null : Number(v))}
-          />
+        <div className="space-y-3">
+          <StrategyInputGroup embedded={isEmbedded} title="Core room revenue">
+            <Input label="Rentable rooms" type="number" value={model.padSplit.rentableRooms} onChange={(v) => update('padSplit', 'rentableRooms', Number(v))} />
+            <Input label="Weekly rate / room" type="number" value={model.padSplit.avgWeeklyRatePerRoom} onChange={(v) => update('padSplit', 'avgWeeklyRatePerRoom', Number(v))} />
+            <PercentInput label="Occupancy %" value={model.padSplit.occupancyPercent} onChange={(v) => update('padSplit', 'occupancyPercent', v)} />
+            <Input label="Weeks per month" type="number" step="0.0001" value={model.padSplit.weeksPerMonth} onChange={(v) => update('padSplit', 'weeksPerMonth', Number(v))} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Move-outs and other income">
+            <Input label="Other income / mo" type="number" value={model.padSplit.otherIncomeMonthly} onChange={(v) => update('padSplit', 'otherIncomeMonthly', Number(v))} />
+            <Input
+              label="Turnover / cleaning per move-out"
+              tooltip="Cleaning or turnover cost for each room move-out."
+              type="number"
+              value={model.padSplit.turnoverCostPerMoveOut}
+              onChange={(v) => update('padSplit', 'turnoverCostPerMoveOut', Number(v))}
+            />
+            <Input
+              label="Total move-outs / year"
+              tooltip="Total property-level tenant move-outs per year. Each move-out triggers one turnover/cleaning cost and one PadSplit tenant-placement fee equal to 10 days of weekly room rent."
+              type="number"
+              value={model.padSplit.moveOutsPerYear}
+              onChange={(v) => update('padSplit', 'moveOutsPerYear', Number(v))}
+            />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Operating fees and reserves">
+            <PercentInput label="Platform fee %" value={model.padSplit.platformFeePercent} onChange={(v) => update('padSplit', 'platformFeePercent', v)} />
+            <PercentInput
+              label="Management fee %"
+              tooltip="Percent-based property-management fee on effective gross revenue. Use PM flat fee / mo when the manager charges a fixed amount instead."
+              value={model.padSplit.managementFeePercent}
+              onChange={(v) => update('padSplit', 'managementFeePercent', v)}
+            />
+            <Input
+              label="PM flat fee / mo"
+              tooltip="Optional fixed monthly property-management charge. This is added on top of Management fee %, so set the percentage to 0 if the manager charges only a flat fee."
+              type="number"
+              value={model.padSplit.propertyManagementFeeMonthly ?? 0}
+              onChange={(v) => update('padSplit', 'propertyManagementFeeMonthly', Number(v))}
+            />
+            <PercentInput label="Maintenance reserve %" value={model.padSplit.maintenancePercent} onChange={(v) => update('padSplit', 'maintenancePercent', v)} />
+            <PercentInput label="CapEx reserve %" value={model.padSplit.capexPercent} onChange={(v) => update('padSplit', 'capexPercent', v)} />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Optional setup and overrides">
+            <Input label="Furnishing (one-time)" type="number" value={model.padSplit.furnishingOneTime} onChange={(v) => update('padSplit', 'furnishingOneTime', Number(v))} />
+            <Input label="PadSplit ARV" type="number" value={model.padSplit.arvOverride ?? ''} onChange={(v) => update('padSplit', 'arvOverride', v === '' ? null : Number(v))} />
+            <Input
+              label="Annual revenue (optional)"
+              type="number"
+              value={model.padSplit.annualRevenueOverride ?? ''}
+              onChange={(v) => update('padSplit', 'annualRevenueOverride', v === '' ? null : Number(v))}
+            />
+          </StrategyInputGroup>
         </div>
       );
     }
 
     if (active === 'brrrr') {
       return (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="BRRRR rehab override" type="number" value={model.brrrr.rehabOverride ?? ''} onChange={(v) => update('brrrr', 'rehabOverride', v === '' ? null : Number(v))} />
-          <Input label="Hold months" type="number" value={model.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
-          <Input
-            label="Holding expenses / mo"
-            type="number"
-            value={model.brrrr.holdingExpensesMonthly}
-            onChange={(v) => update('brrrr', 'holdingExpensesMonthly', Number(v))}
-          />
-          <PercentInput label="Refi target LTV %" value={model.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
-          <PercentInput label="Refi rate %" value={model.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
-          <PercentInput
-            label="Refi closing %"
-            value={model.brrrr.refinanceClosingCostPercent}
-            onChange={(v) => update('brrrr', 'refinanceClosingCostPercent', v)}
-          />
-          <Select
-            label="Post-refi ops model"
-            value={model.brrrr.operatingStrategy}
-            onChange={(v) => update('brrrr', 'operatingStrategy', v as DealInputModel['brrrr']['operatingStrategy'])}
-            options={[
-              { label: 'Long-Term', value: 'longTerm' },
-              { label: 'Airbnb / STR', value: 'airbnb' },
-              { label: 'PadSplit', value: 'padSplit' }
-            ]}
-          />
-          <Input label="BRRRR ARV" type="number" value={model.brrrr.arvOverride ?? ''} onChange={(v) => update('brrrr', 'arvOverride', v === '' ? null : Number(v))} />
+        <div className="space-y-3">
+          <StrategyInputGroup embedded={isEmbedded} title="Core refi model">
+            <Input label="BRRRR ARV" type="number" value={model.brrrr.arvOverride ?? ''} onChange={(v) => update('brrrr', 'arvOverride', v === '' ? null : Number(v))} />
+            <Select
+              label="Post-refi ops model"
+              value={model.brrrr.operatingStrategy}
+              onChange={(v) => update('brrrr', 'operatingStrategy', v as DealInputModel['brrrr']['operatingStrategy'])}
+              options={[
+                { label: 'Long-Term', value: 'longTerm' },
+                { label: 'Airbnb / STR', value: 'airbnb' },
+                { label: 'PadSplit', value: 'padSplit' }
+              ]}
+            />
+            <PercentInput label="Refi target LTV %" value={model.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
+            <PercentInput label="Refi rate %" value={model.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
+            <PercentInput
+              label="Refi closing %"
+              value={model.brrrr.refinanceClosingCostPercent}
+              onChange={(v) => update('brrrr', 'refinanceClosingCostPercent', v)}
+            />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Project capital and hold">
+            <Input label="Hold months" type="number" value={model.brrrr.holdingMonths} onChange={(v) => update('brrrr', 'holdingMonths', Number(v))} />
+            <Input
+              label="Holding expenses / mo"
+              type="number"
+              value={model.brrrr.holdingExpensesMonthly}
+              onChange={(v) => update('brrrr', 'holdingExpensesMonthly', Number(v))}
+            />
+          </StrategyInputGroup>
+          <StrategyInputGroup embedded={isEmbedded} title="Optional override">
+            <Input label="BRRRR rehab override" type="number" value={model.brrrr.rehabOverride ?? ''} onChange={(v) => update('brrrr', 'rehabOverride', v === '' ? null : Number(v))} />
+          </StrategyInputGroup>
         </div>
       );
     }
 
     return (
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <StrategyInputGroup embedded={isEmbedded} title="Core sale and rehab">
+          <Input
+            label="Flip ARV"
+            tooltip="Projected resale price after renovation. This is the sale price used for profit, MAO, ROI, and hard-money payoff math."
+            type="number"
+            value={model.flip.arvOverride ?? ''}
+            onChange={(v) => updateFlip('arvOverride', v === '' ? null : Number(v))}
+          />
           <Input
             label="Flip rehab override"
             tooltip="Optional flip-specific rehab budget before contingency. Leave blank to use the main rehab budget from Core."
@@ -418,9 +477,9 @@ export function StrategyModuleInputs({
             onChange={(v) => updateFlip('rehabContingencyPercent', v)}
           />
           <Input label="Flip hold months" type="number" value={model.flip.holdingMonths} onChange={(v) => updateFlip('holdingMonths', Number(v))} />
-        </div>
+        </StrategyInputGroup>
 
-        <div className={inlineSubsectionClassName}>
+        <section className={inlineSubsectionClassName}>
           <p className="dashboard-kicker mb-2">Max allowable offer targets</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -437,18 +496,18 @@ export function StrategyModuleInputs({
               onChange={(v) => updateFlip('targetRoiPercent', v)}
             />
           </div>
-        </div>
+        </section>
 
-        <div className={inlineSubsectionClassName}>
+        <section className={inlineSubsectionClassName}>
           <p className="dashboard-kicker mb-2">Exit costs</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <PercentInput label="Agent commission %" value={model.flip.agentCommissionPercent} onChange={(v) => updateFlip('agentCommissionPercent', v)} />
             <PercentInput label="Sell closing %" value={model.flip.sellClosingCostPercent} onChange={(v) => updateFlip('sellClosingCostPercent', v)} />
             <Input label="Seller concessions" type="number" value={model.flip.sellerConcessions} onChange={(v) => updateFlip('sellerConcessions', Number(v))} />
           </div>
-        </div>
+        </section>
 
-        <div className={inlineSubsectionClassName}>
+        <section className={inlineSubsectionClassName}>
           <div className="mb-2 flex items-start justify-between gap-3">
             <div>
               <p className="dashboard-kicker">Flip lender</p>
@@ -490,17 +549,7 @@ export function StrategyModuleInputs({
               </div>
             )}
           </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            label="Flip ARV"
-            tooltip="Projected resale price after renovation. This is the sale price used for profit, MAO, ROI, and hard-money payoff math."
-            type="number"
-            value={model.flip.arvOverride ?? ''}
-            onChange={(v) => updateFlip('arvOverride', v === '' ? null : Number(v))}
-          />
-        </div>
+        </section>
       </div>
     );
   };
