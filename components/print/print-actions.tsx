@@ -20,6 +20,10 @@ export function PrintActions({ documentTitle }: PrintActionsProps) {
     editableParams.set('s', scenario);
     return `${window.location.origin}/?${editableParams.toString()}`;
   }, []);
+  const reportUrl = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return window.location.href;
+  }, []);
 
   useEffect(() => {
     if (!documentTitle) return;
@@ -32,10 +36,10 @@ export function PrintActions({ documentTitle }: PrintActionsProps) {
     };
   }, [documentTitle]);
 
-  const copyEditableLink = async () => {
-    if (!editableUrl) return;
+  const copyShareableReportLink = async () => {
+    if (!reportUrl) return;
     try {
-      await navigator.clipboard.writeText(editableUrl);
+      await navigator.clipboard.writeText(reportUrl);
       setCopyFeedback('copied');
     } catch {
       setCopyFeedback('failed');
@@ -50,11 +54,11 @@ export function PrintActions({ documentTitle }: PrintActionsProps) {
             className="print-action-secondary rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             href={editableUrl}
           >
-            Open Editable Report
+            Open Editable Deal
           </a>
           <button
             className="print-action-secondary rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            onClick={copyEditableLink}
+            onClick={copyShareableReportLink}
             type="button"
           >
             Copy Shareable Link
@@ -68,7 +72,7 @@ export function PrintActions({ documentTitle }: PrintActionsProps) {
       >
         Print / Save PDF
       </button>
-      {copyFeedback === 'copied' ? <span className="text-xs text-emerald-600">Shareable editable link copied.</span> : null}
+      {copyFeedback === 'copied' ? <span className="text-xs text-emerald-600">Shareable report link copied.</span> : null}
       {copyFeedback === 'failed' ? <span className="text-xs text-rose-600">Could not copy link.</span> : null}
     </div>
   );

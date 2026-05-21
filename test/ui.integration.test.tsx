@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -102,6 +102,7 @@ vi.mock('../lib/cloud-scenarios-sync', () => ({
 
 import HomePage from '../app/page';
 import AdminAnalyticsPage from '../app/admin/analytics/page';
+import { PrintActions } from '../components/print/print-actions';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
@@ -2303,5 +2304,25 @@ describe('dashboard integration', () => {
 
     expect(href.startsWith('/print?scenario=')).toBe(true);
     expect(href).toContain('&strategy=airbnb');
+  });
+
+  it('copies the current print report URL from the print toolbar', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    });
+    window.history.pushState({}, '', '/print?scenario=encoded-report&strategy=airbnb');
+
+    render(<PrintActions documentTitle="Test Report" />);
+
+    expect(screen.getByRole('link', { name: 'Open Editable Deal' })).toHaveAttribute('href', `${window.location.origin}/?s=encoded-report`);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/print?scenario=encoded-report&strategy=airbnb`);
+    });
+    expect(screen.getByText('Shareable report link copied.')).toBeInTheDocument();
   });
 });
