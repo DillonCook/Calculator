@@ -64,7 +64,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
 
   return (
     <main className="print-shell min-h-screen bg-surface px-3 py-4 sm:px-6 print:bg-white print:p-0">
-      <PrintActions documentTitle={printDocumentTitle} />
+      <PrintActions documentTitle={printDocumentTitle} scenarioToken={params.scenario} strategy={strategy} />
 
       <article className="print-report mx-auto max-w-5xl overflow-hidden rounded-2xl border text-slate-900 shadow-2xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
         <header className="print-report-header px-4 py-4 sm:px-6 print:px-4 print:py-3">

@@ -21,7 +21,8 @@ const authMockState = vi.hoisted(() => ({
   emailSignUpCalls: [] as Array<{ email: string; password: string }>,
   passwordResetCalls: [] as Array<{ email: string; redirectTo?: string }>,
   passwordUpdateCalls: [] as Array<{ password: string }>,
-  cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string }>
+  cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string }>,
+  shareInsertCalls: [] as Array<Record<string, unknown>>
 }));
 
 vi.mock('../lib/supabaseClient', () => ({
@@ -87,7 +88,16 @@ vi.mock('../lib/supabaseClient', () => ({
         };
       },
       signOut: async () => ({ error: null })
-    }
+    },
+    from: (table: string) => ({
+      insert: async (payload: Record<string, unknown>) => {
+        if (table === 'shares') {
+          authMockState.shareInsertCalls.push(payload);
+        }
+
+        return { error: null };
+      }
+    })
   }) : null
 }));
 
@@ -107,8 +117,8 @@ import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
-import { createScenarioRecord, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
-import { encodeDealToShareParam } from '../lib/share-link';
+import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
+import { decodeDealFromShareParam, encodeDealToShareParam } from '../lib/share-link';
 
 const getStrategyButton = (label: string) =>
   within(screen.getByLabelText('Desktop strategy selector')).getByRole('button', { name: label });
@@ -178,6 +188,7 @@ describe('dashboard integration', () => {
     authMockState.passwordResetCalls = [];
     authMockState.passwordUpdateCalls = [];
     authMockState.cloudUpsertCalls = [];
+    authMockState.shareInsertCalls = [];
     setScenarioStorageOwner(null);
     window.localStorage.clear();
     window.history.pushState({}, '', '/');
@@ -1872,20 +1883,10 @@ describe('dashboard integration', () => {
     expect(inputLabels.slice(-2)).toEqual(['Long Term ARV', 'Annual revenue (optional)']);
 
     await user.click(getStrategyButton('BRRRR'));
-    expect(
-      within(getStrategyInputsWorkspace())
-        .getAllByRole('spinbutton')
-        .map((input) => input.getAttribute('aria-label'))
-        .slice(-1)[0]
-    ).toBe('BRRRR ARV');
+    expect(within(getStrategyInputsWorkspace()).getByRole('spinbutton', { name: 'BRRRR ARV' })).toBeInTheDocument();
 
     await user.click(getStrategyButton('Flip'));
-    expect(
-      within(getStrategyInputsWorkspace())
-        .getAllByRole('spinbutton')
-        .map((input) => input.getAttribute('aria-label'))
-        .slice(-1)[0]
-    ).toBe('Flip ARV');
+    expect(within(getStrategyInputsWorkspace()).getByRole('spinbutton', { name: 'Flip ARV' })).toBeInTheDocument();
   });
 
   it('uses the split Long-Term strategy button to toggle turnaround mode', async () => {
@@ -2306,23 +2307,72 @@ describe('dashboard integration', () => {
     expect(href).toContain('&strategy=airbnb');
   });
 
-  it('copies the current print report URL from the print toolbar', async () => {
+  it('copies the full print report URL for anonymous users and exposes a real editable import link', async () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }
     });
     window.history.pushState({}, '', '/print?scenario=encoded-report&strategy=airbnb');
+    const reportScenario = createScenarioRecord({
+      ...defaultDealInput,
+      purchase: {
+        ...defaultDealInput.purchase,
+        dealName: 'Report Deal',
+        purchasePrice: 315000
+      }
+    });
+    const scenarioToken = encodeScenario(reportScenario);
 
-    render(<PrintActions documentTitle="Test Report" />);
+    render(<PrintActions documentTitle="Test Report" scenarioToken={scenarioToken} strategy="airbnb" />);
 
-    expect(screen.getByRole('link', { name: 'Open Editable Deal' })).toHaveAttribute('href', `${window.location.origin}/?s=encoded-report`);
+    const editableDealLink = screen.getByRole('link', { name: 'Open Editable Deal' });
+    const editableDealUrl = new URL(editableDealLink.getAttribute('href') ?? '');
+    const editableDeal = decodeDealFromShareParam(editableDealUrl.searchParams.get('s') ?? '');
+    expect(editableDealUrl.pathname).toBe('/');
+    expect(editableDeal?.purchase.dealName).toBe('Report Deal');
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/print?scenario=encoded-report&strategy=airbnb`);
     });
-    expect(screen.getByText('Shareable report link copied.')).toBeInTheDocument();
+    expect(screen.getByText('Full report link copied. Sign in for short links.')).toBeInTheDocument();
+  });
+
+  it('copies a short print report URL for signed-in users', async () => {
+    authMockState.user = {
+      id: 'report-user-1',
+      email: 'report@example.com'
+    };
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    });
+    window.history.pushState({}, '', '/print?scenario=encoded-report&strategy=airbnb');
+    const reportScenario = createScenarioRecord({
+      ...defaultDealInput,
+      purchase: {
+        ...defaultDealInput.purchase,
+        dealName: 'Short Report Deal',
+        purchasePrice: 425000
+      }
+    });
+
+    render(<PrintActions documentTitle="Test Report" scenarioToken={encodeScenario(reportScenario)} strategy="airbnb" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1);
+    });
+    const copiedUrl = new URL(writeText.mock.calls[0][0]);
+    expect(copiedUrl.origin).toBe(window.location.origin);
+    expect(copiedUrl.pathname).toMatch(/^\/r\/[A-Za-z0-9_-]{8}$/);
+    expect(copiedUrl.searchParams.get('strategy')).toBe('airbnb');
+    expect(authMockState.shareInsertCalls).toHaveLength(1);
+    expect((authMockState.shareInsertCalls[0].payload_snapshot as typeof defaultDealInput).purchase.dealName).toBe('Short Report Deal');
+    expect(screen.getByText('Short report link copied.')).toBeInTheDocument();
   });
 });
