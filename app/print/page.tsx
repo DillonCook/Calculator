@@ -35,11 +35,36 @@ const buildPrintDocumentTitle = (dealName: string | undefined) => {
   return normalizedDealName ? `${normalizedDealName} - DealCooker` : 'DealCooker';
 };
 
+const reportPreviewDescription = 'Review a DealCooker PDF-ready investment report with deal assumptions, strategy highlights, cash flow, ROI, IRR, DSCR, and underwriting work.';
+
 export async function generateMetadata({ searchParams }: PrintPageProps): Promise<Metadata> {
   const params = await searchParams;
   const decoded = params.scenario ? decodeScenario(params.scenario) : null;
+  const title = buildPrintDocumentTitle(decoded?.payload.purchase.dealName);
+
   return {
-    title: buildPrintDocumentTitle(decoded?.payload.purchase.dealName)
+    title,
+    description: reportPreviewDescription,
+    openGraph: {
+      title,
+      description: reportPreviewDescription,
+      siteName: 'DealCooker',
+      images: [
+        {
+          url: '/icon.png',
+          width: 1024,
+          height: 977,
+          alt: 'DealCooker logo'
+        }
+      ],
+      type: 'website'
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: reportPreviewDescription,
+      images: ['/icon.png']
+    }
   };
 }
 

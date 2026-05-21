@@ -29,10 +29,10 @@ export const metadata: Metadata = {
     siteName: 'DealCooker',
     images: [
       {
-        url: '/og.png',
-        width: 1200,
-        height: 630,
-        alt: 'DealCooker real estate deal analysis dashboard'
+        url: '/icon.png',
+        width: 1024,
+        height: 977,
+        alt: 'DealCooker logo'
       }
     ],
     type: 'website'
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     title: 'DealCooker',
     description:
       'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
-    images: ['/og.png']
+    images: ['/icon.png']
   }
 };
 
