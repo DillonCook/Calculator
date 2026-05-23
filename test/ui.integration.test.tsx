@@ -158,6 +158,7 @@ const createSavedDealList = (count: number, prefix = 'Saved Deal') =>
     createSavedDeal(`${prefix} ${index + 1}`, `2026-01-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`)
   );
 const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
+const WORKSPACE_VIEW_MODE_STORAGE_KEY = 'dealcooker-workspace-view:v1';
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
 const FEEDBACK_OPEN_COUNT_MOBILE_KEY = 'dealcooker-feedback-open-count:v1:mobile';
@@ -544,6 +545,29 @@ describe('dashboard integration', () => {
     expect(adminLink).toHaveAttribute('href', '/admin/analytics');
     expect(adminLink).toHaveClass('inline-flex', 'w-auto', 'min-w-[10rem]');
     expect(adminLink).not.toHaveClass('w-full');
+  });
+
+  it('switches between dashboard and spreadsheet workspace views from settings', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+
+    expect(screen.queryByLabelText('Spreadsheet deal workspace')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Spreadsheet' }));
+
+    expect(window.localStorage.getItem(WORKSPACE_VIEW_MODE_STORAGE_KEY)).toBe('sheet');
+    const spreadsheetWorkspace = screen.getByLabelText('Spreadsheet deal workspace');
+    expect(within(spreadsheetWorkspace).getByText('Deal worksheet')).toBeInTheDocument();
+    expect(within(spreadsheetWorkspace).getByLabelText('Strategy workspace')).toBeInTheDocument();
+    expect(within(spreadsheetWorkspace).getAllByText('Projections').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-priority-metric')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Dashboard' }));
+
+    expect(window.localStorage.getItem(WORKSPACE_VIEW_MODE_STORAGE_KEY)).toBe('studio');
+    expect(screen.queryByLabelText('Spreadsheet deal workspace')).not.toBeInTheDocument();
+    expect(screen.getByText('Deal builder')).toBeInTheDocument();
   });
 
   it('places the mobile admin dashboard link directly below owner account info', async () => {

@@ -82,6 +82,7 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
+type WorkspaceViewMode = 'studio' | 'sheet';
 type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
 type FeedbackSource = 'settings' | 'reminder';
 type FeedbackSubmitState = 'idle' | 'sending' | 'sent' | 'error';
@@ -122,6 +123,10 @@ const compactModeLabels: Record<CompactMode, string> = {
   results: 'Results',
   compare: 'Projections'
 };
+const workspaceViewModeOptions: Array<{ value: WorkspaceViewMode; label: string }> = [
+  { value: 'studio', label: 'Dashboard' },
+  { value: 'sheet', label: 'Spreadsheet' }
+];
 const headlineMetricOptions: Array<{ id: HeadlineMetricId; label: string }> = [
   { id: 'cashToClose', label: 'Cash to Close' },
   { id: 'capRate', label: 'Cap Rate' },
@@ -461,6 +466,7 @@ const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
 const SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
 const SETTINGS_LIGHT_MODE_STORAGE_KEY = 'dealcooker-light-mode:v1';
 const SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY = 'dealcooker-show-quick-scan:v1';
+const SETTINGS_WORKSPACE_VIEW_STORAGE_KEY = 'dealcooker-workspace-view:v1';
 const defaultCommercialDigestOrder: CommercialDigestKey[] = [
   'leased-sf',
   'physical-occ',
@@ -519,6 +525,7 @@ const DigestMetricCard = memo(function DigestMetricCard({
     </article>
   );
 });
+const normalizeWorkspaceViewMode = (value: unknown): WorkspaceViewMode => (value === 'sheet' ? 'sheet' : 'studio');
 const normalizeHeadlineMetricOrder = (value: unknown): HeadlineMetricId[] => {
   const normalized: HeadlineMetricId[] = [];
   const input = Array.isArray(value) ? value : [];
@@ -943,6 +950,7 @@ export default function HomePage() {
   const [defaultProjectionStrategies, setDefaultProjectionStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
   const [isLightMode, setIsLightMode] = useState(false);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
+  const [workspaceViewMode, setWorkspaceViewMode] = useState<WorkspaceViewMode>('studio');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isStrategyWorkOpen, setIsStrategyWorkOpen] = useState(false);
   const [includeReservesByStrategy, setIncludeReservesByStrategy] = useState<Record<StrategyKey, boolean>>({
@@ -2741,6 +2749,8 @@ export default function HomePage() {
     } else if (storedQuickScanVisible === '1') {
       setIsQuickScanVisible(true);
     }
+
+    setWorkspaceViewMode(normalizeWorkspaceViewMode(window.localStorage.getItem(SETTINGS_WORKSPACE_VIEW_STORAGE_KEY)));
   }, []);
 
   useEffect(() => {
@@ -2779,6 +2789,10 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY, isQuickScanVisible ? '1' : '0');
   }, [isQuickScanVisible]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SETTINGS_WORKSPACE_VIEW_STORAGE_KEY, workspaceViewMode);
+  }, [workspaceViewMode]);
   useEffect(() => {
     if (!isSettingsOpen) return;
 
@@ -3468,6 +3482,7 @@ export default function HomePage() {
     setDefaultProjectionStrategies(defaultProjectionStrategySelectionFallback);
     setIsLightMode(false);
     setIsQuickScanVisible(true);
+    setWorkspaceViewMode('studio');
   };
 
   const openInstallPromptFromSettings = () => {
@@ -4418,6 +4433,31 @@ export default function HomePage() {
           >
             {isLightMode ? 'Light mode' : 'Dark mode'}
           </button>
+        </div>
+        <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+          <span className="settings-row-label text-xs">Workspace view</span>
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/15 p-1">
+            {workspaceViewModeOptions.map((option) => {
+              const isSelected = workspaceViewMode === option.value;
+
+              return (
+                <button
+                  key={`workspace-view-${option.value}`}
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setWorkspaceViewMode(option.value);
+                  }}
+                  aria-pressed={isSelected}
+                  className={`tap-feedback rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+                    isSelected ? 'settings-chip-active' : 'section-action section-action-utility settings-action-button'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="section-inner flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
           <span className="settings-row-label text-xs">Quick scan</span>
@@ -5738,6 +5778,230 @@ export default function HomePage() {
     </div>
   ) : null;
 
+  const spreadsheetSummaryItems = [
+    { label: 'Strategy', value: activeStrategyLabel },
+    { label: 'Purchase', value: currencyFormatter.format(model.purchase.purchasePrice) },
+    { label: 'ARV', value: currencyFormatter.format(model.purchase.arv) },
+    { label: 'Rehab', value: currencyFormatter.format(model.purchase.rehabBudget) },
+    { label: 'Cash needed', value: currencyFormatter.format(activeOutput.totalCashNeeded) },
+    { label: 'Monthly CF', value: currencyFormatter.format(activeOutput.monthlyCashFlow) }
+  ];
+  const spreadsheetDigestItems = visibleDigestContent?.items ?? [];
+  const spreadsheetDigestLabel =
+    visibleDigestContent?.mode === 'commercial'
+      ? 'Commercial outputs'
+      : visibleDigestContent?.mode === 'turnaround'
+        ? 'Long-term turnaround outputs'
+        : 'Strategy outputs';
+
+  const spreadsheetWorkspace = (
+    <>
+      <section
+        ref={desktopResultsSectionRef}
+        aria-label="Spreadsheet deal workspace"
+        className="sheet-workspace [overflow-anchor:none]"
+      >
+        <div className="sheet-topline">
+          <div className="sheet-title-cell">
+            <p className="sheet-cell-label">Deal worksheet</p>
+            <h2 className="sheet-deal-title">{activeDealDisplayName}</h2>
+          </div>
+          <div className="sheet-summary-grid" aria-label="Deal summary">
+            {spreadsheetSummaryItems.map((item) => (
+              <div key={`sheet-summary-${item.label}`} className="sheet-summary-cell">
+                <p className="sheet-cell-label">{item.label}</p>
+                <p className="sheet-cell-value">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="sheet-metrics-band">
+          <div className="sheet-primary-metric priority-kpi-stable">
+            <div className="sheet-primary-copy">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="sheet-cell-label">{priorityMetricTitle}</p>
+                {supportsReserveToggle ? <ReserveModeTooltip strategy={activeStrategy} includeReserves={includeReserves} /> : null}
+              </div>
+              {priorityMetricSubtitle ? <p className="sheet-muted-text mt-1">{priorityMetricSubtitle}</p> : null}
+            </div>
+            <p
+              key={`priority-kpi-sheet-${priorityMetricMotion.key}`}
+              className={`sheet-priority-value ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
+              data-testid="kpi-priority-metric"
+              style={priorityMetricNegativeStyle}
+            >
+              {formattedPriorityMetricValue}
+            </p>
+            {supportsReserveToggle ? (
+              <div className="sheet-reserve-toggle">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: true }));
+                  }}
+                  aria-pressed={includeReserves}
+                  className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                    includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                  }`}
+                >
+                  Include reserves
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setIncludeReservesByStrategy((prev) => ({ ...prev, [activeStrategy]: false }));
+                  }}
+                  aria-pressed={!includeReserves}
+                  className={`reserve-toggle-btn tap-feedback rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                    !includeReserves ? 'reserve-toggle-btn-active bg-white/15 text-slate-100' : 'reserve-toggle-btn-idle text-muted hover:bg-white/10'
+                  }`}
+                >
+                  Exclude reserves
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="sheet-kpi-grid" aria-label="Core metrics">
+            {activeHeadlineMetricIds.map((metricId) => (
+              <div key={`sheet-headline-metric-${metricId}`} className="sheet-kpi-cell">
+                {renderHeadlineMetricCard(metricId, 'inline')}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div ref={desktopStrategyTabsRef} className="sheet-strategy-row">
+          <div className="sheet-row-heading">
+            <p className="sheet-cell-label">Strategy</p>
+            <p className="sheet-row-title">{activeStrategyLabel}</p>
+          </div>
+          <StrategyTabs
+            active={activeStrategy}
+            onChange={openDesktopStrategyWorkspace}
+            longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+            onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
+            quickScan={strategyQuickScan}
+            embeddedInRail
+            actionSlot={
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHapticFeedback('light');
+                  setIsStrategyWorkOpen(true);
+                }}
+                className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
+              >
+                Show work
+              </button>
+            }
+          />
+        </div>
+
+        <div className="sheet-input-grid">
+          <section ref={desktopCoreSectionRef} className="sheet-panel sheet-input-panel">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Inputs</p>
+              <h3 className="sheet-panel-title">Purchase</h3>
+            </div>
+            <DealInputPanel
+              value={model}
+              onChange={updateModel}
+              resolveListingDealName={resolveListingDealName}
+              defaultAdvancedOptionsOpen={false}
+              forcedCoreSection="purchaseFinancing"
+              titleOverride="Purchase"
+              contentViewportClassName={desktopInputViewportClassName}
+              variant="embedded"
+            />
+          </section>
+
+          <section ref={desktopStrategyInputsRef} className="sheet-panel sheet-input-panel">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Inputs</p>
+              <h3 className="sheet-panel-title">{activeStrategyLabel}</h3>
+            </div>
+            <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
+          </section>
+
+          <section ref={desktopExpensesSectionRef} className="sheet-panel sheet-input-panel">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Inputs</p>
+              <h3 className="sheet-panel-title">Expenses</h3>
+            </div>
+            <DealInputPanel
+              value={model}
+              onChange={updateModel}
+              resolveListingDealName={resolveListingDealName}
+              defaultAdvancedOptionsOpen={false}
+              forcedCoreSection="expenses"
+              contentViewportClassName={desktopInputViewportClassName}
+              variant="embedded"
+            />
+          </section>
+        </div>
+
+        <div className="sheet-output-grid">
+          <section className="sheet-panel sheet-output-panel">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Outputs</p>
+              <h3 className="sheet-panel-title">Projections</h3>
+            </div>
+            {desktopPerformanceDashboard}
+          </section>
+
+          <section ref={irrStreamRef} className="sheet-panel sheet-output-panel">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Outputs</p>
+              <h3 className="sheet-panel-title">IRR stream</h3>
+            </div>
+            <TimelineCard
+              output={result[activeStrategy]}
+              assumptions={model.assumptions}
+              defaultOpen={Boolean(activeDealId)}
+              collapsible={false}
+              summaryVariant="compact"
+              onAssumptionsChange={updateAssumptions}
+              showTargetIrrInput={showTargetIrrInput}
+              layoutVariant="strip"
+            />
+          </section>
+
+          <section className="sheet-panel sheet-output-panel sheet-output-panel-wide">
+            <div className="sheet-panel-heading">
+              <p className="sheet-cell-label">Outputs</p>
+              <h3 className="sheet-panel-title">{spreadsheetDigestLabel}</h3>
+            </div>
+            {spreadsheetDigestItems.length > 0 ? (
+              <div className="sheet-digest-grid">
+                {spreadsheetDigestItems.map((item) => (
+                  <article key={`sheet-digest-${item.key}`} className="sheet-digest-row">
+                    <p className="sheet-cell-label">{item.label}</p>
+                    <p className="sheet-digest-value" style={getDigestMetricStyle(item)}>
+                      {item.value}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <DealWorkoutCard
+                model={model}
+                strategy={activeStrategy}
+                targetIrrPercent={model.assumptions.targetIrrPercent}
+                onApply={applyDealWorkoutScenario}
+              />
+            )}
+          </section>
+        </div>
+      </section>
+
+      {isMobileViewport ? compactSheets : null}
+    </>
+  );
+
   const compactShell = (
     <>
       <section ref={mobileStrategyTabsRef} className="section-shell section-shell-input sticky top-2 z-30 space-y-2 rounded-2xl p-2 backdrop-blur">
@@ -6255,9 +6519,9 @@ export default function HomePage() {
         </header>
         ) : null}
 
-        {isMobileViewport ? compactShell : null}
+        {workspaceViewMode === 'sheet' ? spreadsheetWorkspace : isMobileViewport ? compactShell : null}
 
-        {!isMobileViewport ? (
+        {!isMobileViewport && workspaceViewMode === 'studio' ? (
         <>
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           <div>
@@ -6748,7 +7012,7 @@ export default function HomePage() {
         presentation={isMobileViewport ? 'sheet' : 'modal'}
         onClose={() => setIsStrategyWorkOpen(false)}
       />
-      {compactModeNavPortal}
+      {workspaceViewMode === 'studio' ? compactModeNavPortal : null}
     </main>
   );
 }
