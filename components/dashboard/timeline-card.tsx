@@ -228,33 +228,35 @@ export function TimelineCard({
 
   const stripTimelineContent = (
     <section className="dashboard-irr-strip min-w-0 overflow-hidden">
-      <div className="dashboard-irr-strip-header flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="inline-flex min-w-0 max-w-full items-center gap-1.5">
-            <h3 className="truncate text-[0.96rem] font-semibold tracking-[0.02em] text-slate-50 sm:text-[1.04rem]">IRR stream</h3>
-            {renderIrrTooltipControl('relative z-10 flex shrink-0 items-center')}
+      <div className="dashboard-irr-tour-target">
+        <div className="dashboard-irr-strip-header flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+              <h3 className="truncate text-[0.96rem] font-semibold tracking-[0.02em] text-slate-50 sm:text-[1.04rem]">IRR stream</h3>
+              {renderIrrTooltipControl('relative z-10 flex shrink-0 items-center')}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mt-2.5">
-        {showEmbeddedAssumptions ? (
-          <AssumptionsPanel
-            assumptions={assumptions}
-            onChange={onAssumptionsChange!}
-            showTargetIrrInput={showTargetIrrInput}
-            variant="inline"
-            hideHeader
-          />
-        ) : (
-          <div className="dashboard-meta flex flex-wrap gap-2 text-[11px]">
-            {compactReferenceItems.map((item) => (
-              <span key={item.label} className="dashboard-pill px-2 py-1">
-                {item.label}: <span className="text-slate-100">{item.value}</span>
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="mt-2.5">
+          {showEmbeddedAssumptions ? (
+            <AssumptionsPanel
+              assumptions={assumptions}
+              onChange={onAssumptionsChange!}
+              showTargetIrrInput={showTargetIrrInput}
+              variant="inline"
+              hideHeader
+            />
+          ) : (
+            <div className="dashboard-meta flex flex-wrap gap-2 text-[11px]">
+              {compactReferenceItems.map((item) => (
+                <span key={item.label} className="dashboard-pill px-2 py-1">
+                  {item.label}: <span className="text-slate-100">{item.value}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="dashboard-section-divider mt-2.5 pt-2.5">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface OnboardingStep {
   id: string;
@@ -12,6 +13,7 @@ interface OnboardingTourProps {
   open: boolean;
   steps: OnboardingStep[];
   stepIndex: number;
+  layoutKey?: string;
   getTargetElement: () => HTMLElement | null;
   onBack: () => void;
   onNext: () => void;
@@ -26,17 +28,48 @@ interface BubbleLayout {
   placement: 'above' | 'below';
 }
 
+interface TargetLayoutRect {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
 const screenPadding = 12;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const isRectOutsideViewport = (rect: DOMRect) =>
+  rect.bottom < screenPadding ||
+  rect.top > window.innerHeight - screenPadding ||
+  rect.right < screenPadding ||
+  rect.left > window.innerWidth - screenPadding;
+const toLayoutRect = (rect: DOMRect): TargetLayoutRect => ({
+  top: rect.top,
+  left: rect.left,
+  right: rect.right,
+  bottom: rect.bottom,
+  width: rect.width,
+  height: rect.height
+});
 
-export function OnboardingTour({ open, steps, stepIndex, getTargetElement, onBack, onNext, onSkip }: OnboardingTourProps) {
+export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetElement, onBack, onNext, onSkip }: OnboardingTourProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const autoScrolledTargetKeyRef = useRef<string | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [targetRect, setTargetRect] = useState<TargetLayoutRect | null>(null);
   const [bubbleLayout, setBubbleLayout] = useState<BubbleLayout | null>(null);
 
   useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
+
+    let pendingFrame: number | null = null;
+    const targetKey = `${stepIndex}:${layoutKey ?? ''}`;
 
     const updateLayout = () => {
       const target = getTargetElement();
@@ -55,7 +88,13 @@ export function OnboardingTour({ open, steps, stepIndex, getTargetElement, onBac
         return;
       }
 
-      const rect = target.getBoundingClientRect();
+      const measuredRect = target.getBoundingClientRect();
+      if (isRectOutsideViewport(measuredRect) && autoScrolledTargetKeyRef.current !== targetKey) {
+        autoScrolledTargetKeyRef.current = targetKey;
+        target.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      }
+
+      const rect = toLayoutRect(target.getBoundingClientRect());
       setTargetRect(rect);
 
       const shouldPlaceAbove = window.innerHeight - rect.bottom < panelHeight + 40 && rect.top > panelHeight + 40;
@@ -73,25 +112,43 @@ export function OnboardingTour({ open, steps, stepIndex, getTargetElement, onBac
         placement: shouldPlaceAbove ? 'above' : 'below'
       });
     };
+    const scheduleLayoutUpdate = () => {
+      if (pendingFrame !== null) return;
 
-    updateLayout();
-    window.addEventListener('resize', updateLayout);
-    window.addEventListener('scroll', updateLayout, true);
+      pendingFrame = window.requestAnimationFrame(() => {
+        pendingFrame = null;
+        updateLayout();
+      });
+    };
+
+    autoScrolledTargetKeyRef.current = null;
+    scheduleLayoutUpdate();
+
+    const visualViewport = window.visualViewport;
+    window.addEventListener('resize', scheduleLayoutUpdate);
+    window.addEventListener('scroll', scheduleLayoutUpdate, { capture: true, passive: true });
+    visualViewport?.addEventListener('resize', scheduleLayoutUpdate);
+    visualViewport?.addEventListener('scroll', scheduleLayoutUpdate);
 
     return () => {
-      window.removeEventListener('resize', updateLayout);
-      window.removeEventListener('scroll', updateLayout, true);
+      if (pendingFrame !== null) {
+        window.cancelAnimationFrame(pendingFrame);
+      }
+      window.removeEventListener('resize', scheduleLayoutUpdate);
+      window.removeEventListener('scroll', scheduleLayoutUpdate, true);
+      visualViewport?.removeEventListener('resize', scheduleLayoutUpdate);
+      visualViewport?.removeEventListener('scroll', scheduleLayoutUpdate);
     };
-  }, [open, stepIndex, getTargetElement]);
+  }, [open, stepIndex, layoutKey, getTargetElement]);
 
-  if (!open || !steps[stepIndex] || !bubbleLayout) return null;
+  if (!open || !steps[stepIndex] || !bubbleLayout || !portalTarget) return null;
 
   const step = steps[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === steps.length - 1;
 
-  return (
-    <div className="fixed inset-0 z-[120]" role="dialog" aria-modal="true" aria-label="Quick app tutorial">
+  return createPortal(
+    <div className="fixed inset-0 z-[260]" role="dialog" aria-modal="true" aria-label="Quick app tutorial">
       <div className="absolute inset-0 bg-[#020713]/72 backdrop-blur-[1px]" />
 
       {targetRect ? (
@@ -163,6 +220,7 @@ export function OnboardingTour({ open, steps, stepIndex, getTargetElement, onBac
           }
         />
       </div>
-    </div>
+    </div>,
+    portalTarget
   );
 }

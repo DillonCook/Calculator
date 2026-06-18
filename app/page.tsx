@@ -1414,6 +1414,7 @@ export default function HomePage() {
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
+  const onboardingTargetLayoutKey = `${workspaceViewMode}:${compactMode}:${compactInputSection}:${compactSheetView ?? 'closed'}`;
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -2072,37 +2073,39 @@ export default function HomePage() {
     if (step.id === 'desktopCore') return desktopCoreSectionRef.current;
     if (step.id === 'desktopExpenses') return desktopExpensesSectionRef.current;
     if (step.id === 'desktopStrategyInputs') return desktopStrategyInputsRef.current;
-    if (step.id === 'desktopIrr') return irrStreamRef.current;
+    if (step.id === 'desktopIrr') {
+      return getFirstVisibleElement(irrStreamRef.current?.querySelector<HTMLElement>('.dashboard-irr-tour-target') ?? null, irrStreamRef.current);
+    }
     if (step.id === 'desktopResults') return desktopResultsSectionRef.current;
-    if (step.id === 'desktopCompare') return desktopCompareSectionRef.current;
+    if (step.id === 'desktopCompare') {
+      return getFirstVisibleElement(desktopCompareSectionRef.current?.querySelector<HTMLElement>('.projection-card-glass') ?? null, desktopCompareSectionRef.current);
+    }
     if (step.id === 'desktopActions') {
       return getFirstVisibleElement(desktopHeaderActionsRef.current, desktopAuthActionRef.current, desktopSettingsControlsRef.current);
     }
     return getFirstVisibleElement(compactTimelineButtonRef.current, irrStreamRef.current);
   }, [currentOnboardingSteps, getFirstVisibleElement, onboardingStepIndex]);
 
-  const scrollMobileTutorialControlsIntoView = useCallback(() => {
-    const frame = window.requestAnimationFrame(() => {
-      mobileStrategyTabsRef.current?.scrollIntoView({
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-        block: 'start',
-        inline: 'nearest'
+  const scrollOnboardingTargetIntoView = useCallback((getTarget: () => HTMLElement | null, block: ScrollLogicalPosition = 'center') => {
+    if (typeof window === 'undefined') return () => {};
+
+    let secondFrame: number | null = null;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        getTarget()?.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block,
+          inline: 'nearest'
+        });
       });
     });
 
-    return () => window.cancelAnimationFrame(frame);
-  }, [prefersReducedMotion]);
-
-  const scrollMobileActionsButtonIntoView = useCallback(() => {
-    const frame = window.requestAnimationFrame(() => {
-      compactMenuButtonRef.current?.scrollIntoView({
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-        block: 'nearest',
-        inline: 'nearest'
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) {
+        window.cancelAnimationFrame(secondFrame);
+      }
+    };
   }, [prefersReducedMotion]);
 
   const completeOnboarding = () => {
@@ -2596,56 +2599,70 @@ export default function HomePage() {
     if (!step) return;
 
     if (step.id === 'mobileDeals') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
+      return scrollOnboardingTargetIntoView(() => compactDealsButtonRef.current, 'center');
     }
 
     if (step.id === 'mobileStrategy') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('strategy');
-      return scrollMobileTutorialControlsIntoView();
+      return scrollOnboardingTargetIntoView(() => compactStrategyButtonRef.current, 'center');
     }
 
     if (step.id === 'mobileCore') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('core');
-      return scrollMobileTutorialControlsIntoView();
+      return scrollOnboardingTargetIntoView(() => compactCoreInputButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileExpenses') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('expenses');
-      return scrollMobileTutorialControlsIntoView();
+      return scrollOnboardingTargetIntoView(() => compactExpensesInputButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileStrategyInputs') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('strategy');
-      return scrollMobileTutorialControlsIntoView();
+      return scrollOnboardingTargetIntoView(() => compactStrategyInputButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileIrr') {
+      setWorkspaceViewMode('studio');
       setCompactMode('inputs');
       setCompactSheetView(null);
       setCompactInputSection('irr');
-      return scrollMobileTutorialControlsIntoView();
+      return scrollOnboardingTargetIntoView(() => compactIrrInputButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileResults') {
+      setWorkspaceViewMode('studio');
+      setCompactMode('results');
       setCompactSheetView(null);
+      return scrollOnboardingTargetIntoView(() => compactResultsNavButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileCompare') {
+      setWorkspaceViewMode('studio');
+      setCompactMode('compare');
       setCompactSheetView(null);
+      return scrollOnboardingTargetIntoView(() => compactCompareNavButtonRef.current, 'nearest');
     }
 
     if (step.id === 'mobileActions') {
+      setWorkspaceViewMode('studio');
       setCompactSheetView(null);
-      return scrollMobileActionsButtonIntoView();
+      return scrollOnboardingTargetIntoView(() => compactMenuButtonRef.current, 'center');
     }
 
     if (step.id === 'desktopActions') {
@@ -2666,15 +2683,9 @@ export default function HomePage() {
     ) {
       const block = step.id === 'desktopActions' ? 'nearest' : 'center';
 
-      const frame = window.requestAnimationFrame(() => {
-        resolveOnboardingTarget()?.scrollIntoView({
-          behavior: prefersReducedMotion ? 'auto' : 'smooth',
-          block,
-          inline: 'nearest'
-        });
-      });
-
-      return () => window.cancelAnimationFrame(frame);
+      setWorkspaceViewMode('studio');
+      setCompactSheetView(null);
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), block);
     }
   }, [
     currentOnboardingSteps,
@@ -2683,8 +2694,7 @@ export default function HomePage() {
     onboardingStepIndex,
     prefersReducedMotion,
     resolveOnboardingTarget,
-    scrollMobileActionsButtonIntoView,
-    scrollMobileTutorialControlsIntoView
+    scrollOnboardingTargetIntoView
   ]);
 
   useEffect(() => {
@@ -6999,6 +7009,7 @@ export default function HomePage() {
         open={isOnboardingOpen}
         steps={currentOnboardingSteps}
         stepIndex={onboardingStepIndex}
+        layoutKey={onboardingTargetLayoutKey}
         getTargetElement={resolveOnboardingTarget}
         onBack={goToPreviousOnboardingStep}
         onNext={goToNextOnboardingStep}
