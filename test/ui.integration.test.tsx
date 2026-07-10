@@ -211,6 +211,7 @@ describe('dashboard integration', () => {
     authMockState.shareInsertCalls = [];
     setScenarioStorageOwner(null);
     window.localStorage.clear();
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
     window.history.pushState({}, '', '/');
     setViewport(1280);
     writeScenarios([
@@ -1067,6 +1068,7 @@ describe('dashboard integration', () => {
   it('does not auto-open feedback before sign-in or before the tutorial is complete', async () => {
     vi.useFakeTimers();
     try {
+      window.localStorage.removeItem(ONBOARDING_STORAGE_KEY);
       window.localStorage.setItem(FEEDBACK_OPEN_COUNT_DESKTOP_KEY, '1');
 
       const signedOutRender = render(<HomePage />);
