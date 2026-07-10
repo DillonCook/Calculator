@@ -1213,7 +1213,9 @@ describe('dashboard integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
-    await user.type(within(emailForm).getByLabelText('Email address'), 'reset@example.com');
+    const resetEmailInput = within(emailForm).getByLabelText('Email address');
+    fireEvent.change(resetEmailInput, { target: { value: 'reset@example.com' } });
+    expect(resetEmailInput).toHaveValue('reset@example.com');
     await user.click(within(emailForm).getByRole('button', { name: 'Forgot password?' }));
 
     await waitFor(() => {
@@ -1268,8 +1270,12 @@ describe('dashboard integration', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
-    await user.type(within(emailForm).getByLabelText('Email address'), 'second@example.com');
-    await user.type(within(emailForm).getByLabelText('Password'), 'rentalpass');
+    const secondEmailInput = within(emailForm).getByLabelText('Email address');
+    const secondPasswordInput = within(emailForm).getByLabelText('Password');
+    fireEvent.change(secondEmailInput, { target: { value: 'second@example.com' } });
+    fireEvent.change(secondPasswordInput, { target: { value: 'rentalpass' } });
+    expect(secondEmailInput).toHaveValue('second@example.com');
+    expect(secondPasswordInput).toHaveValue('rentalpass');
     await user.click(within(emailForm).getByRole('button', { name: 'Sign in with email' }));
 
     await waitFor(() => {
@@ -1394,7 +1400,8 @@ describe('dashboard integration', () => {
 
     expect(within(dialog).queryByText('Austin BRRRR')).not.toBeInTheDocument();
 
-    await user.type(search, 'Austin');
+    fireEvent.change(search, { target: { value: 'Austin' } });
+    expect(search).toHaveValue('Austin');
 
     await waitFor(() => {
       expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
