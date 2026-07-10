@@ -8,6 +8,7 @@ import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { MobileSheet } from '@/components/dashboard/mobile-sheet';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 import { getFixedCostBreakdown } from '@/lib/tax-insurance';
+import { useModalFocus } from '@/lib/use-modal-focus';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -1309,6 +1310,8 @@ export function StrategyWorkLightbox({
   onClose,
   presentation = 'modal'
 }: StrategyWorkLightboxProps) {
+  const { dialogRef, closeButtonRef } = useModalFocus<HTMLDivElement>(open && presentation === 'modal', onClose);
+
   if (!open) return null;
 
   const strategyLabel =
@@ -1479,14 +1482,25 @@ export function StrategyWorkLightbox({
   }
 
   return (
-    <div className="lightbox-backdrop fixed inset-0 z-[190] flex items-center justify-center p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Strategy Work Lightbox">
+    <div
+      ref={dialogRef}
+      className="lightbox-backdrop fixed inset-0 z-[190] flex items-center justify-center p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Strategy Work Lightbox"
+    >
       <div className="section-shell section-shell-analysis max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl p-5 shadow-soft">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="section-eyebrow-analysis text-xs uppercase tracking-wider">Show your work</p>
             <h3 className="text-xl font-semibold">{strategyLabel} calculations</h3>
           </div>
-          <button type="button" onClick={onClose} className="section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs text-muted">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="section-action section-action-analysis rounded-lg px-3 py-1.5 text-xs text-muted"
+          >
             Close
           </button>
         </div>

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildDealWorkoutRecommendation, findPurchasePriceForTargetIrr } from '../lib/engine/deal-workout';
-import { defaultDealInput } from '../lib/models/deal';
+import { defaultDealInput, type DealInputModel } from '../lib/models/deal';
 
 test('returns no scenarios when deal already works', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
@@ -26,7 +26,7 @@ test('returns no scenarios when deal already works', () => {
 });
 
 test('recommends price and/or down payment scenarios for constrained debt deal', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
@@ -51,7 +51,7 @@ test('recommends price and/or down payment scenarios for constrained debt deal',
 
 
 test('cash financing price-cut recommendation never suggests a zero purchase price', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
@@ -75,7 +75,7 @@ test('cash financing price-cut recommendation never suggests a zero purchase pri
 
 
 test('flip workout only proposes purchase price fix based on net profit', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
@@ -103,7 +103,7 @@ test('flip workout only proposes purchase price fix based on net profit', () => 
 
 
 test('loan price-cut scenario targets monthly cash flow break-even', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,
@@ -128,7 +128,7 @@ test('loan price-cut scenario targets monthly cash flow break-even', () => {
 });
 
 test('cash IRR target helper finds lower purchase price when target IRR increases', () => {
-  const model = {
+  const model: DealInputModel = {
     ...defaultDealInput,
     purchase: {
       ...defaultDealInput.purchase,

@@ -12,7 +12,6 @@ interface BeforeInstallPromptEvent extends Event {
 type InstallSurface = 'none' | 'prompt' | 'ios' | 'manual';
 
 const PWA_INSTALL_DISMISS_KEY = 'dealcooker-pwa-install-dismissed-at:v1';
-const PWA_INSTALL_VISIT_COUNT_KEY = 'dealcooker-pwa-install-visit-count:v1';
 const PWA_INSTALL_QUALIFIED_KEY = 'dealcooker-pwa-install-qualified:v1';
 const PWA_INSTALL_COMPLETED_KEY = 'dealcooker-pwa-install-completed:v1';
 const PWA_INSTALL_DISMISS_WINDOW_MS = 1000 * 60 * 60 * 24 * 14;
@@ -76,13 +75,7 @@ export function PwaInstallBanner() {
     }
 
     const storedQualified = window.localStorage.getItem(PWA_INSTALL_QUALIFIED_KEY) === '1';
-    const rawVisitCount = window.localStorage.getItem(PWA_INSTALL_VISIT_COUNT_KEY);
-    const parsedVisitCount = Number.parseInt(rawVisitCount ?? '0', 10);
-    const nextVisitCount = Number.isFinite(parsedVisitCount) ? parsedVisitCount + 1 : 1;
-    const nextQualified = storedQualified || nextVisitCount >= 2;
-    window.localStorage.setItem(PWA_INSTALL_VISIT_COUNT_KEY, String(nextVisitCount));
-    if (nextQualified) {
-      window.localStorage.setItem(PWA_INSTALL_QUALIFIED_KEY, '1');
+    if (storedQualified) {
       setIsQualified(true);
     }
 

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:engine": "tsx --test test/engine.test.ts test/deal-workout.test.ts",
-    "test:ui": "vitest run test/ui.integration.test.tsx",
+    "test:ui": "vitest run test/ui.integration.test.tsx test/pwa-install-banner.test.tsx test/mobile-sheet.test.tsx",
     "test": "npm run test:engine && npm run test:unit && npm run test:ui",
     "test:unit": "vitest run test/listing-link.test.ts test/share-link.test.ts test/share-link-param.test.ts"
   },
@@ -37,5 +37,8 @@
     "typescript": "^5.7.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

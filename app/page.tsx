@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import { BrandMark } from '../components/ui/brand-mark';
 import { createPortal } from 'react-dom';
 import {
   memo,
@@ -81,6 +81,7 @@ const activeStrategyLabels: Record<StrategyKey, string> = {
 
 type CompactMode = 'inputs' | 'results' | 'compare';
 type CompactInputSection = 'core' | 'expenses' | 'strategy' | 'irr';
+type DesktopWorkspaceMode = 'build' | 'projection' | 'compare';
 type CompactSheetView = 'menu' | 'deals' | 'strategy' | 'metrics' | 'timeline' | null;
 type WorkspaceViewMode = 'studio' | 'sheet';
 type EmailAuthMode = 'signIn' | 'createAccount' | 'resetPassword';
@@ -463,7 +464,7 @@ const useDigestFlowTransition = () => {
 const COMMERCIAL_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-commercial-output-order:v1';
 const LONG_TERM_TURNAROUND_OUTPUT_ORDER_STORAGE_KEY = 'dealcooker-long-term-turnaround-output-order:v1';
 const SETTINGS_DEFAULT_STRATEGY_STORAGE_KEY = 'dealcooker-default-strategy:v1';
-const SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
+const SETTINGS_DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v2';
 const SETTINGS_LIGHT_MODE_STORAGE_KEY = 'dealcooker-light-mode:v1';
 const SETTINGS_QUICK_SCAN_VISIBLE_STORAGE_KEY = 'dealcooker-show-quick-scan:v1';
 const SETTINGS_WORKSPACE_VIEW_STORAGE_KEY = 'dealcooker-workspace-view:v1';
@@ -935,7 +936,7 @@ const buildSampleDealPayload = (): DealInputModel => {
   };
 };
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
-const defaultProjectionStrategySelectionFallback: StrategyKey[] = [...strategyKeyOrder];
+const defaultProjectionStrategySelectionFallback: StrategyKey[] = [defaultNewDealStrategyFallback];
 const areStrategySelectionsEqual = (left: StrategyKey[], right: StrategyKey[]) =>
   left.length === right.length && left.every((strategy, index) => strategy === right[index]);
 
@@ -948,7 +949,7 @@ export default function HomePage() {
   const [activeDealId, setActiveDealId] = useState('');
   const [defaultNewDealStrategy, setDefaultNewDealStrategy] = useState<StrategyKey>(defaultNewDealStrategyFallback);
   const [defaultProjectionStrategies, setDefaultProjectionStrategies] = useState<StrategyKey[]>(defaultProjectionStrategySelectionFallback);
-  const [isLightMode, setIsLightMode] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(true);
   const [isQuickScanVisible, setIsQuickScanVisible] = useState(true);
   const [workspaceViewMode, setWorkspaceViewMode] = useState<WorkspaceViewMode>('studio');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -970,6 +971,8 @@ export default function HomePage() {
   const [compactMode, setCompactMode] = useState<CompactMode>('inputs');
   const [compactSheetView, setCompactSheetView] = useState<CompactSheetView>(null);
   const [compactInputSection, setCompactInputSection] = useState<CompactInputSection>('core');
+  const [desktopInputSection, setDesktopInputSection] = useState<CompactInputSection>('core');
+  const [desktopWorkspaceMode, setDesktopWorkspaceMode] = useState<DesktopWorkspaceMode>('build');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
@@ -1414,7 +1417,7 @@ export default function HomePage() {
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
-  const onboardingTargetLayoutKey = `${workspaceViewMode}:${compactMode}:${compactInputSection}:${compactSheetView ?? 'closed'}`;
+  const onboardingTargetLayoutKey = `${workspaceViewMode}:${compactMode}:${compactInputSection}:${compactSheetView ?? 'closed'}:${desktopWorkspaceMode}:${desktopInputSection}`;
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [deals]
@@ -1779,6 +1782,31 @@ export default function HomePage() {
   const shouldAnimatePriorityMetric =
     !prefersReducedMotion && priorityMetricMotion.key > 0 && priorityMetricMotion.context === priorityMetricMotionContext;
   const priorityMetricMotionClass = shouldAnimatePriorityMetric ? 'priority-kpi-value-motion' : '';
+  const debtCoverageIsHealthy =
+    model.purchase.financingType !== 'loan' || isFlipStrategy || activeOutput.dscr >= 1.2;
+  const decisionVerdict = !compactReadiness.ready
+    ? {
+        label: 'Incomplete inputs',
+        tone: 'incomplete',
+        description: 'Add purchase price and expected income to evaluate this deal.'
+      }
+    : priorityMetricValue > 0 && debtCoverageIsHealthy
+      ? {
+          label: 'Strong',
+          tone: 'strong',
+          description: `${activeStrategyLabel} produces positive ${priorityMetricTitle.toLowerCase()}${isFlipStrategy || model.purchase.financingType !== 'loan' ? '.' : ' with DSCR at or above 1.20.'}`
+        }
+      : priorityMetricValue >= 0
+        ? {
+            label: 'Marginal',
+            tone: 'marginal',
+            description: `${activeStrategyLabel} is near break-even. Review debt coverage and assumptions before proceeding.`
+          }
+        : {
+            label: 'Does not meet target',
+            tone: 'weak',
+            description: `${activeStrategyLabel} is currently negative. Review the recommended workout and core assumptions.`
+          };
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -2240,7 +2268,8 @@ export default function HomePage() {
       const updatedDeal: ScenarioRecord = {
         ...existing,
         payload: model,
-        dealName: model.purchase.dealName
+        dealName: model.purchase.dealName,
+        updatedAt: new Date().toISOString()
       };
 
       const nextDeals = saveDealToVault(updatedDeal);
@@ -2280,7 +2309,7 @@ export default function HomePage() {
     if (authMode === 'password-reset') {
       setEmailAuthMode('resetPassword');
       setIsAuthMenuOpen(true);
-      if (window.innerWidth <= 1023) {
+      if (window.innerWidth <= 1199) {
         setCompactSheetView('menu');
       }
       setAuthFeedback({ tone: 'success', message: 'Enter a new password to finish account recovery.' });
@@ -2289,7 +2318,7 @@ export default function HomePage() {
     if (authError) {
       setAuthFeedback({ tone: 'error', message: authError });
       setIsAuthMenuOpen(true);
-      if (window.innerWidth <= 1023) {
+      if (window.innerWidth <= 1199) {
         setCompactSheetView('menu');
       }
     }
@@ -2493,7 +2522,7 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
 
     if (typeof window.matchMedia === 'function') {
-      const mediaQuery = window.matchMedia('(max-width: 1023px)');
+      const mediaQuery = window.matchMedia('(max-width: 1199px)');
       const updateViewport = () => {
         setIsMobileViewport(mediaQuery.matches);
         setFeedbackViewport(mediaQuery.matches ? 'mobile' : 'desktop');
@@ -2510,7 +2539,7 @@ export default function HomePage() {
     }
 
     const updateViewport = () => {
-      const isMobile = window.innerWidth <= 1023;
+      const isMobile = window.innerWidth <= 1199;
       setIsMobileViewport(isMobile);
       setFeedbackViewport(isMobile ? 'mobile' : 'desktop');
     };
@@ -2598,6 +2627,65 @@ export default function HomePage() {
     const step = currentOnboardingSteps[onboardingStepIndex];
     if (!step) return;
 
+    if (step.id === 'desktopDeals') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      setDesktopInputSection('core');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'center');
+    }
+
+    if (step.id === 'desktopStrategy') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'center');
+    }
+
+    if (step.id === 'desktopCore') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      setDesktopInputSection('core');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'nearest');
+    }
+
+    if (step.id === 'desktopExpenses') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      setDesktopInputSection('expenses');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'nearest');
+    }
+
+    if (step.id === 'desktopStrategyInputs') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      setDesktopInputSection('strategy');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'nearest');
+    }
+
+    if (step.id === 'desktopIrr') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('build');
+      setDesktopInputSection('irr');
+      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), 'nearest');
+    }
+
+    if (step.id === 'desktopResults') {
+      setWorkspaceViewMode('studio');
+      return scrollOnboardingTargetIntoView(() => desktopResultsSectionRef.current, 'center');
+    }
+
+    if (step.id === 'desktopCompare') {
+      setWorkspaceViewMode('studio');
+      setDesktopWorkspaceMode('compare');
+      return scrollOnboardingTargetIntoView(() => desktopCompareSectionRef.current, 'nearest');
+    }
+
+    if (step.id === 'desktopActions') {
+      setWorkspaceViewMode('studio');
+      setIsAuthMenuOpen(false);
+      setIsSettingsOpen(false);
+      return scrollOnboardingTargetIntoView(() => desktopHeaderActionsRef.current, 'center');
+    }
+
     if (step.id === 'mobileDeals') {
       setWorkspaceViewMode('studio');
       setCompactMode('inputs');
@@ -2658,34 +2746,10 @@ export default function HomePage() {
       setCompactSheetView(null);
       return scrollOnboardingTargetIntoView(() => compactCompareNavButtonRef.current, 'nearest');
     }
-
     if (step.id === 'mobileActions') {
       setWorkspaceViewMode('studio');
       setCompactSheetView(null);
       return scrollOnboardingTargetIntoView(() => compactMenuButtonRef.current, 'center');
-    }
-
-    if (step.id === 'desktopActions') {
-      setIsAuthMenuOpen(false);
-      setIsSettingsOpen(false);
-    }
-
-    if (
-      step.id === 'desktopDeals' ||
-      step.id === 'desktopStrategy' ||
-      step.id === 'desktopCore' ||
-      step.id === 'desktopExpenses' ||
-      step.id === 'desktopStrategyInputs' ||
-      step.id === 'desktopIrr' ||
-      step.id === 'desktopResults' ||
-      step.id === 'desktopCompare' ||
-      step.id === 'desktopActions'
-    ) {
-      const block = step.id === 'desktopActions' ? 'nearest' : 'center';
-
-      setWorkspaceViewMode('studio');
-      setCompactSheetView(null);
-      return scrollOnboardingTargetIntoView(() => resolveOnboardingTarget(), block);
     }
   }, [
     currentOnboardingSteps,
@@ -3174,7 +3238,6 @@ export default function HomePage() {
       setSaveStatus('idle');
     }
     void trackAnalyticsEvent('scenario_deleted', { signedIn: Boolean(currentUser?.id) });
-    void syncScenarioDelete(scenarioId);
 
     void (async () => {
       const ok = await syncScenarioDelete(scenarioId);
@@ -4319,6 +4382,26 @@ export default function HomePage() {
         ) : null}
         <button
           type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            void shareCurrentDeal('mobile-menu-trigger');
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Send link
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            window.print();
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          Print to PDF
+        </button>
+        <button
+          type="button"
           onClick={() => openFeedbackComposer('settings')}
           className="btn-primary btn-new-deal tap-feedback settings-feedback-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
         >
@@ -4568,6 +4651,7 @@ export default function HomePage() {
               ref={importBackupInputRef}
               type="file"
               accept="application/json,.json"
+              aria-label="Import deal vault backup"
               className="sr-only"
               onChange={(event) => void importDealVaultBackup(event)}
             />
@@ -4891,20 +4975,36 @@ export default function HomePage() {
   };
 
   const desktopPerformanceDashboard = (
-    <div ref={desktopCompareSectionRef} className="[overflow-anchor:none]">
+    <div className="[overflow-anchor:none]">
       <StrategyComparison
         data={result}
         input={model}
         holdYears={model.assumptions.holdYears}
-        visibleStrategies={compactCompareSelection}
+        visibleStrategies={desktopWorkspaceMode === 'projection' ? [activeStrategy] : compactCompareSelection}
+        onToggleVisibleStrategy={desktopWorkspaceMode === 'compare' ? toggleCompactProjectionStrategy : undefined}
+        defaultBoardOpen
         inlineModelingViews
-        lockBoardOpen
-        onToggleVisibleStrategy={toggleCompactProjectionStrategy}
       />
     </div>
   );
 
-  const compactResultsView = (
+  const compactResultsView = !compactReadiness.ready ? (
+    <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
+      <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
+      <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+      <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value verdicts and recommendations until the comparison is meaningful.
+      </p>
+      <button
+        type="button"
+        className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
+        onClick={() => setCompactMode('inputs')}
+      >
+        Complete inputs
+      </button>
+    </section>
+  ) : (
     <>
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div className="space-y-4">
@@ -4953,6 +5053,11 @@ export default function HomePage() {
                 </svg>
               </div>
             ) : null}
+
+            <div className="decision-verdict-row relative z-10 mb-3">
+              <span className={`decision-status decision-status-${decisionVerdict.tone}`}>{decisionVerdict.label}</span>
+              <span className="text-[11px] font-medium text-muted">{decisionVerdict.description}</span>
+            </div>
 
             <div className="relative z-10 pr-16">
               <div className="flex items-center gap-2">
@@ -5057,7 +5162,23 @@ export default function HomePage() {
     </>
   );
 
-  const compactCompareView = (
+  const compactCompareView = !compactReadiness.ready ? (
+    <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
+      <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
+      <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+      <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.
+      </p>
+      <button
+        type="button"
+        className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
+        onClick={() => setCompactMode('inputs')}
+      >
+        Complete inputs
+      </button>
+    </section>
+  ) : (
     <>
       <section aria-label="Projections strategy selection" className="mobile-stagger-item section-shell section-shell-projection rounded-2xl p-4 shadow-soft">
         <div className="flex items-start justify-between gap-3">
@@ -5068,6 +5189,25 @@ export default function HomePage() {
           <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
             {compactCompareSelection.length} selected
           </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted">
+          DealCooker starts with the active strategy so the projection stays focused. Add strategies only when you want a true comparison.
+        </p>
+        <div className="projection-selection-actions mt-3">
+          <button
+            type="button"
+            className="section-action section-action-utility min-h-10 rounded-lg px-3 text-xs font-semibold"
+            onClick={() => setCompactSelectedStrategies([activeStrategy])}
+          >
+            Active only
+          </button>
+          <button
+            type="button"
+            className="section-action section-action-utility min-h-10 rounded-lg px-3 text-xs font-semibold"
+            onClick={() => setCompactSelectedStrategies([...strategyKeyOrder])}
+          >
+            Compare all
+          </button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -5214,25 +5354,7 @@ export default function HomePage() {
 
       <MobileSheet open={compactSheetView === 'strategy'} title="Choose strategy" onClose={() => setCompactSheetView(null)}>
         <div className="mobile-sheet-stack space-y-3">
-          <section className="section-shell section-shell-input rounded-2xl p-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted">Active strategy</p>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-100">{activeStrategyLabel}</h3>
-                <p className="mt-1 text-sm text-muted">{compactStrategyDescriptions[activeStrategy]}</p>
-              </div>
-              <span
-                className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${
-                  compactReadiness.ready
-                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
-                    : 'border-white/15 bg-black/20 text-slate-200'
-                }`}
-              >
-                {compactReadiness.ready ? 'Ready' : 'Needs inputs'}
-              </span>
-            </div>
-          </section>
-
+          <p className="px-1 text-sm text-muted">Choose the strategy you are underwriting. Comparison stays available in Projections.</p>
           <div className="space-y-2">
             {strategyKeyOrder.map((strategy) => {
               const isActive = activeStrategy === strategy;
@@ -5268,11 +5390,12 @@ export default function HomePage() {
                         handleStrategyChange(strategy);
                         setCompactSheetView(null);
                       }}
-                      className={`tap-feedback btn-selector btn-selector-input turnaround-strategy-toggle flex items-center justify-center rounded-none px-3 py-3 transition ${
+                      className={`tap-feedback btn-selector btn-selector-input turnaround-strategy-toggle flex flex-col items-center justify-center gap-1 rounded-none px-3 py-3 transition ${
                         isTurnaroundActive ? 'btn-selector-active turnaround-strategy-toggle-active text-white' : 'text-slate-200'
                       }`}
                     >
                       <TurnaroundIcon className="h-5 w-5" />
+                      <span className="text-[10px] font-semibold">Turnaround</span>
                     </button>
                   </div>
                 );
@@ -5295,7 +5418,10 @@ export default function HomePage() {
                     <p className="text-sm font-semibold text-slate-100">{activeStrategyLabels[strategy]}</p>
                     <p className={`mt-1 text-xs ${isActive ? 'text-slate-200/85' : 'text-muted'}`}>{compactStrategyDescriptions[strategy]}</p>
                   </div>
-                  <span className={`shrink-0 text-xs ${isActive ? 'text-slate-100/85' : 'text-muted'}`}>{isActive ? 'Selected' : 'Switch'}</span>
+                  <span className={`strategy-selected-check shrink-0 ${isActive ? 'strategy-selected-check-active' : ''}`} aria-hidden="true">
+                    {isActive ? '✓' : ''}
+                  </span>
+                  {isActive ? <span className="sr-only">Selected</span> : null}
                 </button>
               );
             })}
@@ -5304,8 +5430,17 @@ export default function HomePage() {
       </MobileSheet>
 
       <MobileSheet open={compactSheetView === 'menu'} title="Settings" onClose={() => setCompactSheetView(null)}>
-        <div className="mobile-sheet-stack space-y-4">
-          <section className="section-shell section-shell-utility rounded-2xl p-3">
+        <div className="mobile-sheet-stack settings-mobile-stack space-y-4">
+          <section className="settings-deal-tools-section settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
+            {renderSettingsActionsSection({ includeListingAction: true })}
+          </section>
+
+          <section className="settings-preferences-section settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
+            <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted">Preferences</p>
+            {renderSettingsMenuContent({ includeActions: false })}
+          </section>
+
+          <section className="settings-account-section section-shell section-shell-utility rounded-2xl p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-muted">Account</p>
@@ -5334,15 +5469,6 @@ export default function HomePage() {
             ) : (
               authMenuContent
             )}
-          </section>
-
-          <section className="settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
-            {renderSettingsActionsSection({ includeListingAction: true })}
-          </section>
-
-          <section className="settings-menu-shell section-shell section-shell-utility rounded-2xl p-3">
-            <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted">Settings</p>
-            {renderSettingsMenuContent({ includeActions: false })}
           </section>
         </div>
       </MobileSheet>
@@ -6039,7 +6165,7 @@ export default function HomePage() {
           </div>
         </button>
 
-        {compactMode === 'results' ? (
+        {compactMode === 'results' && compactReadiness.ready ? (
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
@@ -6145,7 +6271,7 @@ export default function HomePage() {
                 <div className="min-w-0 flex-1">
                   <div className="brand-lockup" aria-label="DealCooker">
                     <h1 className="brand-text leading-none">DealCooker</h1>
-                    <Image src="/icon.png" alt="" width={34} height={34} className="brand-icon" aria-hidden="true" priority />
+                    <BrandMark className="brand-icon" />
                   </div>
                 </div>
                 <div className={`${headerChromeMutedClass} relative`}>
@@ -6159,7 +6285,7 @@ export default function HomePage() {
                         setCompactSheetView('menu');
                       }}
                       className="tap-feedback section-action section-action-utility inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-100"
-                      aria-label="Open deal actions"
+                      aria-label="Open settings"
                     >
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
                         <path d="M5 7.5h14M5 12h14M5 16.5h14" strokeLinecap="round" />
@@ -6195,6 +6321,14 @@ export default function HomePage() {
                   </button>
                   <button
                     type="button"
+                    onClick={launchNewDeal}
+                    className="tap-feedback mobile-header-new-deal-compact"
+                    aria-label="New deal"
+                  >
+                    New
+                  </button>
+                  <button
+                    type="button"
                     onClick={openDealIdentityEditor}
                     className="header-utility-button hoverbox-trigger tap-feedback mobile-header-edit-button shrink-0"
                     aria-label="Edit active deal details"
@@ -6209,7 +6343,7 @@ export default function HomePage() {
               </div>
 
               <div className={headerChromeMutedClass}>
-                <div className="mobile-header-action-grid">
+                <div className="mobile-header-action-grid" aria-hidden="true">
                   <button
                     type="button"
                     onClick={launchNewDeal}
@@ -6313,7 +6447,7 @@ export default function HomePage() {
               <div className="min-w-0">
                 <div className="brand-lockup" aria-label="DealCooker">
                   <h1 className="brand-text leading-none">DealCooker</h1>
-                  <Image src="/icon.png" alt="" width={38} height={38} className="brand-icon" aria-hidden="true" priority />
+                  <BrandMark className="brand-icon" />
                 </div>
               </div>
 
@@ -6534,7 +6668,22 @@ export default function HomePage() {
         {!isMobileViewport && workspaceViewMode === 'studio' ? (
         <>
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
-          <div>
+          {!compactReadiness.ready ? (
+            <div className="decision-empty-state" aria-live="polite">
+              <div>
+                <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
+                <h2 className="decision-empty-title mt-3 text-xl font-semibold">Add the deal basics to unlock the verdict</h2>
+                <p className="mt-2 text-sm text-muted">{decisionVerdict.description}</p>
+              </div>
+              <div className="decision-empty-actions">
+                <span className="text-xs text-muted">Still needed: {compactReadiness.missing.join(', ')}</span>
+                <button type="button" className="btn-primary min-h-11 rounded-xl px-4 py-2 text-sm font-semibold" onClick={() => setDesktopWorkspaceMode('build')}>
+                  Complete inputs
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className={compactReadiness.ready ? undefined : 'hidden'}>
             <div className="desktop-outcome-grid">
             <div className="results-hero-main desktop-outcome-primary priority-kpi-stable relative isolate">
               {!isFlipStrategy ? (
@@ -6582,6 +6731,10 @@ export default function HomePage() {
                 </div>
               ) : null}
               <div className="relative z-10 flex flex-col gap-4">
+                <div className="decision-verdict-row">
+                  <span className={`decision-status decision-status-${decisionVerdict.tone}`}>{decisionVerdict.label}</span>
+                  <span className="text-xs font-medium text-muted">{decisionVerdict.description}</span>
+                </div>
                 <div className="priority-kpi-header flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 pr-3">
                     <div className="flex items-center gap-2">
@@ -6885,6 +7038,27 @@ export default function HomePage() {
         </div>
 
         <div ref={desktopPostDigestFlowRef} className="scenario-flip-flow">
+          <nav className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
+            {([
+              ['build', 'Build'],
+              ['projection', 'Projection'],
+              ['compare', 'Compare']
+            ] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={desktopWorkspaceMode === mode}
+                className={`desktop-workspace-tab ${desktopWorkspaceMode === mode ? 'desktop-workspace-tab-active' : ''}`}
+                onClick={() => {
+                  setDesktopWorkspaceMode(mode);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {desktopWorkspaceMode === 'build' ? (
           <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
             <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
               <div className="desktop-builder-heading">
@@ -6913,71 +7087,138 @@ export default function HomePage() {
               />
             </div>
 
-            <div className="desktop-deal-builder-grid">
-              <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
-                <div className="desktop-lane-anchor desktop-lane-anchor-purchase">
-                  <span>Purchase</span>
-                  <small>Basis and financing</small>
-                </div>
-                <DealInputPanel
-                  value={model}
-                  onChange={updateModel}
-                  resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={false}
-                  forcedCoreSection="purchaseFinancing"
-                  titleOverride="Purchase"
-                  contentViewportClassName={desktopInputViewportClassName}
-                  variant="embedded"
-                />
-              </div>
-              <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
-                <div className="desktop-lane-anchor desktop-lane-anchor-strategy">
-                  <span>{activeStrategyLabel}</span>
-                  <small>Strategy assumptions</small>
-                </div>
-                <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
-              </div>
-              <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
-                <div className="desktop-lane-anchor desktop-lane-anchor-expenses">
-                  <span>Expenses</span>
-                  <small>Operating burden</small>
-                </div>
-                <DealInputPanel
-                  value={model}
-                  onChange={updateModel}
-                  resolveListingDealName={resolveListingDealName}
-                  defaultAdvancedOptionsOpen={false}
-                  forcedCoreSection="expenses"
-                  contentViewportClassName={desktopInputViewportClassName}
-                  variant="embedded"
-                />
-              </div>
-            </div>
-          </section>
+            <nav className="desktop-input-section-tabs" aria-label="Deal input sections">
+              {compactInputSections.map((section) => (
+                <button
+                  key={`desktop-input-${section.key}`}
+                  type="button"
+                  aria-pressed={desktopInputSection === section.key}
+                  className={`desktop-input-section-tab ${desktopInputSection === section.key ? 'desktop-input-section-tab-active' : ''}`}
+                  onClick={() => setDesktopInputSection(section.key)}
+                >
+                  <span>{section.label === 'Core' ? 'Deal basics' : section.label === 'IRR' ? 'Advanced' : section.label}</span>
+                  <small>{section.summary}</small>
+                </button>
+              ))}
+            </nav>
 
-          <section className="desktop-analysis-dock [overflow-anchor:none]">
-            <div className="desktop-analysis-heading">
-              <p className="desktop-input-rail-heading">Analysis dock</p>
-              <h2 className="text-lg font-semibold text-slate-100">Projections</h2>
-            </div>
-            <div className="desktop-analysis-grid">
-              <div className="desktop-analysis-projections min-w-0">
-                {desktopPerformanceDashboard}
-              </div>
-              <div ref={irrStreamRef} className="desktop-analysis-timeline min-w-0">
-                <TimelineCard
-                  output={result[activeStrategy]}
-                  assumptions={model.assumptions}
-                  defaultOpen={Boolean(activeDealId)}
-                  collapsible={false}
-                  summaryVariant="compact"
-                  onAssumptionsChange={updateAssumptions}
-                  showTargetIrrInput={showTargetIrrInput}
-                  layoutVariant="strip"
-                />
-              </div>
+            <div className="desktop-progressive-input-shell">
+              {desktopInputSection === 'core' ? (
+                <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
+                  <div className="desktop-lane-anchor desktop-lane-anchor-purchase">
+                    <span>Deal basics</span>
+                    <small>Purchase basis and financing</small>
+                  </div>
+                  <DealInputPanel
+                    value={model}
+                    onChange={updateModel}
+                    resolveListingDealName={resolveListingDealName}
+                    defaultAdvancedOptionsOpen={false}
+                    forcedCoreSection="purchaseFinancing"
+                    titleOverride="Deal basics"
+                    contentViewportClassName={desktopInputViewportClassName}
+                    variant="embedded"
+                  />
+                </div>
+              ) : null}
+              {desktopInputSection === 'strategy' ? (
+                <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
+                  <div className="desktop-lane-anchor desktop-lane-anchor-strategy">
+                    <span>{activeStrategyLabel}</span>
+                    <small>Income and strategy assumptions</small>
+                  </div>
+                  <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
+                </div>
+              ) : null}
+              {desktopInputSection === 'expenses' ? (
+                <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
+                  <div className="desktop-lane-anchor desktop-lane-anchor-expenses">
+                    <span>Expenses</span>
+                    <small>Operating burden and reserves</small>
+                  </div>
+                  <DealInputPanel
+                    value={model}
+                    onChange={updateModel}
+                    resolveListingDealName={resolveListingDealName}
+                    defaultAdvancedOptionsOpen={false}
+                    forcedCoreSection="expenses"
+                    contentViewportClassName={desktopInputViewportClassName}
+                    variant="embedded"
+                  />
+                </div>
+              ) : null}
+              {desktopInputSection === 'irr' ? (
+                <div ref={irrStreamRef} className="desktop-builder-lane desktop-builder-lane-advanced">
+                  <div className="desktop-lane-anchor desktop-lane-anchor-advanced">
+                    <span>Advanced</span>
+                    <small>Hold, exit, and IRR assumptions</small>
+                  </div>
+                  <TimelineCard
+                    output={result[activeStrategy]}
+                    assumptions={model.assumptions}
+                    defaultOpen
+                    collapsible={false}
+                    summaryVariant="compact"
+                    onAssumptionsChange={updateAssumptions}
+                    showTargetIrrInput={showTargetIrrInput}
+                    layoutVariant="strip"
+                  />
+                </div>
+              ) : null}
             </div>
           </section>
+          ) : null}
+
+          {desktopWorkspaceMode !== 'build' ? (
+            <section ref={desktopCompareSectionRef} className="desktop-analysis-dock [overflow-anchor:none]">
+              {!compactReadiness.ready ? (
+                <div className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
+                  <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
+                  <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+                  <p className="mt-3 text-xs leading-relaxed text-muted">
+                    Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
+                    onClick={() => {
+                      setDesktopWorkspaceMode('build');
+                      setDesktopInputSection('core');
+                    }}
+                  >
+                    Complete inputs
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="desktop-analysis-heading">
+                    <p className="desktop-input-rail-heading">Analysis dock</p>
+                    <h2 className="text-lg font-semibold text-slate-100">
+                      {desktopWorkspaceMode === 'compare' ? 'Strategy comparison' : 'Active-strategy projection'}
+                    </h2>
+                  </div>
+                  <div className="desktop-analysis-grid">
+                    <div className="desktop-analysis-projections min-w-0">{desktopPerformanceDashboard}</div>
+                    {desktopWorkspaceMode === 'projection' ? (
+                      <div ref={irrStreamRef} className="desktop-analysis-timeline min-w-0">
+                        <TimelineCard
+                          output={result[activeStrategy]}
+                          assumptions={model.assumptions}
+                          defaultOpen={Boolean(activeDealId)}
+                          collapsible={false}
+                          summaryVariant="compact"
+                          onAssumptionsChange={updateAssumptions}
+                          showTargetIrrInput={showTargetIrrInput}
+                          layoutVariant="strip"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </section>
+          ) : null}
         </div>
         </>
         ) : null}

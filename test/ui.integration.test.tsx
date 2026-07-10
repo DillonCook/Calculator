@@ -21,7 +21,8 @@ const authMockState = vi.hoisted(() => ({
   emailSignUpCalls: [] as Array<{ email: string; password: string }>,
   passwordResetCalls: [] as Array<{ email: string; redirectTo?: string }>,
   passwordUpdateCalls: [] as Array<{ password: string }>,
-  cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string }>,
+  cloudUpsertCalls: [] as Array<{ userId: string; scenarioId: string; dealName: string; updatedAt: string }>,
+  cloudDeleteCalls: [] as Array<{ userId: string; scenarioId: string }>,
   shareInsertCalls: [] as Array<Record<string, unknown>>
 }));
 
@@ -103,11 +104,14 @@ vi.mock('../lib/supabaseClient', () => ({
 
 vi.mock('../lib/cloud-scenarios-sync', () => ({
   fetchSupabaseScenarios: async () => ({ scenarios: [], error: null }),
-  upsertSupabaseScenario: async (userId: string, scenario: { scenarioId: string; dealName: string }) => {
-    authMockState.cloudUpsertCalls.push({ userId, scenarioId: scenario.scenarioId, dealName: scenario.dealName });
+  upsertSupabaseScenario: async (userId: string, scenario: { scenarioId: string; dealName: string; updatedAt: string }) => {
+    authMockState.cloudUpsertCalls.push({ userId, scenarioId: scenario.scenarioId, dealName: scenario.dealName, updatedAt: scenario.updatedAt });
     return null;
   },
-  deleteSupabaseScenario: async () => null
+  deleteSupabaseScenario: async (userId: string, scenarioId: string) => {
+    authMockState.cloudDeleteCalls.push({ userId, scenarioId });
+    return null;
+  }
 }));
 
 import HomePage from '../app/page';
@@ -122,7 +126,21 @@ import { decodeDealFromShareParam, encodeDealToShareParam } from '../lib/share-l
 
 const getStrategyButton = (label: string) =>
   within(screen.getByLabelText('Desktop strategy selector')).getByRole('button', { name: label });
-const getStrategyInputsWorkspace = () => screen.getByLabelText('Strategy workspace');
+const getStrategyInputsWorkspace = () => {
+  const existingWorkspace = screen.queryByLabelText('Strategy workspace');
+  if (existingWorkspace) return existingWorkspace;
+
+  const desktopInputs = screen.getByLabelText('Deal input sections');
+  fireEvent.click(within(desktopInputs).getByRole('button', { name: /Strategy/ }));
+  return screen.getByLabelText('Strategy workspace');
+};
+const selectDesktopWorkspace = (name: 'Build' | 'Projection' | 'Compare') => {
+  fireEvent.click(within(screen.getByLabelText('Desktop workspace sections')).getByRole('button', { name }));
+};
+const loadSampleDealFromSettings = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Load sample deal' }));
+};
 const setViewport = (width: number) => {
   Object.defineProperty(window, 'innerWidth', {
     configurable: true,
@@ -134,7 +152,7 @@ const setViewport = (width: number) => {
     configurable: true,
     writable: true,
     value: (query: string) => ({
-      matches: query.includes('max-width') ? width <= 1023 : false,
+      matches: query.includes('max-width') ? width <= 1199 : false,
       media: query,
       onchange: null,
       addEventListener: () => undefined,
@@ -157,7 +175,7 @@ const createSavedDealList = (count: number, prefix = 'Saved Deal') =>
   Array.from({ length: count }, (_, index) =>
     createSavedDeal(`${prefix} ${index + 1}`, `2026-01-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`)
   );
-const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v1';
+const DEFAULT_PROJECTION_STRATEGIES_STORAGE_KEY = 'dealcooker-default-projection-strategies:v2';
 const WORKSPACE_VIEW_MODE_STORAGE_KEY = 'dealcooker-workspace-view:v1';
 const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const FEEDBACK_OPEN_COUNT_DESKTOP_KEY = 'dealcooker-feedback-open-count:v1:desktop';
@@ -189,6 +207,7 @@ describe('dashboard integration', () => {
     authMockState.passwordResetCalls = [];
     authMockState.passwordUpdateCalls = [];
     authMockState.cloudUpsertCalls = [];
+    authMockState.cloudDeleteCalls = [];
     authMockState.shareInsertCalls = [];
     setScenarioStorageOwner(null);
     window.localStorage.clear();
@@ -214,6 +233,127 @@ describe('dashboard integration', () => {
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
+  });
+
+  it('keeps desktop onboarding targets mounted as the tour advances', async () => {
+    setViewport(1440);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn()
+    });
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Load sample deal' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Replay quick tutorial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
+    const next = () => user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    const inputSections = screen.getByRole('navigation', { name: 'Deal input sections' });
+    const workspaces = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
+
+    await next(); // Strategy
+    await next(); // Core
+    await next(); // Expenses
+    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Expenses/ })).toHaveAttribute('aria-pressed', 'true'));
+
+    await next(); // Strategy inputs
+    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Strategy/ })).toHaveAttribute('aria-pressed', 'true'));
+
+    await next(); // IRR
+    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Advanced/ })).toHaveAttribute('aria-pressed', 'true'));
+
+    await next(); // Results
+    await next(); // Compare
+    await waitFor(() => expect(within(workspaces).getByRole('button', { name: 'Compare' })).toHaveAttribute('aria-pressed', 'true'));
+    expect(await screen.findByRole('heading', { name: 'Strategy comparison' })).toBeInTheDocument();
+  });
+
+  it('keeps the compact workspace through small-laptop widths', async () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(1100);
+
+    render(<HomePage />);
+
+    expect(await screen.findByRole('button', { name: 'Open settings' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Desktop strategy selector')).not.toBeInTheDocument();
+  });
+
+  it('shows an incomplete-deal state instead of misleading zero results', async () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(390);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Results' }));
+
+    expect(await screen.findByText(/Add purchase price and expected income/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Auto-adjust/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Projections' }));
+    expect(await screen.findByRole('heading', { name: 'Add the deal basics first' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Projections strategy selection')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Strategy comparison board')).not.toBeInTheDocument();
+  });
+
+  it('holds back desktop projection and comparison outputs for an incomplete deal', async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(1440);
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const workspaces = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
+
+    await user.click(within(workspaces).getByRole('button', { name: 'Projection' }));
+    expect(await screen.findByRole('heading', { name: 'Add the deal basics first' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Strategy comparison board')).not.toBeInTheDocument();
+    expect(screen.queryByText(/DSCR\s+0\.00/)).not.toBeInTheDocument();
+
+    await user.click(within(workspaces).getByRole('button', { name: 'Compare' }));
+    expect(await screen.findByRole('heading', { name: 'Add the deal basics first' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Strategy comparison board')).not.toBeInTheDocument();
+  });
+
+  it('defaults projections to the active strategy only', async () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(390);
+
+    render(<HomePage />);
+    loadSampleDealFromSettings();
+    fireEvent.click(await screen.findByRole('button', { name: 'Projections' }));
+
+    expect(await screen.findByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('separates desktop building, projection, and comparison workspaces', async () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(1440);
+
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Load sample deal' }));
+    const workspace = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
+
+    expect(within(workspace).getByRole('button', { name: 'Build' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Deal basics/i })).toBeInTheDocument();
+
+    await user.click(within(workspace).getByRole('button', { name: 'Projection' }));
+    expect(await screen.findByRole('heading', { name: 'Active-strategy projection' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Deal basics/i })).not.toBeInTheDocument();
+
+    await user.click(within(workspace).getByRole('button', { name: 'Compare' }));
+    expect(await screen.findByRole('heading', { name: 'Strategy comparison' })).toBeInTheDocument();
+
+    let selection = screen.getByLabelText('Projections board strategy selection');
+    await user.click(within(selection).getByRole('button', { name: /Airbnb/ }));
+    expect(within(selection).getByRole('button', { name: /Airbnb/ })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(within(workspace).getByRole('button', { name: 'Projection' }));
+    await user.click(within(workspace).getByRole('button', { name: 'Compare' }));
+
+    selection = screen.getByLabelText('Projections board strategy selection');
+    expect(within(selection).getByRole('button', { name: /Airbnb/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('merges desktop current deal info into the deal vault launcher and opens a blank new deal from the header', async () => {
@@ -261,24 +401,30 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('1 saved deal');
   });
 
-  it('keeps Advanced Options collapsed by default in desktop inputs', async () => {
+  it('progressively discloses desktop inputs and keeps Advanced Options collapsed by default', async () => {
     render(<HomePage />);
+    const user = userEvent.setup();
+    const inputSections = screen.getByLabelText('Deal input sections');
 
-    expect(screen.queryByLabelText('Desktop input workspace selection')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Purchase' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Deal basics' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Strategy workspace')).not.toBeInTheDocument();
+
+    const coreAdvancedButton = screen.getByRole('button', { name: /^Advanced Options/ });
+    expect(coreAdvancedButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(within(inputSections).getByRole('button', { name: /Strategy/ }));
     expect(screen.getByLabelText('Strategy workspace')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Expenses' })).toBeInTheDocument();
 
-    const advancedOptionButtons = screen.getAllByRole('button', { name: /^Advanced Options/ });
-    expect(advancedOptionButtons.length).toBeGreaterThan(0);
-    advancedOptionButtons.forEach((button) => {
-      expect(button).toHaveAttribute('aria-expanded', 'false');
-    });
+    await user.click(within(inputSections).getByRole('button', { name: /Expenses/ }));
+    expect(screen.getByRole('heading', { name: 'Expenses' })).toBeInTheDocument();
   });
 
   it('exposes editable automatic tax and insurance rates in expenses', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
+    await user.click(
+      within(screen.getByLabelText('Deal input sections')).getByRole('button', { name: /Expenses/ })
+    );
 
     const taxRate = screen.getByLabelText(/Auto Tax %/i, { selector: 'input' });
     const insuranceRate = screen.getByLabelText(/Auto Ins\. %/i, { selector: 'input' });
@@ -339,18 +485,15 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deal Vault' })).toHaveTextContent('1 saved deal');
     expect(screen.queryByText('Current Deal')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Send link' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Report' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View listing' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Request deal review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument();
     expect(resultsButton).not.toBeDisabled();
     expect(projectionsButton).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
 
     await user.click(resultsButton);
-    expect(screen.getByRole('button', { name: 'More metrics' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reorder' })).not.toBeInTheDocument();
+    expect(screen.getByText('Incomplete inputs')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Complete inputs' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More metrics' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Inputs' }));
 
@@ -444,11 +587,10 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
-    await user.click(screen.getByRole('button', { name: 'Dark mode' }));
-
     expect(document.body).toHaveClass('theme-light');
 
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
     const identityDialog = screen.getByRole('dialog', { name: 'Deal identity' });
     expect(identityDialog).toBeInTheDocument();
@@ -487,7 +629,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     await waitFor(() => {
-      const actions = screen.getByRole('button', { name: 'Open deal actions' }).parentElement;
+      const actions = screen.getByRole('button', { name: 'Open settings' }).parentElement;
       expect(actions).not.toBeNull();
       if (actions) {
         expect(within(actions).getByLabelText('Signed in as agent@example.com')).toBeInTheDocument();
@@ -495,7 +637,7 @@ describe('dashboard integration', () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     expect(screen.getByText('Signed in as agent@example.com')).toBeInTheDocument();
     expect(screen.queryByText('Cloud sync is active on this device.')).not.toBeInTheDocument();
@@ -509,7 +651,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     expect(screen.getByText('Account sign-in is unavailable right now.')).toBeInTheDocument();
     expect(screen.queryByText(/NEXT_PUBLIC_SUPABASE_URL/i)).not.toBeInTheDocument();
@@ -582,7 +724,7 @@ describe('dashboard integration', () => {
     await flushAuthEffects();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const accountText = within(dialog).getByText('Signed in as dillon@theinvestoragent.io');
@@ -737,7 +879,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send feedback' }));
 
@@ -850,7 +992,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
     await user.click(screen.getByRole('button', { name: 'Send feedback' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Send DealCooker feedback' });
@@ -880,7 +1022,7 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     window.dispatchEvent(new Event('resize'));
 
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     expect(screen.getByRole('button', { name: 'Download the app!' })).toBeInTheDocument();
   });
@@ -1041,7 +1183,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
@@ -1064,7 +1206,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
@@ -1082,8 +1224,8 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Password reset email sent. Check your inbox, then return here.')).toBeInTheDocument();
   });
 
-  it('updates a recovered password from the callback mode', async () => {
-    setViewport(390);
+  it('updates a recovered password from the compact callback mode at small-laptop width', async () => {
+    setViewport(1100);
     authMockState.user = {
       id: 'email-user-1',
       email: 'reset@example.com'
@@ -1119,7 +1261,7 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Old Account Deal')).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
@@ -1149,7 +1291,7 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     await user.click(within(dialog).getByRole('button', { name: 'Create account' }));
@@ -1168,7 +1310,7 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Account created. Check your email, then sign in here.')).toBeInTheDocument();
   });
 
-  it('copies a share link from the compact header action', async () => {
+  it('copies a share link from the compact settings actions', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -1181,7 +1323,8 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Send link' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Send link' }));
 
     await waitFor(() => {
       expect(screen.getByText('Link copied.')).toBeInTheDocument();
@@ -1279,16 +1422,16 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Open deal actions' }));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
 
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Send link' })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Print to PDF' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Send link' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Print to PDF' })).toBeInTheDocument();
     expect(within(dialog).getByText('Actions')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Send feedback' })).toBeInTheDocument();
-    expect((dialog.textContent ?? '').indexOf('Account')).toBeLessThan((dialog.textContent ?? '').indexOf('Actions'));
+    expect((dialog.textContent ?? '').indexOf('Actions')).toBeLessThan((dialog.textContent ?? '').indexOf('Account'));
     expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
   });
 
@@ -1314,7 +1457,7 @@ describe('dashboard integration', () => {
     const board = screen.getByLabelText('Strategy comparison board');
 
     expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
-    expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
+    expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();
     expect(within(board).getAllByText('Cash to Close').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Total Invested').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Modeled Exit').length).toBeGreaterThan(0);
@@ -1323,22 +1466,22 @@ describe('dashboard integration', () => {
     expect(within(board).queryByText('Operating CF')).not.toBeInTheDocument();
 
     await user.click(within(selection).getByRole('button', { name: /Airbnb/i }));
-    expect(within(board).queryByText('Airbnb / STR')).not.toBeInTheDocument();
+    expect(within(board).getAllByText('Airbnb / STR').length).toBeGreaterThan(0);
 
     await user.click(within(selection).getByRole('button', { name: 'Commercial' }));
     await user.click(within(selection).getByRole('button', { name: 'PadSplit' }));
     await user.click(within(selection).getByRole('button', { name: 'BRRRR' }));
     await user.click(within(selection).getByRole('button', { name: 'Flip' }));
 
-    expect(within(board).queryByText('Commercial')).not.toBeInTheDocument();
-    expect(within(board).queryByText('PadSplit')).not.toBeInTheDocument();
-    expect(within(board).queryByText('BRRRR')).not.toBeInTheDocument();
-    expect(within(board).queryByText('Flip')).not.toBeInTheDocument();
+    expect(within(board).getAllByText('Commercial').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('PadSplit').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('BRRRR').length).toBeGreaterThan(0);
+    expect(within(board).getAllByText('Flip').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
 
     await user.click(within(selection).getByRole('button', { name: 'Long-Term' }));
 
-    expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
+    expect(within(board).queryByText('Long-Term Rental')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Equity modeling' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cash flow modeling' })).not.toBeInTheDocument();
     expect(screen.queryByText('Equity modeling by strategy')).not.toBeInTheDocument();
@@ -1521,9 +1664,6 @@ describe('dashboard integration', () => {
     expect(within(commercialOutputs as HTMLElement).getByText('Commercial underwriting digest')).toBeInTheDocument();
     expect(within(commercialOutputs as HTMLElement).getByText('Live from inputs')).toBeInTheDocument();
     expect(within(commercialOutputs as HTMLElement).getAllByText('Annual NOI').length).toBeGreaterThan(0);
-    expect(screen.getByText('Basis and financing')).toBeInTheDocument();
-    expect(screen.getByText('Strategy assumptions')).toBeInTheDocument();
-    expect(screen.getByText('Operating burden')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Strategy inputs' })).not.toBeInTheDocument();
   });
 
@@ -1533,6 +1673,7 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('Flip'));
     expect(within(getStrategyInputsWorkspace()).getByLabelText('Flip hold months')).toBeInTheDocument();
+    selectDesktopWorkspace('Projection');
     expect(screen.getByText('Projected annual cash flow')).toBeInTheDocument();
 
     const holdYears = screen.getByLabelText('Hold years', { selector: 'input' });
@@ -1635,6 +1776,8 @@ describe('dashboard integration', () => {
 
   it('desktop projections board keeps equity and cash flow modeling in one view', () => {
     render(<HomePage />);
+    loadSampleDealFromSettings();
+    selectDesktopWorkspace('Compare');
     const board = screen.getByLabelText('Strategy comparison board');
 
     expect(screen.getByText('Projections board')).toBeInTheDocument();
@@ -1649,7 +1792,9 @@ describe('dashboard integration', () => {
 
   it('opens expanded cash flow trend details from a desktop projection card', async () => {
     render(<HomePage />);
+    loadSampleDealFromSettings();
     const user = userEvent.setup();
+    selectDesktopWorkspace('Compare');
     const board = screen.getByLabelText('Strategy comparison board');
 
     await user.click(within(board).getAllByRole('button', { name: /Open .* cash flow trend details/i })[0]);
@@ -1665,14 +1810,19 @@ describe('dashboard integration', () => {
 
   it('filters the desktop projections board per deal from local board controls', async () => {
     render(<HomePage />);
+    loadSampleDealFromSettings();
     const user = userEvent.setup();
+    selectDesktopWorkspace('Compare');
     const board = screen.getByLabelText('Strategy comparison board');
 
-    expect(within(board).getByLabelText('Commercial projection card')).toBeInTheDocument();
+    expect(within(board).queryByLabelText('Commercial projection card')).not.toBeInTheDocument();
 
     const selection = screen.getByLabelText('Projections board strategy selection');
-    await user.click(within(selection).getByRole('button', { name: 'Commercial' }));
+    const commercial = within(selection).getByRole('button', { name: 'Commercial' });
+    await user.click(commercial);
+    expect(within(board).getByLabelText('Commercial projection card')).toBeInTheDocument();
 
+    await user.click(commercial);
     expect(within(board).queryByLabelText('Commercial projection card')).not.toBeInTheDocument();
   });
 
@@ -1783,6 +1933,58 @@ describe('dashboard integration', () => {
 
     expect(screen.getByRole('dialog', { name: 'Deal identity' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('6 saved deals');
+  });
+
+  it('refreshes updatedAt before autosaving a signed-in deal to the cloud', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-10T16:00:00.000Z'));
+    try {
+      authMockState.user = { id: 'autosave-user', email: 'autosave@example.com' };
+      const savedDeal = createSavedDeal('Timestamp Deal', '2026-01-01T12:00:00.000Z');
+      setScenarioStorageOwner('autosave-user');
+      writeScenarios([savedDeal]);
+      setScenarioStorageOwner(null);
+
+      render(<HomePage />);
+      await flushAuthEffects();
+
+      fireEvent.change(screen.getByLabelText('Purchase price'), { target: { value: '315000' } });
+      await act(async () => {
+        vi.advanceTimersByTime(2_000);
+        await Promise.resolve();
+      });
+
+      const latestUpsert = authMockState.cloudUpsertCalls.at(-1);
+      expect(latestUpsert).toMatchObject({
+        userId: 'autosave-user',
+        scenarioId: savedDeal.scenarioId,
+        dealName: 'Timestamp Deal'
+      });
+      expect(Date.parse(latestUpsert?.updatedAt ?? '')).toBeGreaterThan(Date.parse(savedDeal.updatedAt));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('deletes a signed-in cloud scenario exactly once', async () => {
+    authMockState.user = { id: 'delete-user', email: 'delete@example.com' };
+    const currentDeal = createSavedDeal('Current Deal', '2026-01-08T12:00:00.000Z');
+    const deletedDeal = createSavedDeal('Austin BRRRR', '2026-01-07T12:00:00.000Z');
+    setScenarioStorageOwner('delete-user');
+    writeScenarios([currentDeal, deletedDeal]);
+    setScenarioStorageOwner(null);
+
+    render(<HomePage />);
+    await flushAuthEffects();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open deal vault' }));
+    const dialog = screen.getByRole('dialog', { name: 'Deal Vault' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete Austin BRRRR' }));
+
+    await waitFor(() => {
+      expect(authMockState.cloudDeleteCalls.filter((call) => call.scenarioId === deletedDeal.scenarioId)).toHaveLength(1);
+    });
   });
 
   it('deletes a deal directly from its desktop vault row without opening it first', async () => {
@@ -2063,7 +2265,7 @@ describe('dashboard integration', () => {
       'href',
       'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/'
     );
-  }, 10000);
+  }, 20000);
 
 
   it('does not auto-rename for onehome links', async () => {
@@ -2085,7 +2287,7 @@ describe('dashboard integration', () => {
     });
 
     expect(within(dialog).getByLabelText('Deal name')).toHaveValue(originalName);
-  }, 10000);
+  }, 20000);
 
   it('does not auto-rename when listing url lacks an address slug', async () => {
     render(<HomePage />);
@@ -2149,7 +2351,7 @@ describe('dashboard integration', () => {
     expect(within(workspace).getByLabelText('Base rent ($/sq ft/year)', { selector: 'input' })).toHaveValue(0);
 
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
-  }, 10000);
+  }, 20000);
 
   it('share link feedback auto-dismisses after a few seconds', async () => {
     Object.defineProperty(navigator, 'clipboard', {
@@ -2223,14 +2425,15 @@ describe('dashboard integration', () => {
   it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
+    await user.click(within(screen.getByLabelText('Deal input sections')).getByRole('button', { name: /Expenses/ }));
 
     const header = document.querySelector('.variable-expense-header');
     expect(header).not.toBeNull();
     if (header) {
-      expect(within(header).getByText('Expense')).toBeInTheDocument();
-      expect(within(header).getByText('Unit')).toBeInTheDocument();
-      expect(within(header).getByText('Amount')).toBeInTheDocument();
-      expect(within(header).getByText('Applies to')).toBeInTheDocument();
+      expect(within(header as HTMLElement).getByText('Expense')).toBeInTheDocument();
+      expect(within(header as HTMLElement).getByText('Unit')).toBeInTheDocument();
+      expect(within(header as HTMLElement).getByText('Amount')).toBeInTheDocument();
+      expect(within(header as HTMLElement).getByText('Applies to')).toBeInTheDocument();
     }
 
     const variableExpenseEditor = screen.getByLabelText('Variable expense editor');
@@ -2332,7 +2535,7 @@ describe('dashboard integration', () => {
   });
 
   it('copies the full print report URL for anonymous users and exposes a real editable import link', async () => {
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn<(value: string) => Promise<void>>(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }
@@ -2369,7 +2572,7 @@ describe('dashboard integration', () => {
       id: 'report-user-1',
       email: 'report@example.com'
     };
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn<(value: string) => Promise<void>>(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }

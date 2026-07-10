@@ -26,6 +26,9 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
   const [isVisible, setIsVisible] = useState(open);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
   const enterFrameRef = useRef<number | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
@@ -58,13 +61,56 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
   }, [isMounted, open]);
 
   useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      return;
+    }
+
+    previousFocusRef.current?.focus();
+    previousFocusRef.current = null;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !isMounted) return;
+
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [isMounted, open]);
+
+  useEffect(() => {
     if (!isMounted) return;
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]):not([tabindex="-1"]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -158,6 +204,7 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
 
   return createPortal(
     <div
+      ref={dialogRef}
       className={`fixed inset-0 z-[180] overflow-hidden${isActiveDialog ? '' : ' pointer-events-none'}`}
       role={isActiveDialog ? 'dialog' : undefined}
       aria-modal={isActiveDialog ? true : undefined}
@@ -203,6 +250,7 @@ export function MobileSheet({ open, title, onClose, children }: MobileSheetProps
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent sm:text-xs">{title}</h2>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => {
                   triggerHapticFeedback('light');

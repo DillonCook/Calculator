@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultDealInput } from '../lib/models/deal';
+import { defaultDealInput, type DealInputModel } from '../lib/models/deal';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '../lib/share-link';
 
 describe('compact share link payload', () => {
   it('roundtrips to the same normalized deal', () => {
-    const payload = {
+    const payload: DealInputModel = {
       ...defaultDealInput,
       purchase: {
         ...defaultDealInput.purchase,

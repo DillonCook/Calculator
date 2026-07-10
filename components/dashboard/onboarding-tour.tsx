@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useModalFocus } from '@/lib/use-modal-focus';
 
 export interface OnboardingStep {
   id: string;
@@ -56,6 +57,7 @@ const toLayoutRect = (rect: DOMRect): TargetLayoutRect => ({
 
 export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetElement, onBack, onNext, onSkip }: OnboardingTourProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const { dialogRef, closeButtonRef } = useModalFocus<HTMLDivElement>(open, onSkip);
   const autoScrolledTargetKeyRef = useRef<string | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [targetRect, setTargetRect] = useState<TargetLayoutRect | null>(null);
@@ -148,7 +150,7 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
   const isLastStep = stepIndex === steps.length - 1;
 
   return createPortal(
-    <div className="fixed inset-0 z-[260]" role="dialog" aria-modal="true" aria-label="Quick app tutorial">
+    <div ref={dialogRef} className="fixed inset-0 z-[260]" role="dialog" aria-modal="true" aria-label="Quick app tutorial">
       <div className="absolute inset-0 bg-[#020713]/72 backdrop-blur-[1px]" />
 
       {targetRect ? (
@@ -178,7 +180,12 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
             <span className="h-2.5 w-2.5 rounded-full bg-[#8cb8ff]" />
             <span className="h-2.5 w-2.5 rounded-full bg-[#b8d1ff]" />
           </div>
-          <button type="button" onClick={onSkip} className="text-[11px] font-medium text-slate-200/90 underline underline-offset-2">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onSkip}
+            className="text-[11px] font-medium text-slate-200/90 underline underline-offset-2"
+          >
             Skip tutorial
           </button>
         </div>

@@ -7,6 +7,7 @@ import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { getProjectionMetrics } from '@/lib/projection-metrics';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
+import { useModalFocus } from '@/lib/use-modal-focus';
 
 const strategyLabels: Record<StrategyKey, string> = {
   purchase: 'Commercial',
@@ -46,6 +47,13 @@ export function StrategyComparison({
   const [activeModal, setActiveModal] = useState<'equity' | 'cashflow' | null>(null);
   const [isBoardOpen, setIsBoardOpen] = useState(lockBoardOpen ? true : defaultBoardOpen);
   const [expandedCashFlowKey, setExpandedCashFlowKey] = useState<StrategyKey | null>(null);
+  const { dialogRef, closeButtonRef } = useModalFocus<HTMLDivElement>(
+    Boolean(expandedCashFlowKey || (!inlineModelingViews && activeModal)),
+    () => {
+      setExpandedCashFlowKey(null);
+      setActiveModal(null);
+    }
+  );
   const rows = useMemo(() => {
     const selectedStrategies =
       visibleStrategies && visibleStrategies.length > 0
@@ -491,6 +499,7 @@ export function StrategyComparison({
 
       {expandedCashFlowRow && expandedCashFlowStats ? (
         <div
+          ref={dialogRef}
           className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
@@ -504,6 +513,7 @@ export function StrategyComparison({
                 <p className="mt-1 text-xs text-muted">Final-period sale or refinance cash is removed so the line stays focused on operations.</p>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => setExpandedCashFlowKey(null)}
                 className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
@@ -557,6 +567,7 @@ export function StrategyComparison({
 
       {!inlineModelingViews && activeModal === 'equity' ? (
         <div
+          ref={dialogRef}
           className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
@@ -570,6 +581,7 @@ export function StrategyComparison({
                 <p className="text-xs text-muted">Modeled Exit combines hold-period cash flow with projected sale proceeds. Break-even if selling tests the earliest month a sale would return your total invested capital.</p>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => setActiveModal(null)}
                 className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
@@ -585,6 +597,7 @@ export function StrategyComparison({
 
       {!inlineModelingViews && activeModal === 'cashflow' ? (
         <div
+          ref={dialogRef}
           className="lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
@@ -598,6 +611,7 @@ export function StrategyComparison({
                 <p className="text-xs text-muted">Cash-flow-only view removes the exit event from the final period so you can read operating performance on its own.</p>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => setActiveModal(null)}
                 className="tap-feedback section-action section-action-projection rounded-lg px-3 py-1.5 text-xs text-muted"
