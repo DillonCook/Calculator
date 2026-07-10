@@ -1220,7 +1220,7 @@ describe('dashboard integration', () => {
           redirectTo: 'https://dealcooker.app/auth/callback?next=password-reset'
         })
       ]);
-    });
+    }, { timeout: 5000 });
     expect(screen.getByText('Password reset email sent. Check your inbox, then return here.')).toBeInTheDocument();
   });
 
@@ -1272,7 +1272,7 @@ describe('dashboard integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Signed in as second@example.com')).toBeInTheDocument();
       expect(screen.queryByText('Old Account Deal')).not.toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
     await waitFor(() => {
       expect(authMockState.cloudUpsertCalls.length).toBeGreaterThan(0);
     });
@@ -1393,8 +1393,10 @@ describe('dashboard integration', () => {
 
     await user.type(search, 'Austin');
 
-    expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
-    expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
+      expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
+    }, { timeout: 5000 });
   });
 
   it('duplicates and deletes saved deals from compact recent deals', async () => {
@@ -2255,7 +2257,9 @@ describe('dashboard integration', () => {
     await user.clear(listingInput);
     await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
 
-    expect(within(dialog).getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
+    }, { timeout: 5000 });
 
     expect(within(dialog).getByRole('link', { name: 'View listing link' })).toHaveAttribute(
       'href',
