@@ -1201,6 +1201,7 @@ describe('dashboard integration', () => {
 
   it('sends a password reset email from the regular email sign-in path', async () => {
     setViewport(390);
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
 
     render(<HomePage />);
     window.dispatchEvent(new Event('resize'));
