@@ -222,15 +222,24 @@ describe('dashboard integration', () => {
     ]);
   });
 
-  it('renders Dillon\'s provided logo at its natural aspect ratio', () => {
+  it('renders Dillon\'s provided logo in desktop and compact headers', () => {
+    const expectProvidedLogo = () => {
+      const brandLogo = document.querySelector('.brand-lockup img');
+
+      expect(brandLogo).not.toBeNull();
+      expect(brandLogo?.getAttribute('src')).toContain('url=%2Ficon.png');
+      expect(brandLogo).toHaveAttribute('width', '543');
+      expect(brandLogo).toHaveAttribute('height', '628');
+      expect(brandLogo).toHaveAttribute('sizes', '36px');
+    };
+
+    const desktop = render(<HomePage />);
+    expectProvidedLogo();
+    desktop.unmount();
+
+    setViewport(390);
     render(<HomePage />);
-
-    const brandLogo = document.querySelector('.brand-lockup img');
-
-    expect(brandLogo).not.toBeNull();
-    expect(brandLogo?.getAttribute('src')).toContain('url=%2Ficon.png');
-    expect(brandLogo).toHaveAttribute('width', '543');
-    expect(brandLogo).toHaveAttribute('height', '628');
+    expectProvidedLogo();
   });
 
   it('starts blank when no scenarios are saved', () => {

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: '/icon.png', type: 'image/png' }],
     shortcut: [{ url: '/icon.png', type: 'image/png' }],
-    apple: [{ url: '/icon.png', type: 'image/png' }]
+    apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }]
   },
   openGraph: {
     title: 'DealCooker',
@@ -29,20 +29,20 @@ export const metadata: Metadata = {
     siteName: 'DealCooker',
     images: [
       {
-        url: '/icon.png',
-        width: 543,
-        height: 628,
+        url: '/pwa-512.png',
+        width: 512,
+        height: 512,
         alt: 'DealCooker logo'
       }
     ],
     type: 'website'
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'DealCooker',
     description:
       'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
-    images: ['/icon.png']
+    images: ['/pwa-512.png']
   }
 };
 

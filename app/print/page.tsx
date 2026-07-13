@@ -51,19 +51,19 @@ export async function generateMetadata({ searchParams }: PrintPageProps): Promis
       siteName: 'DealCooker',
       images: [
         {
-          url: '/icon.png',
-          width: 543,
-          height: 628,
+          url: '/pwa-512.png',
+          width: 512,
+          height: 512,
           alt: 'DealCooker logo'
         }
       ],
       type: 'website'
     },
     twitter: {
-      card: 'summary_large_image',
+      card: 'summary',
       title,
       description: reportPreviewDescription,
-      images: ['/icon.png']
+      images: ['/pwa-512.png']
     }
   };
 }

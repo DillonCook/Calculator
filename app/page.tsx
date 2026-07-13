@@ -6276,6 +6276,7 @@ export default function HomePage() {
                       alt=""
                       width={543}
                       height={628}
+                      sizes="36px"
                       className="brand-icon"
                       aria-hidden="true"
                       priority
@@ -6460,6 +6461,7 @@ export default function HomePage() {
                     alt=""
                     width={543}
                     height={628}
+                    sizes="36px"
                     className="brand-icon"
                     aria-hidden="true"
                     priority
