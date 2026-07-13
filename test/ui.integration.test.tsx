@@ -406,7 +406,9 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
     const inputSections = screen.getByLabelText('Deal input sections');
+    const activeInputShell = inputSections.nextElementSibling;
 
+    expect(activeInputShell).toHaveClass('w-full');
     expect(screen.getByRole('heading', { name: 'Deal basics' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Strategy workspace')).not.toBeInTheDocument();
 

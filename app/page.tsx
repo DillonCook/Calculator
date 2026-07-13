@@ -7102,7 +7102,7 @@ export default function HomePage() {
               ))}
             </nav>
 
-            <div className="desktop-progressive-input-shell">
+            <div className="desktop-progressive-input-shell w-full">
               {desktopInputSection === 'core' ? (
                 <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
                   <div className="desktop-lane-anchor desktop-lane-anchor-purchase">
