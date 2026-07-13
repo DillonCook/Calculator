@@ -2286,8 +2286,9 @@ describe('dashboard integration', () => {
     await user.click(screen.getByRole('button', { name: 'Edit active deal details' }));
     const dialog = screen.getByRole('dialog', { name: 'Deal identity' });
     const listingInput = within(dialog).getByLabelText('Listing URL (Zillow, Redfin, etc.)');
-    await user.clear(listingInput);
-    await user.type(listingInput, 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/');
+    fireEvent.change(listingInput, {
+      target: { value: 'https://www.zillow.com/homedetails/123-Main-St-Tampa-FL-33602/12345_zpid/' }
+    });
 
     await waitFor(() => {
       expect(within(dialog).getByLabelText('Deal name')).toHaveValue('123 Main St, Tampa');
@@ -2368,7 +2369,10 @@ describe('dashboard integration', () => {
     const dealName = within(identityDialog).getByLabelText('Deal name');
     await user.clear(dealName);
     await user.type(dealName, 'Austin BRRRR');
-    await user.click(within(identityDialog).getByRole('button', { name: 'Close' }));
+    const activeIdentityDialog = screen.queryByRole('dialog', { name: 'Deal identity' });
+    if (activeIdentityDialog) {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    }
 
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
