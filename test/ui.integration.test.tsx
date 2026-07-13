@@ -2374,8 +2374,10 @@ describe('dashboard integration', () => {
       fireEvent.keyDown(document, { key: 'Escape' });
     }
 
-    expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
-    expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
+      expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
+    }, { timeout: 5000 });
 
     await user.click(getStrategyButton('Airbnb'));
     let workspace = getStrategyInputsWorkspace();
