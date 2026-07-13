@@ -6380,8 +6380,8 @@ textarea {
 
 .brand-icon {
   width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.72rem;
+  height: auto;
+  border-radius: 0;
   filter: drop-shadow(0 7px 14px rgba(251, 139, 35, 0.16));
   animation: none !important;
 }

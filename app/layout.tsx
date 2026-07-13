@@ -30,8 +30,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: '/icon.png',
-        width: 1024,
-        height: 977,
+        width: 543,
+        height: 628,
         alt: 'DealCooker logo'
       }
     ],

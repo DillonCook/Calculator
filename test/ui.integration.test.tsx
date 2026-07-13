@@ -222,6 +222,17 @@ describe('dashboard integration', () => {
     ]);
   });
 
+  it('renders Dillon\'s provided logo at its natural aspect ratio', () => {
+    render(<HomePage />);
+
+    const brandLogo = document.querySelector('.brand-lockup img');
+
+    expect(brandLogo).not.toBeNull();
+    expect(brandLogo?.getAttribute('src')).toContain('url=%2Ficon.png');
+    expect(brandLogo).toHaveAttribute('width', '543');
+    expect(brandLogo).toHaveAttribute('height', '628');
+  });
+
   it('starts blank when no scenarios are saved', () => {
     window.localStorage.clear();
     render(<HomePage />);

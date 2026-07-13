@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BrandMark } from '../components/ui/brand-mark';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import {
   memo,
@@ -6271,7 +6271,15 @@ export default function HomePage() {
                 <div className="min-w-0 flex-1">
                   <div className="brand-lockup" aria-label="DealCooker">
                     <h1 className="brand-text leading-none">DealCooker</h1>
-                    <BrandMark className="brand-icon" />
+                    <Image
+                      src="/icon.png"
+                      alt=""
+                      width={543}
+                      height={628}
+                      className="brand-icon"
+                      aria-hidden="true"
+                      priority
+                    />
                   </div>
                 </div>
                 <div className={`${headerChromeMutedClass} relative`}>
@@ -6447,7 +6455,15 @@ export default function HomePage() {
               <div className="min-w-0">
                 <div className="brand-lockup" aria-label="DealCooker">
                   <h1 className="brand-text leading-none">DealCooker</h1>
-                  <BrandMark className="brand-icon" />
+                  <Image
+                    src="/icon.png"
+                    alt=""
+                    width={543}
+                    height={628}
+                    className="brand-icon"
+                    aria-hidden="true"
+                    priority
+                  />
                 </div>
               </div>
 
