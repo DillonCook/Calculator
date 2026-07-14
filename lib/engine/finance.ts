@@ -3,7 +3,9 @@ import type { AmortizationType } from '@/lib/models/deal';
 export const annualToMonthlyRate = (annualRate: number): number => annualRate / 12;
 
 export const calculateLoanAmount = (purchasePrice: number, downPaymentPercent: number): number => {
-  return purchasePrice * (1 - downPaymentPercent);
+  const normalizedPrice = Math.max(Number.isFinite(purchasePrice) ? purchasePrice : 0, 0);
+  const normalizedDownPayment = Math.min(Math.max(Number.isFinite(downPaymentPercent) ? downPaymentPercent : 0, 0), 1);
+  return normalizedPrice * (1 - normalizedDownPayment);
 };
 
 export const calculateMonthlyPayment = (
@@ -11,18 +13,19 @@ export const calculateMonthlyPayment = (
   annualRate: number,
   termYears: number
 ): number => {
-  const monthlyRate = annualToMonthlyRate(annualRate);
-  const periods = termYears * 12;
+  const normalizedPrincipal = Math.max(Number.isFinite(principal) ? principal : 0, 0);
+  const monthlyRate = annualToMonthlyRate(Math.max(Number.isFinite(annualRate) ? annualRate : 0, 0));
+  const periods = Math.max(Number.isFinite(termYears) ? termYears : 0, 0) * 12;
 
-  if (periods <= 0) return 0;
-  if (monthlyRate === 0) return principal / periods;
+  if (normalizedPrincipal <= 0 || periods <= 0) return 0;
+  if (monthlyRate === 0) return normalizedPrincipal / periods;
 
-  const factor = Math.pow(1 + monthlyRate, periods);
-  return (principal * monthlyRate * factor) / (factor - 1);
+  const discountFactor = Math.pow(1 + monthlyRate, -periods);
+  return (normalizedPrincipal * monthlyRate) / (1 - discountFactor);
 };
 
 export const calculateInterestOnlyPayment = (principal: number, annualRate: number): number => {
-  if (principal <= 0 || annualRate <= 0) return 0;
+  if (!Number.isFinite(principal) || !Number.isFinite(annualRate) || principal <= 0 || annualRate <= 0) return 0;
   return (principal * annualRate) / 12;
 };
 
@@ -108,12 +111,20 @@ export const calculateCashToClose = (
   helocAmount = 0,
   helocClosingCosts = 0
 ): number => {
-  const closingCosts = purchasePrice * closingCostPercent;
+  const normalizedPurchasePrice = Math.max(Number.isFinite(purchasePrice) ? purchasePrice : 0, 0);
+  const normalizedRehabBudget = Math.max(Number.isFinite(rehabBudget) ? rehabBudget : 0, 0);
+  const normalizedDownPayment = Math.min(Math.max(Number.isFinite(downPaymentPercent) ? downPaymentPercent : 0, 0), 1);
+  const normalizedClosingCostPercent = Math.max(Number.isFinite(closingCostPercent) ? closingCostPercent : 0, 0);
+  const normalizedPointsPercent = Math.max(Number.isFinite(pointsPercent) ? pointsPercent : 0, 0);
+  const closingCosts = normalizedPurchasePrice * normalizedClosingCostPercent;
 
   const baseCashToClose =
     financingType === 'cash'
-      ? purchasePrice + rehabBudget + closingCosts
-      : purchasePrice * downPaymentPercent + closingCosts + calculateLoanAmount(purchasePrice, downPaymentPercent) * pointsPercent + rehabBudget;
+      ? normalizedPurchasePrice + normalizedRehabBudget + closingCosts
+      : normalizedPurchasePrice * normalizedDownPayment +
+        closingCosts +
+        calculateLoanAmount(normalizedPurchasePrice, normalizedDownPayment) * normalizedPointsPercent +
+        normalizedRehabBudget;
 
   return Math.max(baseCashToClose - Math.max(helocAmount, 0), 0) + Math.max(helocClosingCosts, 0);
 };

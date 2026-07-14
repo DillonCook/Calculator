@@ -56,6 +56,7 @@ import {
   type ScenarioRecord,
   type StrategyKey
 } from '@/lib/models/deal';
+import { getAnnualOperatingCashFlows, getTotalCashInvested } from '@/lib/projection-metrics';
 import { encodeScenario, setScenarioStorageOwner, writeScenarios } from '@/lib/scenario-storage';
 import { deleteSupabaseScenario, fetchSupabaseScenarios, upsertSupabaseScenario } from '@/lib/cloud-scenarios-sync';
 import { reportClientError, toClientErrorMessage } from '@/lib/client-error-reporting';
@@ -1471,7 +1472,7 @@ export default function HomePage() {
               value={currencyFormatter.format(cashToCloseValue)}
               winner={metricModeLabel}
               secondaryLabel="Total cash invested"
-              secondaryValue={currencyFormatter.format(metricOutput.totalCashNeeded)}
+              secondaryValue={currencyFormatter.format(getTotalCashInvested(metricOutput))}
             definitions={[
               {
                 term: 'Cash to Close',
@@ -1479,7 +1480,7 @@ export default function HomePage() {
               },
               {
                 term: 'Total cash invested',
-                description: 'Total all-in cash invested, including rehab and one-time setup items such as furnishing.'
+                description: 'All modeled cash contributions across the deal, including closing, rehab, setup, operating shortfalls, and debt payoffs.'
               }
             ]}
             layout={layout}
@@ -1877,12 +1878,7 @@ export default function HomePage() {
   const monthlyCashFlowChartSeries = useMemo(() => {
     if (isFlipStrategy) return [];
 
-    const timelineWithoutAcquisitionYear = priorityMetricOutput.cashFlowTimeline.slice(1);
-    const terminalSaleProceeds = priorityMetricOutput.saleProceeds ?? 0;
-    const cashFlowOnlyTimeline = timelineWithoutAcquisitionYear.map((value, index, array) =>
-      index === array.length - 1 ? value - terminalSaleProceeds : value
-    );
-    const rawTimeline = cashFlowOnlyTimeline;
+    const rawTimeline = getAnnualOperatingCashFlows(priorityMetricOutput, model.assumptions.holdYears);
 
     if (rawTimeline.length > 0) {
       return rawTimeline.map((value) => {
@@ -1896,7 +1892,7 @@ export default function HomePage() {
     }
 
     return Array.from({ length: 12 }, (_, index) => priorityMetricOutput.monthlyCashFlow * (0.82 + index * 0.03));
-  }, [includeReserves, isFlipStrategy, priorityMetricOutput, supportsReserveToggle]);
+  }, [includeReserves, isFlipStrategy, model.assumptions.holdYears, priorityMetricOutput, supportsReserveToggle]);
 
   const monthlyCashFlowBarData = useMemo(() => {
     if (!monthlyCashFlowChartSeries.length) return [];
@@ -5760,7 +5756,7 @@ export default function HomePage() {
                 <p className="mt-0.5 truncate">Active strategy: {activeStrategyLabel}</p>
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
-                <span className="dashboard-pill">{currencyFormatter.format(activeOutput.totalCashNeeded)} needed</span>
+                <span className="dashboard-pill">{currencyFormatter.format(getTotalCashInvested(activeOutput))} invested</span>
                 <span className="dashboard-pill">{currencyFormatter.format(activeOutput.monthlyCashFlow)}/mo</span>
               </div>
             </div>
@@ -5916,10 +5912,10 @@ export default function HomePage() {
 
   const spreadsheetSummaryItems = [
     { label: 'Strategy', value: activeStrategyLabel },
-    { label: 'Purchase', value: currencyFormatter.format(model.purchase.purchasePrice) },
+    { label: model.purchase.ownershipMode === 'owned' ? 'Original basis' : 'Purchase', value: currencyFormatter.format(model.purchase.ownershipMode === 'owned' ? model.purchase.ownedPurchasePrice : model.purchase.purchasePrice) },
     { label: 'ARV', value: currencyFormatter.format(model.purchase.arv) },
     { label: 'Rehab', value: currencyFormatter.format(model.purchase.rehabBudget) },
-    { label: 'Cash needed', value: currencyFormatter.format(activeOutput.totalCashNeeded) },
+    { label: 'Total invested', value: currencyFormatter.format(getTotalCashInvested(activeOutput)) },
     { label: 'Monthly CF', value: currencyFormatter.format(activeOutput.monthlyCashFlow) }
   ];
   const spreadsheetDigestItems = visibleDigestContent?.items ?? [];

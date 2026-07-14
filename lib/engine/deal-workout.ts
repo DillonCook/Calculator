@@ -35,8 +35,8 @@ const defaultTargets: ConstraintTargets = {
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const roundCurrency = (value: number) => Math.round(value / 100) * 100;
-const roundPercent = (value: number) => Math.round(value * 1000) / 1000;
-const roundPurchasePrice = (value: number) => Math.max(roundCurrency(value), 100);
+const roundPercentUp = (value: number) => Math.ceil(value * 1000) / 1000;
+const roundPurchasePriceDown = (value: number) => Math.max(Math.floor(value / 100) * 100, 1);
 const getFlipNetProfit = (output: StrategyOutput) =>
   output.calculationBreakdown?.flipMeta?.netProfit ?? (output.saleProceeds ?? 0) - output.totalCashNeeded;
 
@@ -76,7 +76,10 @@ const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: C
     return getFlipNetProfit(output) >= 0;
   }
 
-  const hasNoDebt = model.purchase.financingType === 'cash' || model.purchase.downPaymentPercent >= 0.999;
+  const hasNoDebt =
+    model.purchase.ownershipMode === 'owned'
+      ? model.purchase.existingMortgageBalance <= 1e-9 && model.purchase.helocAmount <= 1e-9
+      : model.purchase.financingType === 'cash' || model.purchase.downPaymentPercent >= 0.999;
   const meetsDscr = hasNoDebt ? true : output.dscr >= targets.minDscr;
   return output.monthlyCashFlow >= targets.minMonthlyCashFlow && meetsDscr;
 };
@@ -118,8 +121,41 @@ const findBoundary = (
   return high;
 };
 
+const findMaxWorkablePurchasePrice = (model: DealInputModel, strategy: StrategyKey): number | null => {
+  const minPrice = 1;
+  const maxPrice = Math.max(model.purchase.purchasePrice, minPrice);
+
+  if (isDealWorkable(withPurchaseAdjustments(model, { purchasePrice: maxPrice }), strategy)) return maxPrice;
+  if (!isDealWorkable(withPurchaseAdjustments(model, { purchasePrice: minPrice }), strategy)) return null;
+
+  let low = minPrice;
+  let high = maxPrice;
+  for (let index = 0; index < 28; index += 1) {
+    const midpoint = (low + high) / 2;
+    if (isDealWorkable(withPurchaseAdjustments(model, { purchasePrice: midpoint }), strategy)) {
+      low = midpoint;
+    } else {
+      high = midpoint;
+    }
+  }
+
+  return low;
+};
+
 export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: StrategyKey): DealWorkoutRecommendation {
   const current = calculateDeal(model)[strategy];
+
+  if (model.purchase.ownershipMode === 'owned') {
+    const canWorkAlready = isDealWorkable(model, strategy);
+    return {
+      canWorkAlready,
+      constrainedByOperations: !canWorkAlready,
+      currentMonthlyCashFlow: current.monthlyCashFlow,
+      currentDscr: current.dscr,
+      currentNetProfit: strategy === 'flip' ? getFlipNetProfit(current) : (current.saleProceeds ?? 0),
+      scenarios: []
+    };
+  }
 
   if (strategy === 'flip') {
     const currentNetProfit = getFlipNetProfit(current);
@@ -163,7 +199,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
       }
     }
 
-    const rounded = roundPurchasePrice(low);
+    const rounded = roundPurchasePriceDown(low);
     const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
 
     return {
@@ -186,12 +222,13 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     };
   }
 
-  const canWorkAlready = current.monthlyCashFlow >= 0 && current.dscr >= 1;
+  const canWorkAlready = isDealWorkable(model, strategy);
   const opNoDebtModel = {
     ...model,
     purchase: {
       ...model.purchase,
       financingType: 'cash',
+      purchasePrice: 1,
       downPaymentPercent: 1,
       pointsPercent: 0
     }
@@ -212,19 +249,13 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
 
   const scenarios: DealWorkoutScenario[] = [];
 
-  const minWorkablePriceForAllTargets = findBoundary(
-    model,
-    strategy,
-    (value) => ({ purchasePrice: value }),
-    1,
-    Math.max(model.purchase.purchasePrice, 1)
-  );
+  const maxWorkablePriceForAllTargets = findMaxWorkablePurchasePrice(model, strategy);
 
   if (model.purchase.financingType === 'loan') {
     const minBreakEvenCashFlowPrice = findPurchasePriceForMinCashFlow(model, strategy, 0);
 
     if (typeof minBreakEvenCashFlowPrice === 'number' && minBreakEvenCashFlowPrice < model.purchase.purchasePrice) {
-      const rounded = roundPurchasePrice(minBreakEvenCashFlowPrice);
+      const rounded = roundPurchasePriceDown(minBreakEvenCashFlowPrice);
       const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
       scenarios.push({
         key: 'price-cut',
@@ -243,7 +274,7 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     );
 
     if (typeof minWorkableDown === 'number' && minWorkableDown > model.purchase.downPaymentPercent) {
-      const rounded = roundPercent(minWorkableDown);
+      const rounded = roundPercentUp(minWorkableDown);
       scenarios.push({
         key: 'down-payment',
         title: 'Increase money down',
@@ -254,16 +285,13 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
 
     if (typeof minWorkableDown === 'number' && minWorkableDown > 0.4) {
       const cappedDown = 0.4;
-      const comboPrice = findBoundary(
+      const comboPrice = findMaxWorkablePurchasePrice(
         withPurchaseAdjustments(model, { downPaymentPercent: cappedDown }),
-        strategy,
-        (value) => ({ purchasePrice: value }),
-        1,
-        Math.max(model.purchase.purchasePrice, 1)
+        strategy
       );
 
       if (typeof comboPrice === 'number' && comboPrice < model.purchase.purchasePrice) {
-        const roundedComboPrice = roundPurchasePrice(comboPrice);
+        const roundedComboPrice = roundPurchasePriceDown(comboPrice);
         const priceDrop = Math.max(model.purchase.purchasePrice - roundedComboPrice, 0);
         scenarios.push({
           key: 'combo',
@@ -275,8 +303,8 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
     }
   }
 
-  if (model.purchase.financingType === 'cash' && typeof minWorkablePriceForAllTargets === 'number' && minWorkablePriceForAllTargets < model.purchase.purchasePrice) {
-    const rounded = roundPurchasePrice(minWorkablePriceForAllTargets);
+  if (model.purchase.financingType === 'cash' && typeof maxWorkablePriceForAllTargets === 'number' && maxWorkablePriceForAllTargets < model.purchase.purchasePrice) {
+    const rounded = roundPurchasePriceDown(maxWorkablePriceForAllTargets);
     const discount = Math.max(model.purchase.purchasePrice - rounded, 0);
     scenarios.push({
       key: 'price-cut',
@@ -297,11 +325,11 @@ export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: 
 }
 
 export function findPurchasePriceForTargetIrr(model: DealInputModel, strategy: StrategyKey, targetIrr: number): number | null {
-  if (!Number.isFinite(targetIrr)) return null;
+  if (!Number.isFinite(targetIrr) || model.purchase.ownershipMode === 'owned') return null;
 
   const currentPrice = Math.max(model.purchase.purchasePrice, 1);
   if (meetsTargetIrr(model, strategy, targetIrr)) {
-    return roundPurchasePrice(currentPrice);
+    return roundPurchasePriceDown(currentPrice);
   }
 
   const minPrice = 1;
@@ -320,5 +348,5 @@ export function findPurchasePriceForTargetIrr(model: DealInputModel, strategy: S
     }
   }
 
-  return roundPurchasePrice(low);
+  return roundPurchasePriceDown(low);
 }

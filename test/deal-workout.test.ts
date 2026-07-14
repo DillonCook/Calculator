@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildDealWorkoutRecommendation, findPurchasePriceForTargetIrr } from '../lib/engine/deal-workout';
+import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel } from '../lib/models/deal';
 
 test('returns no scenarios when deal already works', () => {
@@ -50,6 +51,45 @@ test('recommends price and/or down payment scenarios for constrained debt deal',
 });
 
 
+test('owned-property workouts do not fabricate a new acquisition price or down-payment fix', () => {
+  const model: DealInputModel = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      ownershipMode: 'owned',
+      financingType: 'loan',
+      purchasePrice: 350000,
+      ownedPurchasePrice: 100000,
+      existingMortgageBalance: 0,
+      existingMortgageMonthly: 0,
+      existingMortgageRate: 0.07,
+      existingMortgageRemainingYears: 30,
+      existingTaxMonthly: 0,
+      existingInsuranceMonthly: 0,
+      hoaMonthly: 0,
+      pmiMonthly: 0,
+      helocAmount: 0
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 2600,
+      otherIncomeMonthly: 0,
+      vacancyPercent: 0,
+      maintenancePercent: 0,
+      capexPercent: 0,
+      managementFeePercent: 0,
+      ownerExpensesMonthly: 0
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }))
+  };
+
+  const recommendation = buildDealWorkoutRecommendation(model, 'longTerm');
+
+  assert.ok(recommendation.currentMonthlyCashFlow > 0);
+  assert.equal(recommendation.canWorkAlready, true);
+  assert.deepEqual(recommendation.scenarios, []);
+});
+
 test('cash financing price-cut recommendation never suggests a zero purchase price', () => {
   const model: DealInputModel = {
     ...defaultDealInput,
@@ -57,7 +97,7 @@ test('cash financing price-cut recommendation never suggests a zero purchase pri
       ...defaultDealInput.purchase,
       financingType: 'cash',
       downPaymentPercent: 1,
-      purchasePrice: 405000
+      purchasePrice: 1000000
     },
     longTerm: {
       ...defaultDealInput.longTerm,
@@ -154,4 +194,78 @@ test('cash IRR target helper finds lower purchase price when target IRR increase
   assert.ok(typeof priceAt8Pct === 'number');
   assert.ok(typeof priceAt12Pct === 'number');
   assert.ok((priceAt12Pct ?? 0) <= (priceAt8Pct ?? 0));
+});
+
+test('cash-financed deals that cash flow positively already work without a DSCR hurdle', () => {
+  const model: DealInputModel = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash',
+      downPaymentPercent: 1,
+      purchasePrice: 100000,
+      arv: 100000
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 3000,
+      otherIncomeMonthly: 0,
+      ownerExpensesMonthly: 0
+    }
+  };
+
+  const rec = buildDealWorkoutRecommendation(model, 'longTerm');
+
+  assert.ok(rec.currentMonthlyCashFlow > 0);
+  assert.equal(rec.currentDscr, 0);
+  assert.equal(rec.canWorkAlready, true);
+  assert.deepEqual(rec.scenarios, []);
+});
+
+test('cash deal workout finds a lower purchase price when taxes and insurance make the current price unworkable', () => {
+  const model: DealInputModel = {
+    ...defaultDealInput,
+    purchase: {
+      ...defaultDealInput.purchase,
+      financingType: 'cash',
+      purchasePrice: 500000,
+      arv: 500000,
+      downPaymentPercent: 1,
+      closingCostPercent: 0,
+      pointsPercent: 0,
+      propertyTaxRatePercent: 0.02,
+      insuranceRatePercent: 0.01,
+      propertyTaxAnnualOverride: null,
+      insuranceAnnualOverride: null,
+      hoaMonthly: 0,
+      pmiMonthly: 0
+    },
+    longTerm: {
+      ...defaultDealInput.longTerm,
+      grossRentMonthly: 1000,
+      otherIncomeMonthly: 0,
+      vacancyPercent: 0,
+      maintenancePercent: 0,
+      capexPercent: 0,
+      managementFeePercent: 0,
+      ownerExpensesMonthly: 0
+    },
+    variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }))
+  };
+
+  const recommendation = buildDealWorkoutRecommendation(model, 'longTerm');
+  const priceScenario = recommendation.scenarios.find((scenario) => scenario.key === 'price-cut');
+
+  assert.equal(recommendation.canWorkAlready, false);
+  assert.equal(recommendation.constrainedByOperations, false);
+  assert.ok(priceScenario?.adjustments.purchasePrice);
+
+  const adjusted: DealInputModel = {
+    ...model,
+    purchase: {
+      ...model.purchase,
+      purchasePrice: priceScenario?.adjustments.purchasePrice ?? model.purchase.purchasePrice
+    }
+  };
+  assert.ok(calculateDeal(adjusted).longTerm.monthlyCashFlow >= 0);
 });

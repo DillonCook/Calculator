@@ -3,6 +3,7 @@ import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { normalizeListingUrl } from '@/lib/listing-link';
 import { getFixedCostBreakdown } from '@/lib/tax-insurance';
+import { getProjectionMetrics } from '@/lib/projection-metrics';
 
 export interface PdfReportRow {
   label: string;
@@ -95,12 +96,33 @@ export const createPdfReportSchema = (
   const hasStabilizedArvOverride = isLongTermTurnaround && input.longTerm.turnaround.stabilizedArvOverride !== null && input.longTerm.turnaround.stabilizedArvOverride > 0;
   const turnaroundInputs = input.longTerm.turnaround;
   const holdYears = Math.max(0, input.assumptions.holdYears);
+  const projectionMetrics = getProjectionMetrics(strategyOutput, holdYears, input);
   const holdYearsLabel = holdYears === 1 ? '1 year' : `${holdYears} years`;
   const flipHoldMonths = Math.max(flipMeta?.holdingMonths ?? input.flip.holdingMonths, 0);
   const flipHoldLabel = flipHoldMonths === 1 ? '1 month' : `${flipHoldMonths} months`;
   const variableExpenses = variableExpenseStrategy
     ? input.variableExpenses.filter((expense) => expense.appliesTo[variableExpenseStrategy])
     : [];
+
+  const hasOwnedMortgage = input.purchase.existingMortgageBalance > 0 || input.purchase.existingMortgageMonthly > 0;
+  const hasOwnedHeloc = input.purchase.helocAmount > 0;
+  const financingRows = input.purchase.ownershipMode === 'owned'
+    ? [
+        { label: 'Original Purchase Price', value: formatCurrency(input.purchase.ownedPurchasePrice) },
+        { label: 'Rehab Budget', value: formatCurrency(input.purchase.rehabBudget) },
+        { label: 'Loan Type', value: hasOwnedMortgage ? 'Existing mortgage' : hasOwnedHeloc ? 'HELOC' : 'Owned free and clear' },
+        { label: 'Interest Rate', value: hasOwnedMortgage ? percentFormatter.format(input.purchase.existingMortgageRate) : hasOwnedHeloc ? percentFormatter.format(input.purchase.helocRate) : 'N/A' },
+        { label: 'Loan Term', value: hasOwnedMortgage ? `${input.purchase.existingMortgageRemainingYears} years remaining` : hasOwnedHeloc ? `${input.purchase.helocTermYears} years` : 'N/A' },
+        { label: 'Points', value: 'N/A' }
+      ]
+    : [
+        { label: 'Purchase Price', value: formatCurrency(input.purchase.purchasePrice) },
+        { label: 'Rehab Budget', value: formatCurrency(input.purchase.rehabBudget) },
+        { label: 'Loan Type', value: input.purchase.financingType === 'cash' ? 'Cash Purchase' : 'Financed' },
+        { label: 'Interest Rate', value: percentFormatter.format(input.purchase.interestRate) },
+        { label: 'Loan Term', value: `${input.purchase.loanTermYears} years` },
+        { label: 'Points', value: percentFormatter.format(input.purchase.pointsPercent) }
+      ];
 
   return {
     title: 'Deal Summary',
@@ -114,7 +136,7 @@ export const createPdfReportSchema = (
       rows: [
         { label: 'Selected Strategy', value: selectedStrategyLabel },
         { label: 'Cash to Close', value: formatCurrency(cashToCloseValue) },
-        { label: 'Total Cash Invested', value: formatCurrency(strategyOutput.totalCashNeeded) },
+        { label: 'Total Cash Invested', value: formatCurrency(projectionMetrics.totalInvested) },
         { label: 'Cap Rate', value: percentFormatter.format(strategyOutput.capRate) },
         { label: 'Cash-on-Cash Return', value: percentFormatter.format(strategyOutput.cashOnCashReturn) },
         { label: 'DSCR', value: formatDscr(strategyOutput.dscr) }
@@ -155,8 +177,8 @@ export const createPdfReportSchema = (
           label: 'Insurance',
           value: `${formatCurrency(fixedCostBreakdown.insuranceMonthly)} /mo (${formatCurrency(fixedCostBreakdown.insuranceAnnual)} /yr)`
         },
-        { label: 'HOA', value: `${formatCurrency(input.purchase.hoaMonthly)} /mo (${formatCurrency(input.purchase.hoaMonthly * 12)} /yr)` },
-        { label: 'PMI', value: `${formatCurrency(input.purchase.pmiMonthly)} /mo (${formatCurrency(input.purchase.pmiMonthly * 12)} /yr)` },
+        { label: 'HOA', value: `${formatCurrency(fixedCostBreakdown.hoaMonthly)} /mo (${formatCurrency(fixedCostBreakdown.hoaMonthly * 12)} /yr)` },
+        { label: 'PMI', value: `${formatCurrency(fixedCostBreakdown.pmiMonthly)} /mo (${formatCurrency(fixedCostBreakdown.pmiMonthly * 12)} /yr)` },
         {
           label: 'Total Fixed Carry',
           value: `${formatCurrency(fixedCostBreakdown.totalMonthly)} /mo`
@@ -170,25 +192,18 @@ export const createPdfReportSchema = (
           ? [
               ...variableExpenses.map((expense) => ({
                 label: expense.label,
-                value: `${formatCurrency(expense.monthlyAmount)} /mo (${formatCurrency(expense.monthlyAmount * 12)} /yr)`
+                value: `${formatCurrency(Math.max(Number.isFinite(expense.monthlyAmount) ? expense.monthlyAmount : 0, 0))} /mo (${formatCurrency(Math.max(Number.isFinite(expense.monthlyAmount) ? expense.monthlyAmount : 0, 0) * 12)} /yr)`
               })),
               {
                 label: 'Total Variable Expenses',
-                value: `${formatCurrency(variableExpenses.reduce((sum, expense) => sum + expense.monthlyAmount, 0))} /mo`
+                value: `${formatCurrency(variableExpenses.reduce((sum, expense) => sum + Math.max(Number.isFinite(expense.monthlyAmount) ? expense.monthlyAmount : 0, 0), 0))} /mo`
               }
             ]
           : [{ label: 'Variable expenses', value: 'None configured for this strategy' }]
     },
     financingSnapshot: {
       title: 'Financing Snapshot',
-      rows: [
-        { label: 'Purchase Price', value: formatCurrency(input.purchase.purchasePrice) },
-        { label: 'Rehab Budget', value: formatCurrency(input.purchase.rehabBudget) },
-        { label: 'Loan Type', value: input.purchase.financingType === 'cash' ? 'Cash Purchase' : 'Financed' },
-        { label: 'Interest Rate', value: percentFormatter.format(input.purchase.interestRate) },
-        { label: 'Loan Term', value: `${input.purchase.loanTermYears} years` },
-        { label: 'Points', value: percentFormatter.format(input.purchase.pointsPercent) }
-      ]
+      rows: financingRows
     },
     flipAnalysis:
       selectedStrategy === 'flip' && flipMeta
@@ -241,7 +256,7 @@ export const createPdfReportSchema = (
               { label: 'NOI (stabilized)', value: formatCurrency(turnaroundSummary.noiMonthly) },
               { label: 'Cash flow (pre-tax)', value: formatCurrency(turnaroundSummary.cashFlowPreTaxMonthly) },
               { label: 'Cash flow excluding reserves', value: formatCurrency(turnaroundSummary.cashFlowExcludingReservesMonthly) },
-              { label: 'Total cash invested', value: formatCurrency(turnaroundSummary.totalCashInvested) },
+              { label: 'Total cash invested', value: formatCurrency(projectionMetrics.totalInvested) },
               { label: 'DSCR (stabilized)', value: formatDscr(turnaroundSummary.dscr) },
               { label: 'Cap rate (stabilized)', value: percentFormatter.format(turnaroundSummary.capRate) },
               { label: 'Cash-on-cash (stabilized)', value: percentFormatter.format(turnaroundSummary.cashOnCashReturn) },

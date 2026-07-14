@@ -28,7 +28,8 @@ const expectSquareLogoPreview = (metadata: Metadata) => {
 
 describe('DealCooker brand metadata', () => {
   it('uses the purpose-built square Apple touch icon', () => {
-    const appleIcons = rootMetadata.icons && 'apple' in rootMetadata.icons ? rootMetadata.icons.apple : undefined;
+    const icons = rootMetadata.icons;
+    const appleIcons = icons && typeof icons === 'object' && 'apple' in icons ? icons.apple : undefined;
 
     expect(appleIcons).toEqual([
       {

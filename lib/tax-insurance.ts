@@ -39,10 +39,10 @@ export const getModeledAnnualInsurance = (purchase: TaxInsurancePurchaseInput): 
   nonNegativeFiniteOrFallback(purchase.purchasePrice, 0) * resolveInsuranceRatePercent(purchase);
 
 export const getAnnualPropertyTax = (purchase: TaxInsurancePurchaseInput): number =>
-  finiteOrFallback(purchase.propertyTaxAnnualOverride, getModeledAnnualPropertyTax(purchase));
+  nonNegativeFiniteOrFallback(purchase.propertyTaxAnnualOverride, getModeledAnnualPropertyTax(purchase));
 
 export const getAnnualInsurance = (purchase: TaxInsurancePurchaseInput): number =>
-  finiteOrFallback(purchase.insuranceAnnualOverride, getModeledAnnualInsurance(purchase));
+  nonNegativeFiniteOrFallback(purchase.insuranceAnnualOverride, getModeledAnnualInsurance(purchase));
 
 export const getFixedCostBreakdown = (purchase: TaxInsurancePurchaseInput) => {
   const propertyTaxAnnual =
@@ -53,8 +53,8 @@ export const getFixedCostBreakdown = (purchase: TaxInsurancePurchaseInput) => {
     purchase.ownershipMode === 'owned'
       ? nonNegativeFiniteOrFallback(purchase.existingInsuranceMonthly, 0) * 12
       : getAnnualInsurance(purchase);
-  const hoaMonthly = finiteOrFallback(purchase.hoaMonthly, 0);
-  const pmiMonthly = finiteOrFallback(purchase.pmiMonthly, 0);
+  const hoaMonthly = nonNegativeFiniteOrFallback(purchase.hoaMonthly, 0);
+  const pmiMonthly = nonNegativeFiniteOrFallback(purchase.pmiMonthly, 0);
 
   return {
     propertyTaxAnnual,

@@ -1,5 +1,6 @@
 import type { DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { getTotalCashInvested } from '@/lib/projection-metrics';
 
 const labelMap: Record<StrategyKey, string> = {
   purchase: 'Commercial Analysis',
@@ -85,7 +86,7 @@ export function StrategyBreakdown({ data, active }: StrategyBreakdownProps) {
               : undefined
           }
         />
-        <Metric label="Cash needed" value={currencyFormatter.format(output.totalCashNeeded)} />
+        <Metric label="Total invested" value={currencyFormatter.format(getTotalCashInvested(output))} />
         <Metric label="Cash on cash" value={percentFormatter.format(output.cashOnCashReturn)} />
         <Metric label="DSCR" value={output.dscr.toFixed(2)} />
       </div>

@@ -242,6 +242,7 @@ export interface BrrrrInputs {
   rehabOverride: number | null;
   refinanceLtvPercent: number;
   refinanceRate: number;
+  refinanceTermYears: number;
   refinanceClosingCostPercent: number;
   operatingStrategy: BrrrrOperatingStrategy;
 }
@@ -333,6 +334,7 @@ export interface LongTermTurnaroundSummaryOutput {
   roi: number;
   saleProceeds: number;
   cashFlowTimeline: number[];
+  cashFlowEvents: CashFlowEvent[];
   impliedValueAtExitCap: number;
   stabilizedArvOverride: number | null;
   modeledExitValue: number;
@@ -353,6 +355,14 @@ export interface DealInputModel {
   uiState?: DealUiState;
 }
 
+export type CashFlowEventCategory = 'capital' | 'operating' | 'refinance' | 'sale';
+
+export interface CashFlowEvent {
+  month: number;
+  amount: number;
+  category: CashFlowEventCategory;
+}
+
 export interface StrategyOutput {
   strategy: StrategyKey;
   monthlyCashFlow: number;
@@ -368,6 +378,7 @@ export interface StrategyOutput {
   noiMonthly?: number;
   saleProceeds?: number;
   cashFlowTimeline: number[];
+  cashFlowEvents?: CashFlowEvent[];
   calculationBreakdown?: StrategyCalculationBreakdown;
   commercialSummary?: CommercialSummaryOutput;
   longTermTurnaroundSummary?: LongTermTurnaroundSummaryOutput;
@@ -525,6 +536,7 @@ export const defaultDealInput: DealInputModel = {
     rehabOverride: null,
     refinanceLtvPercent: 0.75,
     refinanceRate: 0.065,
+    refinanceTermYears: 30,
     refinanceClosingCostPercent: 0.03,
     operatingStrategy: 'longTerm'
   },

@@ -8,24 +8,50 @@ export const calculateRemainingBalance = (
   elapsedYears: number,
   amortizationType: AmortizationType = 'PI'
 ): number => {
-  if (principal <= 0) return 0;
-  if (amortizationType === 'IO') return principal;
+  const normalizedPrincipal = Math.max(Number.isFinite(principal) ? principal : 0, 0);
+  const normalizedAnnualRate = Math.max(Number.isFinite(annualRate) ? annualRate : 0, 0);
+  const periods = Math.max((Number.isFinite(termYears) ? termYears : 0) * 12, 0);
+  const paidPeriods = Math.min(Math.max((Number.isFinite(elapsedYears) ? elapsedYears : 0) * 12, 0), periods);
 
-  const monthlyRate = annualToMonthlyRate(annualRate);
-  const periods = Math.max(termYears * 12, 1);
-  const paidPeriods = Math.min(Math.max(elapsedYears * 12, 0), periods);
+  if (normalizedPrincipal <= 0 || periods <= 0 || paidPeriods >= periods) return 0;
+  if (amortizationType === 'IO') return normalizedPrincipal;
+
+  const monthlyRate = annualToMonthlyRate(normalizedAnnualRate);
 
   if (monthlyRate === 0) {
-    const paidPrincipal = (principal / periods) * paidPeriods;
-    return Math.max(principal - paidPrincipal, 0);
+    const paidPrincipal = (normalizedPrincipal / periods) * paidPeriods;
+    return Math.max(normalizedPrincipal - paidPrincipal, 0);
   }
 
-  const factor = Math.pow(1 + monthlyRate, periods);
   const factorPaid = Math.pow(1 + monthlyRate, paidPeriods);
-  const numerator = factor - factorPaid;
-  const denominator = factor - 1;
+  const payment = calculateMonthlyPayment(normalizedPrincipal, normalizedAnnualRate, periods / 12);
+  return Math.max(normalizedPrincipal * factorPaid - payment * ((factorPaid - 1) / monthlyRate), 0);
+};
 
-  return principal * (numerator / denominator);
+export const calculateRemainingBalanceWithPayment = (
+  principal: number,
+  annualRate: number,
+  monthlyPayment: number,
+  termYears: number,
+  elapsedYears: number
+): number => {
+  const normalizedPrincipal = Math.max(Number.isFinite(principal) ? principal : 0, 0);
+  const normalizedRate = Math.max(Number.isFinite(annualRate) ? annualRate : 0, 0) / 12;
+  const normalizedPayment = Math.max(Number.isFinite(monthlyPayment) ? monthlyPayment : 0, 0);
+  const termMonths = Math.max(Number.isFinite(termYears) ? termYears : 0, 0) * 12;
+  const elapsedMonths = Math.max(Number.isFinite(elapsedYears) ? elapsedYears : 0, 0) * 12;
+  if (normalizedPrincipal <= 0 || elapsedMonths >= termMonths - 1e-9) return 0;
+
+  let balance = normalizedPrincipal;
+  let remainingMonths = Math.min(elapsedMonths, termMonths);
+  while (remainingMonths > 1e-9 && balance > 1e-9) {
+    const fraction = Math.min(remainingMonths, 1);
+    balance *= 1 + normalizedRate * fraction;
+    balance -= Math.min(normalizedPayment * fraction, balance);
+    remainingMonths -= fraction;
+  }
+
+  return Math.max(balance, 0);
 };
 
 export const getAcquisitionDebtPayoffAtMonth = ({
@@ -55,15 +81,16 @@ export const getAcquisitionDebtPayoffAtMonth = ({
 
   const primaryBalance =
     financingType === 'loan'
-      ? amortizationType === 'IO'
-        ? Math.max(initialLoanAmount, 0)
-        : calculateRemainingBalance(initialLoanAmount, annualRate, termYears, elapsedYears, 'PI')
+      ? calculateRemainingBalance(initialLoanAmount, annualRate, termYears, elapsedYears, amortizationType)
       : 0;
 
-  const helocBalance =
-    helocAmortizationType === 'IO'
-      ? Math.max(helocAmount, 0)
-      : calculateRemainingBalance(Math.max(helocAmount, 0), helocRate, helocTermYears, elapsedYears, 'PI');
+  const helocBalance = calculateRemainingBalance(
+    Math.max(helocAmount, 0),
+    helocRate,
+    helocTermYears,
+    elapsedYears,
+    helocAmortizationType
+  );
 
   return primaryBalance + helocBalance;
 };
@@ -76,10 +103,16 @@ export const estimateSaleProceeds = (
   remainingLoanBalance: number,
   holdYears: number
 ): number => {
-  const baseValue = arv > 0 ? arv : purchasePrice;
-  const salePrice = baseValue * Math.pow(1 + annualAppreciationPercent, holdYears);
-  const sellingCosts = salePrice * sellingCostPercent;
-  return salePrice - sellingCosts - remainingLoanBalance;
+  const normalizedPurchasePrice = Math.max(Number.isFinite(purchasePrice) ? purchasePrice : 0, 0);
+  const normalizedArv = Math.max(Number.isFinite(arv) ? arv : 0, 0);
+  const normalizedAppreciation = Math.max(Number.isFinite(annualAppreciationPercent) ? annualAppreciationPercent : 0, -0.999999);
+  const normalizedSellingCosts = Math.min(Math.max(Number.isFinite(sellingCostPercent) ? sellingCostPercent : 0, 0), 1);
+  const normalizedBalance = Math.max(Number.isFinite(remainingLoanBalance) ? remainingLoanBalance : 0, 0);
+  const normalizedHoldYears = Math.max(Number.isFinite(holdYears) ? holdYears : 0, 0);
+  const baseValue = normalizedArv > 0 ? normalizedArv : normalizedPurchasePrice;
+  const salePrice = baseValue * Math.pow(1 + normalizedAppreciation, normalizedHoldYears);
+  const sellingCosts = salePrice * normalizedSellingCosts;
+  return salePrice - sellingCosts - normalizedBalance;
 };
 
 export const buildTimeline = (
@@ -241,28 +274,31 @@ export const buildExcelParityAnnualTimeline = ({
 };
 
 export const calcTotalRoiFromTimeline = (timeline: number[]): number => {
-  if (timeline.length === 0) return 0;
+  if (timeline.length === 0 || timeline.some((flow) => !Number.isFinite(flow))) return 0;
+  const firstMaterialFlow = timeline.find((flow) => Math.abs(flow) > 1e-9);
+  if (firstMaterialFlow === undefined || firstMaterialFlow > 0) return 0;
 
-  const initialOutflowAbs = Math.abs(timeline[0] ?? 0);
-  if (initialOutflowAbs === 0) return 0;
+  const totalInvested = timeline.reduce((sum, flow) => sum + (flow < 0 ? -flow : 0), 0);
+  if (totalInvested <= 1e-9) return 0;
 
   const totalProfit = timeline.reduce((sum, flow) => sum + flow, 0);
-  return totalProfit / initialOutflowAbs;
+  return totalProfit / totalInvested;
 };
 
-const calculateNpv = (cashFlows: number[], rate: number): number => {
+const calculateNpv = (cashFlows: number[], rate: number, times?: number[]): number => {
   if (rate < -0.9999) return Number.NaN;
 
   let npv = 0;
   for (let t = 0; t < cashFlows.length; t += 1) {
-    npv += cashFlows[t] / Math.pow(1 + rate, t);
+    npv += cashFlows[t] / Math.pow(1 + rate, times?.[t] ?? t);
   }
 
   return npv;
 };
 
-export const calculateIrr = (cashFlows: number[]): number => {
-  if (cashFlows.length < 2) return 0;
+export const calculateIrrForTimes = (cashFlows: number[], times: number[]): number => {
+  if (cashFlows.length < 2 || times.length !== cashFlows.length) return 0;
+  if (times.some((time, index) => !Number.isFinite(time) || time < 0 || (index > 0 && time <= times[index - 1]!))) return 0;
 
   const hasPositive = cashFlows.some((flow) => flow > 0);
   const hasNegative = cashFlows.some((flow) => flow < 0);
@@ -270,52 +306,68 @@ export const calculateIrr = (cashFlows: number[]): number => {
   if (!hasPositive || !hasNegative) return 0;
 
   const minRate = -0.9999;
-  const maxRate = 10;
+  const maxScanRate = 10;
+  const maxExpansionRate = 1_000_000;
   const scanStep = 0.01;
 
   let lowerRate = minRate;
-  let lowerNpv = calculateNpv(cashFlows, lowerRate);
+  let lowerNpv = calculateNpv(cashFlows, lowerRate, times);
 
-  if (!Number.isFinite(lowerNpv)) {
-    return 0;
-  }
+  if (!Number.isFinite(lowerNpv)) return 0;
 
-  for (let rate = minRate + scanStep; rate <= maxRate; rate += scanStep) {
-    const upperNpv = calculateNpv(cashFlows, rate);
-    if (!Number.isFinite(upperNpv)) continue;
+  const solveBracket = (leftRate: number, rightRate: number, leftValue: number) => {
+    let left = leftRate;
+    let right = rightRate;
+    let leftNpv = leftValue;
 
-    if (upperNpv === 0) return rate;
+    for (let i = 0; i < 200; i += 1) {
+      const mid = (left + right) / 2;
+      const midNpv = calculateNpv(cashFlows, mid, times);
 
-    if (lowerNpv === 0) return lowerRate;
+      if (!Number.isFinite(midNpv)) return 0;
+      if (Math.abs(midNpv) < 1e-10 || Math.abs(right - left) < 1e-10) return mid;
 
-    if (lowerNpv * upperNpv < 0) {
-      let left = lowerRate;
-      let right = rate;
-      let leftNpv = lowerNpv;
-
-      for (let i = 0; i < 200; i += 1) {
-        const mid = (left + right) / 2;
-        const midNpv = calculateNpv(cashFlows, mid);
-
-        if (!Number.isFinite(midNpv)) return 0;
-        if (Math.abs(midNpv) < 1e-10 || Math.abs(right - left) < 1e-10) {
-          return mid;
-        }
-
-        if (leftNpv * midNpv < 0) {
-          right = mid;
-        } else {
-          left = mid;
-          leftNpv = midNpv;
-        }
+      if (leftNpv * midNpv < 0) {
+        right = mid;
+      } else {
+        left = mid;
+        leftNpv = midNpv;
       }
-
-      return (left + right) / 2;
     }
+
+    return (left + right) / 2;
+  };
+
+  const scanRate = (rate: number) => {
+    const upperNpv = calculateNpv(cashFlows, rate, times);
+    if (!Number.isFinite(upperNpv)) return null;
+    if (Math.abs(upperNpv) < 1e-10) return rate;
+    if (Math.abs(lowerNpv) < 1e-10) return lowerRate;
+    if (lowerNpv * upperNpv < 0) return solveBracket(lowerRate, rate, lowerNpv);
 
     lowerRate = rate;
     lowerNpv = upperNpv;
+    return null;
+  };
+
+  for (let rate = minRate + scanStep; rate < maxScanRate; rate += scanStep) {
+    const solvedRate = scanRate(rate);
+    if (solvedRate !== null) return solvedRate;
+  }
+
+  const maxScanSolution = scanRate(maxScanRate);
+  if (maxScanSolution !== null) return maxScanSolution;
+
+  for (let rate = maxScanRate * 2 + 1; rate <= maxExpansionRate; rate = rate * 2 + 1) {
+    const solvedRate = scanRate(rate);
+    if (solvedRate !== null) return solvedRate;
   }
 
   return 0;
 };
+
+export const calculateIrr = (cashFlows: number[]): number =>
+  calculateIrrForTimes(
+    cashFlows,
+    cashFlows.map((_, index) => index)
+  );

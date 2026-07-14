@@ -431,6 +431,12 @@ export function StrategyModuleInputs({
             />
             <PercentInput label="Refi target LTV %" value={model.brrrr.refinanceLtvPercent} onChange={(v) => update('brrrr', 'refinanceLtvPercent', v)} />
             <PercentInput label="Refi rate %" value={model.brrrr.refinanceRate} onChange={(v) => update('brrrr', 'refinanceRate', v)} />
+            <Input
+              label="Refi amortization (years)"
+              type="number"
+              value={model.brrrr.refinanceTermYears ?? 30}
+              onChange={(v) => update('brrrr', 'refinanceTermYears', Number(v))}
+            />
             <PercentInput
               label="Refi closing %"
               value={model.brrrr.refinanceClosingCostPercent}

@@ -22,12 +22,10 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
   const flip = calculateFlipStrategy(input, purchase.totalCashNeeded);
 
   const strategyCashFlows = [
-    purchase.monthlyCashFlow,
     longTerm.monthlyCashFlow,
     airbnb.monthlyCashFlow,
     padSplit.monthlyCashFlow,
-    brrrr.monthlyCashFlow,
-    flip.monthlyCashFlow
+    brrrr.monthlyCashFlow
   ];
   const bestMonthlyCashFlow = Math.max(...strategyCashFlows);
 
@@ -48,16 +46,9 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
   const summary = {
     cashToClose,
     monthlyCashFlow: bestMonthlyCashFlow,
-    cashOnCashReturn: Math.max(
-      purchase.cashOnCashReturn,
-      longTerm.cashOnCashReturn,
-      airbnb.cashOnCashReturn,
-      padSplit.cashOnCashReturn,
-      brrrr.cashOnCashReturn,
-      flip.cashOnCashReturn
-    ),
-    roi: Math.max(purchase.roi, longTerm.roi, airbnb.roi, padSplit.roi, brrrr.roi, flip.roi),
-    irr: Math.max(purchase.irr, longTerm.irr, airbnb.irr, padSplit.irr, brrrr.irr, flip.irr)
+    cashOnCashReturn: Math.max(longTerm.cashOnCashReturn, airbnb.cashOnCashReturn, padSplit.cashOnCashReturn, brrrr.cashOnCashReturn),
+    roi: Math.max(longTerm.roi, airbnb.roi, padSplit.roi, brrrr.roi),
+    irr: Math.max(longTerm.irr, airbnb.irr, padSplit.irr, brrrr.irr)
   };
 
   return {

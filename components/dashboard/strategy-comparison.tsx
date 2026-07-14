@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import type { DealInputModel, DealResult, StrategyKey } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
-import { getProjectionMetrics } from '@/lib/projection-metrics';
+import { annualizeCashFlowTotal, getProjectionMetrics } from '@/lib/projection-metrics';
 import { useFloatingTooltipPosition } from '@/lib/use-floating-tooltip-position';
 import { useModalFocus } from '@/lib/use-modal-focus';
 
@@ -65,7 +65,6 @@ export function StrategyComparison({
       label: getStrategyLabel(strategy, data)
     }));
   }, [data, visibleStrategies]);
-  const maxCashFlowMagnitude = Math.max(...rows.map((row) => Math.abs(data[row.key].monthlyCashFlow)), 1);
 
   useEffect(() => {
     setIsBoardOpen(lockBoardOpen ? true : defaultBoardOpen);
@@ -96,12 +95,39 @@ export function StrategyComparison({
       const output = data[row.key];
       const projectionMetrics = getProjectionMetrics(output, holdYears, input);
       const points = output.cashFlowTimeline.map((value, index) => ({ year: index, value }));
+      const modeledHoldMonths =
+        output.strategy === 'flip'
+          ? Math.max(output.calculationBreakdown?.flipMeta?.holdingMonths ?? holdYears * 12, 0)
+          : Math.max(holdYears * 12, 0);
+      const eventChartPoints = output.cashFlowEvents?.length
+        ? Array.from({ length: Math.max(Math.ceil(modeledHoldMonths / 12), 1) }, (_, index) => {
+            const startMonth = index * 12;
+            const endMonth = Math.min((index + 1) * 12, modeledHoldMonths);
+            return {
+              year: index + 1,
+              value:
+                output.cashFlowEvents?.reduce(
+                  (sum, event) =>
+                    sum +
+                    (event.category === 'operating' && event.month > startMonth && event.month <= endMonth + 1e-9
+                      ? event.amount
+                      : 0),
+                  0
+                ) ?? 0
+            };
+          })
+        : null;
       const cashFlowOnlyPoints = points.slice(1).map((point, index, array) => ({
         ...point,
         value: index === array.length - 1 ? point.value - projectionMetrics.exitCashReturned : point.value
       }));
-      const chartPoints = cashFlowOnlyPoints.length > 0 ? cashFlowOnlyPoints : points.slice(0, 1);
+      const chartPoints =
+        eventChartPoints ?? (cashFlowOnlyPoints.length > 0 ? cashFlowOnlyPoints : points.slice(0, 1));
       const operatingMaxAbs = Math.max(...chartPoints.map((point) => Math.abs(point.value)), 1);
+      const monthlyOperatingResult =
+        output.strategy === 'flip'
+          ? chartPoints.reduce((sum, point) => sum + point.value, 0) / Math.max(modeledHoldMonths, 1)
+          : output.monthlyCashFlow;
 
       return {
         key: row.key,
@@ -109,16 +135,19 @@ export function StrategyComparison({
         points,
         chartPoints,
         operatingMaxAbs,
+        monthlyOperatingResult,
+        modeledHoldYears: projectionMetrics.holdMonths / 12,
       };
     });
   }, [data, holdYears, input, rows]);
+  const maxCashFlowMagnitude = Math.max(...cashFlowRows.map((row) => Math.abs(row.monthlyOperatingResult)), 1);
   const expandedCashFlowRow = expandedCashFlowKey ? cashFlowRows.find((row) => row.key === expandedCashFlowKey) ?? null : null;
   const expandedCashFlowStats = useMemo(() => {
     if (!expandedCashFlowRow || expandedCashFlowRow.chartPoints.length === 0) return null;
 
     const points = expandedCashFlowRow.chartPoints;
     const total = points.reduce((sum, point) => sum + point.value, 0);
-    const average = total / points.length;
+    const average = annualizeCashFlowTotal(total, expandedCashFlowRow.modeledHoldYears);
     const best = points.reduce((currentBest, point) => (point.value > currentBest.value ? point : currentBest), points[0]);
     const worst = points.reduce((currentWorst, point) => (point.value < currentWorst.value ? point : currentWorst), points[0]);
     const firstPositive = points.find((point) => point.value > 0) ?? null;
@@ -148,8 +177,8 @@ export function StrategyComparison({
         const cashFlowRow = cashFlowRows.find((entry) => entry.key === row.key);
         if (!equityRow || !cashFlowRow) return null;
 
-        const barWidth = Math.min((Math.abs(output.monthlyCashFlow) / maxCashFlowMagnitude) * 100, 100);
-        const isPositive = output.monthlyCashFlow >= 0;
+        const barWidth = Math.min((Math.abs(cashFlowRow.monthlyOperatingResult) / maxCashFlowMagnitude) * 100, 100);
+        const isPositive = cashFlowRow.monthlyOperatingResult >= 0;
 
         return (
           <article
@@ -165,9 +194,9 @@ export function StrategyComparison({
                     <p className="dashboard-kicker text-accent/90">{row.label}</p>
                     <p
                       className={`mt-1 text-2xl font-semibold leading-none tracking-tight sm:mt-2 sm:text-[2rem] ${isPositive ? 'text-emerald-300' : 'text-slate-100'}`}
-                      style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+                      style={getNegativeValueStyle(cashFlowRow.monthlyOperatingResult, { kind: 'currency' })}
                     >
-                      {currencyFormatter.format(output.monthlyCashFlow)}
+                      {currencyFormatter.format(cashFlowRow.monthlyOperatingResult)}
                     </p>
                     <p className="mt-1 text-xs text-muted">Monthly operating result</p>
                   </div>
@@ -306,8 +335,10 @@ export function StrategyComparison({
 
       {rows.map((row) => {
         const output = data[row.key];
-        const barWidth = Math.min((Math.abs(output.monthlyCashFlow) / maxCashFlowMagnitude) * 100, 100);
-        const isPositive = output.monthlyCashFlow >= 0;
+        const cashFlowRow = cashFlowRows.find((entry) => entry.key === row.key);
+        if (!cashFlowRow) return null;
+        const barWidth = Math.min((Math.abs(cashFlowRow.monthlyOperatingResult) / maxCashFlowMagnitude) * 100, 100);
+        const isPositive = cashFlowRow.monthlyOperatingResult >= 0;
 
         return (
           <div
@@ -318,9 +349,9 @@ export function StrategyComparison({
               <p className="min-w-0 text-sm font-medium">{row.label}</p>
               <p
                 className={`text-sm font-semibold sm:text-base ${isPositive ? 'text-emerald-300' : 'text-slate-200'}`}
-                style={getNegativeValueStyle(output.monthlyCashFlow, { kind: 'currency' })}
+                style={getNegativeValueStyle(cashFlowRow.monthlyOperatingResult, { kind: 'currency' })}
               >
-                {currencyFormatter.format(output.monthlyCashFlow)}
+                {currencyFormatter.format(cashFlowRow.monthlyOperatingResult)}
                 <span className="ml-1 text-xs text-muted">/mo</span>
               </p>
             </div>

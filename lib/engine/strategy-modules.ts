@@ -1,9 +1,9 @@
 import {
   calculateRemainingBalance,
   calcTotalRoiFromTimeline,
-  calculateIrr
+  calculateIrrForTimes
 } from '@/lib/engine/investment-math';
-import type { DealInputModel, ExpenseStrategyKey, LongTermTurnaroundSummaryOutput, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
+import type { CashFlowEvent, DealInputModel, ExpenseStrategyKey, LongTermTurnaroundSummaryOutput, StrategyCalculationLineItem, StrategyOutput } from '@/lib/models/deal';
 import { calculateAcquisitionDebtService, calculateCashToClose, calculateInterestOnlyPayment, calculateLoanAmount, calculateMonthlyPayment } from '@/lib/engine/finance';
 import { getMonthlyFixedCosts as getPurchaseMonthlyFixedCosts } from '@/lib/tax-insurance';
 
@@ -39,19 +39,20 @@ interface LeveredTimelineInput {
   annualOperatingExpensesYear1: number;
   annualNoiForYear?: (yearIndex: number) => number;
   arv: number;
+  appreciationDelayYears?: number;
   revenueGrowthRate: number;
   expenseGrowthRate: number;
   debts: TimelineDebtInput[];
 }
 
-const clampPercent = (value: number) => Math.min(Math.max(value, 0), 1);
-const clampGrowthRate = (value: number) => Math.min(Math.max(value, -0.95), 1);
+const clampPercent = (value: number) => Math.min(Math.max(Number.isFinite(value) ? value : 0, 0), 1);
+const clampGrowthRate = (value: number) => Math.min(Math.max(Number.isFinite(value) ? value : 0, -0.95), 1);
 
 const getPurchaseLoanTerms = (input: DealInputModel) => {
   const { purchase } = input;
 
   return calculateAcquisitionDebtService({
-    financingType: purchase.financingType,
+    financingType: purchase.ownershipMode === 'owned' ? 'cash' : purchase.financingType,
     amortizationType: purchase.amortizationType,
     purchasePrice: purchase.purchasePrice,
     downPaymentPercent: purchase.downPaymentPercent,
@@ -74,7 +75,7 @@ const getMonthlyFixedCosts = (input: DealInputModel): number => {
 
 const getVariableExpenseTotal = (input: DealInputModel, strategy: ExpenseStrategyKey): number => {
   return input.variableExpenses.reduce((sum, expense) => {
-    return expense.appliesTo[strategy] ? sum + expense.monthlyAmount : sum;
+    return expense.appliesTo[strategy] ? sum + Math.max(Number.isFinite(expense.monthlyAmount) ? expense.monthlyAmount : 0, 0) : sum;
   }, 0);
 };
 
@@ -120,7 +121,12 @@ const getTotalProjectBasis = (input: DealInputModel, additionalCapital = 0): num
   const ownedAdditionalCapital =
     input.purchase.ownershipMode === 'owned' ? Math.max(input.purchase.ownedAdditionalInvested, 0) : 0;
 
-  return getAcquisitionBasisPrice(input) + ownedAdditionalCapital + Math.max(additionalCapital, 0);
+  return (
+    getAcquisitionBasisPrice(input) +
+    Math.max(input.purchase.rehabBudget, 0) +
+    ownedAdditionalCapital +
+    Math.max(additionalCapital, 0)
+  );
 };
 
 const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput[] => {
@@ -184,12 +190,74 @@ const getDebtMonthlyPayment = (debt: TimelineDebtInput): number => {
   return calculateMonthlyPayment(debt.principal, debt.annualRate, debt.termMonths / 12);
 };
 
+interface CustomPaymentScheduleResult {
+  balance: number;
+  scheduledPayments: number;
+}
+
+const getCustomPaymentSchedule = (debt: TimelineDebtInput, elapsedMonths: number): CustomPaymentScheduleResult => {
+  const principal = Math.max(debt.principal, 0);
+  const monthlyPayment = Math.max(debt.monthlyPaymentOverride ?? 0, 0);
+  const monthlyRate = Math.max(debt.annualRate, 0) / 12;
+  const activeMonths = Math.min(Math.max(elapsedMonths, 0), Math.max(debt.termMonths, 0));
+  let balance = principal;
+  let scheduledPayments = 0;
+  let monthCursor = 0;
+
+  if (principal <= 0) return { balance: 0, scheduledPayments: monthlyPayment * activeMonths };
+
+  while (balance > 1e-9 && monthCursor < activeMonths - 1e-9) {
+    const monthFraction = Math.min(1, activeMonths - monthCursor);
+    const amountDue = balance * (1 + monthlyRate * monthFraction);
+    const payment = Math.min(monthlyPayment * monthFraction, amountDue);
+    balance = Math.max(amountDue - payment, 0);
+    scheduledPayments += payment;
+    monthCursor += monthFraction;
+  }
+
+  return { balance, scheduledPayments };
+};
+
+const getPiBalanceAfterMonths = (debt: TimelineDebtInput, elapsedMonths: number): number => {
+  const principal = Math.max(debt.principal, 0);
+  const months = Math.min(Math.max(elapsedMonths, 0), Math.max(debt.termMonths, 0));
+
+  if (principal <= 0) return 0;
+  if (debt.monthlyPaymentOverride !== undefined) return getCustomPaymentSchedule(debt, months).balance;
+
+  return calculateRemainingBalance(principal, debt.annualRate, debt.termMonths / 12, months / 12, 'PI');
+};
+
 const getDebtRemainingBalanceAtHold = (debt: TimelineDebtInput, holdYears: number): number => {
   if (debt.terminalBalanceOverride !== undefined) return Math.max(debt.terminalBalanceOverride, 0);
   if (debt.principal <= 0) return 0;
+  const elapsedMonths = Math.max(holdYears, 0) * 12;
+  if (elapsedMonths >= debt.termMonths - 1e-9) return 0;
   if (debt.amortizationType === 'IO') return debt.principal;
 
-  return calculateRemainingBalance(debt.principal, debt.annualRate, debt.termMonths / 12, holdYears, 'PI');
+  return getPiBalanceAfterMonths(debt, elapsedMonths);
+};
+
+const getDebtServiceThroughMonth = (debt: TimelineDebtInput, elapsedMonths: number): number => {
+  const activeMonths = Math.min(Math.max(elapsedMonths, 0), Math.max(debt.termMonths, 0));
+  const reachesMaturity = elapsedMonths >= debt.termMonths - 1e-9;
+
+  if (debt.monthlyPaymentOverride !== undefined) {
+    const schedule = getCustomPaymentSchedule(debt, activeMonths);
+    return schedule.scheduledPayments + (reachesMaturity ? schedule.balance : 0);
+  }
+
+  const scheduledPayments = getDebtMonthlyPayment(debt) * activeMonths;
+  if (!reachesMaturity || debt.principal <= 0) return scheduledPayments;
+
+  const maturityPayoff = debt.amortizationType === 'IO' ? debt.principal : getPiBalanceAfterMonths(debt, debt.termMonths);
+  return scheduledPayments + maturityPayoff;
+};
+
+const getDebtServiceForPeriod = (debt: TimelineDebtInput, startMonth: number, endMonth: number): number => {
+  const normalizedStart = Math.max(startMonth, 0);
+  const normalizedEnd = Math.max(endMonth, normalizedStart);
+  return Math.max(getDebtServiceThroughMonth(debt, normalizedEnd) - getDebtServiceThroughMonth(debt, normalizedStart), 0);
 };
 
 const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit'): number => {
@@ -247,6 +315,7 @@ const buildLeveredTimeline = ({
   annualOperatingExpensesYear1,
   annualNoiForYear,
   arv,
+  appreciationDelayYears = 0,
   revenueGrowthRate,
   expenseGrowthRate,
   debts
@@ -257,15 +326,17 @@ const buildLeveredTimeline = ({
   const partialYear = holdYears - fullYears;
   const revenueGrowth = clampGrowthRate(revenueGrowthRate);
   const expenseGrowth = clampGrowthRate(expenseGrowthRate);
-  const annualDebtService = debts.reduce((sum, debt) => sum + getDebtMonthlyPayment(debt) * 12, 0);
+  const appreciationGrowth = clampGrowthRate(assumptions.annualAppreciationPercent);
+  const sellingCostPercent = clampPercent(assumptions.sellingCostPercent);
   const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
 
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
   const baseValue = arv > 0 ? arv : acquisitionBasisPrice;
-  const terminalPropertyValue = holdYears > 0 ? baseValue * Math.pow(1 + assumptions.annualAppreciationPercent, holdYears) : baseValue;
-  const saleProceeds = terminalPropertyValue * (1 - assumptions.sellingCostPercent) - remainingLoanBalance;
+  const appreciationYears = Math.max(holdYears - Math.max(appreciationDelayYears, 0), 0);
+  const terminalPropertyValue = appreciationYears > 0 ? baseValue * Math.pow(1 + appreciationGrowth, appreciationYears) : baseValue;
+  const saleProceeds = terminalPropertyValue * (1 - sellingCostPercent) - remainingLoanBalance;
 
-  const timeline = [-Math.abs(totalCashNeeded)];
+  const timeline = [-Math.max(totalCashNeeded, 0)];
   const getAnnualNoi = (yearIndex: number) => {
     if (annualNoiForYear) return annualNoiForYear(yearIndex);
 
@@ -273,15 +344,43 @@ const buildLeveredTimeline = ({
     const expensesForYear = annualOperatingExpensesYear1 * Math.pow(1 + expenseGrowth, yearIndex);
     return revenueForYear - expensesForYear;
   };
+  const cashFlowEvents: CashFlowEvent[] = [
+    { month: 0, amount: -Math.max(totalCashNeeded, 0), category: 'capital' }
+  ];
+  const holdMonths = holdYears * 12;
+
+  for (let startMonth = 0; startMonth < holdMonths - 1e-9; ) {
+    const endMonth = Math.min(startMonth + 1, holdMonths);
+    const elapsedMonths = endMonth - startMonth;
+    const yearIndex = Math.floor((startMonth + 1e-9) / 12);
+    const operatingCashFlow =
+      (getAnnualNoi(yearIndex) / 12) * elapsedMonths -
+      debts.reduce((sum, debt) => sum + getDebtServiceForPeriod(debt, startMonth, endMonth), 0);
+    cashFlowEvents.push({ month: endMonth, amount: operatingCashFlow, category: 'operating' });
+    startMonth = endMonth;
+  }
+  cashFlowEvents.push({ month: holdMonths, amount: saleProceeds, category: 'sale' });
+
+  const timedCashFlows = new Map<number, number>();
+  cashFlowEvents.forEach((event) => timedCashFlows.set(event.month, (timedCashFlows.get(event.month) ?? 0) + event.amount));
+  const timedEntries = [...timedCashFlows.entries()].sort(([left], [right]) => left - right);
+  const eventAmounts = cashFlowEvents.map((event) => event.amount);
 
   for (let year = 1; year <= fullYears; year += 1) {
     const annualNoi = getAnnualNoi(year - 1);
-    timeline.push(annualNoi - annualDebtService);
+    const debtServiceForYear = debts.reduce(
+      (sum, debt) => sum + getDebtServiceForPeriod(debt, (year - 1) * 12, year * 12),
+      0
+    );
+    timeline.push(annualNoi - debtServiceForYear);
   }
 
   if (partialYear > 0) {
     const partialNoi = getAnnualNoi(fullYears) * partialYear;
-    const partialDebtService = annualDebtService * partialYear;
+    const partialDebtService = debts.reduce(
+      (sum, debt) => sum + getDebtServiceForPeriod(debt, fullYears * 12, holdYears * 12),
+      0
+    );
     timeline.push(partialNoi - partialDebtService + saleProceeds);
   } else if (fullYears > 0) {
     timeline[fullYears] += saleProceeds;
@@ -291,9 +390,13 @@ const buildLeveredTimeline = ({
 
   return {
     timeline,
+    cashFlowEvents,
     saleProceeds,
-    irr: calculateIrr(timeline),
-    roi: calcTotalRoiFromTimeline(timeline)
+    irr: calculateIrrForTimes(
+      timedEntries.map(([, amount]) => amount),
+      timedEntries.map(([month]) => month / 12)
+    ),
+    roi: calcTotalRoiFromTimeline(eventAmounts)
   };
 };
 
@@ -389,6 +492,7 @@ const calculateLongTermTurnaroundSummary = (
       return annualNoi * Math.pow(1 + noiGrowthRate, yearIndex - 1);
     },
     arv: timelineArv,
+    appreciationDelayYears: 1,
     revenueGrowthRate: noiGrowthRate,
     expenseGrowthRate: noiGrowthRate,
     debts: buildAcquisitionTimelineDebts(input)
@@ -430,6 +534,7 @@ const calculateLongTermTurnaroundSummary = (
     roi: timelineData.roi,
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
+    cashFlowEvents: timelineData.cashFlowEvents,
     impliedValueAtExitCap,
     stabilizedArvOverride,
     modeledExitValue,
@@ -526,6 +631,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
     roi: timelineData.roi,
     irr: timelineData.irr,
     cashFlowTimeline: timelineData.timeline,
+    cashFlowEvents: timelineData.cashFlowEvents,
     saleProceeds: timelineData.saleProceeds,
     noiMonthly,
     notes: `Leased ${occupiedSqft.toLocaleString()} of ${grossLeasableAreaSqft.toLocaleString()} sq ft (${(occupancyBySqft * 100).toFixed(
@@ -664,6 +770,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   const outputNoiMonthly = turnaroundSummary?.noiMonthly ?? noi;
   const outputTotalCashNeeded = turnaroundSummary?.totalCashInvested ?? purchaseCashNeeded;
   const outputTimeline = turnaroundSummary?.cashFlowTimeline ?? timelineData.timeline;
+  const outputCashFlowEvents = turnaroundSummary?.cashFlowEvents ?? timelineData.cashFlowEvents;
   const outputSaleProceeds = turnaroundSummary?.saleProceeds ?? timelineData.saleProceeds;
 
   return {
@@ -680,6 +787,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     irr: turnaroundSummary?.irr ?? timelineData.irr,
     saleProceeds: outputSaleProceeds,
     cashFlowTimeline: outputTimeline,
+    cashFlowEvents: outputCashFlowEvents,
     notes: turnaroundSummary
       ? 'Buy-then-stabilize mode enabled: headline metrics show stabilized run-rate outputs, while IRR/ROI include the first 12 months from regular Long-Term inputs before stabilization.'
       : base.notes,
@@ -778,6 +886,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
+    cashFlowEvents: timelineData.cashFlowEvents,
     calculationBreakdown: {
       lines: [
         ...(annualRevenueOverrideMonthly
@@ -908,6 +1017,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
+    cashFlowEvents: timelineData.cashFlowEvents,
     calculationBreakdown: {
       lines: [
         ...(annualRevenueOverrideMonthly
@@ -962,8 +1072,14 @@ export const calculateBrrrrStrategy = (
   const fixedCosts = getMonthlyFixedCosts(input);
   const purchaseLoanTerms = getPurchaseLoanTerms(input);
   const acquisitionDebtService = purchaseLoanTerms.debtService;
-  const initialLoanPayoff = purchaseLoanTerms.primaryPrincipal;
-  const holdingMonths = Math.max(brrrr.holdingMonths, 0);
+  const requestedRefiMonth = Math.max(brrrr.holdingMonths, 0);
+  const totalHoldMonths = Math.max(input.assumptions.holdYears, 0) * 12;
+  const willRefinance = requestedRefiMonth <= totalHoldMonths + 1e-9;
+  const refiMonth = willRefinance ? requestedRefiMonth : totalHoldMonths;
+  const acquisitionDebts = buildAcquisitionTimelineDebts(input);
+  const initialLoanPayoff = willRefinance
+    ? acquisitionDebts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, refiMonth / 12), 0)
+    : 0;
   const purchaseCashComponent =
     purchase.ownershipMode === 'owned'
       ? 0
@@ -980,65 +1096,176 @@ export const calculateBrrrrStrategy = (
   const monthlyHoldingExpenses = Math.max(brrrr.holdingExpensesMonthly, 0);
   const brrrrPurchaseCashNeeded =
     purchase.ownershipMode === 'owned'
-      ? Math.max(purchaseCashNeeded, 0) + Math.max(brrrrRehabBudget, 0)
-      : Math.max(purchaseCashNeeded - Math.max(purchase.rehabBudget, 0) + Math.max(brrrrRehabBudget, 0), 0);
-  const totalHoldingCosts = holdingMonths * (monthlyHoldingExpenses + fixedCosts + strategyVariableCosts + acquisitionDebtService);
-  const investedAtPurchase = brrrrPurchaseCashNeeded + totalHoldingCosts + setupCostOneTime;
-  const refiLoanAmount = (brrrrArv || 0) * brrrr.refinanceLtvPercent;
-  const refiClosingCosts = refiLoanAmount * brrrr.refinanceClosingCostPercent;
-  const cashBackAtRefiNet = refiLoanAmount - refiClosingCosts - initialLoanPayoff;
+      ? Math.max(purchase.ownedMoneyDown, 0) +
+        Math.max(purchase.ownedAdditionalInvested, 0) +
+        helocClosingCosts +
+        Math.max(brrrrRehabBudget - Math.max(purchase.helocAmount, 0), 0)
+      : calculateCashToClose(
+          purchase.purchasePrice,
+          brrrrRehabBudget,
+          purchase.downPaymentPercent,
+          purchase.closingCostPercent,
+          purchase.pointsPercent,
+          purchase.financingType,
+          purchase.helocAmount,
+          purchase.helocClosingCosts
+        );
+  const monthlyPreRefiOperatingCost = monthlyHoldingExpenses + fixedCosts + strategyVariableCosts;
+  const totalHoldingCosts =
+    refiMonth * monthlyPreRefiOperatingCost +
+    acquisitionDebts.reduce((sum, debt) => sum + getDebtServiceForPeriod(debt, 0, refiMonth), 0);
+  const initialCashAtPurchase = brrrrPurchaseCashNeeded + setupCostOneTime;
+  const investedAtPurchase = initialCashAtPurchase + totalHoldingCosts;
+  const refiLoanAmount = willRefinance ? Math.max(brrrrArv || 0, 0) * clampPercent(brrrr.refinanceLtvPercent) : 0;
+  const refiClosingCosts = refiLoanAmount * clampPercent(brrrr.refinanceClosingCostPercent);
+  const cashBackAtRefiNet = willRefinance ? refiLoanAmount - refiClosingCosts - initialLoanPayoff : 0;
   const investedAfterRefi = investedAtPurchase - cashBackAtRefiNet;
+  const cashLeftInDeal = Math.max(investedAfterRefi, 0);
 
-  const refinanceDebt = calculateMonthlyPayment(refiLoanAmount, brrrr.refinanceRate, purchase.loanTermYears);
-  const monthly = selectedOperatingNoi - refinanceDebt;
+  const refiDebt: TimelineDebtInput = {
+    principal: refiLoanAmount,
+    annualRate: Math.max(brrrr.refinanceRate, 0),
+    termMonths: Math.max(brrrr.refinanceTermYears ?? 30, 1) * 12,
+    amortizationType: 'PI'
+  };
+  const refinanceDebt = willRefinance ? getDebtMonthlyPayment(refiDebt) : 0;
+  const monthly = willRefinance ? selectedOperatingNoi - refinanceDebt : -monthlyPreRefiOperatingCost - acquisitionDebtService;
   const annual = monthly * 12;
-  const annualNoi = selectedOperatingNoi * 12;
-  const timelineData = buildLeveredTimeline({
-    input,
-    totalCashNeeded: investedAfterRefi,
-    annualRevenueYear1: annualNoi,
-    annualOperatingExpensesYear1: 0,
-    arv: brrrrArv,
-    revenueGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
-    expenseGrowthRate: clampGrowthRate(input.assumptions.noiGrowthPercent),
-    debts: [
-      {
-        principal: refiLoanAmount,
-        annualRate: brrrr.refinanceRate,
-        termMonths: purchase.loanTermYears * 12,
-        amortizationType: 'PI'
-      }
-    ]
-  });
+  const modeledOperatingNoi = willRefinance ? selectedOperatingNoi : 0;
+  const modeledDebtService = willRefinance ? refinanceDebt : acquisitionDebtService;
+  const postRefiMonths = Math.max(totalHoldMonths - refiMonth, 0);
+  const noiGrowth = clampGrowthRate(input.assumptions.noiGrowthPercent);
+  const appreciation = clampGrowthRate(input.assumptions.annualAppreciationPercent);
+  const sellingCostPercent = clampPercent(input.assumptions.sellingCostPercent);
+  const estimatedSalePrice = Math.max(brrrrArv || 0, 0) * Math.pow(1 + appreciation, postRefiMonths / 12);
+  const remainingDebtAtSale = willRefinance
+    ? getDebtRemainingBalanceAtHold(refiDebt, postRefiMonths / 12)
+    : acquisitionDebts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, totalHoldMonths / 12), 0);
+  const saleProceeds = estimatedSalePrice * (1 - sellingCostPercent) - remainingDebtAtSale;
+
+  const getPostRefiOperatingCashFlow = (startMonth: number, endMonth: number): number => {
+    let cashFlow = 0;
+    let cursor = Math.max(startMonth, refiMonth);
+    const normalizedEnd = Math.max(endMonth, cursor);
+
+    while (cursor < normalizedEnd - 1e-9) {
+      const nextMonth = Math.min(Math.floor(cursor + 1 + 1e-9), normalizedEnd);
+      const monthFraction = Math.max(nextMonth - cursor, 0);
+      const postRefiMonthIndex = Math.max(cursor - refiMonth, 0);
+      const growthYear = Math.floor(postRefiMonthIndex / 12);
+      const noiForMonth = selectedOperatingNoi * Math.pow(1 + noiGrowth, growthYear);
+      cashFlow += noiForMonth * monthFraction;
+      cursor = nextMonth;
+    }
+
+    return cashFlow - getDebtServiceForPeriod(refiDebt, Math.max(startMonth - refiMonth, 0), Math.max(endMonth - refiMonth, 0));
+  };
+
+  const fullYears = Math.floor(totalHoldMonths / 12);
+  const partialMonths = totalHoldMonths - fullYears * 12;
+  const timeline = [-initialCashAtPurchase];
+  if (willRefinance && refiMonth <= 1e-9) timeline[0] += cashBackAtRefiNet;
+
+  const timedCashFlows = [-initialCashAtPurchase];
+  const timedCashFlowTimes = [0];
+  const cashFlowEvents: CashFlowEvent[] = [
+    { month: 0, amount: -initialCashAtPurchase, category: 'capital' }
+  ];
+  const getPreRefiCashFlow = (startMonth: number, endMonth: number): number => {
+    const normalizedStart = Math.min(Math.max(startMonth, 0), refiMonth);
+    const normalizedEnd = Math.min(Math.max(endMonth, normalizedStart), refiMonth);
+    const elapsedMonths = normalizedEnd - normalizedStart;
+    const debtService = acquisitionDebts.reduce(
+      (sum, debt) => sum + getDebtServiceForPeriod(debt, normalizedStart, normalizedEnd),
+      0
+    );
+    return -(monthlyPreRefiOperatingCost * elapsedMonths + debtService);
+  };
+  const addTimedCashFlow = (timeYears: number, amount: number) => {
+    const existingIndex = timedCashFlowTimes.findIndex((time) => Math.abs(time - timeYears) < 1e-9);
+    if (existingIndex >= 0) {
+      timedCashFlows[existingIndex] += amount;
+    } else {
+      timedCashFlowTimes.push(timeYears);
+      timedCashFlows.push(amount);
+    }
+  };
+
+  for (let month = 0; month < refiMonth - 1e-9; month += 1) {
+    const nextMonth = Math.min(month + 1, refiMonth);
+    const amount = getPreRefiCashFlow(month, nextMonth);
+    addTimedCashFlow(nextMonth / 12, amount);
+    cashFlowEvents.push({ month: nextMonth, amount, category: 'operating' });
+  }
+  if (willRefinance) {
+    addTimedCashFlow(refiMonth / 12, cashBackAtRefiNet);
+    cashFlowEvents.push({ month: refiMonth, amount: cashBackAtRefiNet, category: 'refinance' });
+  }
+
+  for (let month = refiMonth; month < totalHoldMonths - 1e-9; month += 1) {
+    const nextMonth = Math.min(month + 1, totalHoldMonths);
+    const amount = getPostRefiOperatingCashFlow(month, nextMonth);
+    addTimedCashFlow(nextMonth / 12, amount);
+    cashFlowEvents.push({ month: nextMonth, amount, category: 'operating' });
+  }
+  addTimedCashFlow(totalHoldMonths / 12, saleProceeds);
+  cashFlowEvents.push({ month: totalHoldMonths, amount: saleProceeds, category: 'sale' });
+
+  const appendAnnualPeriod = (startMonth: number, endMonth: number, isTerminal: boolean) => {
+    let periodCashFlow = getPreRefiCashFlow(startMonth, endMonth);
+    periodCashFlow += getPostRefiOperatingCashFlow(Math.max(startMonth, refiMonth), endMonth);
+    if (willRefinance && refiMonth > startMonth + 1e-9 && refiMonth <= endMonth + 1e-9) {
+      periodCashFlow += cashBackAtRefiNet;
+    }
+    if (isTerminal) periodCashFlow += saleProceeds;
+    timeline.push(periodCashFlow);
+  };
+
+  for (let year = 0; year < fullYears; year += 1) {
+    appendAnnualPeriod(year * 12, (year + 1) * 12, partialMonths <= 1e-9 && year === fullYears - 1);
+  }
+  if (partialMonths > 1e-9) {
+    appendAnnualPeriod(fullYears * 12, totalHoldMonths, true);
+  } else if (fullYears === 0) {
+    timeline[0] += saleProceeds;
+  }
+
+  const timelineData = {
+    timeline,
+    roi: calcTotalRoiFromTimeline(cashFlowEvents.map((event) => event.amount)),
+    irr: calculateIrrForTimes(timedCashFlows, timedCashFlowTimes),
+    saleProceeds
+  };
 
   return {
     ...base,
     monthlyCashFlow: monthly,
     monthlyCashFlowExcludingReserves: monthly + getMonthlyReserveTotal(input, brrrr.operatingStrategy),
     annualCashFlow: annual,
-    capRate: brrrrArv === 0 ? 0 : (selectedOperatingNoi * 12) / brrrrArv,
-    cashOnCashReturn: investedAfterRefi === 0 ? 0 : annual / investedAfterRefi,
-    dscr: calculateDscr(selectedOperatingNoi, refinanceDebt),
+    capRate: !willRefinance || brrrrArv === 0 ? 0 : (modeledOperatingNoi * 12) / brrrrArv,
+    cashOnCashReturn: cashLeftInDeal === 0 ? 0 : annual / cashLeftInDeal,
+    dscr: calculateDscr(modeledOperatingNoi, modeledDebtService),
     roi: timelineData.roi,
-    totalCashNeeded: investedAfterRefi,
-    noiMonthly: selectedOperatingNoi,
+    totalCashNeeded: cashLeftInDeal,
+    noiMonthly: modeledOperatingNoi,
     irr: timelineData.irr,
     saleProceeds: timelineData.saleProceeds,
     cashFlowTimeline: timelineData.timeline,
+    cashFlowEvents,
     calculationBreakdown: {
       lines: [
-        toLine('brrrr-selected-noi', 'Selected strategy NOI', selectedOperatingNoi),
-        toLine('brrrr-refi-debt-service', 'Refi debt service', -refinanceDebt),
+        toLine('brrrr-selected-noi', 'Selected strategy NOI', modeledOperatingNoi),
+        toLine('brrrr-refi-debt-service', willRefinance ? 'Refi debt service' : 'Acquisition debt service', -modeledDebtService),
         toLine('brrrr-cash-flow', 'Cash flow', monthly)
       ],
-      revenueMonthly: selectedOperatingNoi,
+      revenueMonthly: modeledOperatingNoi,
       sellerPaidExpensesMonthly: 0,
-      debtServiceMonthly: refinanceDebt,
-      noiMonthly: selectedOperatingNoi,
+      debtServiceMonthly: modeledDebtService,
+      noiMonthly: modeledOperatingNoi,
       cashFlowMonthly: monthly,
       brrrrMeta: {
         operatingStrategy: brrrr.operatingStrategy,
-        holdingMonths,
+        holdingMonths: requestedRefiMonth,
         purchaseCashComponent,
         buyClosingCosts,
         pointsCost,
@@ -1058,7 +1285,7 @@ export const calculateBrrrrStrategy = (
         initialLoanPayoff,
         cashBackAtRefiNet,
         investedAfterRefi,
-        selectedOperatingNoi,
+        selectedOperatingNoi: modeledOperatingNoi,
         refinanceDebt
       }
     }
@@ -1074,8 +1301,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const rehabContingencyPercent = clampPercent(flip.rehabContingencyPercent);
   const rehabContingency = baseRehabBudget * rehabContingencyPercent;
   const flipRehabBudget = baseRehabBudget + rehabContingency;
-  const agentCommission = salePrice * flip.agentCommissionPercent;
-  const closingCosts = salePrice * flip.sellClosingCostPercent;
+  const agentCommission = salePrice * clampPercent(flip.agentCommissionPercent);
+  const closingCosts = salePrice * clampPercent(flip.sellClosingCostPercent);
+  const sellerConcessions = Math.max(Number.isFinite(flip.sellerConcessions) ? flip.sellerConcessions : 0, 0);
   const strategyVariableCosts = getVariableExpenseTotal(input, 'flip');
   const holdingMonths = Math.max(flip.holdingMonths, 1);
   const holdYears = holdingMonths / 12;
@@ -1083,21 +1311,15 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
   const targetRoiPercent = Math.max(flip.targetRoiPercent, 0);
   const hardMoneyEnabled = Boolean(flip.hardMoneyEnabled);
 
-  const getHelocTerms = (model: DealInputModel) => {
-    const helocPrincipal = Math.max(model.purchase.helocAmount, 0);
-    const helocDebtService =
-      model.purchase.helocAmortizationType === 'IO'
-        ? calculateInterestOnlyPayment(helocPrincipal, model.purchase.helocRate)
-        : calculateMonthlyPayment(helocPrincipal, model.purchase.helocRate, model.purchase.helocTermYears);
-    const helocPayoff =
-      model.purchase.helocAmortizationType === 'IO'
-        ? helocPrincipal
-        : calculateRemainingBalance(helocPrincipal, model.purchase.helocRate, model.purchase.helocTermYears, holdYears, 'PI');
+  const getHelocDebt = (model: DealInputModel): TimelineDebtInput | null => {
+    const principal = Math.max(model.purchase.helocAmount, 0);
+    if (principal <= 0) return null;
 
     return {
-      principal: helocPrincipal,
-      debtService: helocDebtService,
-      payoff: helocPayoff
+      principal,
+      annualRate: Math.max(model.purchase.helocRate, 0),
+      termMonths: Math.max(model.purchase.helocTermYears, 0) * 12,
+      amortizationType: model.purchase.helocAmortizationType
     };
   };
 
@@ -1113,7 +1335,8 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     const fixedCosts = getMonthlyFixedCosts(modelAtPrice);
     const buyClosingCosts = purchase.ownershipMode === 'owned' ? 0 : Math.max(normalizedPurchasePrice * purchase.closingCostPercent, 0);
     const helocClosingCosts = Math.max(purchase.helocClosingCosts, 0);
-    const helocTerms = getHelocTerms(modelAtPrice);
+    const helocDebt = getHelocDebt(modelAtPrice);
+    const helocPrincipal = helocDebt?.principal ?? 0;
     const hardMoneyLoanAmount = hardMoneyEnabled
       ? Math.min(
           Math.max((normalizedPurchasePrice + flipRehabBudget) * clampPercent(flip.hardMoneyLoanToCostPercent), 0),
@@ -1126,19 +1349,28 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
       : 0;
     const hardMoneyOtherFees = hardMoneyEnabled ? Math.max(flip.hardMoneyOtherFees, 0) : 0;
     const hardMoneyPointsCost = hardMoneyEnabled ? hardMoneyLoanAmount * clampPercent(flip.hardMoneyPointsPercent) : 0;
-    const purchaseLoanTerms = hardMoneyEnabled ? null : getPurchaseLoanTerms(modelAtPrice);
+    const acquisitionDebts = hardMoneyEnabled
+      ? purchase.ownershipMode === 'owned'
+        ? buildAcquisitionTimelineDebts(modelAtPrice)
+        : helocDebt
+          ? [helocDebt]
+          : []
+      : buildAcquisitionTimelineDebts(modelAtPrice);
     const purchaseLoanPoints =
       hardMoneyEnabled || purchase.ownershipMode === 'owned' || purchase.financingType !== 'loan'
         ? 0
         : Math.max(calculateLoanAmount(normalizedPurchasePrice, purchase.downPaymentPercent) * purchase.pointsPercent, 0);
     const pointsCost = hardMoneyEnabled ? hardMoneyPointsCost : purchaseLoanPoints;
-    const lenderHoldingCostsMonthly = hardMoneyEnabled
-      ? hardMoneyInterestCost / holdingMonths + helocTerms.debtService
-      : purchaseLoanTerms?.debtService ?? 0;
-    const holdingCosts = (fixedCosts + strategyVariableCosts + lenderHoldingCostsMonthly) * holdingMonths;
-    const debtPayoffAtSale = hardMoneyEnabled
-      ? hardMoneyLoanAmount + helocTerms.payoff
-      : buildAcquisitionTimelineDebts(modelAtPrice).reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
+    const acquisitionDebtServiceDuringHold = acquisitionDebts.reduce(
+      (sum, debt) => sum + getDebtServiceForPeriod(debt, 0, holdingMonths),
+      0
+    );
+    const lenderHoldingCostsTotal = hardMoneyInterestCost + acquisitionDebtServiceDuringHold;
+    const lenderHoldingCostsMonthly = lenderHoldingCostsTotal / holdingMonths;
+    const holdingCosts = (fixedCosts + strategyVariableCosts) * holdingMonths + lenderHoldingCostsTotal;
+    const debtPayoffAtSale =
+      (hardMoneyEnabled ? hardMoneyLoanAmount : 0) +
+      acquisitionDebts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
     const cashInvestedBeforeHolding = hardMoneyEnabled
       ? purchase.ownershipMode === 'owned'
         ? Math.max(
@@ -1150,7 +1382,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
               hardMoneyOtherFees +
               helocClosingCosts -
               hardMoneyLoanAmount -
-              helocTerms.principal,
+              helocPrincipal,
             0
           )
         : Math.max(
@@ -1161,11 +1393,11 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
               hardMoneyOtherFees +
               helocClosingCosts -
               hardMoneyLoanAmount -
-              helocTerms.principal,
+              helocPrincipal,
             0
           )
       : purchase.ownershipMode === 'owned'
-        ? Math.max(purchaseCashNeeded, 0) + flipRehabBudget
+        ? Math.max(Math.max(purchaseCashNeeded, 0) + flipRehabBudget - helocPrincipal, 0)
         : calculateCashToClose(
             normalizedPurchasePrice,
             flipRehabBudget,
@@ -1176,11 +1408,41 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
             purchase.helocAmount,
             purchase.helocClosingCosts
           );
-    const saleCashReturned = salePrice - agentCommission - closingCosts - flip.sellerConcessions - debtPayoffAtSale;
+    const saleCashReturned = salePrice - agentCommission - closingCosts - sellerConcessions - debtPayoffAtSale;
     const totalCashInvested = cashInvestedBeforeHolding + holdingCosts;
     const netProfit = saleCashReturned - totalCashInvested;
+    const cashFlowEvents: CashFlowEvent[] = [
+      { month: 0, amount: -cashInvestedBeforeHolding, category: 'capital' }
+    ];
+    const hardMoneyInterestMonthly = hardMoneyEnabled
+      ? calculateInterestOnlyPayment(hardMoneyLoanAmount, Math.max(flip.hardMoneyInterestRate, 0))
+      : 0;
+    for (let month = 0; month < holdingMonths - 1e-9; month += 1) {
+      const nextMonth = Math.min(month + 1, holdingMonths);
+      const elapsedMonths = nextMonth - month;
+      const acquisitionDebtService = acquisitionDebts.reduce(
+        (sum, debt) => sum + getDebtServiceForPeriod(debt, month, nextMonth),
+        0
+      );
+      const amount = -(
+        (fixedCosts + strategyVariableCosts + hardMoneyInterestMonthly) * elapsedMonths + acquisitionDebtService
+      );
+      cashFlowEvents.push({ month: nextMonth, amount, category: 'operating' });
+    }
+    const extraMinimumInterest = hardMoneyInterestMonthly * Math.max(hardMoneyInterestMonths - holdingMonths, 0);
+    if (extraMinimumInterest > 0) {
+      cashFlowEvents.push({ month: holdingMonths, amount: -extraMinimumInterest, category: 'operating' });
+    }
+    cashFlowEvents.push({ month: holdingMonths, amount: saleCashReturned, category: 'sale' });
     const timeline = [-Math.abs(totalCashInvested), saleCashReturned];
-    const roi = calcTotalRoiFromTimeline(timeline);
+    const roi = calcTotalRoiFromTimeline(cashFlowEvents.map((event) => event.amount));
+    const timedCashFlows = new Map<number, number>();
+    cashFlowEvents.forEach((event) => timedCashFlows.set(event.month, (timedCashFlows.get(event.month) ?? 0) + event.amount));
+    const datedCashFlows = [...timedCashFlows.entries()].sort(([left], [right]) => left - right);
+    const irr = calculateIrrForTimes(
+      datedCashFlows.map(([, amount]) => amount),
+      datedCashFlows.map(([month]) => month / 12)
+    );
 
     return {
       purchasePrice: normalizedPurchasePrice,
@@ -1200,7 +1462,9 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
       totalCashInvested,
       netProfit,
       timeline,
-      roi
+      cashFlowEvents,
+      roi,
+      irr
     };
   };
 
@@ -1243,9 +1507,10 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     dscr: 0,
     roi: financials.roi,
     totalCashNeeded: financials.totalCashInvested,
-    irr: calculateIrr(financials.timeline),
+    irr: financials.irr,
     saleProceeds: financials.saleCashReturned,
     cashFlowTimeline: financials.timeline,
+    cashFlowEvents: financials.cashFlowEvents,
     calculationBreakdown: {
       lines: [
         toLine('flip-sale-price', 'Sale price (projected)', salePrice / holdingMonths),
@@ -1260,12 +1525,16 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
         toLine('flip-heloc-closing', 'HELOC closing costs', -financials.helocClosingCosts / holdingMonths),
         toLine('flip-agent', 'Agent commission', -agentCommission / holdingMonths),
         toLine('flip-sell-closing', 'Sell closing costs', -closingCosts / holdingMonths),
-        toLine('flip-seller-concessions', 'Seller concessions', -flip.sellerConcessions / holdingMonths),
+        toLine('flip-seller-concessions', 'Seller concessions', -sellerConcessions / holdingMonths),
         toLine('flip-debt-payoff', 'Debt payoff at sale', -financials.debtPayoffAtSale / holdingMonths),
         toLine('flip-hard-money-fees', 'Hard money other fees', -financials.hardMoneyOtherFees / holdingMonths),
         toLine('flip-fixed-holding', 'Holding: fixed costs', -financials.fixedCosts),
         toLine('flip-variable-holding', 'Holding: variable expenses', -strategyVariableCosts),
-        toLine('flip-lender-holding', 'Holding: lender costs', -financials.lenderHoldingCostsMonthly),
+        toLine(
+          'flip-lender-holding',
+          hardMoneyEnabled ? 'Holding: lender costs (including minimum interest)' : 'Holding: lender costs',
+          -financials.lenderHoldingCostsMonthly
+        ),
         toLine('flip-holding-total', 'Holding costs total', -(financials.holdingCosts / holdingMonths)),
         toLine('flip-net-profit', 'Net profit (one-time)', financials.netProfit / holdingMonths)
       ],
@@ -1274,7 +1543,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
         (financials.cashInvestedBeforeHolding +
           agentCommission +
           closingCosts +
-          flip.sellerConcessions +
+          sellerConcessions +
           financials.debtPayoffAtSale +
           financials.holdingCosts) /
         holdingMonths,
@@ -1295,7 +1564,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
         helocClosingCosts: financials.helocClosingCosts,
         agentCommission,
         sellClosingCosts: closingCosts,
-        sellerConcessions: flip.sellerConcessions,
+        sellerConcessions,
         debtPayoffAtSale: financials.debtPayoffAtSale,
         cashInvestedBeforeHolding: financials.cashInvestedBeforeHolding,
         totalCashInvested: financials.totalCashInvested,

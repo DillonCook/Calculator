@@ -121,6 +121,7 @@ import { calculateDeal } from '../lib/engine/deal-engine';
 import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
+import { getTotalCashInvested } from '../lib/projection-metrics';
 import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '../lib/share-link';
 
@@ -1511,6 +1512,8 @@ describe('dashboard integration', () => {
     expect(within(board).getAllByText('PadSplit').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('BRRRR').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Flip').length).toBeGreaterThan(0);
+    const flipCard = within(board).getByLabelText('Flip projection card');
+    expect(within(flipCard).getByText('Negative carry')).toBeInTheDocument();
     expect(within(board).getAllByText('Long-Term Rental').length).toBeGreaterThan(0);
 
     await user.click(within(selection).getByRole('button', { name: 'Long-Term' }));
@@ -1765,12 +1768,19 @@ describe('dashboard integration', () => {
       percentFormatter.format(airbnbResult.capRate)
     );
 
-    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currencyFormatter.format(airbnbResult.totalCashNeeded));
+    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currencyFormatter.format(getTotalCashInvested(airbnbResult)));
     expect(screen.getByLabelText('Cash to Close strategy context')).toHaveTextContent('Airbnb');
     expect(screen.getByRole('button', { name: 'Cash to Close definitions' })).toBeInTheDocument();
+
+    await user.click(getStrategyButton('BRRRR'));
+    const brrrrResult = calculateDeal(defaultDealInput).brrrr;
+    expect(screen.getByTestId('kpi-total-cash-invested')).toHaveTextContent(currencyFormatter.format(getTotalCashInvested(brrrrResult)));
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Spreadsheet' }));
+    const summary = within(screen.getByLabelText('Spreadsheet deal workspace')).getByLabelText('Deal summary');
+    const investedCell = within(summary).getByText('Total invested').parentElement;
+    expect(investedCell).toHaveTextContent(currencyFormatter.format(getTotalCashInvested(brrrrResult)));
   });
-
-
 
   it('priority monthly cash flow toggle switches reserve mode for hold strategies', async () => {
     render(<HomePage />);
@@ -1942,7 +1952,9 @@ describe('dashboard integration', () => {
     expect(fileInput).toBeInstanceOf(HTMLInputElement);
     await user.upload(fileInput as HTMLInputElement, backupFile);
 
-    expect(screen.getByText('Sign in to save more than 5 deals. You can still open, edit, export, or delete existing saved deals.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Sign in to save more than 5 deals. You can still open, edit, export, or delete existing saved deals.')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Blocked Backup Deal')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('5 saved deals');
   });
@@ -2083,6 +2095,8 @@ describe('dashboard integration', () => {
     const user = userEvent.setup();
 
     await user.click(getStrategyButton('BRRRR'));
+    const workspace = getStrategyInputsWorkspace();
+    expect(within(workspace).getByRole('spinbutton', { name: /Refi amortization \(years\)/i })).toHaveValue(30);
     await user.click(screen.getAllByRole('button', { name: 'Show work' })[0]);
 
     expect(screen.getByRole('dialog', { name: 'Strategy Work Lightbox' })).toBeInTheDocument();
