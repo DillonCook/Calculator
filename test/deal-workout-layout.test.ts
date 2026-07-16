@@ -4,9 +4,10 @@ import path from 'node:path';
 import postcss, { type Declaration } from 'postcss';
 import { describe, expect, it } from 'vitest';
 
+const readStylesheet = () => fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
+
 const getDeclarations = (selector: string) => {
-  const css = fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
-  const root = postcss.parse(css);
+  const root = postcss.parse(readStylesheet());
   const declarations: Declaration[] = [];
 
   root.walkAtRules('media', (media) => {
@@ -32,5 +33,16 @@ describe('deal workout layout', () => {
     expect(properties).toContain('max-height:none');
     expect(properties).not.toContain('height:var(--desktop-outcome-height)');
     expect(properties).not.toContain('max-height:var(--desktop-outcome-height)');
+  });
+
+  it('keeps a 13.5rem minimum across every desktop breakpoint', () => {
+    const root = postcss.parse(readStylesheet());
+    const values: string[] = [];
+
+    root.walkDecls('--desktop-outcome-height', (declaration) => {
+      values.push(declaration.value);
+    });
+
+    expect(values).toEqual(['13.5rem']);
   });
 });

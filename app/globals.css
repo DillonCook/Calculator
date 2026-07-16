@@ -2493,10 +2493,6 @@ html {
   }
 
   @media (min-width: 1536px) {
-    .desktop-outcome-ribbon {
-      --desktop-outcome-height: 13.25rem;
-    }
-
     .desktop-outcome-grid {
       grid-template-columns: minmax(18rem, 0.68fr) minmax(0, 1.12fr) minmax(22rem, 0.82fr);
     }
