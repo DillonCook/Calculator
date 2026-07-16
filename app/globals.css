@@ -2371,12 +2371,15 @@ html {
 
     .desktop-outcome-primary,
     .desktop-outcome-metrics,
-    .desktop-outcome-actions,
+    .desktop-outcome-actions {
+      min-height: var(--desktop-outcome-height);
+    }
+
     .desktop-outcome-actions > *,
     .desktop-outcome-actions .results-hero-support {
-      height: var(--desktop-outcome-height);
-      min-height: var(--desktop-outcome-height);
-      max-height: var(--desktop-outcome-height);
+      height: auto;
+      min-height: 100%;
+      max-height: none;
     }
 
     .desktop-outcome-kpi-strip {

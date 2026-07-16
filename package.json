@@ -10,7 +10,7 @@
     "test:engine": "tsx --test test/engine.test.ts test/deal-workout.test.ts test/math-audit.test.ts test/release-regressions.test.ts",
     "test:ui": "vitest run test/ui.integration.test.tsx test/pwa-install-banner.test.tsx test/mobile-sheet.test.tsx test/branding.test.ts",
     "test": "npm run test:engine && npm run test:unit && npm run test:ui",
-    "test:unit": "vitest run test/listing-link.test.ts test/share-link.test.ts test/share-link-param.test.ts"
+    "test:unit": "vitest run test/listing-link.test.ts test/share-link.test.ts test/share-link-param.test.ts test/deal-workout-layout.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
