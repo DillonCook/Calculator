@@ -13,6 +13,23 @@ interface DealWorkoutCardProps {
   onApply: (scenario: DealWorkoutScenario) => void;
 }
 
+const formatAdjustmentPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
+
+const scenarioActionLabel = (scenario: DealWorkoutScenario) => {
+  const { purchasePrice, downPaymentPercent } = scenario.adjustments;
+
+  if (typeof purchasePrice === 'number' && typeof downPaymentPercent === 'number') {
+    return `Use ${currencyFormatter.format(purchasePrice)} + ${formatAdjustmentPercent(downPaymentPercent)} down`;
+  }
+  if (typeof downPaymentPercent === 'number') {
+    return `Use ${formatAdjustmentPercent(downPaymentPercent)} down`;
+  }
+  if (typeof purchasePrice === 'number') {
+    return `Use ${currencyFormatter.format(purchasePrice)} price`;
+  }
+  return 'Apply this fix';
+};
+
 export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: DealWorkoutCardProps) {
   const recommendation = buildDealWorkoutRecommendation(model, strategy);
   const shouldShowInlinePriceCut = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
@@ -64,10 +81,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
   return (
     <section className="deal-workout-surface results-hero-support section-shell-analysis">
       <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <p className="dashboard-kicker">Make the deal work</p>
-          <h3 className="text-sm font-semibold sm:text-base">Auto-adjust terms for this strategy</h3>
-        </div>
+        <p className="dashboard-kicker">Make the deal work</p>
         {strategy === 'flip' ? (
           <div className="dashboard-meta text-right text-[11px]">
             <p>Net profit: {currencyFormatter.format(recommendation.currentNetProfit)}</p>
@@ -94,7 +108,6 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
           {scenariosToRender.map((scenario) => {
             const isCashPriceCutScenario = isCashDeal && shouldShowInlinePriceCut && scenario.key === 'price-cut';
             const isLoanDualFixLayout = shouldShowInlinePriceCut && scenario.key === 'down-payment' && Boolean(dualFixScenarios.priceCut);
-            const shouldShowScenarioDescription = !isCashPriceCutScenario && !isLoanDualFixLayout;
 
             return (
               <article
@@ -102,7 +115,6 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                 className={isLoanDualFixLayout ? '' : 'dashboard-block rounded-lg p-2.5'}
               >
                 {!isLoanDualFixLayout ? <p className="text-sm font-medium leading-tight">{scenario.title}</p> : null}
-                {shouldShowScenarioDescription ? <p className="mt-0.5 text-xs leading-snug text-muted">{scenario.description}</p> : null}
 
                 {isLoanDualFixLayout ? (
                   <div className="grid gap-4 sm:grid-cols-2 sm:items-center sm:gap-6">
@@ -113,9 +125,8 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                         className="btn-primary btn-work tap-feedback min-h-8 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
                         onClick={() => onApply(scenario)}
                       >
-                        Apply this fix
+                        {scenarioActionLabel(scenario)}
                       </button>
-                      <p className="text-[10px] leading-tight text-muted sm:text-[11px]">{scenario.description}</p>
                     </div>
                     <div className="deal-workout-action flex flex-col items-center justify-center gap-2 text-center">
                       <p className="text-xs font-semibold leading-tight text-slate-100">Reduce Purchase Price</p>
@@ -124,9 +135,8 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                         className="btn-primary btn-work tap-feedback min-h-8 w-full rounded-lg px-2.5 py-1 text-xs font-medium sm:w-36"
                         onClick={() => dualFixScenarios.priceCut && onApply(dualFixScenarios.priceCut)}
                       >
-                        Apply this fix
+                        {dualFixScenarios.priceCut ? scenarioActionLabel(dualFixScenarios.priceCut) : 'Apply this fix'}
                       </button>
-                      <p className="text-[10px] leading-tight text-muted sm:text-[11px]">{dualFixScenarios.priceCut?.description}</p>
                     </div>
                   </div>
                 ) : isCashPriceCutScenario ? (
@@ -153,7 +163,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
                       className="btn-primary btn-work tap-feedback min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium"
                       onClick={() => onApply(scenario)}
                     >
-                      Apply this fix
+                      {scenarioActionLabel(scenario)}
                     </button>
                   </div>
                 )}
