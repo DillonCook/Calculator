@@ -1,4 +1,4 @@
-const DEAL_COOKER_MEASUREMENT_ID = 'G-32WWGD9XGQ';
+const DEAL_COOKER_MEASUREMENT_ID = 'G-30FBLB4LFQ';
 
 const bootstrap = `(() => {
   const measurementId = '${DEAL_COOKER_MEASUREMENT_ID}';

@@ -1,5 +1,5 @@
 (() => {
-  const measurementId = 'G-32WWGD9XGQ'
+  const measurementId = 'G-30FBLB4LFQ'
   const params = new URLSearchParams(window.location.search)
   const forceAnalytics = params.get('dc_analytics') === 'force'
   const qaSuppressed = navigator.webdriver || params.get('dc_qa') === '1' || params.get('dc_analytics') === 'off'

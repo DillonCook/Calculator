@@ -11,7 +11,7 @@ const privacySource = readFileSync(resolve(process.cwd(), 'app/legal/privacy/pag
 const layoutSource = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
 
 test('Deal Cooker marketing pages load only their dedicated GA4 stream', () => {
-  assert.match(analyticsSource, /G-32WWGD9XGQ/);
+  assert.match(analyticsSource, /G-30FBLB4LFQ/);
   assert.match(analyticsSource, /googletagmanager\.com\/gtag\/js/);
   assert.doesNotMatch(analyticsSource, /G-2NFL5W5T7D|G-3P80XDL65G|G-76928X03KB|G-R4C1061XNG/);
   assert.match(builderSource, /assets\/analytics\.js/);
