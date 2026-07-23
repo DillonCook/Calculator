@@ -321,6 +321,7 @@ const shell = (page: { title: string; description: string; slug?: string; body: 
   ${nav()}
   <main id="main-content" tabindex="-1">${page.body}</main>
   ${footer()}
+  <script src="/assets/analytics.js"></script>
   <script src="/assets/site.js" defer></script>
 </body>
 </html>`;
@@ -427,6 +428,7 @@ for (const page of pages) {
 }
 
 copy('landing/assets/site.css', 'assets/site.css');
+copy('landing/assets/analytics.js', 'assets/analytics.js');
 copy('landing/assets/site.js', 'assets/site.js');
 copy('public/brand/dealcooker-logo.png', 'assets/dealcooker-mark.png');
 copy('public/apple-touch-icon.png', 'assets/apple-touch-icon.png');
