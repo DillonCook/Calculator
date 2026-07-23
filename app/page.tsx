@@ -35,6 +35,7 @@ import { inputClass } from '@/components/dashboard/form-fields';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { isOwnerEmail } from '@/lib/admin-access';
 import { trackAnalyticsEvent } from '@/lib/analytics';
+import { getMarketingAttributionFromSearch, removeMarketingParamsFromUrl } from '@/lib/marketing-attribution';
 import {
   ANONYMOUS_DEAL_LIMIT,
   canCreateSavedDeals,
@@ -107,7 +108,7 @@ type ShareFeedbackState = { tone: 'success' | 'error'; message: string; anchor: 
 type SyncFeedbackTone = 'info' | 'success' | 'error';
 type SyncFeedbackMessage = { tone: SyncFeedbackTone; message: string };
 
-const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealcooker.app').replace(/\/+$/, '');
+const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dealcooker.app').replace(/\/+$/, '');
 const appReleaseLabel = process.env.NEXT_PUBLIC_APP_RELEASE ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'local-open-testing';
 const PRINT_EXPORT_SCENARIO_ID = 'dealcooker-current-print-preview';
 const PRINT_EXPORT_TIMESTAMP = '1970-01-01T00:00:00.000Z';
@@ -2508,10 +2509,26 @@ export default function HomePage() {
     if (!isClientMounted || appOpenTrackedRef.current) return;
 
     appOpenTrackedRef.current = true;
+    const attribution = getMarketingAttributionFromSearch(window.location.search);
+    const hasSharedDeal = new URLSearchParams(window.location.search).has('s');
+    const landingStrategy = attribution.strategy;
+    if (landingStrategy && !hasSharedDeal) {
+      activeDealUiStatePresenceRef.current = { hasActiveStrategy: true, hasProjectionStrategies: true };
+      setActiveStrategy(landingStrategy);
+      setCompactSelectedStrategies([landingStrategy]);
+      setModel((current) => ({
+        ...current,
+        uiState: { activeStrategy: landingStrategy, projectionStrategies: [landingStrategy] }
+      }));
+    }
+    if (attribution.source) void trackAnalyticsEvent('marketing_entry', attribution);
     void trackAnalyticsEvent('app_opened', {
       signedIn: Boolean(currentUser?.id),
-      pwaInstalled: isPwaInstalled
+      pwaInstalled: isPwaInstalled,
+      ...attribution
     });
+    const cleanedUrl = removeMarketingParamsFromUrl(window.location.href);
+    if (cleanedUrl !== window.location.href) window.history.replaceState(window.history.state, '', cleanedUrl);
   }, [currentUser?.id, isClientMounted, isPwaInstalled]);
 
   useEffect(() => {

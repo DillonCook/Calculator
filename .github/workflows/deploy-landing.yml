@@ -1,0 +1,71 @@
+name: Verify and deploy DealCooker landing site
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: dealcooker-landing-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  WRANGLER_VERSION: "4.90.0"
+
+jobs:
+  deploy:
+    name: Deploy dealcooker.app
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify application and landing site
+        run: |
+          npm test
+          npm run lint
+          npm run build
+          npm run landing:verify
+
+      - name: Deploy landing worker
+        working-directory: cloudflare/landing-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@${WRANGLER_VERSION} deploy
+
+      - name: Verify Cloudflare custom domain
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl -fsS \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")"
+          echo "${response}" | jq -e '.success == true' >/dev/null
+          echo "${response}" | jq -r '.result[]?.hostname' | grep -qx "dealcooker.app"
+          echo "Cloudflare reports dealcooker.app attached to a Worker"
+
+      - name: Verify public landing and app routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/ | grep -q "Run the numbers"
+          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/robots.txt | grep -q "Sitemap: https://dealcooker.app/sitemap.xml"
+          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/sitemap.xml | grep -q "rental-property-calculator"
+          curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/ | grep -qi '^x-robots-tag: noindex'

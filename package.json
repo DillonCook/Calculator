@@ -10,7 +10,11 @@
     "test:engine": "tsx --test test/engine.test.ts test/deal-workout.test.ts test/math-audit.test.ts test/release-regressions.test.ts",
     "test:ui": "vitest run test/ui.integration.test.tsx test/pwa-install-banner.test.tsx test/mobile-sheet.test.tsx test/branding.test.ts test/deal-workout-card.test.tsx",
     "test": "npm run test:engine && npm run test:unit && npm run test:ui",
-    "test:unit": "vitest run test/listing-link.test.ts test/share-link.test.ts test/share-link-param.test.ts test/deal-workout-layout.test.ts"
+    "test:unit": "vitest run test/listing-link.test.ts test/share-link.test.ts test/share-link-param.test.ts test/deal-workout-layout.test.ts test/marketing-attribution.test.ts test/app-indexing.test.ts",
+    "landing:build": "tsx scripts/build-landing.ts",
+    "landing:audit": "node scripts/audit-landing.mjs",
+    "landing:responsive": "node scripts/responsive-audit.mjs",
+    "landing:verify": "npm run landing:build && npm run landing:audit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
