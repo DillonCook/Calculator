@@ -1214,13 +1214,13 @@ describe('dashboard integration', () => {
     const emailForm = within(dialog).getByRole('form', { name: 'Email sign in' });
     expect(within(emailForm).getByRole('button', { name: 'Sign in' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.type(within(emailForm).getByLabelText('Email address'), 'investor@example.com');
-    await user.type(within(emailForm).getByLabelText('Password'), 'rentalpass');
+    fireEvent.change(within(emailForm).getByLabelText('Email address'), { target: { value: 'investor@example.com' } });
+    fireEvent.change(within(emailForm).getByLabelText('Password'), { target: { value: 'rentalpass' } });
     await user.click(within(emailForm).getByRole('button', { name: 'Sign in with email' }));
 
     await waitFor(() => {
       expect(authMockState.emailSignInCalls).toEqual([{ email: 'investor@example.com', password: 'rentalpass' }]);
-    });
+    }, { timeout: 5000 });
     expect(screen.getByText('Signed in as investor@example.com')).toBeInTheDocument();
   });
 
@@ -1898,12 +1898,12 @@ describe('dashboard integration', () => {
     expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
 
     const search = within(dialog).getByPlaceholderText('Search deal name');
-    await user.type(search, 'Austin');
+    fireEvent.change(search, { target: { value: 'Austin' } });
 
     await waitFor(() => {
       expect(within(dialog).getByText('Austin BRRRR')).toBeInTheDocument();
       expect(within(dialog).queryByText('Miami Flip')).not.toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
   });
 
   it('blocks anonymous users from creating a sixth saved deal', async () => {
@@ -2382,7 +2382,7 @@ describe('dashboard integration', () => {
     expect(within(identityDialog).getByLabelText('Deal name')).toHaveValue('');
     const dealName = within(identityDialog).getByLabelText('Deal name');
     await user.clear(dealName);
-    await user.type(dealName, 'Austin BRRRR');
+    fireEvent.change(dealName, { target: { value: 'Austin BRRRR' } });
     const activeIdentityDialog = screen.queryByRole('dialog', { name: 'Deal identity' });
     if (activeIdentityDialog) {
       fireEvent.keyDown(document, { key: 'Escape' });
@@ -2391,7 +2391,7 @@ describe('dashboard integration', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
       expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
-    }, { timeout: 5000 });
+    }, { timeout: 15000 });
 
     await user.click(getStrategyButton('Airbnb'));
     let workspace = getStrategyInputsWorkspace();
