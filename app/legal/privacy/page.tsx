@@ -19,7 +19,7 @@ const privacySections = [
   },
   {
     title: '5. Cookies and Local Storage',
-    body: 'The Service relies on browser storage, essential auth storage, and Supabase session handling for saved scenarios, settings, account access, and offline-friendly behavior. Disabling storage may limit app behavior.'
+    body: 'The Service relies on browser storage, essential auth storage, and Supabase session handling for saved scenarios, settings, account access, and offline-friendly behavior. We also use Google Analytics to estimate new and returning unique visitors and understand aggregate page usage. Google Analytics may set browser identifiers; we disable Google Signals and advertising-personalization features. Disabling storage may limit app behavior.'
   },
   {
     title: '6. Data Retention',
@@ -46,7 +46,7 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.18em] text-accent">Legal</p>
           <h1 className="text-2xl font-semibold md:text-3xl">Privacy Policy</h1>
-          <p className="text-xs text-muted">Effective date: May 7, 2026</p>
+          <p className="text-xs text-muted">Effective date: July 23, 2026</p>
           <p className="text-sm text-muted">This policy explains how Dillon Cook, doing business as DealCooker, handles data and how users can make informed sharing decisions.</p>
         </div>
 
