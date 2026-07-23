@@ -36,5 +36,5 @@ Use this before opening a build to public testers.
 - Run `npm run lint`.
 - Run `npm run test:ui`.
 - Run `npm run build`.
-- Open `https://dealcooker.app`, sign in, save a deal, reload, and confirm it syncs back.
+- Open `https://www.dealcooker.app`, sign in, save a deal, reload, and confirm it syncs back.
 - Send one live feedback message after deployment.

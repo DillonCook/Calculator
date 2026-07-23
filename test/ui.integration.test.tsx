@@ -1245,7 +1245,7 @@ describe('dashboard integration', () => {
       expect(authMockState.passwordResetCalls).toEqual([
         expect.objectContaining({
           email: 'reset@example.com',
-          redirectTo: 'https://dealcooker.app/auth/callback?next=password-reset'
+          redirectTo: 'https://www.dealcooker.app/auth/callback?next=password-reset'
         })
       ]);
     }, { timeout: 5000 });

@@ -18,7 +18,7 @@ Apply the SQL files in `migrations/` before inviting private production users.
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENCLAW_API_KEY`
 - `OPENCLAW_OWNER_USER_ID` when Open Claw requests do not send an owner id
-- `NEXT_PUBLIC_APP_URL=https://dealcooker.app` for auth callback and password recovery links
+- `NEXT_PUBLIC_APP_URL=https://www.dealcooker.app` for auth callback and password recovery links
 - `NEXT_PUBLIC_APP_RELEASE` for release correlation in first-party error logs
 - `NEXT_PUBLIC_CLIENT_ERROR_LOGS=1` only when you want first-party client error posts enabled outside production
 - `RESEND_API_KEY` for feedback and deal-review delivery

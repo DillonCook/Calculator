@@ -3,7 +3,7 @@ import { GoogleAnalytics } from '@/components/google-analytics';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://dealcooker.app'),
+  metadataBase: new URL('https://www.dealcooker.app'),
   applicationName: 'DealCooker',
   title: 'DealCooker',
   description:
@@ -17,6 +17,16 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false
   },
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true
+    }
+  },
   icons: {
     icon: [{ url: '/icon.png', type: 'image/png' }],
     shortcut: [{ url: '/icon.png', type: 'image/png' }],
@@ -26,7 +36,7 @@ export const metadata: Metadata = {
     title: 'DealCooker',
     description:
       'DealCooker is a powerful real estate investment calculator for rental, Airbnb, BRRRR, PadSplit, and flip deals with instant cash flow, DSCR, ROI, and IRR insights.',
-    url: 'https://dealcooker.app',
+    url: 'https://www.dealcooker.app',
     siteName: 'DealCooker',
     images: [
       {

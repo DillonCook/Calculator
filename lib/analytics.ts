@@ -4,6 +4,7 @@ export type AnalyticsEventName =
   | 'app_opened'
   | 'deal_review_requested'
   | 'feedback_sent'
+  | 'marketing_entry'
   | 'pwa_installed'
   | 'pwa_install_prompt_accepted'
   | 'pwa_install_prompt_available'
