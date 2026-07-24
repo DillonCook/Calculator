@@ -78,7 +78,8 @@ const routes = [
   '/airbnb-investment-calculator/',
   '/fix-and-flip-calculator/',
   '/commercial-real-estate-calculator/',
-  '/compare-rental-strategies/'
+  '/compare-rental-strategies/',
+  '/methodology/'
 ];
 const failures = [];
 await send('Page.enable');

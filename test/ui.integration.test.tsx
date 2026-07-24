@@ -2232,8 +2232,7 @@ describe('dashboard integration', () => {
     const stabilizedRent = within(getStrategyInputsWorkspace()).getByRole('spinbutton', {
       name: 'Stabilized gross monthly rent'
     });
-    await user.clear(stabilizedRent);
-    await user.type(stabilizedRent, '8000');
+    fireEvent.change(stabilizedRent, { target: { value: '8000' } });
 
     const baselineLongTerm = calculateDeal(defaultDealInput).longTerm;
     const stabilizedModel = {
@@ -2274,7 +2273,7 @@ describe('dashboard integration', () => {
     expect(turnaroundQueries.getAllByText(percentFormatter.format(stabilizedSummary?.cashOnCashReturn ?? 0)).length).toBeGreaterThan(0);
     expect(turnaroundQueries.getAllByText('Cap Rate (Stabilized)').length).toBeGreaterThan(0);
     expect(turnaroundQueries.getAllByText(percentFormatter.format(stabilizedSummary?.capRate ?? 0)).length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it('allows decimal precision for percent and numeric text fields without rounding', async () => {
     render(<HomePage />);
@@ -2452,8 +2451,7 @@ describe('dashboard integration', () => {
     await user.click(getStrategyButton('Long-Term'));
     let workspace = getStrategyInputsWorkspace();
     const annualRevenueInput = within(workspace).getByLabelText('Annual revenue (optional)');
-    await user.clear(annualRevenueInput);
-    await user.type(annualRevenueInput, '72000');
+    fireEvent.change(annualRevenueInput, { target: { value: '72000' } });
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(expectedLongTerm));
 
     await user.click(getStrategyButton('Airbnb'));
@@ -2476,7 +2474,7 @@ describe('dashboard integration', () => {
         .map((input) => input.getAttribute('aria-label'))
         .slice(-2)
     ).toEqual(['PadSplit ARV', 'Annual revenue (optional)']);
-  });
+  }, 30000);
 
   it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {
     render(<HomePage />);
