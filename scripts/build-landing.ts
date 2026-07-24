@@ -333,11 +333,11 @@ const homepageBody = () => {
 <section class="hero">
   <div class="hero-glow hero-glow-one"></div><div class="hero-glow hero-glow-two"></div>
   <div class="hero-copy">
-    <p class="eyebrow"><span>Free during open testing</span><span class="eyebrow-dot"></span>No signup required</p>
+    <p class="eyebrow"><span>Free</span><span class="eyebrow-dot"></span>No signup required</p>
     <h1>Run the numbers.<br><em>Know the move.</em></h1>
     <p class="hero-lede">Analyze rental, Airbnb, room-by-room, BRRRR, flip, and small commercial deals—then see what has to change when the numbers don’t work.</p>
     <div class="hero-actions"><a class="button button-primary" href="${appHref('hero', 'homepage_cta')}">Analyze a deal — free <span aria-hidden="true">↗</span></a><a class="button button-quiet" href="#how-it-works">See how it works</a></div>
-    <p class="free-note"><span>✓</span> Free during open testing <span>✓</span> Start without an account <span>✓</span> Save up to 5 deals locally</p>
+    <p class="free-note"><span>✓</span> Free <span>✓</span> Start without an account <span>✓</span> Save up to 5 deals locally</p>
   </div>
   <div class="hero-product" aria-label="DealCooker product preview">
     <div class="product-window">

@@ -66,6 +66,9 @@ for (const route of expectedRoutes) {
 
 const homepage = read(routeFile('/'));
 assert.match(homepage, /\bfree\b/gi, 'homepage must clearly advertise DealCooker as free');
+assert.doesNotMatch(homepage, /during open testing/i, 'homepage must advertise DealCooker simply as free');
+assert.match(homepage, /<span>Free<\/span><span class="eyebrow-dot"><\/span>No signup required/, 'homepage must show the approved free eyebrow copy');
+assert.match(homepage, /<span>✓<\/span> Free <span>✓<\/span> Start without an account/, 'homepage must show the approved free proof-point copy');
 assert.match(homepage, /Make the deal work/i, 'homepage must feature DealCooker’s signature recommendation capability');
 assert.match(homepage, /No signup required/i, 'homepage must state the anonymous-start benefit');
 assert.match(homepage, /Commercial[\s\S]*Long-Term[\s\S]*Airbnb[\s\S]*PadSplit[\s\S]*BRRRR[\s\S]*Flip/i, 'homepage must name all supported strategies');
