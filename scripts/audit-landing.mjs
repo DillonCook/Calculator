@@ -15,6 +15,7 @@ const expectedRoutes = [
   '/compare-rental-strategies/',
   '/methodology/'
 ];
+const contentDates = new Map(expectedRoutes.map((route) => [route, '2026-07-24']));
 const strategyRoutes = new Map([
   ['/rental-property-calculator/', 'longTerm'],
   ['/brrrr-calculator/', 'brrrr'],
@@ -57,6 +58,7 @@ for (const route of expectedRoutes) {
   assert.match(html, /utm_source=dealcooker_landing/, `${route} app CTA must preserve source attribution`);
   if (strategyRoutes.has(route)) assert.match(html, new RegExp(`&amp;strategy=${strategyRoutes.get(route)}`), `${route} CTA must deep-link to its app strategy`);
   assert.doesNotMatch(html, /dealcooker\.com/i, `${route} must not reference the unowned .com domain`);
+  assert.doesNotMatch(html, /during open testing/i, `${route} must advertise DealCooker simply as free`);
   assert.ok(jsonLdBlocks.length >= 1, `${route} must include structured data`);
   for (const block of jsonLdBlocks) JSON.parse(block.replaceAll('&amp;', '&'));
   assert.ok(!titles.has(title), `${route} title must be unique`);
@@ -71,6 +73,11 @@ assert.doesNotMatch(homepage, /during open testing/i, 'homepage must advertise D
 assert.match(homepage, /<span>Free<\/span><span class="eyebrow-dot"><\/span>No signup required/, 'homepage must show the approved free eyebrow copy');
 assert.match(homepage, /<span>✓<\/span> Free <span>✓<\/span> Start without an account/, 'homepage must show the approved free proof-point copy');
 assert.match(homepage, /Make the deal work/i, 'homepage must feature DealCooker’s signature recommendation capability');
+for (const unsupported of ['Apply recommended price', '-$184.62', '$213.41', 'Lower purchase price by $18,000']) {
+  assert.doesNotMatch(homepage, new RegExp(unsupported.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `homepage must not publish unsupported workout claim: ${unsupported}`);
+}
+assert.doesNotMatch(homepage, /<button[^>]*tabindex="-1"/i, 'homepage preview must not expose nonfunctional buttons');
+assert.match(homepage, /can test a lower purchase price and, when applicable, a larger down payment/, 'homepage must bound the workout engine capability');
 assert.match(homepage, /No signup required/i, 'homepage must state the anonymous-start benefit');
 assert.match(homepage, /Commercial[\s\S]*Long-Term[\s\S]*Airbnb[\s\S]*PadSplit[\s\S]*BRRRR[\s\S]*Flip/i, 'homepage must name all supported strategies');
 assert.match(homepage, /<table class="comparison-table">[\s\S]*<th scope="col">[\s\S]*<th scope="row">/, 'homepage comparison must use semantic table markup');
@@ -85,8 +92,9 @@ for (const route of expectedRoutes.filter((route) => !['/', '/methodology/'].inc
   assert.match(html, /class="sources-section/, `${route} must include authoritative references`);
   assert.match(html, /Published by DealCooker\. Product owner:/, `${route} must identify the publisher and product owner without overstating authorship`);
   assert.doesNotMatch(html, /Written and reviewed by/, `${route} must not make an unsupported authorship or review claim`);
-  assert.match(html, /<time datetime="\d{4}-\d{2}-\d{2}">/, `${route} must expose a visible update date`);
-  assert.match(html, /"dateModified":"\d{4}-\d{2}-\d{2}"/, `${route} structured data must expose its review date`);
+  const date = contentDates.get(route);
+  assert.match(html, new RegExp(`<time datetime="${date}">${date}</time>`), `${route} must expose its explicit substantive update date`);
+  assert.match(html, new RegExp(`"dateModified":"${date}"`), `${route} structured data must match the explicit substantive update date`);
   assert.match(html, /"@type":"WebPage"/, `${route} must include WebPage structured data`);
 }
 
@@ -95,6 +103,10 @@ assert.match(methodology, /Net operating income \(NOI\)/, 'methodology must defi
 assert.match(methodology, /Cash-on-cash return/, 'methodology must define cash-on-cash return');
 assert.match(methodology, /ROI and IRR/, 'methodology must define ROI and IRR');
 assert.match(methodology, /pre-tax/i, 'methodology must state that outputs are pre-tax estimates');
+assert.match(methodology, /PMI/, 'methodology must disclose DealCooker’s strategy-dependent NOI convention');
+assert.match(methodology, /BRRRR uses ARV/, 'methodology must disclose the BRRRR cap-rate denominator');
+assert.match(methodology, new RegExp(`<time datetime="${contentDates.get('/methodology/')}">${contentDates.get('/methodology/')}</time>`), 'methodology must expose its explicit substantive update date');
+assert.match(methodology, new RegExp(`"dateModified":"${contentDates.get('/methodology/')}"`), 'methodology structured data must match its explicit substantive update date');
 
 const robots = read(path.join(outDir, 'robots.txt'));
 assert.match(robots, /User-agent: \*/);
@@ -114,8 +126,12 @@ assert.equal(read(path.join(outDir, `${indexNowKey}.txt`)).trim(), indexNowKey, 
 
 const sitemap = read(path.join(outDir, 'sitemap.xml'));
 for (const route of expectedRoutes) {
-  assert.match(sitemap, new RegExp(`<loc>https://dealcooker\\.app${route.replaceAll('/', '\\/')}</loc>`), `sitemap must list ${route}`);
+  const routePattern = route.replaceAll('/', '\\/');
+  assert.match(sitemap, new RegExp(`<loc>https://dealcooker\\.app${routePattern}</loc><lastmod>${contentDates.get(route)}</lastmod>`), `sitemap must list ${route} with its explicit content date`);
 }
+assert.doesNotMatch(sitemap, /<changefreq>|<priority>/, 'sitemap must omit unsupported freshness and priority hints');
+const generatorSource = read(path.join(root, 'scripts', 'build-landing.ts'));
+assert.doesNotMatch(generatorSource, /const BUILD_DATE|new Date\(\)\.toISOString/, 'content freshness must not be derived from build time');
 
 const css = read(path.join(outDir, 'assets', 'site.css'));
 assert.match(css, /:focus-visible/, 'site CSS must include visible keyboard focus treatment');
