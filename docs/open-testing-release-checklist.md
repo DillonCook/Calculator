@@ -5,7 +5,7 @@ Use this before opening a build to public testers.
 ## Product Flow
 
 - Create a fresh account with email/password and Google.
-- Reset password from `dealcooker.app` and confirm the callback lands in the app.
+- Reset password from `https://www.dealcooker.app` and confirm the callback lands in the app.
 - Start from a blank vault, load the sample deal, create a real blank deal, duplicate it, delete it, and confirm the active deal is correct.
 - Sign out, sign into a different account, and confirm the previous account's local deals do not appear.
 - Send feedback from desktop and mobile. Confirm the email includes contact, route, active deal, strategy, app release, and browser context.
