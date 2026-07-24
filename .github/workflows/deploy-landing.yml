@@ -68,7 +68,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/ | grep -q "Run the numbers"
-          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/robots.txt | grep -q "Sitemap: https://dealcooker.app/sitemap.xml"
-          curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/sitemap.xml | grep -q "rental-property-calculator"
-          curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/ | grep -qi '^x-robots-tag: noindex'
+          homepage="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/)"
+          grep -q "Run the numbers" <<<"${homepage}"
+          robots="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/robots.txt)"
+          grep -q "Sitemap: https://dealcooker.app/sitemap.xml" <<<"${robots}"
+          sitemap="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/sitemap.xml)"
+          grep -q "rental-property-calculator" <<<"${sitemap}"
+          app_headers="$(curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/)"
+          grep -qi '^x-robots-tag: noindex' <<<"${app_headers}"
