@@ -22,7 +22,29 @@ type Page = {
   metrics: Array<[string, string]>;
   levers: string[];
   related: string[];
+  answer: string;
+  methodology: string;
+  questions: Array<[string, string]>;
+  citations: Array<{ label: string; href: string; note: string }>;
 };
+
+const AUTHOR = {
+  name: 'Dillon Cook',
+  role: 'Real estate agent and DealCooker creator',
+  url: 'https://dilloncook.com/'
+};
+
+const citations = {
+  piti: { label: 'Consumer Financial Protection Bureau — What is PITI?', href: 'https://www.consumerfinance.gov/ask-cfpb/what-is-piti-en-152/', note: 'Principal, interest, taxes, and insurance are basic components of a monthly mortgage payment.' },
+  rentalIncome: { label: 'Fannie Mae Selling Guide — Rental Income', href: 'https://selling-guide.fanniemae.com/sel/b3-3.8-01/rental-income', note: 'Gross rent alone is not the same as usable net rental income; vacancy and ongoing expenses matter.' },
+  dscr: { label: 'Fannie Mae Multifamily Guide — Debt Service Coverage Ratio', href: 'https://mfguide.fanniemae.com/node/1766', note: 'DSCR compares property net cash flow with required debt payments.' },
+  rentalTax: { label: 'IRS Publication 527 — Residential Rental Property', href: 'https://www.irs.gov/publications/p527', note: 'Official federal guidance on residential rental income, expenses, depreciation, and recordkeeping.' },
+  mortgageCosts: { label: 'Consumer Financial Protection Bureau — Mortgage costs', href: 'https://www.consumerfinance.gov/ask-cfpb/what-costs-come-with-taking-out-a-mortgage-en-153/', note: 'Financing can include more than principal and interest, including taxes, insurance, mortgage insurance, and closing costs.' },
+  airbnbTax: { label: 'Airbnb Help Center — Florida occupancy tax collection', href: 'https://www.airbnb.com/help/article/2301', note: 'Short-term-rental tax collection and remittance vary by jurisdiction and platform handling.' },
+  padSplitFees: { label: 'PadSplit Help — Host fee model', href: 'https://www.padsplit.com/help/article/what-is-padsplits-fee-model-for-hosts-24614775906324', note: 'Platform and booking fees affect room-by-room revenue.' },
+  padSplitUtilities: { label: 'PadSplit Help — Managing room-for-rent properties', href: 'https://www.padsplit.com/help/topic/property-management-360009344272', note: 'Utilities may be included in weekly room pricing and should be estimated as an operating cost.' },
+  saleTax: { label: 'IRS Publication 544 — Sales and Other Dispositions of Assets', href: 'https://www.irs.gov/publications/p544', note: 'Official federal guidance on tax treatment when property is sold; DealCooker does not calculate tax liability.' }
+} as const;
 
 const money0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const money2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
@@ -177,7 +199,16 @@ const pages: Page[] = [
     inputs: [['Purchase price', money0.format(sample.purchase.purchasePrice)], ['Monthly rent', money0.format(sample.longTerm.grossRentMonthly)], ['Down payment', percent.format(sample.purchase.downPaymentPercent)], ['Hold period', `${sample.assumptions.holdYears} years`]],
     metrics: formatMetrics('longTerm'),
     levers: ['Purchase price and down payment', 'Rent, vacancy, and operating expenses', 'Reserves, financing, appreciation, and exit assumptions'],
-    related: ['brrrr-calculator', 'room-by-room-rental-calculator', 'compare-rental-strategies']
+    related: ['brrrr-calculator', 'room-by-room-rental-calculator', 'compare-rental-strategies'],
+    answer: 'A rental property calculator estimates cash flow and returns after financing, vacancy, operating expenses, reserves, and exit assumptions—not just rent minus the mortgage.',
+    methodology: 'DealCooker calculates effective income after vacancy, subtracts modeled operating costs and reserves to estimate NOI, subtracts debt service for cash flow, and builds an annual hold-period timeline for ROI and IRR.',
+    questions: [
+      ['What should a rental property calculator include?', 'Purchase and closing costs, loan terms, rent, vacancy, management, maintenance, capital reserves, taxes, insurance, cash flow, sale assumptions, and return metrics should be connected in one model.'],
+      ['How is rental cash flow calculated?', 'DealCooker starts with rent and other income, subtracts vacancy and modeled expenses, then subtracts debt service. The result is a pre-tax estimate, not a guarantee.'],
+      ['Is cap rate the same as cash-on-cash return?', 'No. DealCooker models cap rate from annual NOI relative to acquisition basis, while cash-on-cash return compares annual pre-tax cash flow with cash invested.'],
+      ['Does DealCooker calculate taxes or give investment advice?', 'No. It is an educational screening tool. Verify rents, expenses, financing, zoning, insurance, taxes, and legal requirements with qualified professionals.']
+    ],
+    citations: [citations.rentalIncome, citations.piti, citations.rentalTax]
   },
   {
     slug: 'brrrr-calculator',
@@ -191,7 +222,16 @@ const pages: Page[] = [
     inputs: [['Purchase price', money0.format(sample.purchase.purchasePrice)], ['Rehab budget', money0.format(sample.brrrr.rehabOverride ?? 0)], ['After-repair value', money0.format(sample.brrrr.arvOverride ?? 0)], ['Refinance LTV', percent.format(sample.brrrr.refinanceLtvPercent)]],
     metrics: formatMetrics('brrrr'),
     levers: ['Purchase, rehab, and holding costs', 'Refinance timing, LTV, rate, and closing costs', 'Post-refi rent strategy and long-term exit'],
-    related: ['rental-property-calculator', 'fix-and-flip-calculator', 'compare-rental-strategies']
+    related: ['rental-property-calculator', 'fix-and-flip-calculator', 'compare-rental-strategies'],
+    answer: 'A BRRRR calculator connects the buy, rehab, rent, refinance, and repeat phases to estimate cash returned at refinance, capital left in the property, post-refinance cash flow, equity, and long-term returns.',
+    methodology: 'DealCooker combines acquisition and rehab cash with holding operations, models refinance proceeds after the selected LTV and closing costs, retires the acquisition debt, and carries the remaining property into the chosen rental strategy and exit timeline.',
+    questions: [
+      ['What does a BRRRR calculator show?', 'It should show total project cash, refinance proceeds, debt payoff, refinance costs, cash returned, cash left invested, post-refinance debt service, rental cash flow, equity, and hold-period returns.'],
+      ['Why can a high ARV still leave cash in the deal?', 'Refinance proceeds are constrained by modeled value and LTV, then reduced by debt payoff and refinance costs. Rehab overruns and holding costs also increase cash invested.'],
+      ['Does a BRRRR refinance remove risk?', 'No. Appraisal, lender terms, seasoning, interest rates, rent performance, repairs, and timing can differ from assumptions. Confirm the refinance plan before buying.'],
+      ['How does DealCooker compare BRRRR with a flip?', 'BRRRR carries the property into a rental hold after refinance; a flip models a sale after rehab. Both use the same acquisition and rehab assumptions so the paths can be compared.']
+    ],
+    citations: [citations.mortgageCosts, citations.rentalIncome, citations.dscr]
   },
   {
     slug: 'room-by-room-rental-calculator',
@@ -205,7 +245,16 @@ const pages: Page[] = [
     inputs: [['Rentable rooms', String(sample.padSplit.rentableRooms)], ['Weekly rate per room', money0.format(sample.padSplit.avgWeeklyRatePerRoom)], ['Occupancy', percent.format(sample.padSplit.occupancyPercent)], ['Furnishing', money0.format(sample.padSplit.furnishingOneTime)]],
     metrics: formatMetrics('padSplit'),
     levers: ['Room count, weekly rate, and occupancy', 'Placement, turnover, management, and platform fees', 'Utilities, furnishing, maintenance, and reserves'],
-    related: ['rental-property-calculator', 'airbnb-investment-calculator', 'compare-rental-strategies']
+    related: ['rental-property-calculator', 'airbnb-investment-calculator', 'compare-rental-strategies'],
+    answer: 'A room-by-room rental calculator estimates revenue by rentable room and weekly rate, then accounts for occupancy, platform and management fees, furnishing, utilities, maintenance, reserves, and debt service.',
+    methodology: 'DealCooker multiplies rentable rooms by weekly rate and weeks per month, applies occupancy, then subtracts modeled platform, management, turnover, utility, maintenance, reserve, fixed, and financing costs.',
+    questions: [
+      ['How do you calculate room-by-room rental income?', 'Start with rentable rooms multiplied by the weekly room rate and weeks per month, then apply realistic occupancy before subtracting fees and owner-paid costs.'],
+      ['Why include utilities in a room rental analysis?', 'Room-by-room pricing may include utilities, so power, water, internet, gas, lawn care, and other shared costs can materially reduce net income.'],
+      ['Is PadSplit income the same as collected room rent?', 'No. Platform fees, booking fees, vacancies, missed collections, turns, maintenance, and utilities can reduce what the owner receives.'],
+      ['What must be verified before operating room-by-room housing?', 'Confirm zoning, occupancy limits, licensing, building and fire codes, insurance, lender restrictions, leases, platform rules, and local law.']
+    ],
+    citations: [citations.padSplitFees, citations.padSplitUtilities, citations.dscr]
   },
   {
     slug: 'airbnb-investment-calculator',
@@ -219,7 +268,16 @@ const pages: Page[] = [
     inputs: [['Average nightly rate', money0.format(sample.airbnb.adr)], ['Occupancy', percent.format(sample.airbnb.occupancyPercent)], ['Average stay', `${sample.airbnb.averageNightsPerBooking} nights`], ['Furnishing', money0.format(sample.airbnb.furnishingOneTime)]],
     metrics: formatMetrics('airbnb'),
     levers: ['Average daily rate and occupancy', 'Average stay, cleaning, and platform fees', 'Management, furnishing, maintenance, and reserves'],
-    related: ['room-by-room-rental-calculator', 'rental-property-calculator', 'compare-rental-strategies']
+    related: ['room-by-room-rental-calculator', 'rental-property-calculator', 'compare-rental-strategies'],
+    answer: 'An Airbnb investment calculator converts nightly rate, occupancy, and stay length into revenue, then subtracts cleaning, platform, management, furnishing, maintenance, reserve, fixed, and financing costs.',
+    methodology: 'DealCooker estimates occupied nights from available nights and occupancy, uses average stay to estimate booking turns, separates cleaning charged from cleaner cost, applies platform and management fees, and carries furnishing and property costs into cash invested and returns.',
+    questions: [
+      ['How is Airbnb revenue calculated?', 'A basic estimate is available nights multiplied by occupancy and average daily rate, plus modeled cleaning or other income. Net performance requires operating costs and financing.'],
+      ['Why does average stay matter?', 'Average stay affects the number of turns. More turns can increase cleaning expense even when occupied nights stay the same.'],
+      ['Does Airbnb collect every tax for a host?', 'Not necessarily. Collection and remittance vary by jurisdiction. Verify registration, lodging taxes, licenses, HOA rules, leases, insurance, and local short-term-rental law.'],
+      ['Should furnishing be treated as a monthly expense?', 'DealCooker treats furnishing as upfront project cash while ongoing replacement reserves and operating costs are modeled separately.']
+    ],
+    citations: [citations.airbnbTax, citations.mortgageCosts, citations.dscr]
   },
   {
     slug: 'fix-and-flip-calculator',
@@ -233,7 +291,16 @@ const pages: Page[] = [
     inputs: [['Purchase price', money0.format(sample.purchase.purchasePrice)], ['Rehab budget', money0.format(sample.flip.rehabOverride ?? 0)], ['After-repair value', money0.format(sample.flip.arvOverride ?? 0)], ['Holding period', `${sample.flip.holdingMonths} months`]],
     metrics: formatMetrics('flip'),
     levers: ['Purchase price, rehab, and contingency', 'Hard-money leverage, rate, points, and minimum interest', 'Holding period, sale price, and selling costs'],
-    related: ['brrrr-calculator', 'rental-property-calculator', 'commercial-real-estate-calculator']
+    related: ['brrrr-calculator', 'rental-property-calculator', 'commercial-real-estate-calculator'],
+    answer: 'A fix-and-flip calculator estimates profit after purchase, financing, rehab, contingency, holding, and selling costs, then solves for the offer price that can support a target profit or ROI.',
+    methodology: 'DealCooker builds an acquisition and rehab budget, applies hard-money leverage, interest, points, holding costs, contingency, sale price, and selling costs, then calculates net sale cash, total ROI, annualized IRR, and a maximum allowable offer from the selected targets.',
+    questions: [
+      ['What costs belong in a flip analysis?', 'Purchase and closing costs, rehab, contingency, permits, utilities, taxes, insurance, financing interest and points, holding costs, commissions, and other selling costs should be included.'],
+      ['What is maximum allowable offer?', 'It is a modeled purchase-price ceiling that works backward from sale value, project costs, and the selected profit or ROI target. It is not an appraisal or market-value opinion.'],
+      ['Why model both ROI and annualized IRR?', 'ROI summarizes total project gain relative to cash invested. Annualized IRR also reflects when cash enters and leaves the project, so timing affects the result.'],
+      ['Does DealCooker estimate flip taxes?', 'No. Tax treatment depends on facts and taxpayer circumstances. DealCooker models project economics before tax; consult a qualified tax professional.']
+    ],
+    citations: [citations.mortgageCosts, citations.saleTax]
   },
   {
     slug: 'commercial-real-estate-calculator',
@@ -247,7 +314,16 @@ const pages: Page[] = [
     inputs: [['Purchase price', money0.format(commercialSample.purchase.purchasePrice)], ['Leasable area', `${money0.format(commercialSample.commercial.grossLeasableAreaSqft).replace('$', '')} sq ft`], ['Occupied area', `${money0.format(commercialSample.commercial.occupiedSqft).replace('$', '')} sq ft`], ['Base rent', `${money2.format(commercialSample.commercial.averageBaseRentPerSqftYear)}/sq ft/year`]],
     metrics: formatMetrics('purchase'),
     levers: ['Leased area, rent per square foot, and reimbursements', 'Vacancy, credit loss, management, and tenant reserves', 'Debt service, hold period, rent growth, and exit cap'],
-    related: ['rental-property-calculator', 'fix-and-flip-calculator', 'compare-rental-strategies']
+    related: ['rental-property-calculator', 'fix-and-flip-calculator', 'compare-rental-strategies'],
+    answer: 'A commercial real estate calculator estimates effective income, NOI, debt coverage, cash flow, and returns from leased square footage, rent and recoveries, vacancy, credit loss, expenses, reserves, financing, and exit assumptions.',
+    methodology: 'DealCooker calculates occupied rent and recoveries, subtracts economic vacancy, credit loss, management, nonrecoverable expenses, tenant-improvement and leasing reserves, and fixed property costs for NOI, then subtracts debt service and models the hold and exit.',
+    questions: [
+      ['How is commercial NOI calculated?', 'DealCooker starts with occupied rent and recoveries, then subtracts vacancy, credit loss, management, nonrecoverable operating expenses, tenant and leasing reserves, taxes, insurance, and other modeled operating costs.'],
+      ['What is DSCR in commercial real estate?', 'Debt service coverage ratio compares modeled NOI with required debt service. A ratio above 1 means NOI exceeds debt service, but lender standards and definitions vary.'],
+      ['Why model tenant-improvement and leasing reserves?', 'Tenant improvements and leasing commissions can require significant future cash. Reserving for them keeps the operating view from overstating distributable cash.'],
+      ['Is DealCooker a commercial appraisal?', 'No. It is an underwriting model. Verify leases, rent roll, reimbursements, expenses, title, environmental condition, zoning, financing, and valuation independently.']
+    ],
+    citations: [citations.dscr, citations.mortgageCosts]
   },
   {
     slug: 'compare-rental-strategies',
@@ -261,7 +337,16 @@ const pages: Page[] = [
     inputs: [['Property', 'Tampa Duplex'], ['Purchase price', money0.format(sample.purchase.purchasePrice)], ['Strategies', '6 modeled paths'], ['Hold period', `${sample.assumptions.holdYears} years`]],
     metrics: [['Long-term cash flow', money2.format(result.longTerm.monthlyCashFlow)], ['Airbnb cash flow', money2.format(result.airbnb.monthlyCashFlow)], ['Room-by-room cash flow', money2.format(result.padSplit.monthlyCashFlow)], ['Flip net profit', money0.format(result.flip.calculationBreakdown?.flipMeta?.netProfit ?? 0)]],
     levers: ['Shared acquisition and financing assumptions', 'Strategy-specific revenue and operating expenses', 'Cash flow, DSCR, ROI, IRR, equity, and exit cash'],
-    related: ['rental-property-calculator', 'airbnb-investment-calculator', 'room-by-room-rental-calculator']
+    related: ['rental-property-calculator', 'airbnb-investment-calculator', 'room-by-room-rental-calculator'],
+    answer: 'The most useful way to compare real estate strategies is to keep property, acquisition, financing, and exit assumptions consistent while changing only the revenue and operating logic that belongs to each strategy.',
+    methodology: 'DealCooker uses one acquisition model, then runs strategy-specific income, vacancy, fee, reserve, rehab, refinance, financing, and sale logic. This makes differences in outputs traceable to the strategy assumptions instead of separate spreadsheets.',
+    questions: [
+      ['Which real estate strategy has the best return?', 'There is no universal winner. A strategy with higher modeled return may also require more operating work, regulation, capital, volatility, or execution risk. Compare outputs and assumptions together.'],
+      ['Why use the same property assumptions across strategies?', 'Holding purchase price, financing, taxes, insurance, and exit assumptions constant makes it easier to see whether the operating strategy—not a hidden input change—drives the result.'],
+      ['Can DSCR be compared across every strategy?', 'DealCooker calculates modeled debt coverage for income-producing strategies, but lender definitions and acceptable thresholds vary by property and loan program.'],
+      ['Should the highest IRR determine the decision?', 'No. IRR is one modeled return measure. Liquidity, downside risk, workload, legal constraints, financing certainty, and confidence in each assumption also matter.']
+    ],
+    citations: [citations.dscr, citations.rentalIncome, citations.saleTax]
   }
 ];
 
@@ -276,13 +361,14 @@ const nav = () => `
     <nav aria-label="Primary navigation">
       <a href="/#how-it-works">How it works</a>
       <a href="/#strategies">Strategies</a>
+      <a href="/methodology/">Methodology</a>
       <a href="/compare-rental-strategies/">Compare</a>
     </nav>
     <a class="nav-cta" href="${appHref('nav', 'sitewide_cta')}">Analyze a deal <span>— free</span></a>
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-button><span class="sr-only">Open navigation</span><span></span><span></span></button>
   </div>
   <div id="mobile-menu" class="mobile-menu" hidden data-mobile-menu>
-    <a href="/#how-it-works">How it works</a><a href="/#strategies">Strategies</a><a href="/compare-rental-strategies/">Compare strategies</a><a class="nav-cta" href="${appHref('mobile-nav', 'sitewide_cta')}">Analyze a deal — free</a>
+    <a href="/#how-it-works">How it works</a><a href="/#strategies">Strategies</a><a href="/methodology/">Methodology</a><a href="/compare-rental-strategies/">Compare strategies</a><a class="nav-cta" href="${appHref('mobile-nav', 'sitewide_cta')}">Analyze a deal — free</a>
   </div>
 </header>`;
 
@@ -292,7 +378,7 @@ const footer = () => `
     <div><a class="brand footer-brand" href="/"><img src="/assets/dealcooker-mark.png" alt="" width="34" height="39"><span>DealCooker</span></a><p>Real estate underwriting built to help you decide.</p></div>
     <div><strong>Free calculators</strong><a href="/rental-property-calculator/">Rental</a><a href="/brrrr-calculator/">BRRRR</a><a href="/airbnb-investment-calculator/">Airbnb / STR</a><a href="/room-by-room-rental-calculator/">Room-by-room</a></div>
     <div><strong>More strategies</strong><a href="/fix-and-flip-calculator/">Fix & flip</a><a href="/commercial-real-estate-calculator/">Commercial</a><a href="/compare-rental-strategies/">Compare strategies</a></div>
-    <div><strong>DealCooker</strong><a href="${APP_ORIGIN}/help">Help</a><a href="${APP_ORIGIN}/legal/privacy">Privacy</a><a href="${APP_ORIGIN}/legal/terms">Terms</a></div>
+    <div><strong>DealCooker</strong><a href="/methodology/">Methodology</a><a href="${AUTHOR.url}">About Dillon</a><a href="${APP_ORIGIN}/help">App help</a><a href="${APP_ORIGIN}/legal/privacy">Privacy</a><a href="${APP_ORIGIN}/legal/terms">Terms</a></div>
   </div>
   <div class="footer-bottom"><span>© ${new Date().getFullYear()} DealCooker</span><span>Educational analysis only. Verify assumptions independently.</span></div>
 </footer>`;
@@ -385,19 +471,41 @@ const strategyBody = (page: Page) => {
     : '<a class="text-link" href="/compare-rental-strategies/">Compare all strategies ↗</a>';
 
   return `
-<section class="strategy-hero"><div class="strategy-hero-copy"><p class="breadcrumb"><a href="/">DealCooker</a><span>/</span>${escape(currentLabel)}</p><p class="eyebrow">${escape(page.eyebrow)}</p><h1>${escape(page.h1)}</h1><p>${escape(page.intro)}</p><div class="hero-actions"><a class="button button-primary" href="${appHref(page.source, 'seo_strategy_page', appStrategy)}">Run this analysis — free <span>↗</span></a><a class="button button-quiet" href="#worked-example">See a worked example</a></div><p class="free-note"><span>✓</span> Free during open testing <span>✓</span> No signup required</p></div><div class="strategy-mark"><img src="/assets/dealcooker-mark.png" alt="" width="160" height="185"><span>${escape(currentLabel)}</span></div></section>
+<section class="strategy-hero"><div class="strategy-hero-copy"><p class="breadcrumb"><a href="/">DealCooker</a><span>/</span>${escape(currentLabel)}</p><p class="eyebrow">${escape(page.eyebrow)}</p><h1>${escape(page.h1)}</h1><p>${escape(page.intro)}</p><div class="hero-actions"><a class="button button-primary" href="${appHref(page.source, 'seo_strategy_page', appStrategy)}">Run this analysis — free <span>↗</span></a><a class="button button-quiet" href="#worked-example">See a worked example</a></div><p class="free-note"><span>✓</span> Free <span>✓</span> No signup required</p></div><div class="strategy-mark"><img src="/assets/dealcooker-mark.png" alt="" width="160" height="185"><span>${escape(currentLabel)}</span></div></section>
+<section class="direct-answer section-shell" aria-labelledby="direct-answer-heading"><p class="eyebrow">Direct answer</p><h2 id="direct-answer-heading">What this calculator does</h2><p>${escape(page.answer)}</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last updated <time datetime="${BUILD_DATE}">${BUILD_DATE}</time>.</span></div></section>
 <section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
 <section class="levers-section"><div class="section-shell"><div class="section-heading"><p class="eyebrow">What DealCooker models</p><h2>Change an assumption. See the whole deal move.</h2></div><div class="levers-layout"><ol>${page.levers.map((lever,index) => `<li><span>0${index+1}</span><strong>${escape(lever)}</strong></li>`).join('')}</ol><div class="metric-list"><span>DECISION OUTPUTS</span>${page.metrics.map(([label]) => `<i>${escape(label)}<b>Included</b></i>`).join('')}<i>Calculation breakdown<b>Visible</b></i><i>Share + print report<b>Included</b></i></div></div></div></section>
 <section class="strategy-work section-shell"><div><p class="eyebrow">When the deal misses</p><h2>Don’t stop at “no.”<br><em>Find the terms that work.</em></h2><p>DealCooker’s recommendation engine can test practical price, equity, and financing changes against the active strategy instead of leaving you with a red number and no next move.</p></div><div class="recommendation large"><span>MAKE THE DEAL WORK</span><strong>Test price and financing changes against your targets.</strong><a class="button button-primary" href="${appHref(`${page.source}-workout`, 'seo_strategy_page', appStrategy)}">Try it free ↗</a></div></section>
+<section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Calculation methodology</p><h2>How DealCooker models this strategy</h2><p>${escape(page.methodology)}</p><a class="text-link" href="/methodology/">Read the full methodology and metric definitions ↗</a></div><aside><strong>Model boundaries</strong><p>Outputs are pre-tax estimates based on user inputs. DealCooker is not an appraisal, lender quote, legal opinion, tax calculation, or promise of performance.</p></aside></div></section>
+<section class="faq-section section-shell"><div class="section-heading"><p class="eyebrow">Questions answered</p><h2>What investors ask about ${escape(currentLabel)}</h2></div><div class="faq-list">${page.questions.map(([question, answer]) => `<details><summary>${escape(question)}</summary><p>${escape(answer)}</p></details>`).join('')}</div></section>
+<section class="sources-section"><div class="section-shell"><div><p class="eyebrow">Primary references</p><h2>Sources behind the context</h2><p>DealCooker’s formulas come from its tested calculation engine. These external references support definitions, diligence reminders, or operating context—not the worked-example assumptions.</p></div><ol>${page.citations.map((citation) => `<li><a href="${citation.href}" rel="external"><strong>${escape(citation.label)}</strong><span>${escape(citation.note)}</span></a></li>`).join('')}</ol></div></section>
 <section class="related-section"><div class="section-shell"><div class="section-heading split"><div><p class="eyebrow">Keep comparing</p><h2>The same property may have a better path.</h2></div>${relatedHeaderLink}</div><div class="related-grid">${page.related.filter((slug) => slug !== page.slug).map((slug) => { const related = pages.find((item) => item.slug === slug)!; return `<a href="/${slug}/"><span>${escape(related.eyebrow)}</span><strong>${escape(related.h1)}</strong><i>Explore ↗</i></a>`; }).join('')}</div></div></section>
 <section class="page-cta"><div><p class="eyebrow">Free real estate underwriting</p><h2>Bring the property.<br>DealCooker brings the model.</h2><a class="button button-primary" href="${appHref(`${page.source}-final`, 'seo_strategy_page', appStrategy)}">Analyze a deal — free ↗</a><p>No credit card. No signup required to start.</p></div></section>`;
 };
+
+const methodologyBody = () => `
+<section class="methodology-hero"><div class="section-shell"><p class="eyebrow">Transparent underwriting</p><h1>DealCooker methodology</h1><p>How the calculator turns property assumptions into cash flow, debt coverage, returns, and strategy comparisons.</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last updated <time datetime="${BUILD_DATE}">${BUILD_DATE}</time>.</span></div></div></section>
+<section class="methodology-content section-shell">
+  <div class="direct-answer"><p class="eyebrow">Short version</p><h2>What DealCooker calculates</h2><p>DealCooker is a pre-tax real estate underwriting model. It connects acquisition cash, financing, strategy-specific income and expenses, reserves, debt service, refinance events, and sale assumptions into one traceable projection.</p></div>
+  <div class="definition-grid">
+    <article><h2>Net operating income (NOI)</h2><p>Modeled property income after vacancy and operating expenses, before debt service. The exact income and expense lines vary by strategy.</p></article>
+    <article><h2>Monthly cash flow</h2><p>Modeled monthly NOI minus required monthly debt service. DealCooker may also show a view before selected reserves for transparency.</p></article>
+    <article><h2>Cap rate</h2><p>Annual modeled NOI divided by the acquisition basis used by the engine. It is an unlevered property-income measure, not a financing return.</p></article>
+    <article><h2>DSCR</h2><p>Modeled NOI divided by modeled debt service. A ratio above 1 means NOI exceeds debt service, but lender definitions and thresholds vary.</p></article>
+    <article><h2>Cash-on-cash return</h2><p>Annual pre-tax cash flow divided by modeled cash invested. It is sensitive to leverage and does not replace a full hold-period analysis.</p></article>
+    <article><h2>ROI and IRR</h2><p>ROI measures total modeled gain relative to invested cash. IRR annualizes the timing of initial cash, operations, refinance events, additional contributions, and exit proceeds.</p></article>
+  </div>
+</section>
+<section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Engine-backed pages</p><h2>Worked examples stay tied to product math</h2><p>Every strategy page is regenerated from DealCooker’s calculation engine during the site build. The displayed examples are illustrative scenarios, not hand-entered promises or property recommendations.</p></div><aside><strong>Inputs drive outputs</strong><p>Small changes in rent, vacancy, financing, rehab, reserves, timing, and exit assumptions can materially change results. Replace examples with verified property-specific inputs.</p></aside></div></section>
+<section class="faq-section section-shell"><div class="section-heading"><p class="eyebrow">Model boundaries</p><h2>What DealCooker does not do</h2></div><div class="faq-list"><details open><summary>Does DealCooker predict investment performance?</summary><p>No. It projects user-entered assumptions. It does not guarantee rent, occupancy, financing, appraisal, costs, refinance terms, sale value, or returns.</p></details><details><summary>Does it calculate taxes?</summary><p>No. Results are pre-tax estimates. Tax treatment varies by property, activity, ownership, jurisdiction, and taxpayer; use a qualified tax professional.</p></details><details><summary>Is it an appraisal or lender approval?</summary><p>No. DealCooker is not an appraisal, broker price opinion, credit decision, loan quote, or commitment to lend.</p></details><details><summary>How should results be verified?</summary><p>Confirm the rent roll, leases, market rents, expenses, insurance, taxes, title, zoning, permits, inspections, contractor bids, financing, and exit assumptions independently.</p></details></div></section>
+<section class="sources-section"><div class="section-shell"><div><p class="eyebrow">Primary references</p><h2>Definitions and diligence context</h2><p>These authoritative sources support general definitions and verification guidance. DealCooker’s actual outputs are produced by its own tested engine.</p></div><ol>${[citations.piti, citations.rentalIncome, citations.dscr, citations.rentalTax, citations.saleTax].map((citation) => `<li><a href="${citation.href}" rel="external"><strong>${escape(citation.label)}</strong><span>${escape(citation.note)}</span></a></li>`).join('')}</ol></div></section>
+<section class="page-cta"><div><p class="eyebrow">Use transparent assumptions</p><h2>Run the numbers.<br>Inspect the model.</h2><a class="button button-primary" href="${appHref('methodology', 'methodology_cta')}">Analyze a deal — free ↗</a><p>Educational analysis only. Verify assumptions independently.</p></div></section>`;
 
 const websiteSchema = {
   '@context': 'https://schema.org', '@type': 'WebSite', name: 'DealCooker', url: `${SITE_ORIGIN}/`, description: 'Free real estate investment calculator and deal analyzer.'
 };
 const organizationSchema = {
-  '@context': 'https://schema.org', '@type': 'Organization', name: 'DealCooker', url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/assets/dealcooker-mark.png`
+  '@context': 'https://schema.org', '@type': 'Organization', name: 'DealCooker', url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/assets/dealcooker-mark.png`, founder: { '@type': 'Person', name: AUTHOR.name, url: AUTHOR.url }
 };
 const softwareSchema = {
   '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'DealCooker', applicationCategory: 'FinanceApplication', operatingSystem: 'Web', url: APP_ORIGIN, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, description: 'Free real estate investment calculator for commercial, long-term rental, Airbnb, PadSplit, BRRRR, and flip deals.'
@@ -414,6 +522,16 @@ write('index.html', shell({
   body: homepageBody(),
   schema: [websiteSchema, organizationSchema, softwareSchema]
 }));
+write('methodology/index.html', shell({
+  title: 'DealCooker Methodology: Real Estate Calculator Formulas',
+  description: 'See how DealCooker calculates NOI, cash flow, cap rate, DSCR, cash-on-cash return, ROI, and IRR across real estate strategies.',
+  slug: 'methodology',
+  body: methodologyBody(),
+  schema: [
+    { '@context': 'https://schema.org', '@type': 'WebPage', name: 'DealCooker Methodology', url: `${SITE_ORIGIN}/methodology/`, dateModified: BUILD_DATE, author: organizationSchema, creator: { '@type': 'Person', name: AUTHOR.name, url: AUTHOR.url }, about: softwareSchema },
+    { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'DealCooker', item: `${SITE_ORIGIN}/` }, { '@type': 'ListItem', position: 2, name: 'Methodology', item: `${SITE_ORIGIN}/methodology/` }] }
+  ]
+}));
 for (const page of pages) {
   write(`${page.slug}/index.html`, shell({
     title: page.title,
@@ -422,6 +540,7 @@ for (const page of pages) {
     body: strategyBody(page),
     schema: [
       { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'DealCooker', item: `${SITE_ORIGIN}/` }, { '@type': 'ListItem', position: 2, name: page.eyebrow.replace(/^Free /, ''), item: `${SITE_ORIGIN}/${page.slug}/` }] },
+      { '@context': 'https://schema.org', '@type': 'WebPage', name: page.h1, url: `${SITE_ORIGIN}/${page.slug}/`, description: page.description, dateModified: BUILD_DATE, author: organizationSchema, creator: { '@type': 'Person', name: AUTHOR.name, url: AUTHOR.url }, isPartOf: { '@type': 'WebSite', name: 'DealCooker', url: `${SITE_ORIGIN}/` }, about: { '@type': 'SoftwareApplication', name: 'DealCooker', url: APP_ORIGIN } },
       { ...softwareSchema, name: page.strategy === 'compare' ? 'DealCooker Strategy Comparison' : `${strategyLabel[page.strategy]} Calculator`, url: `${SITE_ORIGIN}/${page.slug}/` }
     ]
   }));
@@ -437,7 +556,11 @@ copy('public/email/dealcooker-desktop.jpg', 'assets/dealcooker-product.jpg');
 copy('public/email/dealcooker-desktop.jpg', 'assets/dealcooker-social.jpg');
 copy('landing/_headers', '_headers');
 copy('landing/_redirects', '_redirects');
-write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
-write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', ...pages.map((page) => `/${page.slug}/`)].map((route) => `  <url><loc>${SITE_ORIGIN}${route}</loc><lastmod>${BUILD_DATE}</lastmod><changefreq>monthly</changefreq><priority>${route === '/' ? '1.0' : '0.8'}</priority></url>`).join('\n')}\n</urlset>\n`);
+const indexNowKey = 'f2a2e51a3452babd2382b0dc1332c80d';
+write(`${indexNowKey}.txt`, `${indexNowKey}\n`);
+write('robots.txt', `User-agent: *\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: Claude-SearchBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
+const sitemapRoutes = ['/', '/methodology/', ...pages.map((page) => `/${page.slug}/`)];
+write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemapRoutes.map((route) => `  <url><loc>${SITE_ORIGIN}${route}</loc><lastmod>${BUILD_DATE}</lastmod><changefreq>monthly</changefreq><priority>${route === '/' ? '1.0' : route === '/methodology/' ? '0.7' : '0.8'}</priority></url>`).join('\n')}\n</urlset>\n`);
+write('llms.txt', `# DealCooker\n\n> DealCooker is a free real estate deal analyzer for rental, BRRRR, room-by-room, Airbnb, fix-and-flip, commercial, and strategy-comparison underwriting.\n\n## Canonical resources\n\n- [DealCooker](https://dealcooker.app/): Product overview and strategy links.\n- [Methodology](https://dealcooker.app/methodology/): Calculation definitions, model boundaries, authorship, and verification guidance.\n- [Rental property calculator](https://dealcooker.app/rental-property-calculator/): Long-term rental cash flow and return analysis.\n- [BRRRR calculator](https://dealcooker.app/brrrr-calculator/): Buy, rehab, rent, refinance, and repeat analysis.\n- [Room-by-room rental calculator](https://dealcooker.app/room-by-room-rental-calculator/): Weekly room-rental and PadSplit-style analysis.\n- [Airbnb investment calculator](https://dealcooker.app/airbnb-investment-calculator/): Short-term rental revenue, fees, costs, and returns.\n- [Fix-and-flip calculator](https://dealcooker.app/fix-and-flip-calculator/): Rehab, financing, sale, profit, ROI, and offer analysis.\n- [Commercial real estate calculator](https://dealcooker.app/commercial-real-estate-calculator/): NOI, DSCR, cash flow, and return analysis.\n- [Compare rental strategies](https://dealcooker.app/compare-rental-strategies/): Same-property strategy comparison.\n\n## Important\n\nWorked examples are generated from DealCooker's tested engine and are illustrative, pre-tax estimates. DealCooker is not an appraisal, lender quote, tax calculation, legal advice, investment advice, or guarantee. Verify all property-specific assumptions independently.\n`);
 
-console.log(`Built DealCooker landing site with ${pages.length + 1} pages in ${OUT}.`);
+console.log(`Built DealCooker landing site with ${pages.length + 2} pages in ${OUT}.`);

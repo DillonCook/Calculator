@@ -12,7 +12,8 @@ const expectedRoutes = [
   '/airbnb-investment-calculator/',
   '/fix-and-flip-calculator/',
   '/commercial-real-estate-calculator/',
-  '/compare-rental-strategies/'
+  '/compare-rental-strategies/',
+  '/methodology/'
 ];
 const strategyRoutes = new Map([
   ['/rental-property-calculator/', 'longTerm'],
@@ -74,10 +75,42 @@ assert.match(homepage, /No signup required/i, 'homepage must state the anonymous
 assert.match(homepage, /Commercial[\s\S]*Long-Term[\s\S]*Airbnb[\s\S]*PadSplit[\s\S]*BRRRR[\s\S]*Flip/i, 'homepage must name all supported strategies');
 assert.match(homepage, /<table class="comparison-table">[\s\S]*<th scope="col">[\s\S]*<th scope="row">/, 'homepage comparison must use semantic table markup');
 
+for (const route of expectedRoutes.filter((route) => route !== '/methodology/')) {
+  assert.match(read(routeFile(route)), /utm_source=dealcooker_landing/, `${route} app CTA must preserve source attribution`);
+}
+for (const route of expectedRoutes.filter((route) => !['/', '/methodology/'].includes(route))) {
+  const html = read(routeFile(route));
+  assert.match(html, /class="direct-answer/, `${route} must provide a direct answer`);
+  assert.match(html, /class="faq-section/, `${route} must include visible question-and-answer content`);
+  assert.match(html, /class="sources-section/, `${route} must include authoritative references`);
+  assert.match(html, /Published by DealCooker\. Product owner:/, `${route} must identify the publisher and product owner without overstating authorship`);
+  assert.doesNotMatch(html, /Written and reviewed by/, `${route} must not make an unsupported authorship or review claim`);
+  assert.match(html, /<time datetime="\d{4}-\d{2}-\d{2}">/, `${route} must expose a visible update date`);
+  assert.match(html, /"dateModified":"\d{4}-\d{2}-\d{2}"/, `${route} structured data must expose its review date`);
+  assert.match(html, /"@type":"WebPage"/, `${route} must include WebPage structured data`);
+}
+
+const methodology = read(routeFile('/methodology/'));
+assert.match(methodology, /Net operating income \(NOI\)/, 'methodology must define NOI');
+assert.match(methodology, /Cash-on-cash return/, 'methodology must define cash-on-cash return');
+assert.match(methodology, /ROI and IRR/, 'methodology must define ROI and IRR');
+assert.match(methodology, /pre-tax/i, 'methodology must state that outputs are pre-tax estimates');
+
 const robots = read(path.join(outDir, 'robots.txt'));
 assert.match(robots, /User-agent: \*/);
 assert.match(robots, /Allow: \//);
 assert.match(robots, /Sitemap: https:\/\/dealcooker\.app\/sitemap\.xml/);
+for (const crawler of ['OAI-SearchBot', 'GPTBot', 'Claude-SearchBot', 'ClaudeBot', 'PerplexityBot']) {
+  assert.match(robots, new RegExp(`User-agent: ${crawler}\\nAllow: /`), `robots.txt must explicitly allow ${crawler}`);
+}
+
+const llms = read(path.join(outDir, 'llms.txt'));
+assert.match(llms, /^# DealCooker/m);
+assert.match(llms, /Methodology/);
+for (const route of expectedRoutes) assert.match(llms, new RegExp(`https://dealcooker\\.app${route.replaceAll('/', '\\/')}`), `llms.txt must list ${route}`);
+
+const indexNowKey = 'f2a2e51a3452babd2382b0dc1332c80d';
+assert.equal(read(path.join(outDir, `${indexNowKey}.txt`)).trim(), indexNowKey, 'IndexNow ownership key must be hosted at the root');
 
 const sitemap = read(path.join(outDir, 'sitemap.xml'));
 for (const route of expectedRoutes) {

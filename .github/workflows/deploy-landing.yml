@@ -74,5 +74,20 @@ jobs:
           grep -q "Sitemap: https://dealcooker.app/sitemap.xml" <<<"${robots}"
           sitemap="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/sitemap.xml)"
           grep -q "rental-property-calculator" <<<"${sitemap}"
+          grep -q "methodology" <<<"${sitemap}"
+          llms="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/llms.txt)"
+          grep -q "DealCooker methodology" <<<"${llms}"
+          grep -q "OAI-SearchBot" <<<"${robots}"
           app_headers="$(curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/)"
           grep -qi '^x-robots-tag: noindex' <<<"${app_headers}"
+
+      - name: Notify IndexNow
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="f2a2e51a3452babd2382b0dc1332c80d"
+          curl -fsS --retry 5 --retry-delay 3 "https://dealcooker.app/${key}.txt" | grep -qx "${key}"
+          urls="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/sitemap.xml | grep -oP '(?<=<loc>).*?(?=</loc>)' | jq -R . | jq -s .)"
+          payload="$(jq -n --arg host "dealcooker.app" --arg key "${key}" --arg keyLocation "https://dealcooker.app/${key}.txt" --argjson urlList "${urls}" '{host:$host,key:$key,keyLocation:$keyLocation,urlList:$urlList}')"
+          status="$(curl -sS -o /tmp/indexnow-response -w '%{http_code}' -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' --data "${payload}")"
+          case "${status}" in 200|202) echo "IndexNow accepted ${status}" ;; *) cat /tmp/indexnow-response; exit 1 ;; esac
