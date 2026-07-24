@@ -78,6 +78,14 @@ jobs:
           llms="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/llms.txt)"
           grep -q "Methodology](https://dealcooker.app/methodology/)" <<<"${llms}"
           grep -q "OAI-SearchBot" <<<"${robots}"
+          for user_agent in \
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" \
+            "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" \
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot"; do
+            crawler_page="$(curl -fsS --retry 5 --retry-delay 3 -A "${user_agent}" https://dealcooker.app/rental-property-calculator/)"
+            grep -q "What this calculator does" <<<"${crawler_page}"
+            grep -q 'content="index,follow,max-image-preview:large"' <<<"${crawler_page}"
+          done
           app_headers="$(curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/)"
           grep -qi '^x-robots-tag: noindex' <<<"${app_headers}"
 
