@@ -76,7 +76,7 @@ jobs:
           grep -q "rental-property-calculator" <<<"${sitemap}"
           grep -q "methodology" <<<"${sitemap}"
           llms="$(curl -fsS --retry 5 --retry-delay 3 https://dealcooker.app/llms.txt)"
-          grep -q "DealCooker methodology" <<<"${llms}"
+          grep -q "Methodology](https://dealcooker.app/methodology/)" <<<"${llms}"
           grep -q "OAI-SearchBot" <<<"${robots}"
           app_headers="$(curl -fsSI --retry 5 --retry-delay 3 https://www.dealcooker.app/)"
           grep -qi '^x-robots-tag: noindex' <<<"${app_headers}"
