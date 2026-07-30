@@ -740,7 +740,7 @@ export function DealInputPanel({
                 type="button"
                 aria-pressed={isOwnedMode}
                 onClick={() => update('purchase', 'ownershipMode', isOwnedMode ? 'purchase' : 'owned')}
-                className={`tap-feedback mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
+                className={`tap-feedback compact-touch-target mb-2.5 w-full rounded-lg border px-3 py-2 text-sm font-medium transition sm:mb-3 ${
                   isOwnedMode ? 'border-accent/70 bg-accent/20 text-accent' : 'section-action section-action-input text-white'
                 }`}
               >
@@ -1270,7 +1270,7 @@ function Section({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        className={isEmbedded ? 'tap-feedback workbench-section-toggle' : 'tap-feedback section-inner-muted flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm'}
+        className={isEmbedded ? 'tap-feedback compact-touch-target workbench-section-toggle' : 'tap-feedback compact-touch-target section-inner-muted flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-white sm:text-sm'}
       >
         <span>{title}</span>
         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/20 px-1.5 text-xs font-semibold text-slate-200 transition-transform duration-200">

@@ -257,7 +257,7 @@ describe('dashboard integration', () => {
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   });
 
-  it('keeps desktop onboarding targets mounted as the tour advances', async () => {
+  it('keeps the desktop quick tutorial to the three steps that reach a result', async () => {
     setViewport(1440);
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -267,29 +267,117 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Open settings' }));
-    await user.click(screen.getByRole('button', { name: 'Load sample deal' }));
-    await user.click(screen.getByRole('button', { name: 'Open settings' }));
     await user.click(screen.getByRole('button', { name: 'Replay quick tutorial' }));
     const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
     const next = () => user.click(within(dialog).getByRole('button', { name: 'Next' }));
     const inputSections = screen.getByRole('navigation', { name: 'Deal input sections' });
-    const workspaces = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
 
-    await next(); // Strategy
-    await next(); // Core
-    await next(); // Expenses
-    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Expenses/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(within(dialog).getByText('Quick Tour 1/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Choose the Strategy')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Your Saved Deals Are Here')).not.toBeInTheDocument();
 
-    await next(); // Strategy inputs
-    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Strategy/ })).toHaveAttribute('aria-pressed', 'true'));
+    await next();
+    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Deal basics/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(within(dialog).getByText('Quick Tour 2/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Enter the Deal Basics')).toBeInTheDocument();
 
-    await next(); // IRR
-    await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Advanced/ })).toHaveAttribute('aria-pressed', 'true'));
+    await next();
+    expect(within(dialog).getByText('Quick Tour 3/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Check the Result')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Finish' })).toBeInTheDocument();
+  });
 
-    await next(); // Results
-    await next(); // Compare
-    await waitFor(() => expect(within(workspaces).getByRole('button', { name: 'Compare' })).toHaveAttribute('aria-pressed', 'true'));
-    expect(await screen.findByRole('heading', { name: 'Strategy comparison' })).toBeInTheDocument();
+  it('keeps the mobile quick tutorial to the same three first-value steps', async () => {
+    setViewport(390);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn()
+    });
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Replay quick tutorial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
+    const next = () => user.click(within(dialog).getByRole('button', { name: 'Next' }));
+
+    expect(within(dialog).getByText('Quick Tour 1/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Choose the Strategy')).toBeInTheDocument();
+
+    await next();
+    expect(within(dialog).getByText('Quick Tour 2/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Enter the Deal Basics')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Core/ })).toHaveAttribute('aria-selected', 'true');
+
+    await next();
+    expect(within(dialog).getByText('Quick Tour 3/3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Check the Result')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Finish' })).toBeInTheDocument();
+  });
+
+  it.each([
+    { layout: 'desktop', width: 1440 },
+    { layout: 'mobile', width: 390 }
+  ])('keeps the optional full tutorial available on $layout', async ({ width }) => {
+    setViewport(width);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn()
+    });
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'View full tutorial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
+    const next = () => user.click(within(dialog).getByRole('button', { name: 'Next' }));
+
+    expect(within(dialog).getByText('Quick Tour 1/9')).toBeInTheDocument();
+    expect(within(dialog).getByText('Choose the Strategy')).toBeInTheDocument();
+
+    await next();
+    await next();
+    await next();
+    expect(within(dialog).getByText('Quick Tour 4/9')).toBeInTheDocument();
+    expect(within(dialog).getByText('Add the Monthly Costs')).toBeInTheDocument();
+  });
+
+  it('keeps tutorial text theme-safe on its dark panel in light mode', async () => {
+    setViewport(390);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn()
+    });
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    window.localStorage.setItem('dealcooker-light-mode:v1', '1');
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await user.click(screen.getByRole('button', { name: 'Replay quick tutorial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
+    const title = within(dialog).getByText('Choose the Strategy');
+    const body = within(dialog).getByText(/Choose the kind of deal you want to analyze/);
+    const skip = within(dialog).getByRole('button', { name: 'Skip tutorial' });
+
+    expect(document.body).toHaveClass('theme-light');
+    expect(dialog.querySelector('.onboarding-tooltip-panel')).not.toBeNull();
+    expect(title).toHaveClass('onboarding-tooltip-heading');
+    expect(body).toHaveClass('onboarding-tooltip-copy');
+    expect(skip).toHaveClass('onboarding-tooltip-secondary');
+  });
+
+  it('applies the compact touch-target contract to mobile deal inputs', () => {
+    setViewport(390);
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    render(<HomePage />);
+
+    const purchasePrice = screen.getByLabelText('Purchase price');
+    const ownershipMode = screen.getByRole('button', { name: 'I Already Own This Property' });
+    const advancedOptions = screen.getByRole('button', { name: /^Advanced Options/ });
+
+    expect(purchasePrice.closest('.compact-input-view')).not.toBeNull();
+    expect(ownershipMode).toHaveClass('compact-touch-target');
+    expect(advancedOptions).toHaveClass('compact-touch-target');
   });
 
   it('keeps the compact workspace through small-laptop widths', async () => {

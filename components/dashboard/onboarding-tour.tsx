@@ -167,7 +167,7 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
 
       <div
         ref={panelRef}
-        className="absolute rounded-[22px] border-2 border-[#8fdcff] bg-[linear-gradient(150deg,#0f2945_0%,#163a63_55%,#1a456f_100%)] p-4 text-slate-100 shadow-[0_20px_40px_rgba(2,8,20,0.72)] transition-all duration-300"
+        className="onboarding-tooltip-panel absolute rounded-[22px] border-2 border-[#8fdcff] bg-[linear-gradient(150deg,#0f2945_0%,#163a63_55%,#1a456f_100%)] p-4 shadow-[0_20px_40px_rgba(2,8,20,0.72)] transition-all duration-300"
         style={{
           top: bubbleLayout.top,
           left: bubbleLayout.left,
@@ -184,22 +184,22 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
             ref={closeButtonRef}
             type="button"
             onClick={onSkip}
-            className="text-[11px] font-medium text-slate-200/90 underline underline-offset-2"
+            className="onboarding-tooltip-secondary text-[11px] font-medium underline underline-offset-2"
           >
             Skip tutorial
           </button>
         </div>
 
         <p className="text-[11px] uppercase tracking-[0.12em] text-[#b9ebff]">Quick Tour {stepIndex + 1}/{steps.length}</p>
-        <p className="mt-1 text-base font-semibold text-white">{step.title}</p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-100/95">{step.body}</p>
+        <p className="onboarding-tooltip-heading mt-1 text-base font-semibold">{step.title}</p>
+        <p className="onboarding-tooltip-copy mt-2 text-sm leading-relaxed">{step.body}</p>
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onBack}
             disabled={isFirstStep}
-            className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="onboarding-tooltip-heading rounded-lg border border-white/25 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
           >
             Back
           </button>

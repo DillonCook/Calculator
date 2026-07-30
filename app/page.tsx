@@ -589,98 +589,108 @@ const ONBOARDING_STORAGE_KEY = 'dealcooker-onboarding-seen:v1';
 const COMPACT_RECENT_DEALS_LIMIT = 10;
 const desktopOnboardingSteps: OnboardingStep[] = [
   {
-    id: 'desktopDeals',
-    title: 'Your Saved Deals Are Here',
-    body: 'Click Deal Vault when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
-  },
-  {
     id: 'desktopStrategy',
-    title: 'Pick the Strategy First',
-    body: 'Use these strategy tabs to choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
+    title: 'Choose the Strategy',
+    body: 'Choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
   },
   {
     id: 'desktopCore',
-    title: 'Purchase Terms Stay Open',
-    body: 'Start in the Purchase lane when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
-  },
-  {
-    id: 'desktopExpenses',
-    title: 'Expenses Stay Beside It',
-    body: 'Use the Expenses lane for taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
-  },
-  {
-    id: 'desktopStrategyInputs',
-    title: 'Strategy Assumptions Are Live',
-    body: 'Use the Strategy lane for plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
-  },
-  {
-    id: 'desktopIrr',
-    title: 'Timeline and IRR Live Here',
-    body: 'Use this section when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
+    title: 'Enter the Deal Basics',
+    body: 'Start with the purchase price and financing here, then use Strategy for rent or other expected income. DealCooker needs those basics before it can evaluate the deal.'
   },
   {
     id: 'desktopResults',
-    title: 'The Verdict Stays Up Top',
-    body: 'As you update the deal, this ribbon keeps the main numbers in view so you can check cash flow, returns, and the overall verdict without switching screens.'
-  },
-  {
-    id: 'desktopCompare',
-    title: 'Use Projections to Model the Future',
-    body: 'This area shows how cash flow, equity, and returns could build over time. You can compare multiple strategies side by side while staying on the same page.'
-  },
-  {
-    id: 'desktopActions',
-    title: 'Desktop Actions Live Up Top',
-    body: 'Use the header actions for sharing, printing, signing in, and changing settings. Desktop keeps those extra tools visible instead of placing them behind a single menu.'
+    title: 'Check the Result',
+    body: 'As soon as the basics are entered, this verdict shows cash flow, returns, and what needs attention. Use Projection later when you want the longer view.'
   }
 ];
 const mobileOnboardingSteps: OnboardingStep[] = [
   {
-    id: 'mobileDeals',
-    title: 'Your Saved Deals Are Here',
-    body: 'Tap Deal Vault when you want to reopen something you already worked on. It is also where you can duplicate or remove older deal scenarios.'
-  },
-  {
     id: 'mobileStrategy',
-    title: 'Pick the Strategy First',
-    body: 'Tap this strategy button to choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
+    title: 'Choose the Strategy',
+    body: 'Choose the kind of deal you want to analyze. You can switch between Commercial, Long-Term, Airbnb, PadSplit, BRRRR, and Flip at any time.'
   },
   {
     id: 'mobileCore',
-    title: 'Tap Core to Enter the Basics',
-    body: 'Start with Core when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
-  },
-  {
-    id: 'mobileExpenses',
-    title: 'Tap Expenses for Monthly Costs',
-    body: 'Open Expenses when you are ready to add taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
-  },
-  {
-    id: 'mobileStrategyInputs',
-    title: 'Tap Strategy for Plan-Specific Numbers',
-    body: 'Use Strategy after you choose your approach. That section holds the income and plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
-  },
-  {
-    id: 'mobileIrr',
-    title: 'Tap IRR for Hold and Exit Settings',
-    body: 'Open IRR when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
+    title: 'Enter the Deal Basics',
+    body: 'Start with the purchase price and financing in Core, then use Strategy for rent or other expected income. DealCooker needs those basics before it can evaluate the deal.'
   },
   {
     id: 'mobileResults',
-    title: 'Results Shows the Deal Outcome',
-    body: 'Once you have entered enough information, tap Results to see the main numbers for the deal. This is where you check cash flow, returns, and the overall verdict.'
+    title: 'Check the Result',
+    body: 'Once the basics are entered, tap Results to see cash flow, returns, and what needs attention. Use Projections later when you want the longer view.'
+  }
+];
+
+const desktopFullOnboardingSteps: OnboardingStep[] = [
+  ...desktopOnboardingSteps,
+  {
+    id: 'desktopExpenses',
+    title: 'Add the Monthly Costs',
+    body: 'Use Expenses for taxes, insurance, HOA or PMI, and other operating costs so the result reflects the real monthly burden.'
+  },
+  {
+    id: 'desktopStrategyInputs',
+    title: 'Refine the Strategy Assumptions',
+    body: 'Use Strategy for plan-specific numbers such as rent, nightly rate, refinance details, or flip assumptions.'
+  },
+  {
+    id: 'desktopIrr',
+    title: 'Set the Hold and Exit Plan',
+    body: 'Use Advanced when you want to set how long you will keep the property and how you expect to exit. Those choices shape the return timeline.'
+  },
+  {
+    id: 'desktopCompare',
+    title: 'Project and Compare',
+    body: 'Projection and Compare show how cash flow, equity, and returns could build over time across the strategies you select.'
+  },
+  {
+    id: 'desktopDeals',
+    title: 'Return to Saved Deals',
+    body: 'Deal Vault reopens saved scenarios and gives you a place to duplicate or remove older deals.'
+  },
+  {
+    id: 'desktopActions',
+    title: 'Use the Deal Actions',
+    body: 'The header actions handle sharing, printing, signing in, and settings without interrupting the main underwriting workflow.'
+  }
+];
+
+const mobileFullOnboardingSteps: OnboardingStep[] = [
+  ...mobileOnboardingSteps,
+  {
+    id: 'mobileExpenses',
+    title: 'Add the Monthly Costs',
+    body: 'Tap Expenses for taxes, insurance, HOA or PMI, and other operating costs so the result reflects the real monthly burden.'
+  },
+  {
+    id: 'mobileStrategyInputs',
+    title: 'Refine the Strategy Assumptions',
+    body: 'Tap Strategy for plan-specific numbers such as rent, nightly rate, refinance details, or flip assumptions.'
+  },
+  {
+    id: 'mobileIrr',
+    title: 'Set the Hold and Exit Plan',
+    body: 'Tap IRR when you want to set how long you will keep the property and how you expect to exit. Those choices shape the return timeline.'
   },
   {
     id: 'mobileCompare',
-    title: 'Use Projections to Model the Future',
-    body: 'Tap Projections to see how cash flow, equity, and returns could build over time. You can still view multiple strategies side by side, but this screen is mainly for projecting where each plan may lead.'
+    title: 'Project and Compare',
+    body: 'Tap Projections to see how cash flow, equity, and returns could build over time across the strategies you select.'
+  },
+  {
+    id: 'mobileDeals',
+    title: 'Return to Saved Deals',
+    body: 'Deal Vault reopens saved scenarios and gives you a place to duplicate or remove older deals.'
   },
   {
     id: 'mobileActions',
-    title: 'More Actions Live Here',
-    body: 'Use this menu for sharing, printing, signing in, installing the app, and changing settings. It keeps the main screen simple while the extra tools stay one tap away.'
+    title: 'Use the Deal Actions',
+    body: 'The menu handles sharing, printing, signing in, installation, and settings while the main screen stays focused on the deal.'
   }
 ];
+
+type OnboardingTourMode = 'quick' | 'full';
 
 function ReserveModeTooltip({ strategy, includeReserves }: { strategy: StrategyKey; includeReserves: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -1036,6 +1046,7 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
+  const [onboardingTourMode, setOnboardingTourMode] = useState<OnboardingTourMode>('quick');
   const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; scenarioId: string } | null>(null);
 
   const showSyncFeedback = useCallback((message: string, tone: SyncFeedbackTone = 'info') => {
@@ -1418,7 +1429,14 @@ export default function HomePage() {
       missing
     };
   }, [activeStrategy, model, result]);
-  const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
+  const currentOnboardingSteps =
+    onboardingTourMode === 'full'
+      ? isMobileViewport
+        ? mobileFullOnboardingSteps
+        : desktopFullOnboardingSteps
+      : isMobileViewport
+        ? mobileOnboardingSteps
+        : desktopOnboardingSteps;
   const onboardingTargetLayoutKey = `${workspaceViewMode}:${compactMode}:${compactInputSection}:${compactSheetView ?? 'closed'}:${desktopWorkspaceMode}:${desktopInputSection}`;
   const compactSortedDeals = useMemo(
     () => [...deals].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
@@ -2136,6 +2154,7 @@ export default function HomePage() {
   const completeOnboarding = () => {
     setIsOnboardingOpen(false);
     setOnboardingStepIndex(0);
+    setOnboardingTourMode('quick');
     setCompactSheetView(null);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
@@ -2594,6 +2613,7 @@ export default function HomePage() {
 
     const hasSeenTutorial = window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1';
     if (!hasSeenTutorial) {
+      setOnboardingTourMode('quick');
       setIsOnboardingOpen(true);
       setOnboardingStepIndex(0);
     }
@@ -3547,16 +3567,20 @@ export default function HomePage() {
     setIsAuthMenuOpen(false);
   };
 
-  const replayQuickTutorial = () => {
+  const startTutorial = (mode: OnboardingTourMode) => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(ONBOARDING_STORAGE_KEY);
     }
+    setOnboardingTourMode(mode);
     setOnboardingStepIndex(0);
     setIsOnboardingOpen(true);
     setCompactSheetView(null);
     setIsSettingsOpen(false);
     setIsAuthMenuOpen(false);
   };
+
+  const replayQuickTutorial = () => startTutorial('quick');
+  const viewFullTutorial = () => startTutorial('full');
 
   const resetOutputOrderingPreferences = () => {
     setCommercialDigestOrder(defaultCommercialDigestOrder);
@@ -4449,6 +4473,16 @@ export default function HomePage() {
           className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
         >
           Replay quick tutorial
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHapticFeedback('light');
+            viewFullTutorial();
+          }}
+          className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
+        >
+          View full tutorial
         </button>
         {!isPwaInstalled && isMobileViewport ? (
           <button
@@ -6255,7 +6289,7 @@ export default function HomePage() {
       </section>
 
       <section className="space-y-4 pb-4">
-        <div key={`compact-mode-${compactMode}`} className="compact-view-panel panel-swap space-y-4">
+        <div key={`compact-mode-${compactMode}`} className={`compact-view-panel panel-swap space-y-4${compactMode === 'inputs' ? ' compact-input-view' : ''}`}>
           {compactMode === 'inputs' ? compactInputsView : null}
           {compactMode === 'results' ? compactResultsView : null}
           {compactMode === 'compare' ? compactCompareView : null}

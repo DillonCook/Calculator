@@ -5253,6 +5253,22 @@ html {
   color: rgba(47, 98, 151, 0.9) !important;
 }
 
+.onboarding-tooltip-panel {
+  color: #f1f5f9;
+}
+
+.onboarding-tooltip-heading {
+  color: #ffffff;
+}
+
+.onboarding-tooltip-copy {
+  color: rgba(241, 245, 249, 0.95);
+}
+
+.onboarding-tooltip-secondary {
+  color: rgba(226, 232, 240, 0.9);
+}
+
 .theme-light :is(.text-slate-100, .text-slate-200, .text-white) {
   color: var(--dc-light-text-strong) !important;
 }
@@ -6687,6 +6703,8 @@ textarea {
 
   .compact-input-view input,
   .compact-input-view select,
+  .compact-input-view textarea,
+  .compact-input-view .compact-touch-target,
   .mobile-sheet-panel input,
   .mobile-sheet-panel select,
   .mobile-sheet-panel button,
