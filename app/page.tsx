@@ -6690,6 +6690,32 @@ export default function HomePage() {
 
         {!isMobileViewport && workspaceViewMode === 'studio' ? (
         <>
+        <section className="desktop-global-strategy-context section-shell section-shell-utility min-w-0 rounded-2xl p-3 shadow-soft xl:p-4">
+          <p className="desktop-builder-control-label">Analyze this deal as</p>
+          <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
+            <StrategyTabs
+              active={activeStrategy}
+              onChange={openDesktopStrategyWorkspace}
+              longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+              onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
+              quickScan={strategyQuickScan}
+              embeddedInRail
+              actionSlot={
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHapticFeedback('light');
+                    setIsStrategyWorkOpen(true);
+                  }}
+                  className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
+                >
+                  Show work
+                </button>
+              }
+            />
+          </div>
+        </section>
+
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           {!compactReadiness.ready ? (
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
@@ -7051,13 +7077,12 @@ export default function HomePage() {
 
         <div ref={desktopPostDigestFlowRef} className="scenario-flip-flow">
           <div className="desktop-workspace-switcher">
-            <p className="desktop-workspace-label">Deal workspace</p>
             <nav ref={desktopWorkspaceTabsRef} className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
               {([
-                ['build', 'Build', 'Edit deal'],
-                ['projection', 'Projection', 'Review one strategy'],
-                ['compare', 'Compare', 'Compare strategies']
-              ] as const).map(([mode, label, description]) => (
+                ['build', 'Build'],
+                ['projection', 'Projection'],
+                ['compare', 'Compare']
+              ] as const).map(([mode, label]) => (
                 <button
                   key={mode}
                   type="button"
@@ -7069,7 +7094,6 @@ export default function HomePage() {
                   }}
                 >
                   <span className="desktop-workspace-tab-label">{label}</span>
-                  <span className="desktop-workspace-tab-description" aria-hidden="true">{description}</span>
                 </button>
               ))}
             </nav>
@@ -7077,32 +7101,6 @@ export default function HomePage() {
 
           {desktopWorkspaceMode === 'build' ? (
           <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
-            <div className="desktop-builder-control-group">
-              <p className="desktop-builder-control-label">Analyze this deal as</p>
-              <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
-                <StrategyTabs
-                  active={activeStrategy}
-                  onChange={openDesktopStrategyWorkspace}
-                  longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
-                  onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
-                  quickScan={strategyQuickScan}
-                  embeddedInRail
-                  actionSlot={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHapticFeedback('light');
-                        setIsStrategyWorkOpen(true);
-                      }}
-                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
-                    >
-                      Show work
-                    </button>
-                  }
-                />
-              </div>
-            </div>
-
             <div className="desktop-builder-control-group desktop-builder-input-group">
               <p className="desktop-builder-control-label">Deal inputs</p>
               <nav className="desktop-input-section-tabs" aria-label="Deal input sections">

@@ -6610,7 +6610,6 @@ textarea {
   margin: 0 auto 0.9rem;
 }
 
-.desktop-workspace-label,
 .desktop-builder-control-label {
   color: var(--dc-muted);
   font-size: 0.67rem;
@@ -6620,8 +6619,31 @@ textarea {
   text-transform: uppercase;
 }
 
-.desktop-workspace-label {
-  margin: 0 0 0.38rem 0.35rem;
+@media (min-width: 1200px) and (max-width: 1279px) {
+  .desktop-global-strategy-context .strategy-tabs-embedded-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.15rem 0.65rem;
+  }
+
+  .desktop-global-strategy-context .strategy-control-row-embedded {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .desktop-global-strategy-context .quick-scan-inline {
+    grid-column: 1;
+    grid-row: 2;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .desktop-global-strategy-context .strategy-action-slot-embedded {
+    grid-column: 2;
+    grid-row: 2;
+    margin-left: 0;
+  }
 }
 
 .desktop-workspace-tabs {
@@ -6638,11 +6660,9 @@ textarea {
 
 .desktop-workspace-tab {
   display: flex;
-  min-height: 3.25rem;
-  flex-direction: column;
+  min-height: 2.65rem;
   align-items: center;
   justify-content: center;
-  gap: 0.16rem;
   border-radius: 10px;
   color: var(--dc-muted);
   transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
@@ -6655,21 +6675,10 @@ textarea {
   line-height: 1.1;
 }
 
-.desktop-workspace-tab-description {
-  color: var(--dc-muted);
-  font-size: 0.66rem;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
 .desktop-workspace-tab-active {
   background: rgba(59, 130, 246, 0.2);
   color: var(--dc-text);
   box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.28);
-}
-
-.desktop-workspace-tab-active .desktop-workspace-tab-description {
-  color: rgba(226, 232, 240, 0.72);
 }
 
 .desktop-builder-control-group {
@@ -6693,10 +6702,6 @@ textarea {
   background: #fff;
   color: #143455;
   box-shadow: 0 3px 12px rgba(30, 64, 95, 0.1);
-}
-
-.theme-light .desktop-workspace-tab-active .desktop-workspace-tab-description {
-  color: #58718a;
 }
 
 .desktop-input-section-tabs {

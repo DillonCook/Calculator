@@ -371,22 +371,37 @@ describe('dashboard integration', () => {
     expect(await screen.findByText('1 selected')).toBeInTheDocument();
   });
 
-  it('makes the desktop workspace, deal strategy, and input sections distinct', () => {
+  it('places global desktop strategy controls before strategy-dependent KPIs', () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(1440);
+
+    render(<HomePage />);
+
+    const strategySelector = screen.getByLabelText('Desktop strategy selector');
+    const strategyContext = screen.getByText('Analyze this deal as').closest('.desktop-global-strategy-context');
+    const outcomeRibbon = screen.getByTestId('kpi-priority-metric').closest('.desktop-outcome-ribbon');
+    const workspace = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
+
+    expect(strategyContext).toBeInTheDocument();
+    expect(strategySelector.closest('.desktop-deal-builder')).toBeNull();
+    expect(strategyContext?.compareDocumentPosition(outcomeRibbon as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(within(workspace).getByRole('button', { name: 'Projection' }));
+    expect(screen.getByLabelText('Desktop strategy selector')).toBeInTheDocument();
+  });
+
+  it('keeps desktop workspace tabs to their three labels only', () => {
     window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
     setViewport(1440);
 
     render(<HomePage />);
 
     const workspace = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
-    const build = within(workspace).getByRole('button', { name: 'Build' });
-    const projection = within(workspace).getByRole('button', { name: 'Projection' });
-    const compare = within(workspace).getByRole('button', { name: 'Compare' });
-
-    expect(screen.getByText('Deal workspace')).toBeInTheDocument();
-    expect(within(build).getByText('Edit deal')).toBeInTheDocument();
-    expect(within(projection).getByText('Review one strategy')).toBeInTheDocument();
-    expect(within(compare).getByText('Compare strategies')).toBeInTheDocument();
-    expect(screen.getByText('Analyze this deal as')).toBeInTheDocument();
+    expect(screen.queryByText('Deal workspace')).not.toBeInTheDocument();
+    expect(within(workspace).getByRole('button', { name: 'Build' })).toHaveTextContent(/^Build$/);
+    expect(within(workspace).getByRole('button', { name: 'Projection' })).toHaveTextContent(/^Projection$/);
+    expect(within(workspace).getByRole('button', { name: 'Compare' })).toHaveTextContent(/^Compare$/);
+    expect(workspace.querySelector('.desktop-workspace-tab-description')).toBeNull();
     expect(screen.getByText('Deal inputs')).toBeInTheDocument();
   });
 
