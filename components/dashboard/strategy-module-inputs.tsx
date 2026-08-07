@@ -479,7 +479,7 @@ export function StrategyModuleInputs({
           />
           <Input
             label="Flip rehab override"
-            tooltip="Optional flip-specific rehab budget before contingency. Leave blank to use the main rehab budget from Core."
+            tooltip="Optional flip-specific rehab budget before contingency. Leave blank to use the main rehab budget from Deal Basics."
             type="number"
             value={model.flip.rehabOverride ?? ''}
             onChange={(v) => updateFlip('rehabOverride', v === '' ? null : Number(v))}
@@ -559,7 +559,7 @@ export function StrategyModuleInputs({
               </>
             ) : (
               <div className={inlineMutedPanelClassName}>
-                Purchase loan, cash, and HELOC settings from Core are used for flip debt service and payoff.
+                Purchase loan, cash, and HELOC settings from Deal Basics are used for flip debt service and payoff.
               </div>
             )}
           </div>

@@ -73,10 +73,10 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
 
   const priceCutSubtext =
     targetIrrDecimal === null
-      ? 'Set a target IRR on Inputs to calculate the needed purchase price cut.'
+      ? 'Set a target IRR in Build to calculate the needed purchase price cut.'
       : targetIrrPriceCutAmount > 0
         ? `Cut purchase price by ${currencyFormatter.format(targetIrrPriceCutAmount)} to target ${targetIrrLabel}% IRR.`
-        : `Target IRR is set to ${targetIrrLabel}% from Inputs.`;
+        : `Target IRR is set to ${targetIrrLabel}% in Build.`;
 
   return (
     <section className="deal-workout-surface results-hero-support section-shell-analysis">

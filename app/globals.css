@@ -6605,12 +6605,31 @@ textarea {
 .theme-light .decision-status-failing { color: #b91c1c; }
 .theme-light .decision-status-incomplete { color: #1d4ed8; }
 
+.desktop-workspace-switcher {
+  width: min(42rem, 100%);
+  margin: 0 auto 0.9rem;
+}
+
+.desktop-workspace-label,
+.desktop-builder-control-label {
+  color: var(--dc-muted);
+  font-size: 0.67rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.desktop-workspace-label {
+  margin: 0 0 0.38rem 0.35rem;
+}
+
 .desktop-workspace-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
-  width: min(34rem, 100%);
-  margin: 0 auto 0.85rem;
+  width: 100%;
+  margin: 0;
   padding: 0.3rem;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
@@ -6618,18 +6637,51 @@ textarea {
 }
 
 .desktop-workspace-tab {
-  min-height: 2.65rem;
+  display: flex;
+  min-height: 3.25rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.16rem;
   border-radius: 10px;
   color: var(--dc-muted);
-  font-size: 0.84rem;
-  font-weight: 700;
   transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.desktop-workspace-tab-label {
+  color: inherit;
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.desktop-workspace-tab-description {
+  color: var(--dc-muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.1;
 }
 
 .desktop-workspace-tab-active {
   background: rgba(59, 130, 246, 0.2);
   color: var(--dc-text);
   box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.28);
+}
+
+.desktop-workspace-tab-active .desktop-workspace-tab-description {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.desktop-builder-control-group {
+  min-width: 0;
+}
+
+.desktop-builder-control-label {
+  margin: 0 0 0.45rem 0.15rem;
+}
+
+.desktop-builder-input-group .desktop-input-section-tabs {
+  margin: 0;
 }
 
 .theme-light .desktop-workspace-tabs {
@@ -6641,6 +6693,10 @@ textarea {
   background: #fff;
   color: #143455;
   box-shadow: 0 3px 12px rgba(30, 64, 95, 0.1);
+}
+
+.theme-light .desktop-workspace-tab-active .desktop-workspace-tab-description {
+  color: #58718a;
 }
 
 .desktop-input-section-tabs {

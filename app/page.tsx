@@ -122,7 +122,7 @@ const getAuthCallbackUrl = (next?: 'password-reset') => {
 };
 
 const compactModeLabels: Record<CompactMode, string> = {
-  inputs: 'Inputs',
+  inputs: 'Build',
   results: 'Results',
   compare: 'Projections'
 };
@@ -647,8 +647,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileCore',
-    title: 'Tap Core to Enter the Basics',
-    body: 'Start with Core when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
+    title: 'Tap Deal Basics to Start Building',
+    body: 'Start with Deal Basics when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
     id: 'mobileExpenses',
@@ -662,8 +662,8 @@ const mobileOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'mobileIrr',
-    title: 'Tap IRR for Hold and Exit Settings',
-    body: 'Open IRR when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
+    title: 'Tap Advanced for Hold and Exit Settings',
+    body: 'Open Advanced when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
   },
   {
     id: 'mobileResults',
@@ -1703,8 +1703,8 @@ export default function HomePage() {
   const compactInputSections = [
     {
       key: 'core' as const,
-      label: 'Core',
-      desktopLabel: 'Deal basics',
+      label: 'Deal Basics',
+      desktopLabel: 'Deal Basics',
       summary:
         model.purchase.ownershipMode === 'owned'
           ? 'Owned carry'
@@ -1732,7 +1732,7 @@ export default function HomePage() {
     },
     {
       key: 'irr' as const,
-      label: 'IRR',
+      label: 'Advanced',
       desktopLabel: 'Advanced',
       summary: `${model.assumptions.holdYears}y hold`,
       completion: 'optional' as const,
@@ -4165,6 +4165,7 @@ export default function HomePage() {
       const nextDeals = saveDealToVault(imported);
       setDeals(nextDeals);
       loadScenario(imported.payload, imported.scenarioId);
+      showSyncFeedback(`Imported shared deal: ${imported.dealName}. Choose Build to edit this deal.`, 'success');
       queueScenarioPush(imported);
       void trackAnalyticsEvent('scenario_created', { source: 'share_import', signedIn: Boolean(currentUser?.id) });
       void trackAnalyticsEvent('scenario_imported', { source: 'url_param', signedIn: Boolean(currentUser?.id) });
@@ -4176,7 +4177,7 @@ export default function HomePage() {
     window.history.replaceState({}, '', nextUrl);
 
     return () => window.clearTimeout(syncImportTimer);
-  }, [guardNewSavedDeals, hasResolvedInitialAuth]);
+  }, [guardNewSavedDeals, hasResolvedInitialAuth, showSyncFeedback]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -4185,7 +4186,7 @@ export default function HomePage() {
     if (!importedDealName) return;
 
     window.sessionStorage.removeItem(SHARE_IMPORT_NOTICE_STORAGE_KEY);
-    showSyncFeedback(`Imported shared deal: ${importedDealName}.`, 'success');
+    showSyncFeedback(`Imported shared deal: ${importedDealName}. Choose Build to edit this deal.`, 'success');
   }, [showSyncFeedback]);
 
   const emailAuthModeOptions: Array<{ mode: Exclude<EmailAuthMode, 'resetPassword'>; label: string }> = [
@@ -5556,6 +5557,7 @@ export default function HomePage() {
               key={mode}
               ref={mode === 'results' ? compactResultsNavButtonRef : mode === 'compare' ? compactCompareNavButtonRef : null}
               type="button"
+              aria-pressed={isActive}
               onClick={() => {
                 if (!isActive) triggerHapticFeedback('light');
                 setCompactMode(mode);
@@ -7048,81 +7050,92 @@ export default function HomePage() {
         </div>
 
         <div ref={desktopPostDigestFlowRef} className="scenario-flip-flow">
-          <nav ref={desktopWorkspaceTabsRef} className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
-            {([
-              ['build', 'Build'],
-              ['projection', 'Projection'],
-              ['compare', 'Compare']
-            ] as const).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={desktopWorkspaceMode === mode}
-                className={`desktop-workspace-tab ${desktopWorkspaceMode === mode ? 'desktop-workspace-tab-active' : ''}`}
-                onClick={() => {
-                  setDesktopWorkspaceMode(mode);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-
-          {desktopWorkspaceMode === 'build' ? (
-          <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
-            <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
-              <StrategyTabs
-                active={activeStrategy}
-                onChange={openDesktopStrategyWorkspace}
-                longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
-                onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
-                quickScan={strategyQuickScan}
-                embeddedInRail
-                actionSlot={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback('light');
-                      setIsStrategyWorkOpen(true);
-                    }}
-                    className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
-                  >
-                    Show work
-                  </button>
-                }
-              />
-            </div>
-
-            <nav className="desktop-input-section-tabs" aria-label="Deal input sections">
-              {compactInputSections.map((section) => (
+          <div className="desktop-workspace-switcher">
+            <p className="desktop-workspace-label">Deal workspace</p>
+            <nav ref={desktopWorkspaceTabsRef} className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
+              {([
+                ['build', 'Build', 'Edit deal'],
+                ['projection', 'Projection', 'Review one strategy'],
+                ['compare', 'Compare', 'Compare strategies']
+              ] as const).map(([mode, label, description]) => (
                 <button
-                  key={`desktop-input-${section.key}`}
-                  ref={
-                    section.key === 'core'
-                      ? desktopCoreInputButtonRef
-                      : section.key === 'expenses'
-                        ? desktopExpensesInputButtonRef
-                        : section.key === 'strategy'
-                          ? desktopStrategyInputButtonRef
-                          : desktopAdvancedInputButtonRef
-                  }
+                  key={mode}
                   type="button"
-                  aria-label={`${section.desktopLabel}, ${section.completionLabel}`}
-                  aria-pressed={desktopInputSection === section.key}
-                  data-completion={section.completion}
-                  className={`desktop-input-section-tab ${desktopInputSection === section.key ? 'desktop-input-section-tab-active' : ''}`}
-                  onClick={() => setDesktopInputSection(section.key)}
+                  aria-label={label}
+                  aria-pressed={desktopWorkspaceMode === mode}
+                  className={`desktop-workspace-tab ${desktopWorkspaceMode === mode ? 'desktop-workspace-tab-active' : ''}`}
+                  onClick={() => {
+                    setDesktopWorkspaceMode(mode);
+                  }}
                 >
-                  <span className="desktop-input-section-label">{section.desktopLabel}</span>
-                  <span className="desktop-input-section-status" aria-hidden="true">
-                    <span className="desktop-input-section-status-mark">
-                      {section.completion === 'complete' ? '✓' : section.completion === 'incomplete' ? '•' : '–'}
-                    </span>
-                    {section.completionLabel}
-                  </span>
+                  <span className="desktop-workspace-tab-label">{label}</span>
+                  <span className="desktop-workspace-tab-description" aria-hidden="true">{description}</span>
                 </button>
               ))}
             </nav>
+          </div>
+
+          {desktopWorkspaceMode === 'build' ? (
+          <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
+            <div className="desktop-builder-control-group">
+              <p className="desktop-builder-control-label">Analyze this deal as</p>
+              <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
+                <StrategyTabs
+                  active={activeStrategy}
+                  onChange={openDesktopStrategyWorkspace}
+                  longTermTurnaroundEnabled={model.longTerm.turnaround.enabled}
+                  onLongTermTurnaroundChange={setLongTermTurnaroundEnabled}
+                  quickScan={strategyQuickScan}
+                  embeddedInRail
+                  actionSlot={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('light');
+                        setIsStrategyWorkOpen(true);
+                      }}
+                      className="btn-primary btn-spotlight btn-brand-profile tap-feedback flex h-full min-h-[2.35rem] items-center justify-center rounded-xl px-3 py-1.5 text-[0.8125rem] font-medium whitespace-nowrap"
+                    >
+                      Show work
+                    </button>
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="desktop-builder-control-group desktop-builder-input-group">
+              <p className="desktop-builder-control-label">Deal inputs</p>
+              <nav className="desktop-input-section-tabs" aria-label="Deal input sections">
+                {compactInputSections.map((section) => (
+                  <button
+                    key={`desktop-input-${section.key}`}
+                    ref={
+                      section.key === 'core'
+                        ? desktopCoreInputButtonRef
+                        : section.key === 'expenses'
+                          ? desktopExpensesInputButtonRef
+                          : section.key === 'strategy'
+                            ? desktopStrategyInputButtonRef
+                            : desktopAdvancedInputButtonRef
+                    }
+                    type="button"
+                    aria-label={`${section.desktopLabel}, ${section.completionLabel}`}
+                    aria-pressed={desktopInputSection === section.key}
+                    data-completion={section.completion}
+                    className={`desktop-input-section-tab ${desktopInputSection === section.key ? 'desktop-input-section-tab-active' : ''}`}
+                    onClick={() => setDesktopInputSection(section.key)}
+                  >
+                    <span className="desktop-input-section-label">{section.desktopLabel}</span>
+                    <span className="desktop-input-section-status" aria-hidden="true">
+                      <span className="desktop-input-section-status-mark">
+                        {section.completion === 'complete' ? '✓' : section.completion === 'incomplete' ? '•' : '–'}
+                      </span>
+                      {section.completionLabel}
+                    </span>
+                  </button>
+                ))}
+              </nav>
+            </div>
 
             <div className="desktop-progressive-input-shell w-full">
               {desktopInputSection === 'core' ? (
