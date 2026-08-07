@@ -739,7 +739,9 @@ describe('dashboard integration', () => {
 
     expect(window.localStorage.getItem(WORKSPACE_VIEW_MODE_STORAGE_KEY)).toBe('studio');
     expect(screen.queryByLabelText('Spreadsheet deal workspace')).not.toBeInTheDocument();
-    expect(screen.getByText('Deal builder')).toBeInTheDocument();
+    expect(screen.getByLabelText('Deal input sections')).toBeInTheDocument();
+    expect(screen.queryByText('Deal builder')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inputs' })).not.toBeInTheDocument();
   });
 
   it('places the mobile admin dashboard link directly below owner account info', async () => {
@@ -1804,6 +1806,17 @@ describe('dashboard integration', () => {
     await user.click(screen.getAllByRole('button', { name: 'Exclude reserves' })[0]);
 
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(excludeValue);
+  });
+
+  it('keeps the hero KPI focused by omitting verdict labels and explanatory notes', () => {
+    render(<HomePage />);
+    loadSampleDealFromSettings();
+
+    expect(screen.getByTestId('kpi-priority-metric')).toBeInTheDocument();
+    expect(document.querySelector('.decision-verdict-row')).toBeNull();
+    expect(screen.queryByText('Strong')).not.toBeInTheDocument();
+    expect(screen.queryByText(/produces positive monthly cash flow/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/DSCR at or above 1\.20/i)).not.toBeInTheDocument();
   });
 
   it('flip priority metric switches to net profit', async () => {
