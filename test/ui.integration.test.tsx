@@ -298,14 +298,14 @@ describe('dashboard integration', () => {
     const workspaces = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
 
     await next(); // Strategy
-    await next(); // Core
+    await next(); // Deal Basics
     await next(); // Expenses
     await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Expenses/ })).toHaveAttribute('aria-pressed', 'true'));
 
     await next(); // Strategy inputs
     await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Strategy/ })).toHaveAttribute('aria-pressed', 'true'));
 
-    await next(); // IRR
+    await next(); // Advanced
     await waitFor(() => expect(within(inputSections).getByRole('button', { name: /Advanced/ })).toHaveAttribute('aria-pressed', 'true'));
 
     await next(); // Results
@@ -369,6 +369,25 @@ describe('dashboard integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Projections' }));
 
     expect(await screen.findByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('makes the desktop workspace, deal strategy, and input sections distinct', () => {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, '1');
+    setViewport(1440);
+
+    render(<HomePage />);
+
+    const workspace = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
+    const build = within(workspace).getByRole('button', { name: 'Build' });
+    const projection = within(workspace).getByRole('button', { name: 'Projection' });
+    const compare = within(workspace).getByRole('button', { name: 'Compare' });
+
+    expect(screen.getByText('Deal workspace')).toBeInTheDocument();
+    expect(within(build).getByText('Edit deal')).toBeInTheDocument();
+    expect(within(projection).getByText('Review one strategy')).toBeInTheDocument();
+    expect(within(compare).getByText('Compare strategies')).toBeInTheDocument();
+    expect(screen.getByText('Analyze this deal as')).toBeInTheDocument();
+    expect(screen.getByText('Deal inputs')).toBeInTheDocument();
   });
 
   it('separates desktop building, projection, and comparison workspaces', async () => {
@@ -461,7 +480,7 @@ describe('dashboard integration', () => {
     const advancedTab = within(inputSections).getByRole('button', { name: /Advanced/i });
 
     expect(dealBasicsTab).toHaveAttribute('data-completion', 'complete');
-    expect(dealBasicsTab).toHaveAccessibleName('Deal basics, Complete');
+    expect(dealBasicsTab).toHaveAccessibleName('Deal Basics, Complete');
     expect(expensesTab).toHaveAttribute('data-completion', 'complete');
     expect(expensesTab).toHaveAccessibleName('Expenses, Complete');
     expect(strategyTab).toHaveAttribute('data-completion', 'incomplete');
@@ -545,8 +564,10 @@ describe('dashboard integration', () => {
     render(<HomePage />);
     const user = userEvent.setup();
     const inputSections = screen.getByLabelText('Deal input sections');
-    const activeInputShell = inputSections.nextElementSibling;
+    const inputSectionGroup = inputSections.closest('.desktop-builder-input-group');
+    const activeInputShell = inputSectionGroup?.nextElementSibling;
 
+    expect(inputSectionGroup).toHaveTextContent('Deal inputs');
     expect(activeInputShell).toHaveClass('w-full');
     expect(screen.queryByRole('heading', { name: 'Deal basics' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Purchase price')).toBeInTheDocument();
@@ -641,6 +662,7 @@ describe('dashboard integration', () => {
 
     const user = userEvent.setup();
     const mobileViewSwitcher = await screen.findByRole('navigation', { name: 'Mobile view switcher' });
+    const buildButton = screen.getByRole('button', { name: 'Build' });
     const resultsButton = screen.getByRole('button', { name: 'Results' });
     const projectionsButton = screen.getByRole('button', { name: 'Projections' });
 
@@ -651,6 +673,8 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Deal Vault' })).toHaveTextContent('1 saved deal');
     expect(screen.queryByText('Current Deal')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument();
+    expect(buildButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Inputs' })).not.toBeInTheDocument();
     expect(resultsButton).not.toBeDisabled();
     expect(projectionsButton).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Edit active deal details' })).toBeInTheDocument();
@@ -660,7 +684,7 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Complete inputs' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'More metrics' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Inputs' }));
+    await user.click(buildButton);
 
     const purchasePrice = screen.getAllByLabelText('Purchase price')[0];
     await user.clear(purchasePrice);
@@ -674,7 +698,7 @@ describe('dashboard integration', () => {
     expect(projectionsButton).not.toBeDisabled();
   });
 
-  it('switches between core, expenses, strategy, and IRR sections from the mobile input switcher', async () => {
+  it('uses the same Deal Basics, Expenses, Strategy, and Advanced section names on mobile', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -683,12 +707,12 @@ describe('dashboard integration', () => {
 
     const user = userEvent.setup();
     const tablist = screen.getByRole('tablist', { name: 'Input section selection' });
-    const coreTab = within(tablist).getByRole('tab', { name: /Core/i });
+    const dealBasicsTab = within(tablist).getByRole('tab', { name: /Deal Basics/i });
     const expensesTab = within(tablist).getByRole('tab', { name: /Expenses/i });
     const strategyTab = within(tablist).getByRole('tab', { name: /Strategy/i });
-    const irrTab = within(tablist).getByRole('tab', { name: /IRR/i });
+    const advancedTab = within(tablist).getByRole('tab', { name: /Advanced/i });
 
-    expect(coreTab).toHaveAttribute('aria-selected', 'true');
+    expect(dealBasicsTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Purchase & Financing' })).toBeInTheDocument();
 
     await user.click(expensesTab);
@@ -703,9 +727,9 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('heading', { name: 'Strategy' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
 
-    await user.click(irrTab);
+    await user.click(advancedTab);
 
-    expect(irrTab).toHaveAttribute('aria-selected', 'true');
+    expect(advancedTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'IRR and timeline inputs' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Strategy' })).not.toBeInTheDocument();
   });
@@ -1796,6 +1820,9 @@ describe('dashboard integration', () => {
       const strategyButton = screen.getByRole('button', { name: 'Choose strategy' });
       expect(within(strategyButton).getByText('Airbnb')).toBeInTheDocument();
     });
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Imported shared deal: Shared Airbnb Deal. Choose Build to edit this deal.'
+    );
   });
 
   it('shows timeline as a compact read-only reference on mobile', async () => {
