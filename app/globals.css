@@ -1112,6 +1112,27 @@ html {
     color: #97a8ba;
   }
 
+  .deal-input-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .deal-input-group {
+    min-width: 0;
+  }
+
+  .deal-input-group + .deal-input-group {
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+    padding-top: 0.85rem;
+  }
+
+  .deal-input-group-title {
+    margin-bottom: 0.5rem;
+    color: #d4deea;
+    letter-spacing: 0;
+  }
+
   .strategy-input-group {
     border-top: 1px solid rgba(148, 163, 184, 0.14);
     padding-top: 0.85rem;
@@ -2804,6 +2825,53 @@ html {
     font-weight: 600;
     letter-spacing: 0.01em;
     text-transform: none;
+  }
+
+  .modeled-cost-pair {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: 0.35rem;
+  }
+
+  .value-source-field {
+    min-width: 0;
+    border-radius: 0.75rem;
+    padding: 0.42rem 0.5rem 0.5rem;
+    background: rgba(96, 165, 250, 0.055);
+  }
+
+  .value-source-field-override {
+    background: rgba(148, 163, 184, 0.045);
+  }
+
+  .value-source-field[data-override-state='active'] {
+    background: rgba(245, 158, 11, 0.08);
+    box-shadow: inset 2px 0 0 rgba(245, 158, 11, 0.45);
+  }
+
+  .value-source-badge {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: #8db8e8;
+    font-size: 0.57rem;
+    font-weight: 720;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .value-source-field-override .value-source-badge {
+    color: #9eafc1;
+  }
+
+  .value-source-field[data-override-state='active'] .value-source-badge {
+    color: #efbd83;
+  }
+
+  .value-source-field .dashboard-field-label > span:first-child {
+    white-space: nowrap;
   }
 
   .variable-expense-shell {
@@ -4724,11 +4792,13 @@ html {
   background: rgba(255, 255, 255, 0.56);
 }
 
-.theme-light .strategy-input-group {
+.theme-light .strategy-input-group,
+.theme-light .deal-input-group + .deal-input-group {
   border-top-color: rgba(112, 141, 178, 0.16);
 }
 
-.theme-light .strategy-input-group-title {
+.theme-light .strategy-input-group-title,
+.theme-light .deal-input-group-title {
   color: #385873;
 }
 
@@ -4990,6 +5060,31 @@ html {
 
 .theme-light .workbench-subsection {
   border-top-color: rgba(112, 141, 178, 0.16);
+}
+
+.theme-light .value-source-field {
+  background: rgba(59, 130, 246, 0.055);
+}
+
+.theme-light .value-source-field-override {
+  background: rgba(100, 116, 139, 0.055);
+}
+
+.theme-light .value-source-field[data-override-state='active'] {
+  background: rgba(217, 119, 6, 0.08);
+  box-shadow: inset 2px 0 0 rgba(217, 119, 6, 0.42);
+}
+
+.theme-light .value-source-badge {
+  color: #4779ae;
+}
+
+.theme-light .value-source-field-override .value-source-badge {
+  color: #667b91;
+}
+
+.theme-light .value-source-field[data-override-state='active'] .value-source-badge {
+  color: #a85f12;
 }
 
 .theme-light .workbench-section-toggle {
@@ -6551,49 +6646,107 @@ textarea {
 .desktop-input-section-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 0.9rem 0 0.75rem;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.7rem;
+  padding: 0.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.18);
 }
 
 .desktop-input-section-tab {
+  position: relative;
   display: flex;
-  min-height: 4.15rem;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.2rem;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  padding: 0.7rem 0.8rem;
-  background: rgba(15, 23, 42, 0.34);
+  min-height: 2.85rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  background: transparent;
   color: var(--dc-muted);
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
-.desktop-input-section-tab span {
+.desktop-input-section-tab:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.desktop-input-section-label {
   color: var(--dc-text);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 720;
+  white-space: nowrap;
 }
 
-.desktop-input-section-tab small {
-  font-size: 0.68rem;
-  line-height: 1.3;
+.desktop-input-section-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--dc-muted);
+  font-size: 0.66rem;
+  font-weight: 620;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.desktop-input-section-status-mark {
+  display: inline-flex;
+  width: 0.85rem;
+  height: 0.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  color: #aebdcd;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.desktop-input-section-tab[data-completion='complete'] .desktop-input-section-status {
+  color: #8fd6b3;
+}
+
+.desktop-input-section-tab[data-completion='complete'] .desktop-input-section-status-mark {
+  background: rgba(52, 211, 153, 0.15);
+  color: #78d9aa;
+}
+
+.desktop-input-section-tab[data-completion='incomplete'] .desktop-input-section-status {
+  color: #efbd83;
+}
+
+.desktop-input-section-tab[data-completion='incomplete'] .desktop-input-section-status-mark {
+  background: rgba(245, 158, 11, 0.16);
+  color: #f5b861;
 }
 
 .desktop-input-section-tab-active {
-  border-color: rgba(96, 165, 250, 0.42);
-  background: rgba(59, 130, 246, 0.13);
+  border-color: rgba(96, 165, 250, 0.38);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 2px 9px rgba(2, 8, 23, 0.13);
 }
 
-.theme-light .desktop-input-section-tab {
-  border-color: rgba(117, 137, 163, 0.28);
-  background: rgba(244, 248, 252, 0.96);
+.theme-light .desktop-input-section-tabs {
+  border-color: rgba(117, 137, 163, 0.2);
+  background: rgba(229, 237, 246, 0.58);
+}
+
+.theme-light .desktop-input-section-tab:hover {
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .theme-light .desktop-input-section-tab-active {
-  border-color: rgba(59, 130, 246, 0.46);
-  background: rgba(219, 234, 254, 0.9);
+  border-color: rgba(59, 130, 246, 0.38);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 9px rgba(30, 64, 95, 0.08);
 }
 
 .desktop-progressive-input-shell {
