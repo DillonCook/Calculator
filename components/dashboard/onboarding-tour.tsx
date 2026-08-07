@@ -39,6 +39,7 @@ interface TargetLayoutRect {
 }
 
 const screenPadding = 12;
+const spotlightPadding = 8;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const isRectOutsideViewport = (rect: DOMRect) =>
@@ -148,13 +149,59 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
   const step = steps[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === steps.length - 1;
+  const spotlightRect = targetRect
+    ? {
+        top: clamp(targetRect.top - spotlightPadding, 0, window.innerHeight),
+        left: clamp(targetRect.left - spotlightPadding, 0, window.innerWidth),
+        right: clamp(targetRect.right + spotlightPadding, 0, window.innerWidth),
+        bottom: clamp(targetRect.bottom + spotlightPadding, 0, window.innerHeight)
+      }
+    : null;
 
   return createPortal(
     <div ref={dialogRef} className="fixed inset-0 z-[260]" role="dialog" aria-modal="true" aria-label="Quick app tutorial">
-      <div className="absolute inset-0 bg-[#020713]/72 backdrop-blur-[1px]" />
+      {spotlightRect ? (
+        <>
+          <div
+            data-testid="onboarding-tour-shade-top"
+            aria-hidden="true"
+            className="absolute left-0 right-0 top-0 bg-[#020713]/72"
+            style={{ height: spotlightRect.top }}
+          />
+          <div
+            data-testid="onboarding-tour-shade-bottom"
+            aria-hidden="true"
+            className="absolute bottom-0 left-0 right-0 bg-[#020713]/72"
+            style={{ top: spotlightRect.bottom }}
+          />
+          <div
+            data-testid="onboarding-tour-shade-left"
+            aria-hidden="true"
+            className="absolute left-0 bg-[#020713]/72"
+            style={{
+              top: spotlightRect.top,
+              width: spotlightRect.left,
+              height: Math.max(spotlightRect.bottom - spotlightRect.top, 0)
+            }}
+          />
+          <div
+            data-testid="onboarding-tour-shade-right"
+            aria-hidden="true"
+            className="absolute right-0 bg-[#020713]/72"
+            style={{
+              top: spotlightRect.top,
+              left: spotlightRect.right,
+              height: Math.max(spotlightRect.bottom - spotlightRect.top, 0)
+            }}
+          />
+        </>
+      ) : (
+        <div data-testid="onboarding-tour-full-shade" aria-hidden="true" className="absolute inset-0 bg-[#020713]/72" />
+      )}
 
       {targetRect ? (
         <div
+          data-testid="onboarding-tour-highlight"
           className="pointer-events-none absolute rounded-2xl border-[3px] border-[#8fdcff] shadow-[0_0_0_2px_rgba(68,168,255,0.25),0_0_28px_rgba(73,186,255,0.48)] transition-all duration-300"
           style={{
             top: targetRect.top - 6,
@@ -167,7 +214,8 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
 
       <div
         ref={panelRef}
-        className="absolute rounded-[22px] border-2 border-[#8fdcff] bg-[linear-gradient(150deg,#0f2945_0%,#163a63_55%,#1a456f_100%)] p-4 text-slate-100 shadow-[0_20px_40px_rgba(2,8,20,0.72)] transition-all duration-300"
+        data-testid="onboarding-tour-panel"
+        className="onboarding-tour-panel absolute rounded-[22px] border-2 border-[#8fdcff] bg-[linear-gradient(150deg,#0f2945_0%,#163a63_55%,#1a456f_100%)] p-4 shadow-[0_20px_40px_rgba(2,8,20,0.72)] transition-all duration-300"
         style={{
           top: bubbleLayout.top,
           left: bubbleLayout.left,
@@ -184,26 +232,26 @@ export function OnboardingTour({ open, steps, stepIndex, layoutKey, getTargetEle
             ref={closeButtonRef}
             type="button"
             onClick={onSkip}
-            className="text-[11px] font-medium text-slate-200/90 underline underline-offset-2"
+            className="onboarding-tour-skip text-[11px] font-medium underline underline-offset-2"
           >
             Skip tutorial
           </button>
         </div>
 
-        <p className="text-[11px] uppercase tracking-[0.12em] text-[#b9ebff]">Quick Tour {stepIndex + 1}/{steps.length}</p>
-        <p className="mt-1 text-base font-semibold text-white">{step.title}</p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-100/95">{step.body}</p>
+        <p className="onboarding-tour-kicker text-[11px] uppercase tracking-[0.12em]">Quick Tour {stepIndex + 1}/{steps.length}</p>
+        <p className="onboarding-tour-title mt-1 text-base font-semibold">{step.title}</p>
+        <p className="onboarding-tour-body mt-2 text-sm leading-relaxed">{step.body}</p>
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onBack}
             disabled={isFirstStep}
-            className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="onboarding-tour-back rounded-lg border px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
           >
             Back
           </button>
-          <button type="button" onClick={onNext} className="btn-primary rounded-lg px-3 py-1.5 text-xs font-semibold">
+          <button type="button" onClick={onNext} className="onboarding-tour-next btn-primary rounded-lg px-3 py-1.5 text-xs font-semibold">
             {isLastStep ? 'Finish' : 'Next'}
           </button>
         </div>

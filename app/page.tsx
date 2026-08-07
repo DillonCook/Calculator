@@ -600,23 +600,23 @@ const desktopOnboardingSteps: OnboardingStep[] = [
   },
   {
     id: 'desktopCore',
-    title: 'Purchase Terms Stay Open',
-    body: 'Start in the Purchase lane when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
+    title: 'Start With Deal Basics',
+    body: 'Open Deal basics when you are entering the purchase price, rehab budget, financing, and cash needed to buy the property.'
   },
   {
     id: 'desktopExpenses',
-    title: 'Expenses Stay Beside It',
-    body: 'Use the Expenses lane for taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
+    title: 'Add the Real Expenses',
+    body: 'Open Expenses for taxes, insurance, HOA or PMI, and other operating costs so the deal reflects the real monthly burden.'
   },
   {
     id: 'desktopStrategyInputs',
-    title: 'Strategy Assumptions Are Live',
-    body: 'Use the Strategy lane for plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
+    title: 'Enter Strategy Assumptions',
+    body: 'Open Strategy for plan-specific numbers, like rent, nightly rate, refinance details, or flip assumptions.'
   },
   {
     id: 'desktopIrr',
-    title: 'Timeline and IRR Live Here',
-    body: 'Use this section when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
+    title: 'Set the Hold and Exit',
+    body: 'Open Advanced when you want to set how long you will keep the property and how you expect to exit. Those choices affect the return timeline.'
   },
   {
     id: 'desktopResults',
@@ -1082,8 +1082,13 @@ export default function HomePage() {
   const desktopExpensesSectionRef = useRef<HTMLDivElement | null>(null);
   const desktopResultsSectionRef = useRef<HTMLElement | null>(null);
   const desktopStrategyTabsRef = useRef<HTMLDivElement | null>(null);
+  const desktopWorkspaceTabsRef = useRef<HTMLElement | null>(null);
   const desktopStrategyInputsRef = useRef<HTMLDivElement | null>(null);
   const desktopCompareSectionRef = useRef<HTMLDivElement | null>(null);
+  const desktopCoreInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopExpensesInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopStrategyInputButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopAdvancedInputButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileStrategyTabsRef = useRef<HTMLDivElement | null>(null);
   const irrStreamRef = useRef<HTMLDivElement | null>(null);
   const compactDealsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -2089,16 +2094,12 @@ export default function HomePage() {
     if (step.id === 'mobileActions') return compactMenuButtonRef.current;
     if (step.id === 'desktopDeals') return dealVaultRef.current;
     if (step.id === 'desktopStrategy') return desktopStrategyTabsRef.current;
-    if (step.id === 'desktopCore') return desktopCoreSectionRef.current;
-    if (step.id === 'desktopExpenses') return desktopExpensesSectionRef.current;
-    if (step.id === 'desktopStrategyInputs') return desktopStrategyInputsRef.current;
-    if (step.id === 'desktopIrr') {
-      return getFirstVisibleElement(irrStreamRef.current?.querySelector<HTMLElement>('.dashboard-irr-tour-target') ?? null, irrStreamRef.current);
-    }
+    if (step.id === 'desktopCore') return desktopCoreInputButtonRef.current;
+    if (step.id === 'desktopExpenses') return desktopExpensesInputButtonRef.current;
+    if (step.id === 'desktopStrategyInputs') return desktopStrategyInputButtonRef.current;
+    if (step.id === 'desktopIrr') return desktopAdvancedInputButtonRef.current;
     if (step.id === 'desktopResults') return desktopResultsSectionRef.current;
-    if (step.id === 'desktopCompare') {
-      return getFirstVisibleElement(desktopCompareSectionRef.current?.querySelector<HTMLElement>('.projection-card-glass') ?? null, desktopCompareSectionRef.current);
-    }
+    if (step.id === 'desktopCompare') return desktopWorkspaceTabsRef.current;
     if (step.id === 'desktopActions') {
       return getFirstVisibleElement(desktopHeaderActionsRef.current, desktopAuthActionRef.current, desktopSettingsControlsRef.current);
     }
@@ -2683,7 +2684,7 @@ export default function HomePage() {
     if (step.id === 'desktopCompare') {
       setWorkspaceViewMode('studio');
       setDesktopWorkspaceMode('compare');
-      return scrollOnboardingTargetIntoView(() => desktopCompareSectionRef.current, 'nearest');
+      return scrollOnboardingTargetIntoView(() => desktopWorkspaceTabsRef.current, 'center');
     }
 
     if (step.id === 'desktopActions') {
@@ -7047,7 +7048,7 @@ export default function HomePage() {
         </div>
 
         <div ref={desktopPostDigestFlowRef} className="scenario-flip-flow">
-          <nav className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
+          <nav ref={desktopWorkspaceTabsRef} className="desktop-workspace-tabs" aria-label="Desktop workspace sections">
             {([
               ['build', 'Build'],
               ['projection', 'Projection'],
@@ -7096,6 +7097,15 @@ export default function HomePage() {
               {compactInputSections.map((section) => (
                 <button
                   key={`desktop-input-${section.key}`}
+                  ref={
+                    section.key === 'core'
+                      ? desktopCoreInputButtonRef
+                      : section.key === 'expenses'
+                        ? desktopExpensesInputButtonRef
+                        : section.key === 'strategy'
+                          ? desktopStrategyInputButtonRef
+                          : desktopAdvancedInputButtonRef
+                  }
                   type="button"
                   aria-label={`${section.desktopLabel}, ${section.completionLabel}`}
                   aria-pressed={desktopInputSection === section.key}
