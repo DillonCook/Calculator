@@ -8,12 +8,20 @@ interface StrategyInputsWorkspaceProps {
   model: DealInputModel;
   onChange: (next: DealInputModel) => void;
   embedded?: boolean;
+  showHeading?: boolean;
 }
 
-export function StrategyInputsWorkspace({ activeStrategy, model, onChange, embedded = false }: StrategyInputsWorkspaceProps) {
+export function StrategyInputsWorkspace({ activeStrategy, model, onChange, embedded = false, showHeading = true }: StrategyInputsWorkspaceProps) {
   const content = (
     <div className={embedded ? 'pr-1 [overflow-anchor:none]' : 'scrollbar-premium max-h-[min(58rem,calc(100vh-14rem))] overflow-y-auto px-4 py-4 sm:px-5'}>
-      <StrategyModuleInputs active={activeStrategy} model={model} onChange={onChange} animateContent={false} variant={embedded ? 'embedded' : 'panel'} />
+      <StrategyModuleInputs
+        active={activeStrategy}
+        model={model}
+        onChange={onChange}
+        animateContent={false}
+        variant={embedded ? 'embedded' : 'panel'}
+        showHeading={showHeading}
+      />
     </div>
   );
 

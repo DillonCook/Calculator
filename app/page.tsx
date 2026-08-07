@@ -1380,42 +1380,48 @@ export default function HomePage() {
     );
   }, [model]);
   const compactReadiness = useMemo(() => {
-    const missing: string[] = [];
+    const coreMissing: string[] = [];
+    const strategyMissing: string[] = [];
     const hasDealName = model.purchase.dealName.trim().length > 0;
-    if (!hasDealName) missing.push('deal name');
+    if (!hasDealName) coreMissing.push('deal name');
 
     if (model.purchase.ownershipMode === 'purchase') {
-      if (model.purchase.purchasePrice <= 0) missing.push('purchase price');
-      if (model.purchase.financingType === 'loan' && model.purchase.downPaymentPercent <= 0) missing.push('down payment');
-      if (model.purchase.financingType === 'loan' && model.purchase.interestRate <= 0) missing.push('interest rate');
+      if (model.purchase.purchasePrice <= 0) coreMissing.push('purchase price');
+      if (model.purchase.financingType === 'loan' && model.purchase.downPaymentPercent <= 0) coreMissing.push('down payment');
+      if (model.purchase.financingType === 'loan' && model.purchase.interestRate <= 0) coreMissing.push('interest rate');
     }
 
     if (activeStrategy === 'purchase') {
-      if (model.commercial.grossLeasableAreaSqft <= 0) missing.push('gross leasable area');
-      if (model.commercial.occupiedSqft <= 0) missing.push('leased area');
-      if (model.commercial.averageBaseRentPerSqftYear <= 0) missing.push('base rent');
+      if (model.commercial.grossLeasableAreaSqft <= 0) strategyMissing.push('gross leasable area');
+      if (model.commercial.occupiedSqft <= 0) strategyMissing.push('leased area');
+      if (model.commercial.averageBaseRentPerSqftYear <= 0) strategyMissing.push('base rent');
     }
 
     if (activeStrategy === 'longTerm' && model.longTerm.grossRentMonthly <= 0) {
-      missing.push('gross rent');
+      strategyMissing.push('gross rent');
     }
 
     if (activeStrategy === 'airbnb' && model.airbnb.adr <= 0) {
-      missing.push('ADR');
+      strategyMissing.push('ADR');
     }
 
     if (activeStrategy === 'padSplit') {
-      if (model.padSplit.rentableRooms <= 0) missing.push('rentable rooms');
-      if (model.padSplit.avgWeeklyRatePerRoom <= 0) missing.push('weekly rate');
+      if (model.padSplit.rentableRooms <= 0) strategyMissing.push('rentable rooms');
+      if (model.padSplit.avgWeeklyRatePerRoom <= 0) strategyMissing.push('weekly rate');
     }
 
     if ((activeStrategy === 'brrrr' || activeStrategy === 'flip') && (model.purchase.arv <= 0) && !result[activeStrategy].saleProceeds) {
-      missing.push('ARV');
+      strategyMissing.push('ARV');
     }
 
+    const missing = [...coreMissing, ...strategyMissing];
     return {
       ready: missing.length === 0,
-      missing
+      missing,
+      sections: {
+        core: coreMissing,
+        strategy: strategyMissing
+      }
     };
   }, [activeStrategy, model, result]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
@@ -1693,27 +1699,39 @@ export default function HomePage() {
     {
       key: 'core' as const,
       label: 'Core',
+      desktopLabel: 'Deal basics',
       summary:
         model.purchase.ownershipMode === 'owned'
           ? 'Owned carry'
           : model.purchase.financingType === 'loan'
             ? 'Loan baseline'
-            : 'Cash baseline'
+            : 'Cash baseline',
+      completion: compactReadiness.sections.core.length ? ('incomplete' as const) : ('complete' as const),
+      completionLabel: compactReadiness.sections.core.length ? `${compactReadiness.sections.core.length} missing` : 'Complete'
     },
     {
       key: 'expenses' as const,
       label: 'Expenses',
-      summary: 'Variables'
+      desktopLabel: 'Expenses',
+      summary: 'Variables',
+      completion: 'complete' as const,
+      completionLabel: 'Complete'
     },
     {
       key: 'strategy' as const,
       label: 'Strategy',
-      summary: activeStrategyLabel
+      desktopLabel: 'Strategy',
+      summary: activeStrategyLabel,
+      completion: compactReadiness.sections.strategy.length ? ('incomplete' as const) : ('complete' as const),
+      completionLabel: compactReadiness.sections.strategy.length ? `${compactReadiness.sections.strategy.length} missing` : 'Complete'
     },
     {
       key: 'irr' as const,
       label: 'IRR',
-      summary: `${model.assumptions.holdYears}y hold`
+      desktopLabel: 'Advanced',
+      summary: `${model.assumptions.holdYears}y hold`,
+      completion: 'optional' as const,
+      completionLabel: 'Optional'
     }
   ];
   const activeDealDisplayName = model.purchase.dealName || 'New Deal';
@@ -7079,12 +7097,19 @@ export default function HomePage() {
                 <button
                   key={`desktop-input-${section.key}`}
                   type="button"
+                  aria-label={`${section.desktopLabel}, ${section.completionLabel}`}
                   aria-pressed={desktopInputSection === section.key}
+                  data-completion={section.completion}
                   className={`desktop-input-section-tab ${desktopInputSection === section.key ? 'desktop-input-section-tab-active' : ''}`}
                   onClick={() => setDesktopInputSection(section.key)}
                 >
-                  <span>{section.label === 'Core' ? 'Deal basics' : section.label === 'IRR' ? 'Advanced' : section.label}</span>
-                  <small>{section.summary}</small>
+                  <span className="desktop-input-section-label">{section.desktopLabel}</span>
+                  <span className="desktop-input-section-status" aria-hidden="true">
+                    <span className="desktop-input-section-status-mark">
+                      {section.completion === 'complete' ? '✓' : section.completion === 'incomplete' ? '•' : '–'}
+                    </span>
+                    {section.completionLabel}
+                  </span>
                 </button>
               ))}
             </nav>
@@ -7099,6 +7124,7 @@ export default function HomePage() {
                     defaultAdvancedOptionsOpen={false}
                     forcedCoreSection="purchaseFinancing"
                     titleOverride="Deal basics"
+                    showHeading={false}
                     contentViewportClassName={desktopInputViewportClassName}
                     variant="embedded"
                   />
@@ -7106,7 +7132,7 @@ export default function HomePage() {
               ) : null}
               {desktopInputSection === 'strategy' ? (
                 <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
-                  <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
+                  <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded showHeading={false} />
                 </div>
               ) : null}
               {desktopInputSection === 'expenses' ? (
@@ -7117,6 +7143,7 @@ export default function HomePage() {
                     resolveListingDealName={resolveListingDealName}
                     defaultAdvancedOptionsOpen={false}
                     forcedCoreSection="expenses"
+                    showHeading={false}
                     contentViewportClassName={desktopInputViewportClassName}
                     variant="embedded"
                   />

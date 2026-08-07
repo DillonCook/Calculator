@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Input, PercentInput, Select } from '@/components/dashboard/form-fields';
 import type { AmortizationType, DealInputModel, ExpenseStrategyKey, FinancingType } from '@/lib/models/deal';
 import { currencyFormatter } from '@/lib/formatters';
@@ -25,6 +25,7 @@ interface DealInputPanelProps {
   forcedCoreSection?: Exclude<CoreInputSection, 'known'>;
   preferredCoreSection?: Exclude<CoreInputSection, 'known'>;
   titleOverride?: string;
+  showHeading?: boolean;
   contentViewportClassName?: string;
   variant?: 'panel' | 'embedded';
 }
@@ -101,6 +102,27 @@ const coreSectionMeta: Record<CoreInputSection, { title: string; summary: string
     summary: 'Paste T12/P&L rows, preview auto-mapping, then apply imported values in analysis.'
   }
 };
+
+function DealInputGroup({
+  title,
+  children,
+  embedded,
+  columns = 2
+}: {
+  title: string;
+  children: ReactNode;
+  embedded: boolean;
+  columns?: 2 | 3;
+}) {
+  const gridClassName = embedded && columns === 3 ? 'grid gap-2 sm:grid-cols-3 sm:gap-3' : 'grid gap-2 sm:grid-cols-2 sm:gap-3';
+
+  return (
+    <section role="group" aria-label={`${title} inputs`} className={`deal-input-group ${embedded ? 'deal-input-group-embedded' : ''}`}>
+      <p className="dashboard-kicker deal-input-group-title">{title}</p>
+      <div className={gridClassName}>{children}</div>
+    </section>
+  );
+}
 
 const variableExpenseAliasByKey: Record<string, string[]> = {
   power: ['power', 'electric', 'electricity', 'utilitieselectric', 'electricbill', 'utilityelectric'],
@@ -548,6 +570,7 @@ export function DealInputPanel({
   forcedCoreSection,
   preferredCoreSection,
   titleOverride,
+  showHeading = true,
   contentViewportClassName,
   variant = 'panel'
 }: DealInputPanelProps) {
@@ -712,7 +735,7 @@ export function DealInputPanel({
 
   return (
     <section className={isEmbedded ? `workbench-panel ${contentViewportClassName ? 'flex flex-col' : ''}` : `section-shell section-shell-input rounded-2xl p-3.5 shadow-soft sm:p-5 ${contentViewportClassName ? 'flex flex-col' : ''}`}>
-      {collapsible ? (
+      {!showHeading ? null : collapsible ? (
         <button
           type="button"
           onClick={onToggleCollapsed}
@@ -773,87 +796,99 @@ export function DealInputPanel({
             <div className="space-y-2.5 sm:space-y-3">
               {resolvedCoreSection === 'purchaseFinancing' ? (
                 <section className={contentSectionClassName}>
-                <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                <div className="deal-input-groups">
                   {!isOwnedMode ? (
                     <>
-                      <Select
-                        label="Financing"
-                        value={value.purchase.financingType}
-                        onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
-                        options={[
-                          { label: 'Loan', value: 'loan' },
-                          { label: 'Cash', value: 'cash' }
-                        ]}
-                      />
-                      {value.purchase.financingType === 'loan' ? (
+                      <DealInputGroup title="Acquisition" embedded={isEmbedded} columns={3}>
+                        <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
+                        <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
+                        <PercentInput label="Closing costs %" value={value.purchase.closingCostPercent} onChange={(v) => update('purchase', 'closingCostPercent', v)} />
+                      </DealInputGroup>
+
+                      <DealInputGroup title="Primary financing" embedded={isEmbedded} columns={3}>
                         <Select
-                          label="Amortization"
-                          value={value.purchase.amortizationType}
-                          onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+                          label="Financing"
+                          value={value.purchase.financingType}
+                          onChange={(v) => update('purchase', 'financingType', v as FinancingType)}
                           options={[
-                            { label: 'Principal & Interest (PI)', value: 'PI' },
-                            { label: 'Interest-Only (IO)', value: 'IO' }
+                            { label: 'Loan', value: 'loan' },
+                            { label: 'Cash', value: 'cash' }
                           ]}
                         />
-                      ) : (
-                        <div className={infoNoteClassName}>
-                          Cash mode selected. Debt service from purchase loan is excluded.
-                        </div>
-                      )}
-                      <Input label="Purchase price" type="number" value={value.purchase.purchasePrice} onChange={(v) => update('purchase', 'purchasePrice', Number(v))} />
-                      <Input label="Rehab budget" type="number" value={value.purchase.rehabBudget} onChange={(v) => update('purchase', 'rehabBudget', Number(v))} />
-                      <PercentInput label="Down payment %" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', v)} />
-                      <PercentInput label="Closing costs %" value={value.purchase.closingCostPercent} onChange={(v) => update('purchase', 'closingCostPercent', v)} />
-                      <PercentInput label="Interest rate %" value={value.purchase.interestRate} onChange={(v) => update('purchase', 'interestRate', v)} />
-                      <PercentInput label="Points on loan %" value={value.purchase.pointsPercent} onChange={(v) => update('purchase', 'pointsPercent', v)} />
-                      <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
+                        {value.purchase.financingType === 'loan' ? (
+                          <>
+                            <PercentInput label="Down payment %" value={value.purchase.downPaymentPercent} onChange={(v) => update('purchase', 'downPaymentPercent', v)} />
+                            <PercentInput label="Interest rate %" value={value.purchase.interestRate} onChange={(v) => update('purchase', 'interestRate', v)} />
+                            <Select
+                              label="Amortization"
+                              value={value.purchase.amortizationType}
+                              onChange={(v) => update('purchase', 'amortizationType', v as AmortizationType)}
+                              options={[
+                                { label: 'Principal & Interest (PI)', value: 'PI' },
+                                { label: 'Interest-Only (IO)', value: 'IO' }
+                              ]}
+                            />
+                            <Input label="Loan term (years)" type="number" value={value.purchase.loanTermYears} onChange={(v) => update('purchase', 'loanTermYears', Number(v))} />
+                            <PercentInput label="Points on loan %" value={value.purchase.pointsPercent} onChange={(v) => update('purchase', 'pointsPercent', v)} />
+                          </>
+                        ) : (
+                          <div className={`${infoNoteClassName} sm:col-span-2`.trim()}>
+                            Cash mode selected. Debt service from purchase loan is excluded.
+                          </div>
+                        )}
+                      </DealInputGroup>
                     </>
                   ) : (
                     <>
-                      <Input
-                        label="Initial purchase price"
-                        type="number"
-                        value={value.purchase.ownedPurchasePrice}
-                        onChange={(v) => update('purchase', 'ownedPurchasePrice', Number(v))}
-                      />
-                      <Input
-                        label="Initial money down"
-                        type="number"
-                        value={value.purchase.ownedMoneyDown}
-                        onChange={(v) => update('purchase', 'ownedMoneyDown', Number(v))}
-                      />
-                      <Input
-                        label="Additional capital invested"
-                        type="number"
-                        value={value.purchase.ownedAdditionalInvested}
-                        onChange={(v) => update('purchase', 'ownedAdditionalInvested', Number(v))}
-                      />
-                      <Input
-                        label="Mortgage payment / month"
-                        type="number"
-                        value={value.purchase.existingMortgageMonthly}
-                        onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
-                      />
-                      <div className={`${infoNoteClassName} sm:col-span-2`.trim()}>
-                        Money down plus additional capital drive total invested, cash-on-cash, ROI, and IRR. Monthly cash flow uses your payment above, while balance, rate, and term model payoff, equity, and projected sale proceeds.
-                      </div>
-                      <Input
-                        label="Mortgage balance for projections"
-                        type="number"
-                        value={value.purchase.existingMortgageBalance}
-                        onChange={(v) => update('purchase', 'existingMortgageBalance', Number(v))}
-                      />
-                      <PercentInput
-                        label="Mortgage rate % for projections"
-                        value={value.purchase.existingMortgageRate}
-                        onChange={(v) => update('purchase', 'existingMortgageRate', v)}
-                      />
-                      <Input
-                        label="Mortgage term left (years) for projections"
-                        type="number"
-                        value={value.purchase.existingMortgageRemainingYears}
-                        onChange={(v) => update('purchase', 'existingMortgageRemainingYears', Number(v))}
-                      />
+                      <DealInputGroup title="Acquisition history" embedded={isEmbedded} columns={3}>
+                        <Input
+                          label="Initial purchase price"
+                          type="number"
+                          value={value.purchase.ownedPurchasePrice}
+                          onChange={(v) => update('purchase', 'ownedPurchasePrice', Number(v))}
+                        />
+                        <Input
+                          label="Initial money down"
+                          type="number"
+                          value={value.purchase.ownedMoneyDown}
+                          onChange={(v) => update('purchase', 'ownedMoneyDown', Number(v))}
+                        />
+                        <Input
+                          label="Additional capital invested"
+                          type="number"
+                          value={value.purchase.ownedAdditionalInvested}
+                          onChange={(v) => update('purchase', 'ownedAdditionalInvested', Number(v))}
+                        />
+                      </DealInputGroup>
+
+                      <DealInputGroup title="Current debt" embedded={isEmbedded}>
+                        <Input
+                          label="Mortgage payment / month"
+                          type="number"
+                          value={value.purchase.existingMortgageMonthly}
+                          onChange={(v) => update('purchase', 'existingMortgageMonthly', Number(v))}
+                        />
+                        <Input
+                          label="Mortgage balance for projections"
+                          type="number"
+                          value={value.purchase.existingMortgageBalance}
+                          onChange={(v) => update('purchase', 'existingMortgageBalance', Number(v))}
+                        />
+                        <PercentInput
+                          label="Mortgage rate % for projections"
+                          value={value.purchase.existingMortgageRate}
+                          onChange={(v) => update('purchase', 'existingMortgageRate', v)}
+                        />
+                        <Input
+                          label="Mortgage term left (years) for projections"
+                          type="number"
+                          value={value.purchase.existingMortgageRemainingYears}
+                          onChange={(v) => update('purchase', 'existingMortgageRemainingYears', Number(v))}
+                        />
+                        <div className={`${infoNoteClassName} sm:col-span-2`.trim()}>
+                          Money down plus additional capital drive total invested, cash-on-cash, ROI, and IRR. Monthly cash flow uses your payment above, while balance, rate, and term model payoff, equity, and projected sale proceeds.
+                        </div>
+                      </DealInputGroup>
                     </>
                   )}
                 </div>
@@ -899,14 +934,24 @@ export function DealInputPanel({
 
                 {!isOwnedMode ? (
                   <div className={isEmbedded ? 'grid gap-2 sm:grid-cols-2 sm:gap-3' : 'mt-2.5 grid gap-2 sm:mt-3 sm:grid-cols-2 sm:gap-3'}>
-                    <div className="grid grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2 [&_.dashboard-field-label>span:first-child]:whitespace-nowrap">
-                      <PercentInput
-                        label="Auto Tax %"
-                        value={resolvePropertyTaxRatePercent(value.purchase)}
-                        onChange={(v) => update('purchase', 'propertyTaxRatePercent', v)}
-                        tooltip="Used for automatic annual property tax unless you enter a tax override."
-                      />
-                      <div className="min-w-0 border-l border-slate-500/20 pl-2">
+                    <div className="modeled-cost-pair">
+                      <div className="value-source-field" data-value-source="modeled">
+                        <span className="value-source-badge">Modeled</span>
+                        <PercentInput
+                          label="Auto Tax %"
+                          value={resolvePropertyTaxRatePercent(value.purchase)}
+                          onChange={(v) => update('purchase', 'propertyTaxRatePercent', v)}
+                          tooltip="Used for automatic annual property tax unless you enter a tax override."
+                        />
+                      </div>
+                      <div
+                        className="value-source-field value-source-field-override"
+                        data-value-source="override"
+                        data-override-state={value.purchase.propertyTaxAnnualOverride === null ? 'optional' : 'active'}
+                      >
+                        <span className="value-source-badge">
+                          {value.purchase.propertyTaxAnnualOverride === null ? 'Optional override' : 'Override active'}
+                        </span>
                         <Input
                           label="Tax Override"
                           type="number"
@@ -917,14 +962,24 @@ export function DealInputPanel({
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2 [&_.dashboard-field-label>span:first-child]:whitespace-nowrap">
-                      <PercentInput
-                        label="Auto Ins. %"
-                        value={resolveInsuranceRatePercent(value.purchase)}
-                        onChange={(v) => update('purchase', 'insuranceRatePercent', v)}
-                        tooltip="Used for automatic annual insurance unless you enter an insurance override."
-                      />
-                      <div className="min-w-0 border-l border-slate-500/20 pl-2">
+                    <div className="modeled-cost-pair">
+                      <div className="value-source-field" data-value-source="modeled">
+                        <span className="value-source-badge">Modeled</span>
+                        <PercentInput
+                          label="Auto Ins. %"
+                          value={resolveInsuranceRatePercent(value.purchase)}
+                          onChange={(v) => update('purchase', 'insuranceRatePercent', v)}
+                          tooltip="Used for automatic annual insurance unless you enter an insurance override."
+                        />
+                      </div>
+                      <div
+                        className="value-source-field value-source-field-override"
+                        data-value-source="override"
+                        data-override-state={value.purchase.insuranceAnnualOverride === null ? 'optional' : 'active'}
+                      >
+                        <span className="value-source-badge">
+                          {value.purchase.insuranceAnnualOverride === null ? 'Optional override' : 'Override active'}
+                        </span>
                         <Input
                           label="Ins. Override"
                           type="number"

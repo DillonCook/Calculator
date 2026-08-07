@@ -435,6 +435,96 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: 'Open deal vault' })).toHaveTextContent('1 saved deal');
   });
 
+  it('uses compact completion-aware navigation for desktop input sections', () => {
+    render(<HomePage />);
+    const inputSections = screen.getByLabelText('Deal input sections');
+
+    const dealBasicsTab = within(inputSections).getByRole('button', { name: /Deal basics/i });
+    const expensesTab = within(inputSections).getByRole('button', { name: /Expenses/i });
+    const strategyTab = within(inputSections).getByRole('button', { name: /Strategy/i });
+    const advancedTab = within(inputSections).getByRole('button', { name: /Advanced/i });
+
+    expect(dealBasicsTab).toHaveAttribute('data-completion', 'complete');
+    expect(dealBasicsTab).toHaveAccessibleName('Deal basics, Complete');
+    expect(expensesTab).toHaveAttribute('data-completion', 'complete');
+    expect(expensesTab).toHaveAccessibleName('Expenses, Complete');
+    expect(strategyTab).toHaveAttribute('data-completion', 'incomplete');
+    expect(strategyTab).toHaveAccessibleName(/Strategy, \d+ missing/i);
+    expect(advancedTab).toHaveAttribute('data-completion', 'optional');
+    expect(advancedTab).toHaveAccessibleName('Advanced, Optional');
+    expect(within(inputSections).queryByText('Loan baseline')).not.toBeInTheDocument();
+  });
+
+  it('lets the active desktop tab provide the section title without repeating it in the workbench', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const inputSections = screen.getByLabelText('Deal input sections');
+
+    expect(screen.queryByRole('heading', { name: 'Deal basics' })).not.toBeInTheDocument();
+
+    await user.click(within(inputSections).getByRole('button', { name: /Strategy/i }));
+    expect(screen.getByLabelText('Strategy workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Strategy' })).not.toBeInTheDocument();
+
+    await user.click(within(inputSections).getByRole('button', { name: /Expenses/i }));
+    expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
+  });
+
+  it('orders Deal basics by acquisition decisions before primary financing terms', () => {
+    render(<HomePage />);
+
+    const acquisitionGroup = screen.getByRole('group', { name: 'Acquisition inputs' });
+    const financingGroup = screen.getByRole('group', { name: 'Primary financing inputs' });
+
+    expect(within(acquisitionGroup).getByLabelText('Purchase price')).toBeInTheDocument();
+    expect(within(acquisitionGroup).getByLabelText('Rehab budget')).toBeInTheDocument();
+    expect(within(acquisitionGroup).getByLabelText('Closing costs %')).toBeInTheDocument();
+    expect(within(financingGroup).getByLabelText('Financing')).toBeInTheDocument();
+    expect(within(financingGroup).getByLabelText('Down payment %')).toBeInTheDocument();
+    expect(within(financingGroup).getByLabelText('Interest rate %')).toBeInTheDocument();
+    expect(acquisitionGroup.compareDocumentPosition(financingGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('orders Long-Term strategy inputs from income and occupancy through operations and overrides', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const inputSections = screen.getByLabelText('Deal input sections');
+
+    await user.click(within(inputSections).getByRole('button', { name: /Strategy/i }));
+
+    const incomeGroup = screen.getByRole('group', { name: 'Income and occupancy inputs' });
+    const operationsGroup = screen.getByRole('group', { name: 'Operating reserves inputs' });
+    const overridesGroup = screen.getByRole('group', { name: 'Valuation overrides inputs' });
+    const grossRent = within(incomeGroup).getByLabelText('Gross rent / mo');
+    const vacancy = within(incomeGroup).getByLabelText('Vacancy %');
+    const otherIncome = within(incomeGroup).getByLabelText('Other income / mo');
+
+    expect(grossRent.compareDocumentPosition(vacancy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(vacancy.compareDocumentPosition(otherIncome) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(incomeGroup.compareDocumentPosition(operationsGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(operationsGroup.compareDocumentPosition(overridesGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps PadSplit revenue assumptions ahead of turnover and operating costs', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'PadSplit' }));
+    await user.click(within(screen.getByLabelText('Deal input sections')).getByRole('button', { name: /Strategy/i }));
+
+    const revenueGroup = screen.getByRole('group', { name: 'Revenue and occupancy inputs' });
+    const turnoverGroup = screen.getByRole('group', { name: 'Turnover inputs' });
+    const operationsGroup = screen.getByRole('group', { name: 'Operating fees and reserves inputs' });
+    const setupGroup = screen.getByRole('group', { name: 'Setup and valuation inputs' });
+
+    expect(within(revenueGroup).getByLabelText('Other income / mo')).toBeInTheDocument();
+    expect(within(revenueGroup).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(within(turnoverGroup).getByLabelText('Total move-outs / year', { selector: 'input' })).toBeInTheDocument();
+    expect(within(setupGroup).getByLabelText('PadSplit ARV')).toBeInTheDocument();
+    expect(within(setupGroup).queryByLabelText('Annual revenue (optional)')).not.toBeInTheDocument();
+    expect(revenueGroup.compareDocumentPosition(turnoverGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(turnoverGroup.compareDocumentPosition(operationsGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('progressively discloses desktop inputs and keeps Advanced Options collapsed by default', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -442,7 +532,8 @@ describe('dashboard integration', () => {
     const activeInputShell = inputSections.nextElementSibling;
 
     expect(activeInputShell).toHaveClass('w-full');
-    expect(screen.getByRole('heading', { name: 'Deal basics' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Deal basics' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Purchase price')).toBeInTheDocument();
     expect(screen.queryByLabelText('Strategy workspace')).not.toBeInTheDocument();
 
     const coreAdvancedButton = screen.getByRole('button', { name: /^Advanced Options/ });
@@ -452,7 +543,8 @@ describe('dashboard integration', () => {
     expect(screen.getByLabelText('Strategy workspace')).toBeInTheDocument();
 
     await user.click(within(inputSections).getByRole('button', { name: /Expenses/ }));
-    expect(screen.getByRole('heading', { name: 'Expenses' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Expenses' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('HOA monthly')).toBeInTheDocument();
   });
 
   it('exposes editable automatic tax and insurance rates in expenses', async () => {
@@ -501,6 +593,27 @@ describe('dashboard integration', () => {
 
     expect(insuranceOverride).toHaveValue(null);
     expect(insuranceOverride).toHaveAttribute('placeholder', expectedInsurancePlaceholder);
+  });
+
+  it('visually distinguishes modeled expense values from optional and active overrides', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    await user.click(within(screen.getByLabelText('Deal input sections')).getByRole('button', { name: /Expenses/i }));
+
+    const taxRate = screen.getByLabelText(/Auto Tax %/i, { selector: 'input' });
+    const taxOverride = screen.getByLabelText(/Tax Override/i, { selector: 'input' });
+    const modeledField = taxRate.closest('[data-value-source]');
+    const overrideField = taxOverride.closest('[data-value-source]');
+
+    expect(modeledField).toHaveAttribute('data-value-source', 'modeled');
+    expect(modeledField).toHaveTextContent('Modeled');
+    expect(overrideField).toHaveAttribute('data-value-source', 'override');
+    expect(overrideField).toHaveAttribute('data-override-state', 'optional');
+    expect(overrideField).toHaveTextContent('Optional override');
+
+    await user.type(taxOverride, '4800');
+    expect(overrideField).toHaveAttribute('data-override-state', 'active');
+    expect(overrideField).toHaveTextContent('Override active');
   });
 
   it('uses the compact shell on mobile and allows results before required inputs are complete', async () => {
@@ -2497,8 +2610,15 @@ describe('dashboard integration', () => {
       within(workspace)
         .getAllByRole('spinbutton')
         .map((input) => input.getAttribute('aria-label'))
-        .slice(-2)
-    ).toEqual(['PadSplit ARV', 'Annual revenue (optional)']);
+        .slice(0, 6)
+    ).toEqual([
+      'Rentable rooms',
+      'Weekly rate / room',
+      'Occupancy %',
+      'Weeks per month',
+      'Other income / mo',
+      'Annual revenue (optional)'
+    ]);
   }, 30000);
 
   it('removes the desktop tab tagline bars from every input page', async () => {
