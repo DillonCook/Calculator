@@ -23,6 +23,19 @@ const getDeclarations = (selector: string) => {
   return declarations;
 };
 
+const getSelectorDeclarations = (selector: string) => {
+  const root = postcss.parse(readStylesheet());
+  const declarations: Declaration[] = [];
+
+  root.walkRules((rule) => {
+    if (rule.selector === selector) {
+      rule.walkDecls((declaration) => declarations.push(declaration));
+    }
+  });
+
+  return declarations;
+};
+
 describe('deal workout layout', () => {
   it('lets the desktop outcome row grow when workout recommendations need more room', () => {
     const declarations = getDeclarations('.desktop-outcome-actions > *');
@@ -44,5 +57,16 @@ describe('deal workout layout', () => {
     });
 
     expect(values).toEqual(['13.5rem']);
+  });
+
+  it('keeps the embedded Quick scan inside the Build card', () => {
+    const declarations = getSelectorDeclarations('.quick-scan-inline');
+    const transforms = declarations.filter(({ prop }) => prop === 'transform').map(({ value }) => value);
+    const directionalMargins = declarations
+      .filter(({ prop }) => ['margin-top', 'margin-bottom', 'margin-left'].includes(prop))
+      .map(({ value }) => value);
+
+    expect(transforms).toEqual(['none', 'none']);
+    expect(directionalMargins.some((value) => value.startsWith('-'))).toBe(false);
   });
 });
