@@ -295,7 +295,9 @@ describe('dashboard integration', () => {
     await next(); // Results
     await next(); // Compare
     await waitFor(() => expect(within(workspaces).getByRole('button', { name: 'Compare' })).toHaveAttribute('aria-pressed', 'true'));
-    expect(await screen.findByRole('heading', { name: 'Strategy comparison' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Strategy comparison board')).toBeInTheDocument();
+    expect(screen.queryByText('Analysis dock')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Strategy comparison' })).not.toBeInTheDocument();
   });
 
   it('keeps the compact workspace through small-laptop widths', async () => {
@@ -367,11 +369,15 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', { name: /Deal basics/i })).toBeInTheDocument();
 
     await user.click(within(workspace).getByRole('button', { name: 'Projection' }));
-    expect(await screen.findByRole('heading', { name: 'Active-strategy projection' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Strategy comparison board')).toBeInTheDocument();
+    expect(screen.queryByText('Analysis dock')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Active-strategy projection' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Deal basics/i })).not.toBeInTheDocument();
 
     await user.click(within(workspace).getByRole('button', { name: 'Compare' }));
-    expect(await screen.findByRole('heading', { name: 'Strategy comparison' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Strategy comparison board')).toBeInTheDocument();
+    expect(screen.queryByText('Analysis dock')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Strategy comparison' })).not.toBeInTheDocument();
 
     let selection = screen.getByLabelText('Projections board strategy selection');
     await user.click(within(selection).getByRole('button', { name: /Airbnb/ }));
