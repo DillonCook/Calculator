@@ -255,6 +255,12 @@ describe('dashboard integration', () => {
     expect(screen.getByLabelText('Purchase price')).toHaveValue(0);
     expect(screen.getByLabelText('Rehab budget')).toHaveValue(0);
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
+
+    const desktopEmptyState = screen.getByRole('heading', { name: 'Add the deal basics to unlock the verdict' }).closest('.decision-empty-state');
+    expect(desktopEmptyState).toHaveClass('decision-empty-state-centered');
+    expect(within(desktopEmptyState as HTMLElement).queryByText('Incomplete inputs')).not.toBeInTheDocument();
+    expect(within(desktopEmptyState as HTMLElement).queryByText(/^Still needed:/)).not.toBeInTheDocument();
+    expect(within(desktopEmptyState as HTMLElement).queryByRole('button', { name: 'Complete inputs' })).not.toBeInTheDocument();
   });
 
   it('keeps desktop onboarding targets mounted as the tour advances', async () => {
@@ -2476,6 +2482,25 @@ describe('dashboard integration', () => {
     ).toEqual(['PadSplit ARV', 'Annual revenue (optional)']);
   }, 30000);
 
+  it('removes the desktop tab tagline bars from every input page', async () => {
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const inputSections = within(screen.getByLabelText('Deal input sections'));
+
+    expect(screen.queryByText('Purchase basis and financing')).not.toBeInTheDocument();
+    expect(document.querySelector('.desktop-lane-anchor')).toBeNull();
+
+    await user.click(inputSections.getByRole('button', { name: /Expenses/ }));
+    expect(screen.queryByText('Operating burden and reserves')).not.toBeInTheDocument();
+    expect(document.querySelector('.desktop-builder-lane-expenses')).toBeNull();
+
+    await user.click(inputSections.getByRole('button', { name: /Strategy/ }));
+    expect(screen.queryByText('Income and strategy assumptions')).not.toBeInTheDocument();
+
+    await user.click(inputSections.getByRole('button', { name: /Advanced/ }));
+    expect(screen.queryByText('Hold, exit, and IRR assumptions')).not.toBeInTheDocument();
+  });
+
   it('keeps the desktop variable expense editor compact while allowing inline edits', async () => {
     render(<HomePage />);
     const user = userEvent.setup();
@@ -2491,7 +2516,9 @@ describe('dashboard integration', () => {
     }
 
     const variableExpenseEditor = screen.getByLabelText('Variable expense editor');
-    expect(screen.queryByRole('button', { name: 'Power applies to Commercial' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select strategies' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Done selecting' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Power applies to Commercial' })).toBeInTheDocument();
 
     const beforeCount = screen.getAllByLabelText(/Expense label/i).length;
     const firstLabel = screen.getByLabelText('Expense label 1');
@@ -2504,18 +2531,15 @@ describe('dashboard integration', () => {
     expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Utilities Master monthly input cadence' })).toHaveAttribute('aria-pressed', 'false');
 
-    await user.click(screen.getByRole('button', { name: 'Select strategies' }));
-    expect(screen.queryByRole('button', { name: 'Utilities Master annual input cadence' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Utilities Master amount')).not.toBeInTheDocument();
     const commercialToggle = screen.getByRole('button', { name: 'Utilities Master applies to Commercial' });
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     await user.click(commercialToggle);
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
-    await user.click(screen.getByRole('button', { name: 'Done selecting' }));
-    expect(screen.queryByRole('button', { name: 'Utilities Master applies to Commercial' })).not.toBeInTheDocument();
+    await user.click(commercialToggle);
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Utilities Master annual input cadence' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Utilities Master amount')).toBeInTheDocument();
-    expect(within(variableExpenseEditor).getByLabelText('Utilities Master active strategies')).toHaveTextContent('Commercial');
+    expect(within(variableExpenseEditor).getByLabelText('Utilities Master strategies')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
 
@@ -2552,19 +2576,17 @@ describe('dashboard integration', () => {
     await user.click(annualCadence);
     expect(annualCadence).toHaveAttribute('aria-pressed', 'true');
 
-    expect(screen.queryByRole('button', { name: 'Mobile Utilities applies to Commercial' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Select strategies' }));
-    expect(screen.queryByRole('button', { name: 'Mobile Utilities annual input cadence' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Mobile Utilities amount')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select strategies' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Done selecting' })).not.toBeInTheDocument();
     const commercialToggle = screen.getByRole('button', { name: 'Mobile Utilities applies to Commercial' });
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     await user.click(commercialToggle);
     expect(commercialToggle).toHaveAttribute('aria-pressed', 'true');
-    await user.click(screen.getByRole('button', { name: 'Done selecting' }));
-    expect(screen.queryByRole('button', { name: 'Mobile Utilities applies to Commercial' })).not.toBeInTheDocument();
+    await user.click(commercialToggle);
+    expect(commercialToggle).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Mobile Utilities annual input cadence' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Mobile Utilities amount')).toBeInTheDocument();
-    expect(within(variableExpenseEditor).getByLabelText('Mobile Utilities active strategies')).toHaveTextContent('Commercial');
+    expect(within(variableExpenseEditor).getByLabelText('Mobile Utilities strategies')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add variable expense' }));
     expect(screen.getAllByLabelText(/Expense label/i).length).toBe(beforeCount + 1);
