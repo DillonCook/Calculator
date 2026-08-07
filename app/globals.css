@@ -1944,15 +1944,6 @@ html {
     padding-top: 1.15rem;
   }
 
-  .desktop-analysis-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    justify-content: space-between;
-    gap: 0.65rem;
-    min-width: 0;
-  }
-
   .desktop-analysis-grid {
     display: grid;
     gap: 1rem;

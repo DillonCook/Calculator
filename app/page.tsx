@@ -7163,12 +7163,6 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
-                  <div className="desktop-analysis-heading">
-                    <p className="desktop-input-rail-heading">Analysis dock</p>
-                    <h2 className="text-lg font-semibold text-slate-100">
-                      {desktopWorkspaceMode === 'compare' ? 'Strategy comparison' : 'Active-strategy projection'}
-                    </h2>
-                  </div>
                   <div className="desktop-analysis-grid">
                     <div className="desktop-analysis-projections min-w-0">{desktopPerformanceDashboard}</div>
                     {desktopWorkspaceMode === 'projection' ? (
