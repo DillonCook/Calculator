@@ -1784,31 +1784,7 @@ export default function HomePage() {
   const shouldAnimatePriorityMetric =
     !prefersReducedMotion && priorityMetricMotion.key > 0 && priorityMetricMotion.context === priorityMetricMotionContext;
   const priorityMetricMotionClass = shouldAnimatePriorityMetric ? 'priority-kpi-value-motion' : '';
-  const debtCoverageIsHealthy =
-    model.purchase.financingType !== 'loan' || isFlipStrategy || activeOutput.dscr >= 1.2;
-  const decisionVerdict = !compactReadiness.ready
-    ? {
-        label: 'Incomplete inputs',
-        tone: 'incomplete',
-        description: 'Add purchase price and expected income to evaluate this deal.'
-      }
-    : priorityMetricValue > 0 && debtCoverageIsHealthy
-      ? {
-          label: 'Strong',
-          tone: 'strong',
-          description: `${activeStrategyLabel} produces positive ${priorityMetricTitle.toLowerCase()}${isFlipStrategy || model.purchase.financingType !== 'loan' ? '.' : ' with DSCR at or above 1.20.'}`
-        }
-      : priorityMetricValue >= 0
-        ? {
-            label: 'Marginal',
-            tone: 'marginal',
-            description: `${activeStrategyLabel} is near break-even. Review debt coverage and assumptions before proceeding.`
-          }
-        : {
-            label: 'Does not meet target',
-            tone: 'weak',
-            description: `${activeStrategyLabel} is currently negative. Review the recommended workout and core assumptions.`
-          };
+  const incompleteDecisionDescription = 'Add purchase price and expected income to evaluate this deal.';
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -5005,7 +4981,7 @@ export default function HomePage() {
     <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
       <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
       <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+      <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value verdicts and recommendations until the comparison is meaningful.
       </p>
@@ -5066,11 +5042,6 @@ export default function HomePage() {
                 </svg>
               </div>
             ) : null}
-
-            <div className="decision-verdict-row relative z-10 mb-3">
-              <span className={`decision-status decision-status-${decisionVerdict.tone}`}>{decisionVerdict.label}</span>
-              <span className="text-[11px] font-medium text-muted">{decisionVerdict.description}</span>
-            </div>
 
             <div className="relative z-10 pr-16">
               <div className="flex items-center gap-2">
@@ -5179,7 +5150,7 @@ export default function HomePage() {
     <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
       <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
       <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+      <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.
       </p>
@@ -6703,7 +6674,7 @@ export default function HomePage() {
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
               <div>
                 <h2 className="decision-empty-title text-xl font-semibold">Add the deal basics to unlock the verdict</h2>
-                <p className="mt-2 text-sm text-muted">{decisionVerdict.description}</p>
+                <p className="mt-2 text-sm text-muted">{incompleteDecisionDescription}</p>
               </div>
             </div>
           ) : null}
@@ -6755,10 +6726,6 @@ export default function HomePage() {
                 </div>
               ) : null}
               <div className="relative z-10 flex flex-col gap-4">
-                <div className="decision-verdict-row">
-                  <span className={`decision-status decision-status-${decisionVerdict.tone}`}>{decisionVerdict.label}</span>
-                  <span className="text-xs font-medium text-muted">{decisionVerdict.description}</span>
-                </div>
                 <div className="priority-kpi-header flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 pr-3">
                     <div className="flex items-center gap-2">
@@ -7085,10 +7052,6 @@ export default function HomePage() {
           {desktopWorkspaceMode === 'build' ? (
           <section className="desktop-deal-builder section-shell section-shell-input min-w-0 rounded-[1.7rem] p-4 shadow-soft xl:p-5 [overflow-anchor:none]">
             <div ref={desktopStrategyTabsRef} className="desktop-builder-strategy-row">
-              <div className="desktop-builder-heading">
-                <p className="desktop-input-rail-heading">Deal builder</p>
-                <h2 className="text-lg font-semibold text-slate-100">Inputs</h2>
-              </div>
               <StrategyTabs
                 active={activeStrategy}
                 onChange={openDesktopStrategyWorkspace}
@@ -7183,7 +7146,7 @@ export default function HomePage() {
                 <div className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
                   <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
                   <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">{decisionVerdict.description}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
                   <p className="mt-3 text-xs leading-relaxed text-muted">
                     Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.
                   </p>
