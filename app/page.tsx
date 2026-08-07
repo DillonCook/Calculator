@@ -6700,17 +6700,10 @@ export default function HomePage() {
         <>
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           {!compactReadiness.ready ? (
-            <div className="decision-empty-state" aria-live="polite">
+            <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
               <div>
-                <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
-                <h2 className="decision-empty-title mt-3 text-xl font-semibold">Add the deal basics to unlock the verdict</h2>
+                <h2 className="decision-empty-title text-xl font-semibold">Add the deal basics to unlock the verdict</h2>
                 <p className="mt-2 text-sm text-muted">{decisionVerdict.description}</p>
-              </div>
-              <div className="decision-empty-actions">
-                <span className="text-xs text-muted">Still needed: {compactReadiness.missing.join(', ')}</span>
-                <button type="button" className="btn-primary min-h-11 rounded-xl px-4 py-2 text-sm font-semibold" onClick={() => setDesktopWorkspaceMode('build')}>
-                  Complete inputs
-                </button>
               </div>
             </div>
           ) : null}
@@ -7136,10 +7129,6 @@ export default function HomePage() {
             <div className="desktop-progressive-input-shell w-full">
               {desktopInputSection === 'core' ? (
                 <div ref={desktopCoreSectionRef} className="desktop-builder-lane">
-                  <div className="desktop-lane-anchor desktop-lane-anchor-purchase">
-                    <span>Deal basics</span>
-                    <small>Purchase basis and financing</small>
-                  </div>
                   <DealInputPanel
                     value={model}
                     onChange={updateModel}
@@ -7154,19 +7143,11 @@ export default function HomePage() {
               ) : null}
               {desktopInputSection === 'strategy' ? (
                 <div ref={desktopStrategyInputsRef} className="desktop-builder-lane">
-                  <div className="desktop-lane-anchor desktop-lane-anchor-strategy">
-                    <span>{activeStrategyLabel}</span>
-                    <small>Income and strategy assumptions</small>
-                  </div>
                   <StrategyInputsWorkspace activeStrategy={activeStrategy} model={model} onChange={updateModel} embedded />
                 </div>
               ) : null}
               {desktopInputSection === 'expenses' ? (
-                <div ref={desktopExpensesSectionRef} className="desktop-builder-lane desktop-builder-lane-expenses">
-                  <div className="desktop-lane-anchor desktop-lane-anchor-expenses">
-                    <span>Expenses</span>
-                    <small>Operating burden and reserves</small>
-                  </div>
+                <div ref={desktopExpensesSectionRef} className="desktop-builder-lane">
                   <DealInputPanel
                     value={model}
                     onChange={updateModel}
@@ -7180,10 +7161,6 @@ export default function HomePage() {
               ) : null}
               {desktopInputSection === 'irr' ? (
                 <div ref={irrStreamRef} className="desktop-builder-lane desktop-builder-lane-advanced">
-                  <div className="desktop-lane-anchor desktop-lane-anchor-advanced">
-                    <span>Advanced</span>
-                    <small>Hold, exit, and IRR assumptions</small>
-                  </div>
                   <TimelineCard
                     output={result[activeStrategy]}
                     assumptions={model.assumptions}
