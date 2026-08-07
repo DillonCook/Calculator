@@ -6948,6 +6948,64 @@ textarea {
   }
 }
 
+/* The tour stays intentionally dark in both app themes so its copy has
+   one predictable, high-contrast treatment above the dimmed workspace. */
+.onboarding-tour-panel {
+  color: #f1f5f9;
+  color-scheme: dark;
+}
+
+.onboarding-tour-skip {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.onboarding-tour-kicker {
+  color: #b9ebff;
+}
+
+.onboarding-tour-title,
+.onboarding-tour-back {
+  color: #ffffff;
+}
+
+.onboarding-tour-body {
+  color: rgba(241, 245, 249, 0.96);
+}
+
+.onboarding-tour-back {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.onboarding-tour-next,
+.theme-light .onboarding-tour-next {
+  --btn-text: #1f0b00;
+}
+
+.onboarding-tour-skip:hover,
+.onboarding-tour-skip:focus-visible,
+.onboarding-tour-back:hover,
+.onboarding-tour-back:focus-visible {
+  color: #ffffff;
+}
+
+.theme-light .onboarding-tour-panel,
+.theme-light .onboarding-tour-title,
+.theme-light .onboarding-tour-back {
+  color: #ffffff !important;
+}
+
+.theme-light .onboarding-tour-skip {
+  color: rgba(226, 232, 240, 0.92) !important;
+}
+
+.theme-light .onboarding-tour-kicker {
+  color: #b9ebff !important;
+}
+
+.theme-light .onboarding-tour-body {
+  color: rgba(241, 245, 249, 0.96) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .brand-title,
   .brand-icon,

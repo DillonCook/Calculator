@@ -55,3 +55,25 @@ describe('DealCooker brand metadata', () => {
     expect(publicBrandLogo.equals(appIcon)).toBe(true);
   });
 });
+
+describe('DealCooker tutorial readability', () => {
+  const tourSource = readFileSync(join(process.cwd(), 'components', 'dashboard', 'onboarding-tour.tsx'), 'utf8');
+  const globalStyles = readFileSync(join(process.cwd(), 'app', 'globals.css'), 'utf8');
+
+  it('keeps the spotlight cutout free of blur', () => {
+    expect(tourSource).not.toContain('backdrop-blur');
+    expect(tourSource).toContain('onboarding-tour-shade-top');
+    expect(tourSource).toContain('onboarding-tour-shade-bottom');
+    expect(tourSource).toContain('onboarding-tour-shade-left');
+    expect(tourSource).toContain('onboarding-tour-shade-right');
+    expect(tourSource).toContain('onboarding-tour-highlight');
+  });
+
+  it('preserves explicit high-contrast tutorial copy in light mode', () => {
+    expect(globalStyles).toContain('.theme-light .onboarding-tour-title');
+    expect(globalStyles).toContain('.theme-light .onboarding-tour-body');
+    expect(globalStyles).toContain('.theme-light .onboarding-tour-kicker');
+    expect(globalStyles).toContain('.theme-light .onboarding-tour-skip');
+    expect(globalStyles).toContain('--btn-text: #1f0b00;');
+  });
+});

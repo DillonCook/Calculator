@@ -277,6 +277,22 @@ describe('dashboard integration', () => {
     await user.click(screen.getByRole('button', { name: 'Open settings' }));
     await user.click(screen.getByRole('button', { name: 'Replay quick tutorial' }));
     const dialog = await screen.findByRole('dialog', { name: 'Quick app tutorial' });
+    const tourShades = await within(dialog).findAllByTestId(/onboarding-tour-shade-/);
+    expect(tourShades).toHaveLength(4);
+    expect(within(dialog).queryByTestId('onboarding-tour-full-shade')).not.toBeInTheDocument();
+    expect(within(dialog).getByTestId('onboarding-tour-highlight')).toBeInTheDocument();
+    const tourPanel = within(dialog).getByTestId('onboarding-tour-panel');
+    expect(tourPanel).toHaveClass('onboarding-tour-panel');
+    expect(within(tourPanel).getByText('Quick Tour 1/9')).toHaveClass('onboarding-tour-kicker');
+    expect(within(tourPanel).getByText('Your Saved Deals Are Here')).toHaveClass('onboarding-tour-title');
+    expect(within(tourPanel).getByText(/Click Deal Vault when you want to reopen/)).toHaveClass('onboarding-tour-body');
+    expect(within(tourPanel).getByRole('button', { name: 'Skip tutorial' })).toHaveClass('onboarding-tour-skip');
+    expect(within(tourPanel).getByRole('button', { name: 'Back' })).toHaveClass('onboarding-tour-back');
+    expect(within(tourPanel).getByRole('button', { name: 'Next' })).toHaveClass('onboarding-tour-next');
+    for (const shade of tourShades) {
+      expect(shade.className).not.toContain('backdrop-blur');
+      expect(shade).not.toHaveStyle({ backdropFilter: expect.any(String) });
+    }
     const next = () => user.click(within(dialog).getByRole('button', { name: 'Next' }));
     const inputSections = screen.getByRole('navigation', { name: 'Deal input sections' });
     const workspaces = screen.getByRole('navigation', { name: 'Desktop workspace sections' });
