@@ -2568,7 +2568,7 @@ html {
     width: auto;
     flex: 0 0 auto;
     align-items: flex-start;
-    padding-top: 1.05rem;
+    align-self: center;
   }
 
   .strategy-pill-group-embedded {
@@ -2594,6 +2594,7 @@ html {
   .strategy-action-slot-embedded {
     flex: 0 0 auto;
     margin-left: auto;
+    align-self: center;
   }
 
   .strategy-action-slot-embedded > * {
@@ -2658,13 +2659,11 @@ html {
   .quick-scan-inline {
     flex: 0 0 auto;
     width: max-content;
-    margin-top: -1.65rem;
-    margin-bottom: -1.35rem;
-    margin-left: 5.55rem;
+    margin: 0;
     max-width: calc(100% - 6.55rem);
     min-width: 0;
-    align-self: flex-start;
-    transform: translateY(-20%);
+    align-self: center;
+    transform: none;
   }
 
   .quick-scan-panel-embedded {
