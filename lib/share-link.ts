@@ -1,4 +1,5 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
+import { isSafePartialDealInput } from '@/lib/deal-input-safety';
 import { defaultDealInput, normalizeDealUiState, type DealInputModel, type ExpenseStrategyKey, type ScenarioRecord } from '@/lib/models/deal';
 
 const MAX_SHARE_PARAM_LENGTH = 8000;
@@ -42,7 +43,7 @@ const normalizeVariableExpenses = (value: unknown): DealInputModel['variableExpe
 };
 
 export const normalizeDealInput = (value: unknown): DealInputModel | null => {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value) || !isSafePartialDealInput(value)) return null;
 
   const purchase = isRecord(value.purchase) ? value.purchase : {};
   const commercial = isRecord(value.commercial) ? value.commercial : {};

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardPublicRequest, readBoundedJson } from '@/lib/public-request-guard';
 
 import { getSupabaseAdminClient } from '@/lib/supabaseServer';
 
@@ -9,6 +10,8 @@ const MAX_RELEASE_LENGTH = 120;
 const allowedEventNamePattern = /^[a-z0-9_:. -]{2,80}$/;
 const allowedEventNames = new Set([
   'app_opened',
+  'first_valid_analysis', 'meaningful_save', 'second_valid_deal', 'meaningful_return_visit',
+  'assumptions_reviewed', 'downside_compared', 'workout_adjustment_applied', 'meaningful_share',
   'deal_review_requested',
   'feedback_sent',
   'marketing_entry',
@@ -55,10 +58,12 @@ const getBearerToken = (request: Request) => {
 };
 
 export async function POST(request: Request) {
+  const denied = guardPublicRequest(request, 60, 16384);
+  if (denied) return denied;
   let rawBody: unknown;
 
   try {
-    rawBody = await request.json();
+    rawBody = await readBoundedJson(request, 16384);
   } catch {
     return NextResponse.json({ ok: false, error: 'Invalid JSON.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   }
@@ -85,7 +90,9 @@ export async function POST(request: Request) {
     session_id: asString(body.sessionId, 120),
     route: asString(body.route, MAX_ROUTE_LENGTH),
     release: asString(body.release, MAX_RELEASE_LENGTH),
-    properties: asProperties(body.properties)
+    properties: /^(first_valid_analysis|meaningful_save|second_valid_deal|meaningful_return_visit|assumptions_reviewed|downside_compared|workout_adjustment_applied|meaningful_share)$/.test(eventName)
+      ? {strategy:['purchase','commercial','longTerm','airbnb','padSplit','brrrr','flip'].includes(String(asProperties(body.properties).strategy)) ? asProperties(body.properties).strategy : null}
+      : asProperties(body.properties)
   });
 
   if (error) {

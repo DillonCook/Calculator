@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardPublicRequest, readBoundedJson } from '@/lib/public-request-guard';
 
 import { getSupabaseAdminClient } from '@/lib/supabaseServer';
 
@@ -19,10 +20,13 @@ const asMetadata = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
 export async function POST(request: Request) {
+  const denied = guardPublicRequest(request, 30, 32768);
+  if (denied) return denied;
+
   let rawBody: unknown;
 
   try {
-    rawBody = await request.json();
+    rawBody = await readBoundedJson(request, 32768);
   } catch {
     return NextResponse.json({ ok: false, error: 'Invalid JSON.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   }

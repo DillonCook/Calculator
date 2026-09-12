@@ -1,39 +1,22 @@
 import { NextResponse } from 'next/server';
+import { extractDealNameFromListingUrl, normalizeListingUrl } from '@/lib/listing-link';
 
-import { extractDealNameFromListingHtml, isOneHomeUrl, normalizeListingUrl } from '@/lib/listing-link';
-
-const BROWSER_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
-
+// Name-only convenience, deliberately network-free. A listing URL must never
+// become a server-side fetch capability (including redirect/DNS rebinding).
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const rawUrl = searchParams.get('url')?.trim() ?? '';
-  const listingUrl = normalizeListingUrl(rawUrl);
-
-  if (!listingUrl) {
-    return NextResponse.json({ dealName: null, error: 'Missing url parameter' }, { status: 400 });
+  const rawUrl = new URL(request.url).searchParams.get('url')?.trim() ?? '';
+  if (!rawUrl || rawUrl.length > 2048) {
+    return NextResponse.json({ dealName: null, error: 'Enter a listing link under 2,048 characters.' }, { status: 400 });
   }
-
-  if (isOneHomeUrl(listingUrl)) {
-    return NextResponse.json({ dealName: null }, { status: 200 });
-  }
-
   try {
-    const response = await fetch(listingUrl, {
-      redirect: 'follow',
-      headers: { 'user-agent': BROWSER_UA },
-      next: { revalidate: 0 }
-    });
-
-    if (!response.ok) {
-      return NextResponse.json({ dealName: null, error: `Upstream ${response.status}` }, { status: 502 });
-    }
-
-    const html = await response.text();
-    const dealName = extractDealNameFromListingHtml(html);
-
-    return NextResponse.json({ dealName });
+    const url = new URL(normalizeListingUrl(rawUrl));
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid listing URL');
+    return NextResponse.json({
+      dealName: extractDealNameFromListingUrl(url.href),
+      source: 'url-only',
+      notice: 'Name suggestion only. Property facts, price, income and expenses are not imported.'
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    return NextResponse.json({ dealName: null, error: 'Unable to fetch listing URL' }, { status: 502 });
+    return NextResponse.json({ dealName: null, error: 'Enter a valid public listing link.' }, { status: 400 });
   }
 }

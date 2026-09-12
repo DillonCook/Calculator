@@ -8,15 +8,15 @@ const OUT = path.join(ROOT, 'landing-dist');
 const APP_ORIGIN = 'https://www.dealcooker.app';
 const SITE_ORIGIN = 'https://dealcooker.app';
 const CONTENT_DATES = {
-  '/': '2026-07-24',
-  '/methodology/': '2026-07-24',
-  '/rental-property-calculator/': '2026-07-24',
+  '/': '2026-09-12',
+  '/methodology/': '2026-09-12',
+  '/rental-property-calculator/': '2026-09-12',
   '/brrrr-calculator/': '2026-07-24',
   '/room-by-room-rental-calculator/': '2026-07-24',
-  '/airbnb-investment-calculator/': '2026-07-24',
+  '/airbnb-investment-calculator/': '2026-09-12',
   '/fix-and-flip-calculator/': '2026-07-24',
   '/commercial-real-estate-calculator/': '2026-07-24',
-  '/compare-rental-strategies/': '2026-07-24'
+  '/compare-rental-strategies/': '2026-09-12',
 } as const;
 const contentDate = (route: string) => {
   const date = CONTENT_DATES[route as keyof typeof CONTENT_DATES];
@@ -218,7 +218,7 @@ const pages: Page[] = [
     levers: ['Purchase price and down payment', 'Rent, vacancy, and operating expenses', 'Reserves, financing, appreciation, and exit assumptions'],
     related: ['brrrr-calculator', 'room-by-room-rental-calculator', 'compare-rental-strategies'],
     answer: 'A rental property calculator estimates cash flow and returns after financing, vacancy, operating expenses, reserves, and exit assumptions—not just rent minus the mortgage.',
-    methodology: 'DealCooker calculates effective income after vacancy, subtracts modeled operating costs and reserves to estimate NOI, subtracts debt service for cash flow, and builds an annual hold-period timeline for ROI and IRR.',
+    methodology: 'DealCooker calculates effective income after vacancy, subtracts modeled operating costs and reserves to estimate NOI, subtracts debt service for cash flow, and builds a dated cash-flow timeline for total ROI and annualized IRR.',
     questions: [
       ['What should a rental property calculator include?', 'Purchase and closing costs, loan terms, rent, vacancy, management, maintenance, capital reserves, taxes, insurance, cash flow, sale assumptions, and return metrics should be connected in one model.'],
       ['How is rental cash flow calculated?', 'DealCooker starts with rent and other income, subtracts vacancy and modeled expenses, then subtracts debt service. The result is a pre-tax estimate, not a guarantee.'],
@@ -512,6 +512,7 @@ const methodologyBody = () => `
     <article><h2>DSCR</h2><p>Modeled NOI divided by modeled debt service. A ratio above 1 means NOI exceeds debt service, but lender definitions and thresholds vary.</p></article>
     <article><h2>Cash-on-cash return</h2><p>Annual pre-tax cash flow divided by modeled cash invested. It is sensitive to leverage and does not replace a full hold-period analysis.</p></article>
     <article><h2>ROI and IRR</h2><p>ROI measures total modeled gain relative to invested cash. IRR annualizes the timing of initial cash, operations, refinance events, additional contributions, and exit proceeds.</p></article>
+    <article><h2>Fees and cash required</h2><p>Airbnb host fees apply to room revenue plus charged cleaning fees. The long-term rental placement-fee input is informational and excluded from returns; budget actual leasing costs separately. A HELOC amount is the actual draw, not a credit limit. BRRRR cash left after refinance is different from the money needed at the start.</p></article>
   </div>
 </section>
 <section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Engine-backed pages</p><h2>Worked examples stay tied to product math</h2><p>Every strategy page is regenerated from DealCooker’s calculation engine during the site build. The displayed examples are illustrative scenarios, not hand-entered promises or property recommendations.</p></div><aside><strong>Inputs drive outputs</strong><p>Small changes in rent, vacancy, financing, rehab, reserves, timing, and exit assumptions can materially change results. Replace examples with verified property-specific inputs.</p></aside></div></section>

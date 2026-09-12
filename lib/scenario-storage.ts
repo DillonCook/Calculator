@@ -1,5 +1,6 @@
 import { normalizeDealUiState, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
 import { defaultDealInput } from '@/lib/models/deal';
+import { isSafePartialDealInput } from '@/lib/deal-input-safety';
 
 const STORAGE_KEY = 'investor-command-center.scenarios.v1';
 const APP_VERSION = '0.2.0';
@@ -139,7 +140,8 @@ export const encodeScenario = (record: ScenarioRecord): string => {
 export const decodeScenario = (value: string): ScenarioRecord | null => {
   try {
     const raw = decodeBase64Url(value);
-    return normalizeScenario(JSON.parse(raw) as ScenarioRecord);
+    const record=JSON.parse(raw) as ScenarioRecord;
+    return isSafePartialDealInput(record?.payload) ? normalizeScenario(record) : null;
   } catch {
     return null;
   }

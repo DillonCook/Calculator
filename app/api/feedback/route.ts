@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardPublicRequest, readBoundedJson } from '@/lib/public-request-guard';
 
 import { getSupabaseAdminClient } from '@/lib/supabaseServer';
 
@@ -46,10 +47,12 @@ const asEmailId = (value: unknown): string | null => {
 };
 
 export async function POST(request: Request) {
+  const denied = guardPublicRequest(request, 8, 16384);
+  if (denied) return denied;
   let rawBody: unknown;
 
   try {
-    rawBody = await request.json();
+    rawBody = await readBoundedJson(request, 16384);
   } catch {
     return feedbackResponse('Invalid JSON.', 400);
   }

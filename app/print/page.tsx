@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { PrintActions } from '@/components/print/print-actions';
+import { DecisionBrief } from '@/components/dashboard/decision-brief';
 import { calculateDeal } from '@/lib/engine/deal-engine';
 import { createPdfReportSchema, type PdfReportRow } from '@/lib/export/pdf-schema';
 import { decodeScenario } from '@/lib/scenario-storage';
@@ -112,6 +113,7 @@ export default async function PrintPage({ searchParams }: PrintPageProps) {
           </section>
         </header>
 
+        <div className="theme-light"><DecisionBrief model={model} strategy={strategy} output={result[strategy]} /></div>
         <div className="px-3 py-3 sm:px-5 sm:py-4 print:px-3 print:py-3">
           <div className="print-tight-grid grid gap-3 lg:grid-cols-2 print:grid-cols-2">
             <ReportSectionCard title={report.summary.title} rows={report.summary.rows} />

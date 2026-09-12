@@ -15,7 +15,7 @@ const getDeclarations = (selector: string) => {
 
     media.walkRules((rule) => {
       if (rule.selector.includes(selector)) {
-        rule.walkDecls((declaration) => declarations.push(declaration));
+        rule.walkDecls((declaration) => { declarations.push(declaration); });
       }
     });
   });
@@ -29,7 +29,7 @@ const getSelectorDeclarations = (selector: string) => {
 
   root.walkRules((rule) => {
     if (rule.selector === selector) {
-      rule.walkDecls((declaration) => declarations.push(declaration));
+      rule.walkDecls((declaration) => { declarations.push(declaration); });
     }
   });
 

@@ -18,18 +18,19 @@ interface PrintActionsProps {
 export function PrintActions({ documentTitle, scenarioToken, strategy }: PrintActionsProps) {
   const [copyFeedback, setCopyFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [isCopying, setIsCopying] = useState(false);
+  const [browserLocation, setBrowserLocation] = useState<{ origin: string; href: string } | null>(null);
+  useEffect(() => {
+    setBrowserLocation({ origin: window.location.origin, href: window.location.href });
+  }, []);
 
   const decodedScenario = useMemo(() => (scenarioToken ? decodeScenario(scenarioToken) : null), [scenarioToken]);
   const editableDealUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !decodedScenario) return null;
+    if (!browserLocation || !decodedScenario) return null;
 
     const editableToken = encodeDealToShareParam(decodedScenario.payload);
-    return editableToken ? `${window.location.origin}/?s=${editableToken}` : null;
-  }, [decodedScenario]);
-  const reportUrl = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return window.location.href;
-  }, []);
+    return editableToken ? `${browserLocation.origin}/?s=${editableToken}` : null;
+  }, [decodedScenario, browserLocation]);
+  const reportUrl = browserLocation?.href ?? null;
 
   useEffect(() => {
     if (!documentTitle) return;

@@ -1,4 +1,10 @@
 'use client';
+import { getDealReadiness } from '@/lib/deal-readiness';
+import { recordValidProperty, trackProductEvent } from '@/lib/product-analytics';
+import { useDealEditor } from '@/lib/use-deal-editor';
+import { buildNewDealPayload, buildSampleDealPayload, SAMPLE_DEAL_NAME } from '@/lib/deal-templates';
+import { DecisionBrief } from '@/components/dashboard/decision-brief';
+import { DealQuickStart } from '@/components/dashboard/deal-quick-start';
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -12,10 +18,8 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type Dispatch,
   type FormEvent,
-  type ReactNode,
-  type SetStateAction
+  type ReactNode
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { AssumptionsPanel } from '@/components/dashboard/assumptions-panel';
@@ -48,7 +52,6 @@ import { calculateDeal } from '@/lib/engine/deal-engine';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { type DealWorkoutScenario } from '@/lib/engine/deal-workout';
 import {
-  defaultDealInput,
   isStrategyKey,
   normalizeProjectionStrategySelection,
   strategyKeyOrder,
@@ -154,7 +157,7 @@ const FEEDBACK_MESSAGE_MAX_LENGTH = 1600;
 const DEAL_REVIEW_NOTES_MAX_LENGTH = 1800;
 const DEAL_REVIEW_SUBMISSIONS_ENABLED = false;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SAMPLE_DEAL_NAME = 'Tampa Duplex - Sample Deal';
+
 const anonymousDealLimitMessage = `Sign in to save more than ${ANONYMOUS_DEAL_LIMIT} deals. You can still open, edit, export, or delete existing saved deals.`;
 const headlineMetricKeySet = new Set<HeadlineMetricId>(headlineMetricOptions.map((option) => option.id));
 const compactDealDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -825,125 +828,14 @@ function ReserveModeTooltip({ strategy, includeReserves }: { strategy: StrategyK
 
 
 
-const cloneDefaultDealPayload = (): DealInputModel => ({
-  ...defaultDealInput,
-  purchase: { ...defaultDealInput.purchase },
-  commercial: { ...defaultDealInput.commercial },
-  longTerm: {
-    ...defaultDealInput.longTerm,
-    turnaround: { ...defaultDealInput.longTerm.turnaround }
-  },
-  airbnb: { ...defaultDealInput.airbnb },
-  padSplit: { ...defaultDealInput.padSplit },
-  brrrr: { ...defaultDealInput.brrrr },
-  flip: { ...defaultDealInput.flip },
-  variableExpenses: defaultDealInput.variableExpenses.map((expense) => ({
-    ...expense,
-    appliesTo: { ...expense.appliesTo }
-  })),
-  assumptions: { ...defaultDealInput.assumptions }
-});
 
-const buildNewDealPayload = (dealName: string, listingUrl = ''): DealInputModel => {
-  const base = cloneDefaultDealPayload();
-
-  return {
-    ...base,
-    purchase: {
-      ...base.purchase,
-      dealName,
-      listingUrl,
-      purchasePrice: 0,
-      rehabBudget: 0,
-      arv: 0
-    },
-    commercial: {
-      ...base.commercial,
-      averageBaseRentPerSqftYear: 0,
-      nnnRecoveryPerSqftYear: 0
-    },
-    longTerm: {
-      ...base.longTerm,
-      grossRentMonthly: 0,
-      turnaround: {
-        ...base.longTerm.turnaround,
-        stabilizedGrossRentMonthly: 0
-      }
-    },
-    airbnb: {
-      ...base.airbnb,
-      adr: 0
-    },
-    padSplit: {
-      ...base.padSplit,
-      avgWeeklyRatePerRoom: 0
-    }
-  };
-};
-
-const buildSampleDealPayload = (): DealInputModel => {
-  const base = cloneDefaultDealPayload();
-
-  return {
-    ...base,
-    purchase: {
-      ...base.purchase,
-      dealName: SAMPLE_DEAL_NAME,
-      listingUrl: '',
-      purchasePrice: 285000,
-      rehabBudget: 25000,
-      arv: 340000
-    },
-    commercial: {
-      ...base.commercial,
-      grossLeasableAreaSqft: 9000,
-      occupiedSqft: 8100,
-      averageBaseRentPerSqftYear: 28,
-      nnnRecoveryPerSqftYear: 9
-    },
-    longTerm: {
-      ...base.longTerm,
-      grossRentMonthly: 3200,
-      otherIncomeMonthly: 75,
-      turnaround: {
-        ...base.longTerm.turnaround,
-        enabled: true,
-        stabilizedGrossRentMonthly: 3600,
-        additionalIncomeMonthly: 100,
-        rehabBudgetForStabilization: 25000
-      }
-    },
-    airbnb: {
-      ...base.airbnb,
-      adr: 185,
-      occupancyPercent: 0.66
-    },
-    padSplit: {
-      ...base.padSplit,
-      rentableRooms: 5,
-      avgWeeklyRatePerRoom: 215
-    },
-    brrrr: {
-      ...base.brrrr,
-      holdingMonths: 6,
-      rehabOverride: 25000,
-      arvOverride: 340000
-    },
-    flip: {
-      ...base.flip,
-      holdingMonths: 5,
-      rehabOverride: 25000,
-      arvOverride: 340000
-    }
-  };
-};
 const defaultNewDealStrategyFallback: StrategyKey = 'longTerm';
 const defaultProjectionStrategySelectionFallback: StrategyKey[] = [defaultNewDealStrategyFallback];
 const areStrategySelectionsEqual = (left: StrategyKey[], right: StrategyKey[]) =>
   left.length === right.length && left.every((strategy, index) => strategy === right[index]);
 
 export default function HomePage() {
-  const [model, setModel] = useState(() => buildNewDealPayload('New Deal'));
+  const {model,setModel,updateModel} = useDealEditor(() => buildNewDealPayload('New Deal'),()=>{if(activeDealId)setSaveStatus('saving');});
   const [activeStrategy, setActiveStrategy] = useState<StrategyKey>(
     defaultNewDealStrategyFallback
   );
@@ -1035,6 +927,7 @@ export default function HomePage() {
   const [baselineUpsertsCount, setBaselineUpsertsCount] = useState(0);
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [quickStartDismissed,setQuickStartDismissed] = useState(false);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; scenarioId: string } | null>(null);
 
@@ -1384,51 +1277,8 @@ export default function HomePage() {
       purchase.helocClosingCosts
     );
   }, [model]);
-  const compactReadiness = useMemo(() => {
-    const coreMissing: string[] = [];
-    const strategyMissing: string[] = [];
-    const hasDealName = model.purchase.dealName.trim().length > 0;
-    if (!hasDealName) coreMissing.push('deal name');
-
-    if (model.purchase.ownershipMode === 'purchase') {
-      if (model.purchase.purchasePrice <= 0) coreMissing.push('purchase price');
-      if (model.purchase.financingType === 'loan' && model.purchase.downPaymentPercent <= 0) coreMissing.push('down payment');
-      if (model.purchase.financingType === 'loan' && model.purchase.interestRate <= 0) coreMissing.push('interest rate');
-    }
-
-    if (activeStrategy === 'purchase') {
-      if (model.commercial.grossLeasableAreaSqft <= 0) strategyMissing.push('gross leasable area');
-      if (model.commercial.occupiedSqft <= 0) strategyMissing.push('leased area');
-      if (model.commercial.averageBaseRentPerSqftYear <= 0) strategyMissing.push('base rent');
-    }
-
-    if (activeStrategy === 'longTerm' && model.longTerm.grossRentMonthly <= 0) {
-      strategyMissing.push('gross rent');
-    }
-
-    if (activeStrategy === 'airbnb' && model.airbnb.adr <= 0) {
-      strategyMissing.push('ADR');
-    }
-
-    if (activeStrategy === 'padSplit') {
-      if (model.padSplit.rentableRooms <= 0) strategyMissing.push('rentable rooms');
-      if (model.padSplit.avgWeeklyRatePerRoom <= 0) strategyMissing.push('weekly rate');
-    }
-
-    if ((activeStrategy === 'brrrr' || activeStrategy === 'flip') && (model.purchase.arv <= 0) && !result[activeStrategy].saleProceeds) {
-      strategyMissing.push('ARV');
-    }
-
-    const missing = [...coreMissing, ...strategyMissing];
-    return {
-      ready: missing.length === 0,
-      missing,
-      sections: {
-        core: coreMissing,
-        strategy: strategyMissing
-      }
-    };
-  }, [activeStrategy, model, result]);
+  const compactReadiness = useMemo(() => getDealReadiness(model, activeStrategy), [model, activeStrategy]);
+  useEffect(()=>{recordValidProperty(model,activeStrategy,activeDealId,saveStatus==='saved');},[model,activeStrategy,activeDealId,saveStatus]);
   const currentOnboardingSteps = isMobileViewport ? mobileOnboardingSteps : desktopOnboardingSteps;
   const onboardingTargetLayoutKey = `${workspaceViewMode}:${compactMode}:${compactInputSection}:${compactSheetView ?? 'closed'}:${desktopWorkspaceMode}:${desktopInputSection}`;
   const compactSortedDeals = useMemo(
@@ -1602,7 +1452,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.capRate)}
             numericValue={metricOutput.capRate}
             numericValueKind="percent"
-            helper="Annual NOI / current property value"
+            helper={metricOutput.strategy==='brrrr' ? "Annual NOI / refinance ARV" : "Annual NOI / acquisition price or owned basis"}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1615,7 +1465,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.cashOnCashReturn)}
             numericValue={metricOutput.cashOnCashReturn}
             numericValueKind="percent"
-            helper="Annual cash flow / total cash invested"
+            helper={metricOutput.strategy==='brrrr'?"Annual post-refinance cash flow / cash left in deal":"Annual cash flow / initial cash invested"}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1642,7 +1492,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.roi)}
             numericValue={metricOutput.roi}
             numericValueKind="percent"
-            helper="Total profit / total cash invested"
+            helper={`${metricOutput.strategy==='flip'?model.flip.holdingMonths+'-month':model.assumptions.holdYears+'-year'} total profit / all cash contributed`}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1655,7 +1505,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.irr)}
             numericValue={metricOutput.irr}
             numericValueKind="percent"
-            helper="Discounted return from yearly cashflow timeline"
+            helper="Annualized return from dated cash contributions and distributions"
             winner={metricModeLabel}
             definitions={[
               {
@@ -1946,10 +1796,7 @@ export default function HomePage() {
     if (dealId) setActiveDealId(dealId);
   };
 
-  const updateModel: Dispatch<SetStateAction<DealInputModel>> = (nextModel) => {
-    if (activeDealId) setSaveStatus('saving');
-    setModel(nextModel);
-  };
+
 
   const setLongTermTurnaroundEnabled = (enabled: boolean) => {
     prepareDesktopDigestFlip();
@@ -2040,7 +1887,7 @@ export default function HomePage() {
         projectionStrategies: nextProjectionStrategies
       }
     }));
-  }, [activeDealId, activeStrategy, compactSelectedStrategies, model.uiState]);
+  }, [activeDealId, activeStrategy, compactSelectedStrategies, model.uiState, setModel]);
 
   const selectCompactInputSection = (section: CompactInputSection) => {
     if (compactInputSection === section) return;
@@ -2524,7 +2371,7 @@ export default function HomePage() {
     });
     const cleanedUrl = removeMarketingParamsFromUrl(window.location.href);
     if (cleanedUrl !== window.location.href) window.history.replaceState(window.history.state, '', cleanedUrl);
-  }, [currentUser?.id, isClientMounted, isPwaInstalled]);
+  }, [currentUser?.id, isClientMounted, isPwaInstalled, setModel]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2588,10 +2435,9 @@ export default function HomePage() {
     if (typeof window === 'undefined') return;
 
     const hasSeenTutorial = window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1';
-    if (!hasSeenTutorial) {
-      setIsOnboardingOpen(true);
-      setOnboardingStepIndex(0);
-    }
+    // First use starts with a property, not a nine-step interface tour.
+    // The existing tour remains available explicitly in Settings.
+    if (hasSeenTutorial) setQuickStartDismissed(true);
   }, []);
 
   useEffect(() => {
@@ -3031,6 +2877,7 @@ export default function HomePage() {
     const payload = attachDealUiState(
       {
         ...samplePayload,
+        analysis: {kind:'sample',assumptionsReviewed:false},
         purchase: {
           ...samplePayload.purchase,
           dealName: sampleDealName
@@ -3278,6 +3125,7 @@ export default function HomePage() {
       if (!error && slug) {
         const shortUrl = `${window.location.origin}/s/${slug}`;
         void trackAnalyticsEvent('share_link_created', { source: 'short_link', anchor, signedIn: true });
+        trackProductEvent('meaningful_share',model,activeStrategy);
         try {
           await navigator.clipboard.writeText(shortUrl);
           triggerHapticFeedback('success');
@@ -3303,6 +3151,7 @@ export default function HomePage() {
 
     const url = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
     void trackAnalyticsEvent('share_link_created', { source: 'url_param', anchor, signedIn: false });
+    trackProductEvent('meaningful_share',model,activeStrategy);
 
     try {
       await navigator.clipboard.writeText(url);
@@ -3316,6 +3165,7 @@ export default function HomePage() {
   };
 
   const applyDealWorkoutScenario = (scenario: DealWorkoutScenario) => {
+    trackProductEvent('workout_adjustment_applied',model,activeStrategy);
     triggerHapticFeedback('success');
     updateModel((current) => ({
       ...current,
@@ -3323,7 +3173,8 @@ export default function HomePage() {
         ...current.purchase,
         purchasePrice: scenario.adjustments.purchasePrice ?? current.purchase.purchasePrice,
         downPaymentPercent: scenario.adjustments.downPaymentPercent ?? current.purchase.downPaymentPercent
-      }
+      },
+      analysis: {...current.analysis,assumptionsReviewed:false,lastWorkout:{purchasePrice:current.purchase.purchasePrice,downPaymentPercent:current.purchase.downPaymentPercent}}
     }));
   };
 
@@ -5015,6 +4866,7 @@ export default function HomePage() {
     </section>
   ) : (
     <>
+      <DecisionBrief model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} />
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div className="space-y-4">
           <div className="results-hero-main priority-kpi-stable relative isolate">
@@ -5184,8 +5036,8 @@ export default function HomePage() {
     </section>
   ) : (
     <>
-      <section aria-label="Projections strategy selection" className="mobile-stagger-item section-shell section-shell-projection rounded-2xl p-4 shadow-soft">
-        <div className="flex items-start justify-between gap-3">
+      <details aria-label="Projections strategy selection" className="mobile-stagger-item section-shell section-shell-projection rounded-2xl p-4 shadow-soft">
+        <summary className="flex cursor-pointer items-start justify-between gap-3">
           <div>
             <p className="section-eyebrow-projection text-xs uppercase tracking-[0.16em]">Projections</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-100">Choose strategies</h2>
@@ -5193,7 +5045,7 @@ export default function HomePage() {
           <span className="rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[11px] text-slate-200">
             {compactCompareSelection.length} selected
           </span>
-        </div>
+        </summary>
         <p className="mt-3 text-xs leading-relaxed text-muted">
           DealCooker starts with the active strategy so the projection stays focused. Add strategies only when you want a true comparison.
         </p>
@@ -5233,7 +5085,7 @@ export default function HomePage() {
             );
           })}
         </div>
-      </section>
+      </details>
 
       <StrategyComparison
         data={result}
@@ -6171,7 +6023,7 @@ export default function HomePage() {
         </button>
 
         {compactMode === 'results' && compactReadiness.ready ? (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="mainstream-mobile-result-actions grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => {
@@ -6268,7 +6120,16 @@ export default function HomePage() {
             : 'bg-[linear-gradient(135deg,rgba(244,145,48,0.26)_0%,rgba(244,145,48,0.12)_18%,rgba(92,150,220,0.1)_44%,transparent_78%)]'
         }`}
       />
-      <div className="relative z-10 mx-auto max-w-[112rem] space-y-5">
+      <div className={`relative z-10 mx-auto max-w-[112rem] space-y-5${!quickStartDismissed && model.purchase.ownershipMode==='purchase' && model.purchase.purchasePrice<=0 ? ' mainstream-guided-root' : ''}`}>
+        {!quickStartDismissed && model.purchase.ownershipMode==='purchase' && model.purchase.purchasePrice<=0 ? <DealQuickStart
+          base={model}
+          onAdvanced={()=>{setQuickStartDismissed(true);}}
+          onSample={()=>{setQuickStartDismissed(true);loadSampleDeal();}}
+          onStart={(next,strategy)=>{
+            updateModel(next);setActiveStrategy(strategy);setCompactSelectedStrategies([strategy]);
+            setQuickStartDismissed(true);setCompactMode('results');setIsOnboardingOpen(false);
+          }}
+        /> : null}
         {isMobileViewport ? (
           <header className={`app-header-shell section-shell section-shell-utility relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
@@ -6326,7 +6187,7 @@ export default function HomePage() {
                       <p className="dashboard-kicker header-deal-meta">Deal Vault</p>
                       <p className="header-deal-name truncate text-base font-semibold">{activeDealDisplayName}</p>
                       <p className="header-deal-meta truncate text-[11px]">
-                        {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                        {deals.length<=1 && model.purchase.purchasePrice<=0 && model.purchase.ownershipMode!=='owned' ? 'Draft — add property details' : `${deals.length} saved ${deals.length===1?'deal':'deals'}`}
                       </p>
                     </div>
                     <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
@@ -6496,7 +6357,7 @@ export default function HomePage() {
                         <p className="dashboard-kicker header-deal-meta">Deal vault</p>
                         <p className="header-deal-name truncate text-sm font-semibold sm:text-base">{activeDealDisplayName}</p>
                         <p className="header-deal-meta truncate text-[11px]">
-                          {deals.length} saved {deals.length === 1 ? 'deal' : 'deals'}
+                          {deals.length<=1 && model.purchase.purchasePrice<=0 && model.purchase.ownershipMode!=='owned' ? 'Draft — add property details' : `${deals.length} saved ${deals.length===1?'deal':'deals'}`}
                         </p>
                       </div>
                       <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
@@ -6716,6 +6577,7 @@ export default function HomePage() {
           </div>
         </section>
 
+        {compactReadiness.ready ? <DecisionBrief model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} /> : null}
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           {!compactReadiness.ready ? (
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">

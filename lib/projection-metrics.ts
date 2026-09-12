@@ -1,3 +1,4 @@
+import { resolveStrategyValue } from '@/lib/strategy-value';
 import { calculateLoanAmount } from '@/lib/engine/finance';
 import { calculateRemainingBalance, calculateRemainingBalanceWithPayment } from '@/lib/engine/investment-math';
 import type { DealInputModel, StrategyOutput } from '@/lib/models/deal';
@@ -222,7 +223,7 @@ export const getModeledSaleCashAtMonth = (output: StrategyOutput, input: DealInp
   return salePrice - sellingCosts - remainingDebt;
 };
 
-const getModeledSalePriceAtMonth = (output: StrategyOutput, input: DealInputModel, month: number) => {
+export const getModeledSalePriceAtMonth = (output: StrategyOutput, input: DealInputModel, month: number) => {
   const strategy = output.strategy;
   const acquisitionBasisPrice = input.purchase.ownershipMode === 'owned' ? input.purchase.ownedPurchasePrice : input.purchase.purchasePrice;
   const turnaroundPending = strategy === 'longTerm' && output.longTermTurnaroundSummary?.enabled && month < 12 - 1e-9;
@@ -258,10 +259,7 @@ const resolveBaseValue = (output: StrategyOutput, input: DealInputModel) => {
   }
   if (strategy === 'airbnb') return input.airbnb.arvOverride && input.airbnb.arvOverride > 0 ? input.airbnb.arvOverride : purchaseBaseValue;
   if (strategy === 'padSplit') return input.padSplit.arvOverride && input.padSplit.arvOverride > 0 ? input.padSplit.arvOverride : purchaseBaseValue;
-  if (strategy === 'brrrr') {
-    if (input.brrrr.arvOverride && input.brrrr.arvOverride > 0) return input.brrrr.arvOverride;
-    return Math.max(input.purchase.arv, 0);
-  }
+  if (strategy === 'brrrr') return resolveStrategyValue(input, 'brrrr') ?? 0;
   if (strategy === 'flip') return input.flip.arvOverride && input.flip.arvOverride > 0 ? input.flip.arvOverride : purchaseBaseValue;
 
   return purchaseBaseValue;
@@ -302,7 +300,7 @@ const getAcquisitionRemainingDebtAtMonth = (input: DealInputModel, month: number
   return primaryBalance + helocBalance;
 };
 
-const getRemainingDebtAtMonth = (output: StrategyOutput, input: DealInputModel, month: number) => {
+export const getRemainingDebtAtMonth = (output: StrategyOutput, input: DealInputModel, month: number) => {
   if (output.strategy === 'brrrr') return getBrrrrRemainingDebtAtMonth(output, input, month);
   return getAcquisitionRemainingDebtAtMonth(input, month);
 };
