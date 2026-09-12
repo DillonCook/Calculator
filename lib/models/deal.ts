@@ -342,7 +342,17 @@ export interface LongTermTurnaroundSummaryOutput {
   equityCreated: number;
 }
 
+export interface AnalysisPreferences {
+  kind?: 'sample' | 'property';
+  assumptionsReviewed?: boolean;
+  minMonthlyCashFlow?: number;
+  minDscr?: number;
+  minCashOnCashPercent?: number;
+  lastWorkout?: { purchasePrice: number; downPaymentPercent: number };
+}
+
 export interface DealInputModel {
+  analysis?: AnalysisPreferences;
   purchase: PurchaseInputs;
   commercial: CommercialInputs;
   longTerm: LongTermInputs;

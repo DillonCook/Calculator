@@ -31,7 +31,7 @@ const scenarioActionLabel = (scenario: DealWorkoutScenario) => {
 };
 
 export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: DealWorkoutCardProps) {
-  const recommendation = buildDealWorkoutRecommendation(model, strategy);
+  const recommendation = useMemo(() => buildDealWorkoutRecommendation(model, strategy), [model, strategy]);
   const shouldShowInlinePriceCut = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const isCashDeal = model.purchase.financingType === 'cash';
 
@@ -91,7 +91,7 @@ export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: 
 
       {recommendation.canWorkAlready ? (
         <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-xs leading-snug text-emerald-200 sm:text-sm">
-          This strategy already works on current terms. No forced edits needed.
+          The modeled cash-flow or profit break-even test passes. Check your targets and downside assumptions before deciding.
         </p>
       ) : null}
 

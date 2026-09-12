@@ -2,6 +2,8 @@ import { getSupabaseClient } from '@/lib/supabaseClient';
 
 export type AnalyticsEventName =
   | 'app_opened'
+  | 'first_valid_analysis' | 'meaningful_save' | 'second_valid_deal' | 'meaningful_return_visit'
+  | 'assumptions_reviewed' | 'downside_compared' | 'workout_adjustment_applied' | 'meaningful_share'
   | 'deal_review_requested'
   | 'feedback_sent'
   | 'marketing_entry'

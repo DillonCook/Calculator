@@ -1,3 +1,4 @@
+import { resolveStrategyValue } from '@/lib/strategy-value';
 import {
   calculateRemainingBalance,
   calcTotalRoiFromTimeline,
@@ -33,6 +34,7 @@ interface TimelineDebtInput {
 }
 
 interface LeveredTimelineInput {
+  includeProjection?: boolean;
   input: DealInputModel;
   totalCashNeeded: number;
   annualRevenueYear1: number;
@@ -292,23 +294,24 @@ const getMonthlyReserveTotal = (input: DealInputModel, strategy: 'longTerm' | 'a
   return gross * (clampPercent(input.padSplit.maintenancePercent) + clampPercent(input.padSplit.capexPercent));
 };
 
-const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => {
-  const baseArv = input.purchase.arv;
-
-  if (strategy === 'longTerm') return input.longTerm.arvOverride ?? baseArv;
-  if (strategy === 'airbnb') return input.airbnb.arvOverride ?? baseArv;
-  if (strategy === 'padSplit') return input.padSplit.arvOverride ?? baseArv;
-  if (strategy === 'brrrr') return input.brrrr.arvOverride ?? 0;
-
-  return input.flip.arvOverride ?? baseArv;
-};
+const resolveStrategyArv = (input: DealInputModel, strategy: 'longTerm' | 'airbnb' | 'padSplit' | 'brrrr' | 'flip'): number => resolveStrategyValue(input, strategy) ?? 0;
 
 const resolveRehabBudget = (input: DealInputModel, strategy: 'brrrr' | 'flip'): number => {
   if (strategy === 'brrrr') return input.brrrr.rehabOverride ?? input.purchase.rehabBudget;
   return input.flip.rehabOverride ?? input.purchase.rehabBudget;
 };
 
+// Actual HELOC draw, not a credit limit. Preserve proceeds that remain after
+// the acquisition uses already netted by calculateCashToClose.
+const getExcessHelocProceeds = (input: DealInputModel, rehab = input.purchase.rehabBudget, ownedUses = 0) => {
+  const p = input.purchase;
+  const uses = p.ownershipMode === 'owned' ? Math.max(ownedUses, 0) :
+    calculateCashToClose(p.purchasePrice, rehab, p.downPaymentPercent, p.closingCostPercent, p.pointsPercent, p.financingType, 0, 0);
+  return Math.max(Math.max(p.helocAmount, 0) - uses, 0);
+};
+
 const buildLeveredTimeline = ({
+  includeProjection = true,
   input,
   totalCashNeeded,
   annualRevenueYear1,
@@ -320,6 +323,7 @@ const buildLeveredTimeline = ({
   expenseGrowthRate,
   debts
 }: LeveredTimelineInput) => {
+  if (!includeProjection) return { timeline: [] as number[], cashFlowEvents: [] as CashFlowEvent[], roi: 0, irr: 0, saleProceeds: 0 };
   const { assumptions } = input;
   const holdYears = Math.max(assumptions.holdYears, 0);
   const fullYears = Math.floor(holdYears);
@@ -331,12 +335,13 @@ const buildLeveredTimeline = ({
   const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
 
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
-  const baseValue = arv > 0 ? arv : acquisitionBasisPrice;
+  const baseValue = holdYears < appreciationDelayYears - 1e-9 ? acquisitionBasisPrice : arv > 0 ? arv : acquisitionBasisPrice;
   const appreciationYears = Math.max(holdYears - Math.max(appreciationDelayYears, 0), 0);
   const terminalPropertyValue = appreciationYears > 0 ? baseValue * Math.pow(1 + appreciationGrowth, appreciationYears) : baseValue;
   const saleProceeds = terminalPropertyValue * (1 - sellingCostPercent) - remainingLoanBalance;
 
-  const timeline = [-Math.max(totalCashNeeded, 0)];
+  const excessHeloc = getExcessHelocProceeds(input);
+  const timeline = [-Math.max(totalCashNeeded, 0) + excessHeloc];
   const getAnnualNoi = (yearIndex: number) => {
     if (annualNoiForYear) return annualNoiForYear(yearIndex);
 
@@ -345,7 +350,8 @@ const buildLeveredTimeline = ({
     return revenueForYear - expensesForYear;
   };
   const cashFlowEvents: CashFlowEvent[] = [
-    { month: 0, amount: -Math.max(totalCashNeeded, 0), category: 'capital' }
+    { month: 0, amount: -Math.max(totalCashNeeded, 0), category: 'capital' },
+    ...(excessHeloc > 0 ? [{ month: 0, amount: excessHeloc, category: 'capital' as const }] : [])
   ];
   const holdMonths = holdYears * 12;
 
@@ -405,7 +411,8 @@ const calculateLongTermTurnaroundSummary = (
   purchaseCashNeeded: number,
   debtService: number,
   fixedCosts: number,
-  strategyVariableCosts: number
+  strategyVariableCosts: number,
+  includeProjection = true
 ): LongTermTurnaroundSummaryOutput | undefined => {
   const turnaround = input.longTerm.turnaround;
   if (!turnaround.enabled) return undefined;
@@ -484,6 +491,7 @@ const calculateLongTermTurnaroundSummary = (
         : input.purchase.arv;
   const timelineData = buildLeveredTimeline({
     input,
+    includeProjection,
     totalCashNeeded: totalCashInvested,
     annualRevenueYear1: currentGrossIncomeMonthly * 12,
     annualOperatingExpensesYear1: currentOperatingExpensesMonthly * 12,
@@ -544,7 +552,7 @@ const calculateLongTermTurnaroundSummary = (
 };
 
 
-export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput => {
+export const calculatePurchaseStrategy = (input: DealInputModel, includeProjection = true): StrategyOutput => {
   const { purchase, commercial } = input;
   const base = createBaseOutput('purchase', 'Retail / strip-plaza underwriting using leased square footage and $/sq ft rent.');
 
@@ -591,6 +599,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   const annualCashFlow = monthlyCashFlow * 12;
   const timelineData = buildLeveredTimeline({
     input,
+    includeProjection,
     totalCashNeeded: capitalInvested,
     annualRevenueYear1: annualOccupiedGross,
     annualOperatingExpensesYear1: annualOperatingExpenses,
@@ -680,7 +689,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel): StrategyOutput
   };
 };
 
-export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
+export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeProjection = true): StrategyOutput => {
   const { longTerm, purchase } = input;
   const base = createBaseOutput('longTerm', 'Stabilized buy-and-hold with reserves and fixed expenses.');
 
@@ -715,6 +724,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     (vacancy + maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
   const timelineData = buildLeveredTimeline({
     input,
+    includeProjection,
     totalCashNeeded: purchaseCashNeeded,
     annualRevenueYear1,
     annualOperatingExpensesYear1,
@@ -724,7 +734,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     debts: buildAcquisitionTimelineDebts(input)
   });
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
-  const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts);
+  const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts, includeProjection);
   const stabilizedIncomeSourcesMonthly =
     (turnaroundSummary?.laundryIncomeMonthly ?? 0) +
     (turnaroundSummary?.vendingMiscIncomeMonthly ?? 0) +
@@ -822,7 +832,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
   };
 };
 
-export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
+export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeProjection = true): StrategyOutput => {
   const { airbnb } = input;
   const base = createBaseOutput('airbnb', 'Short-term rental model with cleaning and platform drag.');
 
@@ -841,13 +851,15 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   const roomRevenue = annualRevenueOverrideMonthly ?? modeledRoomRevenue;
   const cleaningRevenue = annualRevenueOverrideMonthly ? 0 : modeledCleaningRevenue;
   const gross = roomRevenue + cleaningRevenue;
-  const feeBaseRevenue = annualRevenueOverrideMonthly ? gross : modeledRoomRevenue;
+  // Host platform fees apply to room revenue plus charged cleaning fees.
+  // Management and reserve assumptions retain their separate revenue base.
+  const operatingFeeBaseRevenue = annualRevenueOverrideMonthly ? gross : modeledRoomRevenue;
 
-  const platformFees = feeBaseRevenue * clampPercent(airbnb.platformFeePercent);
+  const platformFees = gross * clampPercent(airbnb.platformFeePercent);
   const cleanerCost = bookings * cleanerCostPerTurn;
-  const maintenance = feeBaseRevenue * clampPercent(airbnb.maintenancePercent);
-  const capex = feeBaseRevenue * clampPercent(airbnb.capexPercent);
-  const managementFee = feeBaseRevenue * clampPercent(airbnb.managementFeePercent);
+  const maintenance = operatingFeeBaseRevenue * clampPercent(airbnb.maintenancePercent);
+  const capex = operatingFeeBaseRevenue * clampPercent(airbnb.capexPercent);
+  const managementFee = operatingFeeBaseRevenue * clampPercent(airbnb.managementFeePercent);
 
   const { debtService } = getPurchaseLoanTerms(input);
   const fixedCosts = getMonthlyFixedCosts(input);
@@ -862,6 +874,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
     (platformFees + cleanerCost + maintenance + capex + managementFee + ownerExpensesMonthly + fixedCosts + strategyVariableCosts) * 12;
   const timelineData = buildLeveredTimeline({
     input,
+    includeProjection,
     totalCashNeeded: investedCapital,
     annualRevenueYear1,
     annualOperatingExpensesYear1,
@@ -916,7 +929,7 @@ export const calculateAirbnbStrategy = (input: DealInputModel, purchaseCashNeede
   };
 };
 
-export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
+export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeProjection = true): StrategyOutput => {
   const { padSplit } = input;
   const base = createBaseOutput('padSplit', 'Rent-by-room economics with platform and turn costs.');
 
@@ -993,6 +1006,7 @@ export const calculatePadSplitStrategy = (input: DealInputModel, purchaseCashNee
     12;
   const timelineData = buildLeveredTimeline({
     input,
+    includeProjection,
     totalCashNeeded: investedCapital,
     annualRevenueYear1,
     annualOperatingExpensesYear1,
@@ -1115,7 +1129,8 @@ export const calculateBrrrrStrategy = (
     refiMonth * monthlyPreRefiOperatingCost +
     acquisitionDebts.reduce((sum, debt) => sum + getDebtServiceForPeriod(debt, 0, refiMonth), 0);
   const initialCashAtPurchase = brrrrPurchaseCashNeeded + setupCostOneTime;
-  const investedAtPurchase = initialCashAtPurchase + totalHoldingCosts;
+  const excessHeloc = getExcessHelocProceeds(input, brrrrRehabBudget, brrrrRehabBudget);
+  const investedAtPurchase = initialCashAtPurchase + totalHoldingCosts - excessHeloc;
   const refiLoanAmount = willRefinance ? Math.max(brrrrArv || 0, 0) * clampPercent(brrrr.refinanceLtvPercent) : 0;
   const refiClosingCosts = refiLoanAmount * clampPercent(brrrr.refinanceClosingCostPercent);
   const cashBackAtRefiNet = willRefinance ? refiLoanAmount - refiClosingCosts - initialLoanPayoff : 0;
@@ -1163,13 +1178,14 @@ export const calculateBrrrrStrategy = (
 
   const fullYears = Math.floor(totalHoldMonths / 12);
   const partialMonths = totalHoldMonths - fullYears * 12;
-  const timeline = [-initialCashAtPurchase];
+  const timeline = [-initialCashAtPurchase + excessHeloc];
   if (willRefinance && refiMonth <= 1e-9) timeline[0] += cashBackAtRefiNet;
 
-  const timedCashFlows = [-initialCashAtPurchase];
+  const timedCashFlows = [-initialCashAtPurchase + excessHeloc];
   const timedCashFlowTimes = [0];
   const cashFlowEvents: CashFlowEvent[] = [
-    { month: 0, amount: -initialCashAtPurchase, category: 'capital' }
+    { month: 0, amount: -initialCashAtPurchase, category: 'capital' },
+    ...(excessHeloc > 0 ? [{ month: 0, amount: excessHeloc, category: 'capital' as const }] : [])
   ];
   const getPreRefiCashFlow = (startMonth: number, endMonth: number): number => {
     const normalizedStart = Math.min(Math.max(startMonth, 0), refiMonth);
@@ -1292,7 +1308,7 @@ export const calculateBrrrrStrategy = (
   };
 };
 
-export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded: number): StrategyOutput => {
+export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeOfferSearch = true): StrategyOutput => {
   const { flip, purchase } = input;
   const base = createBaseOutput('flip', 'Renovate-and-resell analysis with one-time net profit at exit and carry costs during hold.');
 
@@ -1323,7 +1339,7 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     };
   };
 
-  const calculateAtPurchasePrice = (purchasePrice: number) => {
+  const calculateAtPurchasePrice = (purchasePrice: number, withIrr = false) => {
     const normalizedPurchasePrice = Math.max(purchasePrice, 0);
     const modelAtPrice: DealInputModel = {
       ...input,
@@ -1410,9 +1426,16 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
           );
     const saleCashReturned = salePrice - agentCommission - closingCosts - sellerConcessions - debtPayoffAtSale;
     const totalCashInvested = cashInvestedBeforeHolding + holdingCosts;
-    const netProfit = saleCashReturned - totalCashInvested;
+    const fundingUses = hardMoneyEnabled
+      ? (purchase.ownershipMode === 'owned' ? Math.max(purchase.ownedMoneyDown, 0) + Math.max(purchase.ownedAdditionalInvested, 0) : normalizedPurchasePrice) +
+        flipRehabBudget + buyClosingCosts + pointsCost + hardMoneyOtherFees + helocClosingCosts - hardMoneyLoanAmount
+      : purchase.ownershipMode === 'owned' ? Math.max(purchaseCashNeeded, 0) + flipRehabBudget :
+        calculateCashToClose(normalizedPurchasePrice, flipRehabBudget, purchase.downPaymentPercent, purchase.closingCostPercent, purchase.pointsPercent, purchase.financingType, 0, 0);
+    const excessHeloc = Math.max(helocPrincipal - fundingUses, 0);
+    const netProfit = saleCashReturned + excessHeloc - totalCashInvested;
     const cashFlowEvents: CashFlowEvent[] = [
-      { month: 0, amount: -cashInvestedBeforeHolding, category: 'capital' }
+      { month: 0, amount: -cashInvestedBeforeHolding, category: 'capital' },
+      ...(excessHeloc > 0 ? [{ month: 0, amount: excessHeloc, category: 'capital' as const }] : [])
     ];
     const hardMoneyInterestMonthly = hardMoneyEnabled
       ? calculateInterestOnlyPayment(hardMoneyLoanAmount, Math.max(flip.hardMoneyInterestRate, 0))
@@ -1434,15 +1457,15 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
       cashFlowEvents.push({ month: holdingMonths, amount: -extraMinimumInterest, category: 'operating' });
     }
     cashFlowEvents.push({ month: holdingMonths, amount: saleCashReturned, category: 'sale' });
-    const timeline = [-Math.abs(totalCashInvested), saleCashReturned];
+    const timeline = [-Math.abs(totalCashInvested) + excessHeloc, saleCashReturned];
     const roi = calcTotalRoiFromTimeline(cashFlowEvents.map((event) => event.amount));
     const timedCashFlows = new Map<number, number>();
     cashFlowEvents.forEach((event) => timedCashFlows.set(event.month, (timedCashFlows.get(event.month) ?? 0) + event.amount));
     const datedCashFlows = [...timedCashFlows.entries()].sort(([left], [right]) => left - right);
-    const irr = calculateIrrForTimes(
+    const irr = withIrr ? calculateIrrForTimes(
       datedCashFlows.map(([, amount]) => amount),
       datedCashFlows.map(([month]) => month / 12)
-    );
+    ) : 0;
 
     return {
       purchasePrice: normalizedPurchasePrice,
@@ -1468,13 +1491,29 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     };
   };
 
-  const financials = calculateAtPurchasePrice(purchase.purchasePrice);
-  const findMaxAllowableOffer = (passesTarget: (value: ReturnType<typeof calculateAtPurchasePrice>) => boolean): number | null => {
+  const financials = calculateAtPurchasePrice(purchase.purchasePrice, true);
+  const findMaxAllowableOffer = (passesTarget: (value: ReturnType<typeof calculateAtPurchasePrice>) => boolean, requiresInvestedCash = false): number | null => {
     const high = Math.max(salePrice, purchase.purchasePrice, 1);
+    // Zero investment has no meaningful ROI. Search the positive currency domain
+    // when the free-property endpoint cannot demonstrate feasibility.
     const lowFinancials = calculateAtPurchasePrice(0);
-    if (!passesTarget(lowFinancials)) return null;
+    let lowerBound = passesTarget(lowFinancials) ? 0 : 0.01;
+    // A zero-interest credit draw can fund an entire initial price interval.
+    // Undefined ROI inside that interval must not hide feasible cash-invested offers.
+    if (requiresInvestedCash && calculateAtPurchasePrice(lowerBound).totalCashInvested <= 1e-9) {
+      if (calculateAtPurchasePrice(high).totalCashInvested <= 1e-9) return null;
+      let unfunded = lowerBound;
+      let funded = high;
+      for (let i = 0; i < 40; i += 1) {
+        const mid = (unfunded + funded) / 2;
+        if (calculateAtPurchasePrice(mid).totalCashInvested > 1e-9) funded = mid;
+        else unfunded = mid;
+      }
+      lowerBound = Math.min(Math.ceil(funded * 100) / 100, high);
+    }
+    if (!passesTarget(calculateAtPurchasePrice(lowerBound))) return null;
 
-    let low = 0;
+    let low = lowerBound;
     let highValue = high;
 
     if (passesTarget(calculateAtPurchasePrice(highValue))) {
@@ -1493,11 +1532,23 @@ export const calculateFlipStrategy = (input: DealInputModel, purchaseCashNeeded:
     return low;
   };
   const maxOfferForTargetProfit =
-    targetProfit > 0 ? findMaxAllowableOffer((value) => value.netProfit >= targetProfit) : null;
+    includeOfferSearch && targetProfit > 0 ? findMaxAllowableOffer((value) => value.netProfit >= targetProfit) : null;
   const maxOfferForTargetRoi =
-    targetRoiPercent > 0 ? findMaxAllowableOffer((value) => value.roi >= targetRoiPercent) : null;
+    includeOfferSearch && targetRoiPercent > 0 ? findMaxAllowableOffer((value) => value.roi >= targetRoiPercent, true) : null;
   const offerConstraints = [maxOfferForTargetProfit, maxOfferForTargetRoi].filter((value): value is number => typeof value === 'number');
-  const maxAllowableOffer = offerConstraints.length > 0 ? Math.min(...offerConstraints) : null;
+  const hasImpossibleTarget = (targetProfit > 0 && maxOfferForTargetProfit === null) ||
+    (targetRoiPercent > 0 && maxOfferForTargetRoi === null);
+  const meetsAllTargets = (price: number) => {
+    const value = calculateAtPurchasePrice(price);
+    return (targetProfit <= 0 || value.netProfit >= targetProfit) &&
+      (targetRoiPercent <= 0 || value.roi >= targetRoiPercent);
+  };
+  const candidateOffer = !hasImpossibleTarget && offerConstraints.length > 0
+    ? Math.min(...offerConstraints) : null;
+  const roundedUp = candidateOffer === null ? null : Math.ceil(candidateOffer * 100) / 100;
+  const roundedDown = candidateOffer === null ? null : Math.floor(candidateOffer * 100) / 100;
+  const maxAllowableOffer = roundedUp !== null && meetsAllTargets(roundedUp) ? roundedUp :
+    roundedDown !== null && meetsAllTargets(roundedDown) ? roundedDown : null;
 
   return {
     ...base,

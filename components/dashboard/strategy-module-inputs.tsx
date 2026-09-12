@@ -198,6 +198,7 @@ export function StrategyModuleInputs({
             <PercentInput label="CapEx %" value={model.longTerm.capexPercent} onChange={(v) => update('longTerm', 'capexPercent', v)} />
             <PercentInput
               label="Tenant placement fee % (1st month rent)"
+              tooltip="Informational only: not deducted from cash flow or returns. Add applicable leasing costs to your expense plan; this field does not model turnover timing."
               value={model.longTerm.tenantPlacementFeePercent}
               onChange={(v) => update('longTerm', 'tenantPlacementFeePercent', v)}
             />
@@ -343,7 +344,12 @@ export function StrategyModuleInputs({
           <StrategyInputGroup embedded={isEmbedded} title="Cleaning and platform" columns={3}>
             <Input label="Cleaning fee charged" type="number" value={model.airbnb.cleaningFeeCharged} onChange={(v) => update('airbnb', 'cleaningFeeCharged', Number(v))} />
             <Input label="Cleaner cost / turn" type="number" value={model.airbnb.cleanerCostPerTurn} onChange={(v) => update('airbnb', 'cleanerCostPerTurn', Number(v))} />
-            <PercentInput label="Platform fee %" value={model.airbnb.platformFeePercent} onChange={(v) => update('airbnb', 'platformFeePercent', v)} />
+            <PercentInput
+              label="Platform fee %"
+              tooltip="Your host fee applies to room revenue plus cleaning fees charged to guests. Enter your host-only or split-fee host rate, not the guest service fee. Rates vary by account."
+              value={model.airbnb.platformFeePercent}
+              onChange={(v) => update('airbnb', 'platformFeePercent', v)}
+            />
           </StrategyInputGroup>
           <StrategyInputGroup embedded={isEmbedded} title="Operating assumptions" columns={3}>
             <PercentInput label="Management fee %" value={model.airbnb.managementFeePercent} onChange={(v) => update('airbnb', 'managementFeePercent', v)} />
@@ -355,6 +361,7 @@ export function StrategyModuleInputs({
             <Input label="STR ARV" type="number" value={model.airbnb.arvOverride ?? ''} onChange={(v) => update('airbnb', 'arvOverride', v === '' ? null : Number(v))} />
             <Input
               label="Annual revenue (optional)"
+              tooltip="Total annual booking revenue before host fees, including cleaning fees and excluding taxes. Replaces nightly and cleaning revenue; cleaning charges are not added again. Occupancy and stay length still determine cleaner costs."
               type="number"
               value={model.airbnb.annualRevenueOverride ?? ''}
               onChange={(v) => update('airbnb', 'annualRevenueOverride', v === '' ? null : Number(v))}

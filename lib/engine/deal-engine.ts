@@ -1,4 +1,4 @@
-import type { DealInputModel, DealResult } from '@/lib/models/deal';
+import type { DealInputModel, DealResult, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import {
   calculateAirbnbStrategy,
@@ -61,3 +61,21 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
     masterSummary: summary
   };
 };
+
+
+/** Strategy-local calculation for objective searches; avoids unrelated strategy solvers. */
+export function calculateStrategy(input: DealInputModel, strategy: StrategyKey, includeProjection = true): StrategyOutput {
+  const purchase = calculatePurchaseStrategy(input, includeProjection);
+  if (strategy === 'purchase') return purchase;
+  if (strategy === 'longTerm') return calculateLongTermStrategy(input, purchase.totalCashNeeded, includeProjection);
+  if (strategy === 'airbnb') return calculateAirbnbStrategy(input, purchase.totalCashNeeded, includeProjection);
+  if (strategy === 'padSplit') return calculatePadSplitStrategy(input, purchase.totalCashNeeded, includeProjection);
+  if (strategy === 'flip') return calculateFlipStrategy(input, purchase.totalCashNeeded, false);
+  const operating = input.brrrr.operatingStrategy;
+  const output = calculateStrategy(input, operating, includeProjection);
+  return calculateBrrrrStrategy(input, purchase.totalCashNeeded, {
+    longTerm: operating === 'longTerm' ? output.noiMonthly ?? 0 : 0,
+    airbnb: operating === 'airbnb' ? output.noiMonthly ?? 0 : 0,
+    padSplit: operating === 'padSplit' ? output.noiMonthly ?? 0 : 0
+  });
+}

@@ -1,5 +1,6 @@
 import type { DealInputModel, DealResult, ExpenseStrategyKey, StrategyCalculationLineItem, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { currencyFormatter, percentFormatter } from '@/lib/formatters';
+import { getDecisionVerdict, getCapitalTiming } from '@/lib/mainstream-insights';
 import { calculateCashToClose } from '@/lib/engine/finance';
 import { normalizeListingUrl } from '@/lib/listing-link';
 import { getFixedCostBreakdown } from '@/lib/tax-insurance';
@@ -135,6 +136,13 @@ export const createPdfReportSchema = (
       title: 'Executive Summary',
       rows: [
         { label: 'Selected Strategy', value: selectedStrategyLabel },
+        { label: 'Result status', value: getDecisionVerdict(input,selectedStrategy,strategyOutput).label },
+        { label: 'Assumptions', value: input.analysis?.assumptionsReviewed ? 'Marked reviewed by author; not independently verified' : 'Provisional; defaults and estimates need review' },
+        { label: 'Reserve basis', value: 'Includes modeled reserves; before income tax' },
+        { label: 'Upfront contributed cash', value: formatCurrency(getCapitalTiming(strategyOutput).upfront) },
+        { label: 'Future modeled contributions', value: formatCurrency(getCapitalTiming(strategyOutput).futureContributions) },
+        { label: 'Cash required at sale', value: formatCurrency(getCapitalTiming(strategyOutput).saleShortfall) },
+        ...(selectedStrategy==='longTerm' && input.longTerm.tenantPlacementFeePercent>0 ? [{label:'Leasing-cost limitation',value:'Placement fee is informational and excluded from returns; budget actual leasing costs separately.'}] : []),
         { label: 'Cash to Close', value: formatCurrency(cashToCloseValue) },
         { label: 'Total Cash Invested', value: formatCurrency(projectionMetrics.totalInvested) },
         { label: 'Cap Rate', value: percentFormatter.format(strategyOutput.capRate) },

@@ -1,4 +1,4 @@
-import { calculateDeal } from '@/lib/engine/deal-engine';
+import { calculateStrategy } from '@/lib/engine/deal-engine';
 import type { DealInputModel, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 
 interface ConstraintTargets {
@@ -41,11 +41,11 @@ const getFlipNetProfit = (output: StrategyOutput) =>
   output.calculationBreakdown?.flipMeta?.netProfit ?? (output.saleProceeds ?? 0) - output.totalCashNeeded;
 
 const meetsTargetIrr = (model: DealInputModel, strategy: StrategyKey, targetIrr: number) => {
-  const output = calculateDeal(model)[strategy];
+  const output = calculateStrategy(model, strategy);
   return output.irr >= targetIrr;
 };
 
-const meetsCashFlowBreakEven = (model: DealInputModel, strategy: StrategyKey, minMonthlyCashFlow = 0) => calculateDeal(model)[strategy].monthlyCashFlow >= minMonthlyCashFlow;
+const meetsCashFlowBreakEven = (model: DealInputModel, strategy: StrategyKey, minMonthlyCashFlow = 0) => calculateStrategy(model, strategy, false).monthlyCashFlow >= minMonthlyCashFlow;
 
 const findPurchasePriceForMinCashFlow = (model: DealInputModel, strategy: StrategyKey, minMonthlyCashFlow = 0): number | null => {
   const currentPrice = Math.max(model.purchase.purchasePrice, 1);
@@ -71,7 +71,7 @@ const findPurchasePriceForMinCashFlow = (model: DealInputModel, strategy: Strate
 };
 
 const isDealWorkable = (model: DealInputModel, strategy: StrategyKey, targets: ConstraintTargets = defaultTargets) => {
-  const output = calculateDeal(model)[strategy];
+  const output = calculateStrategy(model, strategy, false);
   if (strategy === 'flip') {
     return getFlipNetProfit(output) >= 0;
   }
@@ -143,7 +143,7 @@ const findMaxWorkablePurchasePrice = (model: DealInputModel, strategy: StrategyK
 };
 
 export function buildDealWorkoutRecommendation(model: DealInputModel, strategy: StrategyKey): DealWorkoutRecommendation {
-  const current = calculateDeal(model)[strategy];
+  const current = calculateStrategy(model, strategy, false);
 
   if (model.purchase.ownershipMode === 'owned') {
     const canWorkAlready = isDealWorkable(model, strategy);

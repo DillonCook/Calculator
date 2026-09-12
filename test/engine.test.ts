@@ -1357,7 +1357,7 @@ test('STR includes management fee, reserves, and furnishing in invested capital'
   const gross = roomRevenue + bookings * airbnb.cleaningFeeCharged;
   const noi =
     gross -
-    roomRevenue * airbnb.platformFeePercent -
+    gross * airbnb.platformFeePercent -
     bookings * airbnb.cleanerCostPerTurn -
     roomRevenue * airbnb.maintenancePercent -
     roomRevenue * airbnb.capexPercent -
@@ -1370,7 +1370,7 @@ test('STR includes management fee, reserves, and furnishing in invested capital'
   near(result.airbnb.totalCashNeeded, result.purchase.totalCashNeeded + airbnb.furnishingOneTime, 0.01);
 });
 
-test('STR cleaning revenue does not increase platform, management, maintenance, or capex drag', () => {
+test('STR cleaning revenue increases platform fees but not management or reserves', () => {
   const model = {
     ...defaultDealInput,
     airbnb: {
@@ -1390,7 +1390,8 @@ test('STR cleaning revenue does not increase platform, management, maintenance, 
   const occupiedNights = airbnb.nightsPerMonth * airbnb.occupancyPercent;
   const roomRevenue = occupiedNights * airbnb.adr;
 
-  near(Math.abs(platformLine?.monthly ?? 0), roomRevenue * airbnb.platformFeePercent, 0.0001);
+  const cleaningRevenue = (occupiedNights / airbnb.averageNightsPerBooking) * airbnb.cleaningFeeCharged;
+  near(Math.abs(platformLine?.monthly ?? 0), (roomRevenue + cleaningRevenue) * airbnb.platformFeePercent, 0.0001);
   near(Math.abs(managementLine?.monthly ?? 0), roomRevenue * airbnb.managementFeePercent, 0.0001);
   near(Math.abs(maintenanceLine?.monthly ?? 0), roomRevenue * airbnb.maintenancePercent, 0.0001);
   near(Math.abs(capexLine?.monthly ?? 0), roomRevenue * airbnb.capexPercent, 0.0001);
@@ -1848,7 +1849,8 @@ test('REI Calculator regression fixture', () => {
   near(result.longTerm.irr, -0.11846232021003889, 1e-9);
   near(result.longTerm.roi, roiFromEvents(result.longTerm), 1e-9);
 
-  near(result.airbnb.irr, -0.045210864113270494, 1e-9);
+  // Independently recomputed monthly cash flows with host fees on room + cleaning revenue.
+  near(result.airbnb.irr, -0.05296962398748922, 1e-9);
   near(result.airbnb.roi, roiFromEvents(result.airbnb), 1e-9);
 
   near(result.padSplit.irr, -0.03964518474191354, 1e-9);
@@ -2003,4 +2005,91 @@ test('pdf schema emits clickable listing reference when listing URL exists', () 
   const report = createPdfReportSchema(model, result, 'longTerm');
 
   assert.equal(report.listingReference.rows[0]?.href, model.purchase.listingUrl);
+});
+
+const createAirbnbFeeFixture = () => {
+  const model = structuredClone(defaultDealInput);
+  Object.assign(model.purchase, {
+    purchasePrice: 100000, arv: 100000, rehabBudget: 0, financingType: 'cash',
+    closingCostPercent: 0, pointsPercent: 0, helocAmount: 0,
+    propertyTaxAnnualOverride: 0, insuranceAnnualOverride: 0, hoaMonthly: 0, pmiMonthly: 0
+  });
+  Object.assign(model.airbnb, {
+    adr: 100, nightsPerMonth: 30, occupancyPercent: 1, averageNightsPerBooking: 3,
+    cleaningFeeCharged: 150, cleanerCostPerTurn: 150, platformFeePercent: 0.155,
+    managementFeePercent: 0, maintenancePercent: 0, capexPercent: 0,
+    ownerExpensesMonthly: 0, furnishingOneTime: 0, annualRevenueOverride: null
+  });
+  Object.assign(model.assumptions, {
+    holdYears: 1, annualAppreciationPercent: 0, sellingCostPercent: 0, noiGrowthPercent: 0
+  });
+  model.variableExpenses = model.variableExpenses.map((expense) => ({ ...expense, monthlyAmount: 0 }));
+  return model;
+};
+
+test('Airbnb host fees include charged cleaning in the booking subtotal', () => {
+  const output = calculateDeal(createAirbnbFeeFixture()).airbnb;
+  const feeLine = output.calculationBreakdown?.lines.find((line) => line.key === 'str-platform-fees');
+  assert.ok(feeLine);
+  // $3,000 room revenue + $1,500 cleaning charges; the cleaner is paid $1,500.
+  near(feeLine.monthly, -697.5, 0.000001);
+  near(feeLine.annual, -8370, 0.000001);
+  near(output.monthlyCashFlow, 2302.5, 0.000001);
+  near(output.annualCashFlow, 27630, 0.000001);
+  near(output.roi, 0.2763, 0.000001);
+});
+
+test('Airbnb host fee supports split and host-only rates without changing other fee bases', () => {
+  const model = createAirbnbFeeFixture();
+  Object.assign(model.airbnb, { managementFeePercent: 0.1, maintenancePercent: 0.05, capexPercent: 0.05 });
+  for (const [rate, expectedFee] of [[0.03, 135], [0.155, 697.5]] as const) {
+    model.airbnb.platformFeePercent = rate;
+    const output = calculateDeal(model).airbnb;
+    const lines = output.calculationBreakdown?.lines ?? [];
+    near(lines.find((line) => line.key === 'str-platform-fees')!.monthly, -expectedFee);
+    near(lines.find((line) => line.key === 'str-management')!.monthly, -300);
+    near(lines.find((line) => line.key === 'str-maintenance')!.monthly, -150);
+    near(lines.find((line) => line.key === 'str-capex')!.monthly, -150);
+    near(output.monthlyCashFlow, 2400 - expectedFee);
+    near(output.monthlyCashFlowExcludingReserves!, 2700 - expectedFee);
+  }
+});
+
+test('Airbnb host fee does not add cleaning revenue twice with an annual override', () => {
+  const model = createAirbnbFeeFixture();
+  model.airbnb.annualRevenueOverride = 54000;
+  model.airbnb.cleaningFeeCharged = 999;
+  model.airbnb.adr = 999;
+  const output = calculateDeal(model).airbnb;
+  near(output.calculationBreakdown!.revenueMonthly, 4500);
+  near(output.calculationBreakdown!.lines.find((line) => line.key === 'str-platform-fees')!.monthly, -697.5);
+  near(output.monthlyCashFlow, 2302.5);
+});
+
+test('Airbnb host fee handles absent cleaning charges, zero occupancy and a zero rate', () => {
+  const model = createAirbnbFeeFixture();
+  model.airbnb.cleaningFeeCharged = 0;
+  near(calculateDeal(model).airbnb.calculationBreakdown!.lines.find((line) => line.key === 'str-platform-fees')!.monthly, -465);
+  model.airbnb.occupancyPercent = 0;
+  near(calculateDeal(model).airbnb.monthlyCashFlow, 0);
+  model.airbnb.occupancyPercent = 1;
+  model.airbnb.cleaningFeeCharged = 150;
+  model.airbnb.platformFeePercent = 0;
+  near(calculateDeal(model).airbnb.monthlyCashFlow, 3000);
+});
+
+test('Airbnb corrected fees propagate through projections, BRRRR, PDF and scenario reload', () => {
+  const model = createAirbnbFeeFixture();
+  Object.assign(model.brrrr, { operatingStrategy: 'airbnb', holdingMonths: 0, refinanceLtvPercent: 0, arvOverride: 100000 });
+  const result = calculateDeal(model);
+  near(result.brrrr.monthlyCashFlow, 2302.5);
+  near(getProjectionMetrics(result.airbnb, 1, model).cumulativeOperatingCashFlow, 27630);
+  near(getProjectionMetrics(result.airbnb, 1, model).modeledProfit, 27630);
+  const report = createPdfReportSchema(model, result, 'airbnb');
+  const feeRow = report.underwritingWork.rows.find((row) => row.label === 'Platform fees');
+  assert.ok(feeRow?.value.includes('697.5'));
+  assert.ok(feeRow?.value.includes('8,370'));
+  const restored = decodeScenario(encodeScenario(createScenarioRecord(model)));
+  assert.ok(restored);
+  near(calculateDeal(restored.payload).airbnb.monthlyCashFlow, 2302.5);
 });

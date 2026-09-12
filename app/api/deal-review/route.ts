@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardPublicRequest, readBoundedJson } from '@/lib/public-request-guard';
 
 import { getSupabaseAdminClient } from '@/lib/supabaseServer';
 
@@ -56,6 +57,8 @@ const dealReviewResponse = (error: string, status: number) =>
   NextResponse.json({ ok: false, error }, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function POST(request: Request) {
+  const denied = guardPublicRequest(request, 5, 65536);
+  if (denied) return denied;
   if (!dealReviewSubmissionsEnabled) {
     return dealReviewResponse('Paid deal analysis is coming soon.', 403);
   }
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
   let rawBody: unknown;
 
   try {
-    rawBody = await request.json();
+    rawBody = await readBoundedJson(request, 65536);
   } catch {
     return dealReviewResponse('Invalid JSON.', 400);
   }

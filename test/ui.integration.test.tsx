@@ -384,7 +384,7 @@ describe('dashboard integration', () => {
 
     expect(strategyContext).toBeInTheDocument();
     expect(strategySelector.closest('.desktop-deal-builder')).toBeNull();
-    expect(strategyContext?.compareDocumentPosition(outcomeRibbon as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect((strategyContext?.compareDocumentPosition(outcomeRibbon as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(within(workspace).getByRole('button', { name: 'Projection' }));
     expect(screen.getByLabelText('Desktop strategy selector')).toBeInTheDocument();
@@ -567,7 +567,7 @@ describe('dashboard integration', () => {
     const setupGroup = screen.getByRole('group', { name: 'Setup and valuation inputs' });
 
     expect(within(revenueGroup).getByLabelText('Other income / mo')).toBeInTheDocument();
-    expect(within(revenueGroup).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(within(revenueGroup).getByRole('spinbutton', { name: 'Annual revenue (optional)' })).toBeInTheDocument();
     expect(within(turnoverGroup).getByLabelText('Total move-outs / year', { selector: 'input' })).toBeInTheDocument();
     expect(within(setupGroup).getByLabelText('PadSplit ARV')).toBeInTheDocument();
     expect(within(setupGroup).queryByLabelText('Annual revenue (optional)')).not.toBeInTheDocument();
@@ -685,7 +685,7 @@ describe('dashboard integration', () => {
     expect(mobileViewSwitcher.parentElement).toBe(document.body);
     expect(screen.getByText(/For educational and informational purposes only/i).closest('footer')).toHaveClass('app-footer');
     expect(screen.getByRole('button', { name: 'New deal' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deal Vault' })).toHaveTextContent('1 saved deal');
+    expect(screen.getByRole('button', { name: 'Deal Vault' })).toHaveTextContent('Draft — add property details');
     expect(screen.queryByText('Current Deal')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument();
     expect(buildButton).toHaveAttribute('aria-pressed', 'true');
@@ -2646,13 +2646,13 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('Long-Term'));
     let workspace = getStrategyInputsWorkspace();
-    const annualRevenueInput = within(workspace).getByLabelText('Annual revenue (optional)');
+    const annualRevenueInput = within(workspace).getByRole('spinbutton', { name: 'Annual revenue (optional)' });
     fireEvent.change(annualRevenueInput, { target: { value: '72000' } });
     expect(screen.getByTestId('kpi-priority-metric')).toHaveTextContent(currencyFormatter.format(expectedLongTerm));
 
     await user.click(getStrategyButton('Airbnb'));
     workspace = getStrategyInputsWorkspace();
-    expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(within(workspace).getByRole('spinbutton', { name: 'Annual revenue (optional)' })).toBeInTheDocument();
     expect(
       within(workspace)
         .getAllByRole('spinbutton')
@@ -2662,7 +2662,7 @@ describe('dashboard integration', () => {
 
     await user.click(getStrategyButton('PadSplit'));
     workspace = getStrategyInputsWorkspace();
-    expect(within(workspace).getByLabelText('Annual revenue (optional)')).toBeInTheDocument();
+    expect(within(workspace).getByRole('spinbutton', { name: 'Annual revenue (optional)' })).toBeInTheDocument();
     expect(within(workspace).getByLabelText('PM flat fee / mo', { selector: 'input' })).toBeInTheDocument();
     expect(
       within(workspace)

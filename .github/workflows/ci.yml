@@ -29,3 +29,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Type check
+        run: npx tsc --noEmit --incremental false
+
+      - name: Verify engine-backed marketing examples
+        run: npm run landing:verify
