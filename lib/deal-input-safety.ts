@@ -1,3 +1,5 @@
+import {readWorkoutSnapshot} from '@/lib/workout-snapshot';
+import {getDebtTermIssues} from '@/lib/debt-terms';
 import {defaultDealInput} from '@/lib/models/deal';
 const record=(value:unknown):value is Record<string,unknown>=>!!value && typeof value==='object' && !Array.isArray(value);
 function compatible(template:unknown,value:unknown,key=''):boolean {
@@ -24,13 +26,18 @@ function compatible(template:unknown,value:unknown,key=''):boolean {
 /** Reject explicitly malformed public/imported inputs; do not silently replace a bad number with a guessed default. */
 export function isSafePartialDealInput(value:unknown):boolean {
   if(!record(value) || !compatible(defaultDealInput,value))return false;
+  const model={...defaultDealInput,
+    purchase:{...defaultDealInput.purchase,...(record(value.purchase)?value.purchase:{})},
+    brrrr:{...defaultDealInput.brrrr,...(record(value.brrrr)?value.brrrr:{})},
+    assumptions:{...defaultDealInput.assumptions,...(record(value.assumptions)?value.assumptions:{})}};
+  if(getDebtTermIssues(model,record(value.uiState) && value.uiState.activeStrategy==='brrrr'?'brrrr':undefined).length)return false;
   if(value.analysis!==undefined) {
     if(!record(value.analysis))return false;
     const a=value.analysis;
     if(a.kind!==undefined && a.kind!=='sample' && a.kind!=='property')return false;
     if(a.assumptionsReviewed!==undefined && typeof a.assumptionsReviewed!=='boolean')return false;
     for(const key of ['minMonthlyCashFlow','minDscr','minCashOnCashPercent'])if(a[key]!==undefined && (typeof a[key]!=='number' || !Number.isFinite(a[key]) || Math.abs(a[key] as number)>1e12))return false;
-    if(a.lastWorkout!==undefined && (!record(a.lastWorkout) || typeof a.lastWorkout.purchasePrice!=='number' || !Number.isFinite(a.lastWorkout.purchasePrice) || typeof a.lastWorkout.downPaymentPercent!=='number' || !Number.isFinite(a.lastWorkout.downPaymentPercent)))return false;
+    if(a.lastWorkout!==undefined && !readWorkoutSnapshot(a.lastWorkout))return false;
   }
   return true;
 }

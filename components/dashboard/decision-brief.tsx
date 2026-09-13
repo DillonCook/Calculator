@@ -1,5 +1,8 @@
 'use client';
 
+import { getDebtTermIssues } from '@/lib/debt-terms';
+import { getGoalComparisonRows } from '@/lib/goal-comparisons';
+import { readWorkoutSnapshot } from '@/lib/workout-snapshot';
 import { useMemo, useState } from 'react';
 import { trackProductEvent } from '@/lib/product-analytics';
 import type { DealInputModel, StrategyKey, StrategyOutput } from '@/lib/models/deal';
@@ -28,10 +31,17 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
   const capital = getCapitalTiming(output);
   const flip = output.calculationBreakdown?.flipMeta;
   const period = strategy==='flip' ? `${flip?.holdingMonths ?? model.flip.holdingMonths}-month` : `${model.assumptions.holdYears}-year`;
+  const workout = readWorkoutSnapshot(model.analysis?.lastWorkout);
   const reviewed = model.analysis?.assumptionsReviewed === true;
   const [scenariosOpen,setScenariosOpen] = useState(false);
   const isSample = model.analysis?.kind==='sample' || model.purchase.dealName.includes('Sample Deal');
   const changePreferences = (values: Partial<NonNullable<DealInputModel['analysis']>>) => onChange?.({...model,analysis:{...model.analysis,...values}});
+  const debtIssues=getDebtTermIssues(model,strategy);
+  if(debtIssues.length) return <section className="decision-brief" aria-label="Deal decision summary">
+    <h2>More information needed</h2>
+    <div role="alert"><p>Correct these financing inputs in Build before relying on results:</p><ul>{debtIssues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>
+    <p className="decision-help">Terms are entered in years; 0.5 means six months. Zero interest and zero down are supported. Other calculations are not a verified result until these terms are corrected.</p>
+  </section>;
   return <section className="decision-brief" aria-label="Deal decision summary">
     <header className="decision-brief-header">
       <span className="decision-eyebrow">{isSample?'Fictional sample':reviewed?'Assumptions marked reviewed by author':'Provisional • assumptions need review'}</span>
@@ -49,9 +59,9 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
       {output.longTermTurnaroundSummary?.enabled ? <p className="decision-help">Stabilized monthly income shown. This model assumes one year at current income before stabilization.</p> : null}
       <MoneyBars rows={getMoneyWaterfall(output)} />
     </>}
-    {model.analysis?.lastWorkout && onChange ? <aside className="decision-warning">
-      <p>Last adjustment: price {money(model.analysis.lastWorkout.purchasePrice)} → {money(model.purchase.purchasePrice)}; down payment {percent(model.analysis.lastWorkout.downPaymentPercent)} → {percent(model.purchase.downPaymentPercent)}. Lower debt payments may require more cash upfront. Recheck your goals after any change.</p>
-      <button type="button" className="decision-text-button" onClick={()=>onChange({...model,purchase:{...model.purchase,...model.analysis!.lastWorkout},analysis:{...model.analysis,lastWorkout:undefined,assumptionsReviewed:false}})}>Undo last workout change</button>
+    {workout && onChange ? <aside className="decision-warning">
+      <p>Last adjustment: price {money(workout.purchasePrice)} → {money(model.purchase.purchasePrice)}; down payment {percent(workout.downPaymentPercent)} → {percent(model.purchase.downPaymentPercent)}. Lower debt payments may require more cash upfront. Recheck your goals after any change.</p>
+      <button type="button" className="decision-text-button" onClick={()=>onChange({...model,purchase:{...model.purchase,purchasePrice:workout.purchasePrice,downPaymentPercent:workout.downPaymentPercent},analysis:{...model.analysis,lastWorkout:undefined,assumptionsReviewed:false}})}>Undo last workout change</button>
     </aside> : null}
     <div className="capital-milestones" aria-label="Cash timing">
       <div><span>At the start</span><strong>{money(capital.upfront)}</strong><small>Cash contributed upfront</small></div>
@@ -72,6 +82,10 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
       </ul>
       {onChange ? <button type="button" className="btn-primary" onClick={()=>{trackProductEvent('assumptions_reviewed',model,strategy);changePreferences({assumptionsReviewed:true});}}>I reviewed these assumptions</button> : null}
     </details>
+    <section className="decision-goals" aria-label="Goals and actual results">
+      <h3>Goals and actual results</h3>
+      <dl className="decision-definitions">{getGoalComparisonRows(model,strategy,output).map(row=><div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+    </section>
     {onChange && strategy!=='flip' ? <details className="decision-disclosure">
       <summary>Set your cash-flow and return goals</summary>
       <div className="decision-form-grid">
@@ -105,14 +119,30 @@ function SensitivityPanel({model,strategy,output}: Omit<Props,'onChange'>) {
   const [up,setUp] = useState<SensitivityChanges>({incomePercent:10,costPercent:-10,exitPercent:10});
   const conservative = useMemo(()=>applySensitivity(model,strategy,down).output,[model,strategy,down]);
   const optimistic = useMemo(()=>applySensitivity(model,strategy,up).output,[model,strategy,up]);
+  const outcomes = (result: StrategyOutput) => ({
+    sale: (result.cashFlowEvents ?? []).filter(e=>e.category==='sale').reduce((sum,e)=>sum+e.amount,0),
+    profit: (result.cashFlowEvents ?? []).reduce((sum,e)=>sum+e.amount,0)
+  });
+  const period = strategy==='flip' ? `${model.flip.holdingMonths}-month hold` : `${model.assumptions.holdYears}-year hold`;
+  const scenarios: [string, StrategyOutput][] = [['Conservative',conservative],['Base',output],['Optimistic',optimistic]];
   const value = (result: StrategyOutput) => strategy==='flip' ? result.calculationBreakdown?.flipMeta?.netProfit ?? 0 : result.monthlyCashFlow;
   return <div className="sensitivity-panel">
     <p className="decision-help">Illustrative stress tests, not probabilities. Edit the changes below. Original deal inputs stay unchanged. Debt terms and percentage fee rates stay fixed.</p>
-    <dl className="sensitivity-results">{[['Conservative',conservative],['Base',output],['Optimistic',optimistic]].map(([label,result])=><div key={label as string}><dt>{label as string}</dt><dd>{money(value(result as StrategyOutput))}<small>{strategy==='flip'?'profit over the hold':'per month'}</small></dd></div>)}</dl>
+    <div className="sensitivity-results">{scenarios.map(([label,result])=>{
+      const {sale,profit}=outcomes(result);
+      return <div key={label} role="group" aria-label={`${label} scenario outcomes`}>
+        <h4>{label}</h4><small>{period}</small>
+        <dl>
+          <div><dt>{strategy==='flip'?'Profit over the hold':'Monthly cash flow'}</dt><dd>{money(value(result))}</dd></div>
+          <div><dt>{sale<0?'Cash required at sale':'Cash returned at sale'}</dt><dd>{money(Math.abs(sale))}</dd></div>
+          <div><dt>Total modeled profit</dt><dd>{money(profit)}</dd></div>
+        </dl>
+      </div>;
+    })}</div>
     {([['Conservative',down,setDown],['Optimistic',up,setUp]] as const).map(([name,values,setValues])=><fieldset key={name}>
       <legend>{name} changes</legend>
       <div className="decision-form-grid">{([['incomePercent','income'],['costPercent','cost'],['exitPercent','exit value']] as const).map(([key,label])=><label key={key}>{label} change %<input aria-label={`${name} ${label} change %`} type="number" min="-90" max="100" value={values[key]} onChange={e=>setValues({...values,[key]:Math.min(Math.max(Number(e.target.value),-90),100)})}/></label>)}</div>
     </fieldset>)}
-    <p className="decision-help">Income changes adjust rent/nightly/weekly rates or an annual-total override. Cost changes adjust entered fixed costs, variable expenses and supported owner costs; flip rehab is also adjusted. Occupancy, percentage fees, financing terms and loan payments are unchanged. Exit changes adjust modeled resale values.</p>
+    <p className="decision-help">Income changes adjust modeled rent, ancillary income or annual-total overrides. Cost changes adjust recurring monetary expenses, flat management, turnover costs and reserves, plus flip rehab. Occupancy, percentage fee rates and debt terms stay fixed. Setup costs, non-flip rehab and transaction charges are not cost-stressed. Exit changes adjust resale values; BRRRR uses the same ARV for refinance, so its loan proceeds and payments can also change. Sale cash is after selling costs and debt payoff; total profit includes all dated contributions and distributions.</p>
   </div>;
 }

@@ -1,5 +1,6 @@
 'use client';
 import { getDealReadiness } from '@/lib/deal-readiness';
+import { getDebtTermIssues } from '@/lib/debt-terms';
 import { recordValidProperty, trackProductEvent } from '@/lib/product-analytics';
 import { useDealEditor } from '@/lib/use-deal-editor';
 import { buildNewDealPayload, buildSampleDealPayload, SAMPLE_DEAL_NAME } from '@/lib/deal-templates';
@@ -1657,7 +1658,10 @@ export default function HomePage() {
   const shouldAnimatePriorityMetric =
     !prefersReducedMotion && priorityMetricMotion.key > 0 && priorityMetricMotion.context === priorityMetricMotionContext;
   const priorityMetricMotionClass = shouldAnimatePriorityMetric ? 'priority-kpi-value-motion' : '';
-  const incompleteDecisionDescription = 'Add purchase price and expected income to evaluate this deal.';
+  const invalidDebtTerms=getDebtTermIssues(model,activeStrategy);
+  const incompleteDecisionDescription = invalidDebtTerms.length
+    ? `Correct these financing inputs: ${invalidDebtTerms.join(', ')}. Terms are entered in years; 0.5 means six months.`
+    : 'Add purchase price and expected income to evaluate this deal.';
 
   const profileImageUrl = useMemo(() => {
     if (!currentUser) return null;
@@ -4851,7 +4855,7 @@ export default function HomePage() {
   const compactResultsView = !compactReadiness.ready ? (
     <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
       <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
-      <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+      <h2 className="decision-empty-title mt-4 text-xl font-semibold">{invalidDebtTerms.length?'Correct financing inputs':'Add the deal basics first'}</h2>
       <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value verdicts and recommendations until the comparison is meaningful.
@@ -5021,7 +5025,7 @@ export default function HomePage() {
   const compactCompareView = !compactReadiness.ready ? (
     <section className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
       <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
-      <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+      <h2 className="decision-empty-title mt-4 text-xl font-semibold">{invalidDebtTerms.length?'Correct financing inputs':'Add the deal basics first'}</h2>
       <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
       <p className="mt-3 text-xs leading-relaxed text-muted">
         Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.
@@ -6582,7 +6586,7 @@ export default function HomePage() {
           {!compactReadiness.ready ? (
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
               <div>
-                <h2 className="decision-empty-title text-xl font-semibold">Add the deal basics to unlock the verdict</h2>
+                <h2 className="decision-empty-title text-xl font-semibold">{invalidDebtTerms.length?'Correct financing inputs to unlock the verdict':'Add the deal basics to unlock the verdict'}</h2>
                 <p className="mt-2 text-sm text-muted">{incompleteDecisionDescription}</p>
               </div>
             </div>
@@ -7055,7 +7059,7 @@ export default function HomePage() {
               {!compactReadiness.ready ? (
                 <div className="section-shell decision-empty-state rounded-[1.1rem] p-5" aria-live="polite">
                   <span className="decision-status decision-status-incomplete">Incomplete inputs</span>
-                  <h2 className="decision-empty-title mt-4 text-xl font-semibold">Add the deal basics first</h2>
+                  <h2 className="decision-empty-title mt-4 text-xl font-semibold">{invalidDebtTerms.length?'Correct financing inputs':'Add the deal basics first'}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-muted">{incompleteDecisionDescription}</p>
                   <p className="mt-3 text-xs leading-relaxed text-muted">
                     Still needed: {compactReadiness.missing.join(', ')}. DealCooker will hold back zero-value projections until the comparison is meaningful.

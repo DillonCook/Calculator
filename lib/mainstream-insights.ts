@@ -75,18 +75,31 @@ export function applySensitivity(input: DealInputModel, strategy: StrategyKey, c
     model.longTerm.turnaround.stabilizedGrossRentMonthly *= income;
     model.longTerm.turnaround.stabilizedOtherIncomeMonthly *= income;
     model.longTerm.turnaround.ownerPaidExpensesMonthly *= cost;
+    model.longTerm.turnaround.annualTaxInsuranceAdjustment *= cost;
+    model.longTerm.turnaround.laundryIncomeMonthly *= income;
+    model.longTerm.turnaround.vendingMiscIncomeMonthly *= income;
+    model.longTerm.turnaround.garageIncomeMonthly *= income;
+    model.longTerm.turnaround.parkingIncomeMonthly *= income;
+    model.longTerm.turnaround.additionalIncomeMonthly *= income;
     // Exit assumptions are resolved after income/cost changes, including implied values.
   } else if (operating === 'airbnb') {
     model.airbnb.adr *= income;
+    model.airbnb.cleaningFeeCharged *= income;
     if (model.airbnb.annualRevenueOverride !== null) model.airbnb.annualRevenueOverride *= income;
     model.airbnb.ownerExpensesMonthly *= cost;
     model.airbnb.cleanerCostPerTurn *= cost;
   } else if (operating === 'padSplit') {
+    model.padSplit.ownerExpensesMonthly *= cost;
+    model.padSplit.propertyManagementFeeMonthly *= cost;
+    model.padSplit.turnoverCostPerMoveOut *= cost;
     model.padSplit.avgWeeklyRatePerRoom *= income;
     model.padSplit.otherIncomeMonthly *= income;
     if (model.padSplit.annualRevenueOverride !== null) model.padSplit.annualRevenueOverride *= income;
   } else if (operating === 'purchase') {
     model.commercial.averageBaseRentPerSqftYear *= income;
+    model.commercial.nnnRecoveryPerSqftYear *= income;
+    model.commercial.tenantImprovementsReservePerSqftYear *= cost;
+    model.commercial.leasingCommissionsReservePerSqftYear *= cost;
     model.commercial.nonRecoverableExpensesPerSqftYear *= cost;
   }
   if (strategy === 'flip') model.flip.rehabOverride = (model.flip.rehabOverride ?? model.purchase.rehabBudget)*cost;
@@ -100,6 +113,8 @@ export function applySensitivity(input: DealInputModel, strategy: StrategyKey, c
     model.purchase.insuranceAnnualOverride=fixed.insuranceAnnual*cost;
   }
   model.purchase.hoaMonthly *= cost;
+  model.purchase.pmiMonthly *= cost;
+  if (strategy==='brrrr') model.brrrr.holdingExpensesMonthly *= cost;
   const reference=calculateStrategy(model,strategy);
   const baseValue=getModeledSalePriceAtMonth(reference,model,0);
   const missingRequiredValue=(strategy==='brrrr' && !((model.brrrr.arvOverride ?? model.purchase.arv)>0)) || (strategy==='flip' && !((model.flip.arvOverride ?? model.purchase.arv)>0));
@@ -111,7 +126,8 @@ export function applySensitivity(input: DealInputModel, strategy: StrategyKey, c
     model.purchase.arv=baseValue*exit;
     if(strategy!=='purchase')model[strategy].arvOverride=baseValue*exit;
   }
-  return { model, output: calculateStrategy(model,strategy) };
+  const preStabilizationValue = strategy==='longTerm' && model.longTerm.turnaround.enabled ? baseValue*exit : undefined;
+  return { model, output: calculateStrategy(model,strategy,true,preStabilizationValue) };
 }
 
 

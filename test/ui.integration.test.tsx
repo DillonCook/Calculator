@@ -243,6 +243,15 @@ describe('dashboard integration', () => {
     expectProvidedLogo();
   });
 
+  it('names the invalid loan field in the actual desktop result gate', async () => {
+    const m=structuredClone(defaultDealInput);m.purchase.dealName='Debt validation QA';m.longTerm.grossRentMonthly=3000;
+    writeScenarios([createScenarioRecord(m)]);
+    render(<HomePage />);
+    fireEvent.change(screen.getByLabelText('Loan term (years)'),{target:{value:'0'}});
+    expect(await screen.findByText(/Correct these financing inputs: purchase loan term/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Estimated monthly cash flow')).not.toBeInTheDocument();
+  });
+
   it('starts blank when no scenarios are saved', () => {
     window.localStorage.clear();
     render(<HomePage />);

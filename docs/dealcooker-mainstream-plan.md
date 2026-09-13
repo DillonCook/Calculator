@@ -5,10 +5,11 @@
 Dillon now authorizes executing the remaining plan continuously, exercising judgment for safety and release decisions without repeated approvals. This is the canonical execution checklist; the preserved audit is [dealcooker-review-baseline.md](dealcooker-review-baseline.md). Baseline source: `59240cd7d9de0982f69ebd3ea0fdbc8df7a3d8ef`.
 
 Working checkout: isolated `dealcooker-mainstream` worktree; the original checkout is preserved.
-Current branch: `feat/mainstream-readiness`.
-Current step: **Steps 1–27 implemented and verified locally; exact-SHA publication follows.**
-This is a pre-release snapshot. Publication is recorded in the GitHub PR/deployment receipt rather than pre-checked here.
-Next: **Release the verified candidate, then conduct the real-user pilot before broader promotion.**
+Current branch: `fix/post-release-audit`.
+Current step: **Focused correction of six post-release audit findings.**
+The earlier blanket completion claim was too broad. The original checklist and execution ledger below are historical evidence, not a certification that every edge case was covered. The current correction contract and verification are in [dealcooker-audit-corrections.md](dealcooker-audit-corrections.md).
+Publication is recorded in the exact-SHA PR/deployment receipt after live verification.
+Next: **Release the corrected candidate after its gates pass, then conduct the observed-user pilot before broader promotion.**
 
 - Work directly; no delegated agents.
 - Execute coherent steps continuously; verify each and preserve checkpoints. Do not fabricate participant testing or growth outcomes.

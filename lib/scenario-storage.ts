@@ -1,6 +1,7 @@
 import { normalizeDealUiState, type DealInputModel, type ScenarioRecord } from '@/lib/models/deal';
 import { defaultDealInput } from '@/lib/models/deal';
 import { isSafePartialDealInput } from '@/lib/deal-input-safety';
+import { readWorkoutSnapshot } from '@/lib/workout-snapshot';
 
 const STORAGE_KEY = 'investor-command-center.scenarios.v1';
 const APP_VERSION = '0.2.0';
@@ -17,6 +18,7 @@ const normalizeDealInput = (payload: DealInputModel): DealInputModel => {
   return {
     ...defaultDealInput,
     ...payload,
+    ...(payload.analysis ? {analysis:{...payload.analysis,lastWorkout:readWorkoutSnapshot(payload.analysis.lastWorkout) ?? undefined}} : {}),
     purchase: {
       ...defaultDealInput.purchase,
       ...payload.purchase,
