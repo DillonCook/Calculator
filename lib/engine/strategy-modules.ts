@@ -1,3 +1,4 @@
+import { modeledDebtTerm } from '@/lib/debt-terms';
 import { resolveStrategyValue } from '@/lib/strategy-value';
 import {
   calculateRemainingBalance,
@@ -42,6 +43,7 @@ interface LeveredTimelineInput {
   annualNoiForYear?: (yearIndex: number) => number;
   arv: number;
   appreciationDelayYears?: number;
+  preStabilizationValue?: number;
   revenueGrowthRate: number;
   expenseGrowthRate: number;
   debts: TimelineDebtInput[];
@@ -59,10 +61,10 @@ const getPurchaseLoanTerms = (input: DealInputModel) => {
     purchasePrice: purchase.purchasePrice,
     downPaymentPercent: purchase.downPaymentPercent,
     interestRate: purchase.interestRate,
-    loanTermYears: purchase.loanTermYears,
+    loanTermYears: modeledDebtTerm(purchase.loanTermYears),
     helocAmount: purchase.helocAmount,
     helocRate: purchase.helocRate,
-    helocTermYears: purchase.helocTermYears,
+    helocTermYears: modeledDebtTerm(purchase.helocTermYears),
     helocAmortizationType: purchase.helocAmortizationType,
     existingMortgageMonthly: purchase.ownershipMode === 'owned' ? purchase.existingMortgageMonthly : 0,
     existingMortgageBalance: purchase.ownershipMode === 'owned' ? purchase.existingMortgageBalance : 0,
@@ -143,7 +145,7 @@ const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput
       debts.push({
         principal: existingPrincipal,
         annualRate: Math.max(purchase.existingMortgageRate, 0),
-        termMonths: Math.max(purchase.existingMortgageRemainingYears, 1) * 12,
+        termMonths: modeledDebtTerm(purchase.existingMortgageRemainingYears) * 12,
         amortizationType: 'PI',
         monthlyPaymentOverride: existingMonthlyPayment,
         ...(existingPrincipal > 0 ? {} : { terminalBalanceOverride: 0 })
@@ -153,7 +155,7 @@ const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput
     debts.push({
       principal: calculateLoanAmount(purchase.purchasePrice, purchase.downPaymentPercent),
       annualRate: Math.max(purchase.interestRate, 0),
-      termMonths: Math.max(purchase.loanTermYears, 1) * 12,
+      termMonths: modeledDebtTerm(purchase.loanTermYears) * 12,
       amortizationType: purchase.amortizationType
     });
   }
@@ -161,7 +163,7 @@ const buildAcquisitionTimelineDebts = (input: DealInputModel): TimelineDebtInput
   debts.push({
     principal: Math.max(purchase.helocAmount, 0),
     annualRate: Math.max(purchase.helocRate, 0),
-    termMonths: Math.max(purchase.helocTermYears, 1) * 12,
+    termMonths: modeledDebtTerm(purchase.helocTermYears) * 12,
     amortizationType: purchase.helocAmortizationType
   });
 
@@ -319,6 +321,7 @@ const buildLeveredTimeline = ({
   annualNoiForYear,
   arv,
   appreciationDelayYears = 0,
+  preStabilizationValue,
   revenueGrowthRate,
   expenseGrowthRate,
   debts
@@ -335,7 +338,7 @@ const buildLeveredTimeline = ({
   const remainingLoanBalance = debts.reduce((sum, debt) => sum + getDebtRemainingBalanceAtHold(debt, holdYears), 0);
 
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
-  const baseValue = holdYears < appreciationDelayYears - 1e-9 ? acquisitionBasisPrice : arv > 0 ? arv : acquisitionBasisPrice;
+  const baseValue = holdYears < appreciationDelayYears - 1e-9 ? preStabilizationValue ?? acquisitionBasisPrice : arv > 0 ? arv : acquisitionBasisPrice;
   const appreciationYears = Math.max(holdYears - Math.max(appreciationDelayYears, 0), 0);
   const terminalPropertyValue = appreciationYears > 0 ? baseValue * Math.pow(1 + appreciationGrowth, appreciationYears) : baseValue;
   const saleProceeds = terminalPropertyValue * (1 - sellingCostPercent) - remainingLoanBalance;
@@ -412,7 +415,8 @@ const calculateLongTermTurnaroundSummary = (
   debtService: number,
   fixedCosts: number,
   strategyVariableCosts: number,
-  includeProjection = true
+  includeProjection = true,
+  preStabilizationValue?: number
 ): LongTermTurnaroundSummaryOutput | undefined => {
   const turnaround = input.longTerm.turnaround;
   if (!turnaround.enabled) return undefined;
@@ -501,6 +505,7 @@ const calculateLongTermTurnaroundSummary = (
     },
     arv: timelineArv,
     appreciationDelayYears: 1,
+    preStabilizationValue,
     revenueGrowthRate: noiGrowthRate,
     expenseGrowthRate: noiGrowthRate,
     debts: buildAcquisitionTimelineDebts(input)
@@ -546,6 +551,7 @@ const calculateLongTermTurnaroundSummary = (
     impliedValueAtExitCap,
     stabilizedArvOverride,
     modeledExitValue,
+    preStabilizationValue,
     capOnCost,
     equityCreated
   };
@@ -689,7 +695,7 @@ export const calculatePurchaseStrategy = (input: DealInputModel, includeProjecti
   };
 };
 
-export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeProjection = true): StrategyOutput => {
+export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNeeded: number, includeProjection = true, preStabilizationValue?: number): StrategyOutput => {
   const { longTerm, purchase } = input;
   const base = createBaseOutput('longTerm', 'Stabilized buy-and-hold with reserves and fixed expenses.');
 
@@ -734,7 +740,7 @@ export const calculateLongTermStrategy = (input: DealInputModel, purchaseCashNee
     debts: buildAcquisitionTimelineDebts(input)
   });
   const acquisitionBasisPrice = getAcquisitionBasisPrice(input);
-  const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts, includeProjection);
+  const turnaroundSummary = calculateLongTermTurnaroundSummary(input, purchaseCashNeeded, debtService, fixedCosts, strategyVariableCosts, includeProjection, preStabilizationValue);
   const stabilizedIncomeSourcesMonthly =
     (turnaroundSummary?.laundryIncomeMonthly ?? 0) +
     (turnaroundSummary?.vendingMiscIncomeMonthly ?? 0) +
@@ -1140,7 +1146,7 @@ export const calculateBrrrrStrategy = (
   const refiDebt: TimelineDebtInput = {
     principal: refiLoanAmount,
     annualRate: Math.max(brrrr.refinanceRate, 0),
-    termMonths: Math.max(brrrr.refinanceTermYears ?? 30, 1) * 12,
+    termMonths: modeledDebtTerm(brrrr.refinanceTermYears ?? 30) * 12,
     amortizationType: 'PI'
   };
   const refinanceDebt = willRefinance ? getDebtMonthlyPayment(refiDebt) : 0;

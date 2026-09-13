@@ -1,3 +1,4 @@
+import { modeledDebtTerm } from '@/lib/debt-terms';
 import { resolveStrategyValue } from '@/lib/strategy-value';
 import { calculateLoanAmount } from '@/lib/engine/finance';
 import { calculateRemainingBalance, calculateRemainingBalanceWithPayment } from '@/lib/engine/investment-math';
@@ -227,7 +228,7 @@ export const getModeledSalePriceAtMonth = (output: StrategyOutput, input: DealIn
   const strategy = output.strategy;
   const acquisitionBasisPrice = input.purchase.ownershipMode === 'owned' ? input.purchase.ownedPurchasePrice : input.purchase.purchasePrice;
   const turnaroundPending = strategy === 'longTerm' && output.longTermTurnaroundSummary?.enabled && month < 12 - 1e-9;
-  const baseValue = turnaroundPending ? acquisitionBasisPrice : resolveBaseValue(output, input);
+  const baseValue = turnaroundPending ? output.longTermTurnaroundSummary?.preStabilizationValue ?? acquisitionBasisPrice : resolveBaseValue(output, input);
   const appreciationRate = clampGrowthRate(input.assumptions.annualAppreciationPercent);
 
   const appreciationDelayYears =
@@ -275,7 +276,7 @@ const getAcquisitionRemainingDebtAtMonth = (input: DealInputModel, month: number
       purchase.existingMortgageBalance,
       purchase.existingMortgageRate,
       purchase.existingMortgageMonthly,
-      purchase.existingMortgageRemainingYears,
+      modeledDebtTerm(purchase.existingMortgageRemainingYears),
       elapsedYears
     );
   } else if (purchase.ownershipMode !== 'owned' && purchase.financingType === 'loan') {
@@ -283,7 +284,7 @@ const getAcquisitionRemainingDebtAtMonth = (input: DealInputModel, month: number
     primaryBalance = calculateRemainingBalance(
       initialLoanAmount,
       purchase.interestRate,
-      purchase.loanTermYears,
+      modeledDebtTerm(purchase.loanTermYears),
       elapsedYears,
       purchase.amortizationType
     );
@@ -292,7 +293,7 @@ const getAcquisitionRemainingDebtAtMonth = (input: DealInputModel, month: number
   const helocBalance = calculateRemainingBalance(
     purchase.helocAmount,
     purchase.helocRate,
-    purchase.helocTermYears,
+    modeledDebtTerm(purchase.helocTermYears),
     elapsedYears,
     purchase.helocAmortizationType
   );
@@ -316,7 +317,7 @@ const getBrrrrRemainingDebtAtMonth = (output: StrategyOutput, input: DealInputMo
   return calculateRemainingBalance(
     refinancePrincipal,
     input.brrrr.refinanceRate,
-    input.brrrr.refinanceTermYears ?? 30,
+    modeledDebtTerm(input.brrrr.refinanceTermYears ?? 30),
     Math.max(month - refinanceMonth, 0) / 12,
     'PI'
   );

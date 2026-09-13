@@ -49,3 +49,6 @@
  .app-header-shell h1 { font-size:clamp(1.6rem,6vw,2.1rem)!important; line-height:1.05!important; }
  .mainstream-mobile-result-actions button { min-height:44px; padding:.5rem; font-size:.75rem; line-height:1.2; }
 }
+
+.sensitivity-results h4{font-size:15px;font-weight:700;margin:0 0 4px}.sensitivity-results dl{display:grid;gap:14px;margin-top:16px}.sensitivity-results dt{line-height:1.5}.sensitivity-results dd{overflow-wrap:anywhere}.decision-goals{padding-bottom:20px}.decision-goals dd{overflow-wrap:anywhere}
+@media(max-width:420px){.sensitivity-results{display:grid;grid-template-columns:1fr;gap:20px}.sensitivity-results>div+div{border-top:1px solid var(--dc-line-soft);padding-top:20px}}

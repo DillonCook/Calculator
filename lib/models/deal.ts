@@ -338,6 +338,8 @@ export interface LongTermTurnaroundSummaryOutput {
   impliedValueAtExitCap: number;
   stabilizedArvOverride: number | null;
   modeledExitValue: number;
+  /** Runtime sensitivity value only; never changes the acquisition basis. */
+  preStabilizationValue?: number;
   capOnCost: number;
   equityCreated: number;
 }

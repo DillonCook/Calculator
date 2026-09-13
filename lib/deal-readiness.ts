@@ -1,8 +1,9 @@
+import { getDebtTermIssues } from '@/lib/debt-terms';
 import { resolveStrategyValue } from '@/lib/strategy-value';
 import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 
 export function getDealReadiness(model: DealInputModel, activeStrategy: StrategyKey) {
-    const coreMissing: string[] = [];
+    const coreMissing: string[] = getDebtTermIssues(model, activeStrategy);
     const strategyMissing: string[] = [];
     const hasDealName = model.purchase.dealName.trim().length > 0;
     if (!hasDealName) coreMissing.push('deal name');

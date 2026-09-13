@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getDebtTermIssues } from '@/lib/debt-terms';
 
 import { PrintActions } from '@/components/print/print-actions';
 import { DecisionBrief } from '@/components/dashboard/decision-brief';
@@ -72,8 +73,11 @@ export async function generateMetadata({ searchParams }: PrintPageProps): Promis
 export default async function PrintPage({ searchParams }: PrintPageProps) {
   const params = await searchParams;
   const decoded = params.scenario ? decodeScenario(params.scenario) : null;
+  if(params.scenario && !decoded) return <main className="print-shell p-6"><h1>Unable to open this report</h1><p>The link contains missing, invalid or unsupported deal inputs. Return to the editable deal, correct the inputs and create a new report link.</p></main>;
   const model = decoded?.payload ?? defaultDealInput;
   const strategy = parseStrategy(params.strategy);
+  const debtIssues=getDebtTermIssues(model,strategy);
+  if(debtIssues.length) return <main className="print-shell p-6"><h1>Unable to open this report</h1><p>Correct the following financing inputs in the editable deal:</p><ul>{debtIssues.map(issue=><li key={issue}>{issue}</li>)}</ul></main>;
   const result = calculateDeal(model);
   const report = createPdfReportSchema(model, result, strategy);
   const primaryMetricLabel = report.strategyHighlights.rows[0]?.label ?? 'Primary Metric';

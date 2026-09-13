@@ -1,4 +1,5 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
+import { readWorkoutSnapshot } from '@/lib/workout-snapshot';
 import { isSafePartialDealInput } from '@/lib/deal-input-safety';
 import { defaultDealInput, normalizeDealUiState, type DealInputModel, type ExpenseStrategyKey, type ScenarioRecord } from '@/lib/models/deal';
 
@@ -58,6 +59,7 @@ export const normalizeDealInput = (value: unknown): DealInputModel | null => {
   return {
     ...defaultDealInput,
     ...value,
+    ...(isRecord(value.analysis) ? {analysis:{...value.analysis,lastWorkout:readWorkoutSnapshot(value.analysis.lastWorkout) ?? undefined}} : {}),
     purchase: {
       ...defaultDealInput.purchase,
       ...purchase,

@@ -64,10 +64,10 @@ export const calculateDeal = (input: DealInputModel): DealResult => {
 
 
 /** Strategy-local calculation for objective searches; avoids unrelated strategy solvers. */
-export function calculateStrategy(input: DealInputModel, strategy: StrategyKey, includeProjection = true): StrategyOutput {
+export function calculateStrategy(input: DealInputModel, strategy: StrategyKey, includeProjection = true, preStabilizationValue?: number): StrategyOutput {
   const purchase = calculatePurchaseStrategy(input, includeProjection);
   if (strategy === 'purchase') return purchase;
-  if (strategy === 'longTerm') return calculateLongTermStrategy(input, purchase.totalCashNeeded, includeProjection);
+  if (strategy === 'longTerm') return calculateLongTermStrategy(input, purchase.totalCashNeeded, includeProjection, preStabilizationValue);
   if (strategy === 'airbnb') return calculateAirbnbStrategy(input, purchase.totalCashNeeded, includeProjection);
   if (strategy === 'padSplit') return calculatePadSplitStrategy(input, purchase.totalCashNeeded, includeProjection);
   if (strategy === 'flip') return calculateFlipStrategy(input, purchase.totalCashNeeded, false);
