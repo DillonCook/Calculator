@@ -80,9 +80,9 @@ export const getNegativeValueStyle = (value: number, options?: NegativeValueColo
 
   if (value > baseline) {
     const color = getPositiveValueColor(value, options);
-    return color ? { color } : undefined;
+    return color ? ({ color, '--dc-value-color': color } as CSSProperties) : undefined;
   }
 
   const color = getNegativeValueColor(value, options);
-  return color ? { color } : undefined;
+  return color ? ({ color, '--dc-value-color': color } as CSSProperties) : undefined;
 };

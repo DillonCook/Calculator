@@ -7,6 +7,33 @@ import { DecisionBrief } from '@/components/dashboard/decision-brief';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { DealQuickStart } from '@/components/dashboard/deal-quick-start';
 
+describe('Financial metric color meaning', () => {
+  it.each([[0.95, 'negative'], [1, 'neutral'], [1.25, 'positive']] as const)(
+    'uses DSCR %s relative to debt coverage of 1',
+    (value, tone) => {
+      render(<KpiCard label="DSCR" value={value.toFixed(2)} numericValue={value} numericValueKind="ratio" numericValueBaseline={1} />);
+      const metric = screen.getByTestId('kpi-dscr');
+      expect(metric).toHaveAttribute('data-value-tone', tone);
+      expect(Boolean(metric.style.getPropertyValue('--dc-value-color'))).toBe(tone !== 'neutral');
+    }
+  );
+
+  it.each([[4000, 'positive'], [1000, 'negative']] as const)(
+    'keeps monthly cash flow direction visible for rent of %s',
+    (rent, tone) => {
+      const model = structuredClone(defaultDealInput);
+      model.purchase.purchasePrice = 300000;
+      model.longTerm.grossRentMonthly = rent;
+      const result = calculateDeal(model).longTerm;
+      expect(Math.sign(result.monthlyCashFlow)).toBe(tone === 'positive' ? 1 : -1);
+      render(<DecisionBrief model={model} strategy="longTerm" output={result} />);
+      const metric = screen.getByLabelText('Estimated monthly cash flow');
+      expect(metric).toHaveAttribute('data-value-tone', tone);
+      expect(metric.style.getPropertyValue('--dc-value-color')).not.toBe('');
+    }
+  );
+});
+
 describe('Mainstream decision summary', () => {
   it('shows a money explanation and lets the author explicitly review assumptions', () => {
     const model = structuredClone(defaultDealInput);

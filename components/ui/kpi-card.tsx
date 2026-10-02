@@ -323,6 +323,7 @@ export function KpiCard({
               : 'mt-1 text-[clamp(1.4rem,7vw,2.3rem)] sm:text-[2.7rem] md:text-[3.35rem]'
         }`}
         data-testid={valueTestId ?? `kpi-${slugify(label)}`}
+        data-value-tone={numericValue === undefined || !Number.isFinite(numericValue) ? undefined : numericValue < numericValueBaseline ? 'negative' : numericValue > numericValueBaseline ? 'positive' : 'neutral'}
         style={negativeValueStyle}
       >
         {value}

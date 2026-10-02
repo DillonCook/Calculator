@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { GoogleAnalytics } from '@/components/google-analytics';
 import './globals.css';
 import './mainstream.css';
+import './calculator.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.dealcooker.app'),
