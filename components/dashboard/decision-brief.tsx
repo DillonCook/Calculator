@@ -1,6 +1,7 @@
 'use client';
 
 import { getDebtTermIssues } from '@/lib/debt-terms';
+import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { getGoalComparisonRows } from '@/lib/goal-comparisons';
 import { readWorkoutSnapshot } from '@/lib/workout-snapshot';
 import { useMemo, useState } from 'react';
@@ -46,11 +47,11 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
     <header className="decision-brief-header">
       <span className="decision-eyebrow">{isSample?'Fictional sample':reviewed?'Assumptions marked reviewed by author':'Provisional • assumptions need review'}</span>
       <h2 data-verdict={verdict.status}>{verdict.label}</h2>
-      {strategy!=='flip' ? <div className="decision-monthly-headline"><output aria-label="Estimated monthly cash flow">{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(output.monthlyCashFlow)}</output><span> / month</span><small>Estimated cash after costs and debt payments</small></div> : null}
+      {strategy!=='flip' ? <div className="decision-monthly-headline"><output aria-label="Estimated monthly cash flow" data-value-tone={output.monthlyCashFlow < 0 ? 'negative' : output.monthlyCashFlow > 0 ? 'positive' : 'neutral'} style={getNegativeValueStyle(output.monthlyCashFlow,{kind:'currency'})}>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(output.monthlyCashFlow)}</output><span> / month</span><small>Estimated cash after costs and debt payments</small></div> : null}
       <p>Before income tax • modeled reserves included • estimates, not guarantees.</p>
     </header>
     {strategy==='flip' ? <dl className="decision-key-figures">
-      <div><dt>Profit over {flip?.holdingMonths ?? model.flip.holdingMonths} months</dt><dd>{money(flip?.netProfit ?? 0)}</dd></div>
+      <div><dt>Profit over {flip?.holdingMonths ?? model.flip.holdingMonths} months</dt><dd data-value-tone={(flip?.netProfit ?? 0) < 0 ? 'negative' : (flip?.netProfit ?? 0) > 0 ? 'positive' : 'neutral'} style={getNegativeValueStyle(flip?.netProfit ?? 0,{kind:'currency'})}>{money(flip?.netProfit ?? 0)}</dd></div>
       <div><dt>Highest offer meeting all targets</dt><dd>{flip?.maxAllowableOffer == null?(model.flip.targetProfit<=0 && model.flip.targetRoiPercent<=0?'Set an offer target':'No feasible offer'):new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(flip.maxAllowableOffer)}</dd></div>
       <div><dt>Monthly holding exposure</dt><dd>{money((flip?.holdingCostsTotal ?? 0)/Math.max(flip?.holdingMonths ?? 1,1))}</dd></div>
     </dl> : <>

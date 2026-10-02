@@ -48,8 +48,11 @@ export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
     <p className="decision-help">{step===0?'Get a clear first result. Refine the details when you are ready.':step===1?'Estimates are fine for a first pass. Nothing here is independently verified.':'Unknown tax and insurance use starting rate estimates. Confirm every assumption before making an offer.'}</p>
     <nav className="quick-start-progress" aria-label="First analysis progress">{['Your goal','Property','Costs'].map((label,index)=><span key={label} aria-current={step===index?'step':undefined}>{index+1}. {label}</span>)}</nav>
     {step===0?<>
-      <div className="quick-start-goals">{([['longTerm','Rent out a home','Monthly income and cash required'],['airbnb','Vacation rental','Bookings, cleaning and host fees'],['flip','Renovate and sell','Profit, holding costs and maximum offer']] as const).map(([key,label,detail])=><button key={key} type="button" onClick={()=>{setStrategy(key);setStep(1);}}><strong>{label}</strong><span>{detail}</span></button>)}</div>
-      <div className="quick-start-actions"><button type="button" className="btn-primary" onClick={onSample}>Try a sample property</button><button type="button" className="decision-text-button" onClick={onAdvanced}>More strategies / advanced workbench</button></div>
+      <div className="quick-start-goals">{([['longTerm','Rent out a home','Monthly income and cash required'],['airbnb','Vacation rental','Bookings, cleaning and host fees'],['flip','Renovate and sell','Profit, holding costs and maximum offer']] as const).map(([key,label,detail])=><button key={key} type="button" onClick={()=>{setStrategy(key);setStep(1);}}>
+        <span className="quick-start-goal-copy"><strong>{label}</strong><span>{detail}</span></span>
+        <svg className="quick-start-goal-arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>)}</div>
+      <div className="quick-start-actions quick-start-alternatives"><button type="button" className="section-action" onClick={onSample}>Try a sample property</button><button type="button" className="decision-text-button" onClick={onAdvanced}>More strategies / advanced workbench</button></div>
     </>:null}
     {step===1?<form onSubmit={e=>{e.preventDefault();next();}}>
       <div className="decision-form-grid">

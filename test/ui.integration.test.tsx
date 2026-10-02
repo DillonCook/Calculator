@@ -677,7 +677,7 @@ describe('dashboard integration', () => {
     expect(overrideField).toHaveTextContent('Override active');
   });
 
-  it('uses the compact shell on mobile and allows results before required inputs are complete', async () => {
+  it('keeps mobile navigation out of quick start and preserves empty results in the workbench', async () => {
     window.localStorage.clear();
     setViewport(390);
 
@@ -685,6 +685,11 @@ describe('dashboard integration', () => {
     window.dispatchEvent(new Event('resize'));
 
     const user = userEvent.setup();
+    expect(screen.queryByRole('navigation', { name: 'Mobile view switcher' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Rent out a home/ }));
+    expect(screen.queryByRole('navigation', { name: 'Mobile view switcher' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'More strategies / advanced workbench' }));
     const mobileViewSwitcher = await screen.findByRole('navigation', { name: 'Mobile view switcher' });
     const buildButton = screen.getByRole('button', { name: 'Build' });
     const resultsButton = screen.getByRole('button', { name: 'Results' });
@@ -720,6 +725,24 @@ describe('dashboard integration', () => {
 
     expect(resultsButton).not.toBeDisabled();
     expect(projectionsButton).not.toBeDisabled();
+  });
+
+  it('restores the unsaved first analysis when a new deal is cancelled', async () => {
+    window.localStorage.clear();
+    render(<HomePage />);
+    const user = userEvent.setup();
+    const quickStart = screen.getByRole('region', { name: 'Start a property analysis' });
+    await user.click(within(quickStart).getByRole('button', { name: /^Rent out a home/ }));
+    await user.type(within(quickStart).getByLabelText('Purchase price'), '300000');
+    await user.type(within(quickStart).getByLabelText('Expected monthly rent'), '3000');
+    await user.click(within(quickStart).getByRole('button', { name: 'Next: costs' }));
+    await user.click(within(quickStart).getByRole('button', { name: 'See my provisional result' }));
+    const originalCashFlow = screen.getByLabelText('Estimated monthly cash flow').textContent;
+    await user.click(screen.getByRole('button', { name: 'New deal' }));
+    const identity = await screen.findByRole('dialog', { name: 'Deal identity' });
+    await user.click(within(identity).getByRole('button', { name: /^Close$/ }));
+    expect(await screen.findByLabelText('Estimated monthly cash flow')).toHaveTextContent(originalCashFlow!);
+    expect(screen.getByLabelText('Purchase price', { selector: 'input' })).toHaveValue(300000);
   });
 
   it('uses the same Deal Basics, Expenses, Strategy, and Advanced section names on mobile', async () => {

@@ -525,6 +525,7 @@ const DigestMetricCard = memo(function DigestMetricCard({
       <p
         key={`${item.key}-${item.value}`}
         className={`scenario-digest-value ${isMobile ? 'mt-0.5 text-xs leading-tight' : 'mt-1 text-sm'} truncate font-semibold text-slate-100`}
+        data-value-tone={item.rawValue === undefined || !Number.isFinite(item.rawValue) ? undefined : item.rawValue < (item.rawKind === 'ratio' ? 1 : 0) ? 'negative' : item.rawValue > (item.rawKind === 'ratio' ? 1 : 0) ? 'positive' : 'neutral'}
         style={getDigestMetricStyle(item)}
       >
         {item.value}
@@ -929,8 +930,9 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [quickStartDismissed,setQuickStartDismissed] = useState(false);
+  const showQuickStart = !quickStartDismissed && model.purchase.ownershipMode === 'purchase' && model.purchase.purchasePrice <= 0;
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
-  const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; scenarioId: string } | null>(null);
+  const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; previousPayload: DealInputModel; scenarioId: string } | null>(null);
 
   const showSyncFeedback = useCallback((message: string, tone: SyncFeedbackTone = 'info') => {
     setSyncFeedback({ message, tone });
@@ -2986,11 +2988,13 @@ export default function HomePage() {
     setIsAuthMenuOpen(false);
     setIsSettingsOpen(false);
     setIsDesktopDealVaultOpen(false);
+    const previousPayload = attachDealUiState(model);
     const nextDeal = createNewDeal('', '', { openIdentityEditor: true, preserveBlankIdentity: true });
     if (!nextDeal) return;
     pendingNewDealDraftRef.current = {
       initialDealName: nextDeal.dealName,
       previousDealId: activeDealId,
+      previousPayload,
       scenarioId: nextDeal.scenarioId
     };
     setCompactMode('inputs');
@@ -3017,14 +3021,20 @@ export default function HomePage() {
       const nextDeals = removeDealFromVault(pendingDraft.scenarioId);
       setDeals(nextDeals);
 
-      const previousDeal = nextDeals.find((deal) => deal.scenarioId === pendingDraft.previousDealId) ?? nextDeals[0] ?? null;
+      const previousDeal = nextDeals.find((deal) => deal.scenarioId === pendingDraft.previousDealId);
+      const fallbackDeal = nextDeals[0];
       if (previousDeal) {
-        loadScenario(previousDeal.payload, previousDeal.scenarioId);
+        // Keep edits made before the normal autosave delay elapsed.
+        loadScenario(pendingDraft.previousPayload, previousDeal.scenarioId);
+      } else if (!pendingDraft.previousDealId) {
+        loadScenario(pendingDraft.previousPayload, '');
+      } else if (fallbackDeal) {
+        loadScenario(fallbackDeal.payload, fallbackDeal.scenarioId);
       } else {
         setActiveDealId('');
       }
 
-      setSaveStatus('idle');
+      setSaveStatus(previousDeal ? 'saving' : 'idle');
       void (async () => {
         const ok = await syncScenarioDelete(pendingDraft.scenarioId);
         if (ok) {
@@ -4933,6 +4943,7 @@ export default function HomePage() {
                 key={`priority-kpi-mobile-${priorityMetricMotion.key}`}
                 className={`text-4xl font-semibold tracking-tight ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
                 data-testid="kpi-priority-metric"
+                data-value-tone={priorityMetricValue < 0 ? 'negative' : priorityMetricValue > 0 ? 'positive' : 'neutral'}
                 style={priorityMetricNegativeStyle}
               >
                 {formattedPriorityMetricValue}
@@ -5415,7 +5426,10 @@ export default function HomePage() {
               type="button"
               aria-pressed={isActive}
               onClick={() => {
-                if (!isActive) triggerHapticFeedback('light');
+                if (!isActive) {
+                  triggerHapticFeedback('light');
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                }
                 setCompactMode(mode);
               }}
               className={`mobile-nav-button tap-feedback min-h-11 rounded-xl px-3 py-2 text-sm font-medium transition ${
@@ -5431,7 +5445,7 @@ export default function HomePage() {
   );
 
   const compactModeNavPortal =
-    isClientMounted && isMobileViewport && typeof document !== 'undefined'
+    isClientMounted && isMobileViewport && !showQuickStart && typeof document !== 'undefined'
       ? createPortal(compactModeNav, document.body)
       : null;
 
@@ -5826,6 +5840,7 @@ export default function HomePage() {
               key={`priority-kpi-sheet-${priorityMetricMotion.key}`}
               className={`sheet-priority-value ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
               data-testid="kpi-priority-metric"
+              data-value-tone={priorityMetricValue < 0 ? 'negative' : priorityMetricValue > 0 ? 'positive' : 'neutral'}
               style={priorityMetricNegativeStyle}
             >
               {formattedPriorityMetricValue}
@@ -6115,17 +6130,9 @@ export default function HomePage() {
   );
 
   return (
-    <main className={`app-shell-fade relative isolate min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none fixed inset-0 z-0 ${
-          isLightMode
-            ? 'bg-[linear-gradient(135deg,rgba(243,151,76,0.22)_0%,rgba(243,151,76,0.1)_16%,rgba(118,167,222,0.08)_42%,transparent_76%)]'
-            : 'bg-[linear-gradient(135deg,rgba(244,145,48,0.26)_0%,rgba(244,145,48,0.12)_18%,rgba(92,150,220,0.1)_44%,transparent_78%)]'
-        }`}
-      />
-      <div className={`relative z-10 mx-auto max-w-[112rem] space-y-5${!quickStartDismissed && model.purchase.ownershipMode==='purchase' && model.purchase.purchasePrice<=0 ? ' mainstream-guided-root' : ''}`}>
-        {!quickStartDismissed && model.purchase.ownershipMode==='purchase' && model.purchase.purchasePrice<=0 ? <DealQuickStart
+    <main className={`calculator-workspace app-shell-fade relative isolate min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
+      <div className={`relative z-10 mx-auto max-w-[112rem] space-y-5${showQuickStart ? ' mainstream-guided-root' : ''}`}>
+        {showQuickStart ? <DealQuickStart
           base={model}
           onAdvanced={()=>{setQuickStartDismissed(true);}}
           onSample={()=>{setQuickStartDismissed(true);loadSampleDeal();}}
@@ -6686,6 +6693,7 @@ export default function HomePage() {
                     key={`priority-kpi-desktop-${priorityMetricMotion.key}`}
                     className={`priority-kpi-value text-4xl font-semibold tracking-tight sm:text-5xl ${priorityMetricValue >= 0 ? 'priority-metric-positive' : 'text-white'} ${priorityMetricMotionClass}`}
                     data-testid="kpi-priority-metric"
+                    data-value-tone={priorityMetricValue < 0 ? 'negative' : priorityMetricValue > 0 ? 'positive' : 'neutral'}
                     style={priorityMetricNegativeStyle}
                   >
                     {formattedPriorityMetricValue}
