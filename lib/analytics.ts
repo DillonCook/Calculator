@@ -60,9 +60,21 @@ const sanitizeProperties = (properties: AnalyticsProperties = {}) =>
       .map(([key, value]) => [key.slice(0, 80), typeof value === 'string' ? value.slice(0, 220) : value])
   );
 
+const isQaContext = () => {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return window.location.origin !== 'https://www.dealcooker.app' || window.navigator.webdriver === true
+    || params.get('dc_qa') === '1' || params.get('dc_analytics') === 'off' || params.has('qa');
+};
+
+// URL cleanup must not turn an internal QA page into measured activity.
+let pageQaSuppressed = isQaContext();
+
 export const trackAnalyticsEvent = async (eventName: AnalyticsEventName, properties?: AnalyticsProperties) => {
   if (typeof window === 'undefined') return;
   if (process.env.NODE_ENV === 'test') return;
+  pageQaSuppressed = pageQaSuppressed || isQaContext();
+  if (pageQaSuppressed) return;
 
   let anonymousId: string | null = null;
   let sessionId: string | null = null;
@@ -92,6 +104,8 @@ export const trackAnalyticsEvent = async (eventName: AnalyticsEventName, propert
     const supabase = getSupabaseClient();
     const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
     const accessToken = data.session?.access_token;
+    pageQaSuppressed = pageQaSuppressed || isQaContext();
+    if (pageQaSuppressed) return;
 
     await fetch('/api/analytics/events', {
       method: 'POST',
