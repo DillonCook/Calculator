@@ -65,6 +65,56 @@ it('opens conservative/base/optimistic comparisons and keeps the original inputs
 
 
 
+it('moves focus to the new step heading after choosing a goal', () => {
+  render(<DealQuickStart base={defaultDealInput} onStart={vi.fn()} onSample={vi.fn()} onAdvanced={vi.fn()} />);
+  const goal = screen.getByRole('button', {name:/^Rent out a home/});
+  goal.focus();
+  fireEvent.click(goal);
+  const heading = screen.getByRole('heading', {name:'Start with the property.'});
+  expect(heading).toHaveFocus();
+  expect(heading).toHaveStyle({scrollMarginTop:'1rem'});
+});
+
+it('reveals each new heading on forward and back transitions without scrolling on input edits', () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {configurable:true, value:scrollIntoView});
+  try {
+    render(<DealQuickStart base={defaultDealInput} onStart={vi.fn()} onSample={vi.fn()} onAdvanced={vi.fn()} />);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading')).not.toHaveFocus();
+    const expectStep = (name:string, calls:number) => {
+      const heading = screen.getByRole('heading', {name});
+      expect(heading).toHaveFocus();
+      expect(scrollIntoView).toHaveBeenCalledTimes(calls);
+      expect(scrollIntoView.mock.instances[calls - 1]).toBe(heading);
+      expect(scrollIntoView).toHaveBeenLastCalledWith({block:'start', behavior:'instant'});
+    };
+    fireEvent.click(screen.getByRole('button', {name:/^Rent out a home/}));
+    expectStep('Start with the property.', 1);
+    const price = screen.getByLabelText('Purchase price');
+    price.focus();
+    fireEvent.change(price, {target:{value:'300000'}});
+    fireEvent.change(screen.getByLabelText('Expected monthly rent'), {target:{value:'3000'}});
+    expect(price).toHaveFocus();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', {name:'Next: costs'}));
+    expectStep('Add the costs you know.', 2);
+    fireEvent.change(screen.getByLabelText('Annual property tax'), {target:{value:'2134.56'}});
+    fireEvent.click(screen.getByRole('button', {name:'Back'}));
+    expectStep('Start with the property.', 3);
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(300000);
+    fireEvent.click(screen.getByRole('button', {name:'Back'}));
+    expectStep('What are you considering?', 4);
+    fireEvent.click(screen.getByRole('button', {name:/^Rent out a home/}));
+    expectStep('Start with the property.', 5);
+    fireEvent.click(screen.getByRole('button', {name:'Next: costs'}));
+    expectStep('Add the costs you know.', 6);
+    expect(screen.getByLabelText('Annual property tax')).toHaveValue(2134.56);
+  } finally {
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+  }
+});
+
 it('guides a first rental through property and costs to a provisional result', () => {
   const onStart = vi.fn();
   render(<DealQuickStart base={defaultDealInput} onStart={onStart} onSample={vi.fn()} onAdvanced={vi.fn()} />);

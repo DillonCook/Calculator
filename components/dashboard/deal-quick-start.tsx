@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 
 interface Props {
@@ -10,6 +10,14 @@ interface Props {
 }
 export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
   const [step,setStep] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const previousStep = useRef(step);
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    headingRef.current?.focus({preventScroll:true});
+    headingRef.current?.scrollIntoView?.({block:'start', behavior:'instant'});
+  }, [step]);
   const [strategy,setStrategy] = useState<'longTerm'|'airbnb'|'flip'>('longTerm');
   const [name,setName] = useState('');
   const [price,setPrice] = useState('');
@@ -44,7 +52,7 @@ export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
   };
   return <section className="deal-quick-start" aria-label="Start a property analysis">
     <p className="decision-eyebrow">DealCooker • Free to start • No account needed</p>
-    <h2>{step===0?'What are you considering?':step===1?'Start with the property.':'Add the costs you know.'}</h2>
+    <h2 ref={headingRef} tabIndex={-1} style={{scrollMarginTop:'1rem'}}>{step===0?'What are you considering?':step===1?'Start with the property.':'Add the costs you know.'}</h2>
     <p className="decision-help">{step===0?'Get a clear first result. Refine the details when you are ready.':step===1?'Estimates are fine for a first pass. Nothing here is independently verified.':'Unknown tax and insurance use starting rate estimates. Confirm every assumption before making an offer.'}</p>
     <nav className="quick-start-progress" aria-label="First analysis progress">{['Your goal','Property','Costs'].map((label,index)=><span key={label} aria-current={step===index?'step':undefined}>{index+1}. {label}</span>)}</nav>
     {step===0?<>

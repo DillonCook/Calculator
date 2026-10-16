@@ -84,6 +84,7 @@ try {
     const journey = [];
     const snapshot = async stage => {
       const state = await evaluate(`({stage:${JSON.stringify(stage)},text:document.body.innerText,heading:document.querySelector('.deal-quick-start h2')?.textContent,active:{tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label'),text:(document.activeElement?.innerText||document.activeElement?.closest('label')?.textContent||'').slice(0,160)},invalid:[...document.querySelectorAll('.deal-quick-start input')].filter(x=>!x.validity.valid).map(x=>({label:x.closest('label')?.textContent,message:x.validationMessage})),inputs:[...document.querySelectorAll('.deal-quick-start input')].map(x=>({label:x.closest('label')?.textContent,value:x.value})),scrollY})`);
+      Object.assign(state, await evaluate(`(() => {const h=document.querySelector('.deal-quick-start h2');const help=h?.nextElementSibling;const visible=el=>{const r=el?.getBoundingClientRect();return !!r && r.top>=0 && r.bottom<=innerHeight;};return {headingFocused:!!h && document.activeElement===h,headingVisible:visible(h),helpVisible:visible(help)};})()`));
       const image = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       state.screenshot = path.join(output, `journey-${width}-${stage}.png`);
       fs.writeFileSync(state.screenshot, Buffer.from(image.data, 'base64'));
@@ -100,6 +101,13 @@ try {
       const found = await evaluate(`(() => {const input=[...document.querySelectorAll('.deal-quick-start label')].find(x=>x.firstChild?.textContent===${JSON.stringify(label)})?.querySelector('input');if(!input)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`);
       if (!found) throw new Error(`Input missing: ${label}`);
       await pause(100);
+    };
+    const pointer = async label => {
+      const point = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()===${JSON.stringify(label)});if(!b)return null;b.scrollIntoView({block:'center',behavior:'instant'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      if (!point) throw new Error(`Visible pointer control missing: ${label}`);
+      await send('Input.dispatchMouseEvent', {type:'mousePressed', ...point, button:'left', clickCount:1});
+      await send('Input.dispatchMouseEvent', {type:'mouseReleased', ...point, button:'left', clickCount:1});
+      await pause(350);
     };
     let sampleClicked = false;
     if (firstUse) {
@@ -126,6 +134,14 @@ try {
       await snapshot('back');
       await click('Next: costs');
       await snapshot('costs-retained');
+      await pointer('Back');
+      await snapshot('pointer-back');
+      await pointer('Back');
+      await snapshot('pointer-goal');
+      await pointer('Rent out a homeMonthly income and cash required');
+      await snapshot('pointer-property');
+      await pointer('Next: costs');
+      await snapshot('pointer-costs');
       await click('See my provisional result');
       await snapshot('submitted');
     } else {
@@ -143,6 +159,8 @@ try {
       result.resultVisible = await evaluate("!!document.querySelector('[aria-label=\"Deal decision summary\"]') && document.body.innerText.includes('Synthetic QA rental')");
       const at = stage => journey.find(item => item.stage === stage);
       const retained = (stage, values) => Object.entries(values).every(([label, value]) => at(stage)?.inputs.some(input => input.label === label && input.value === value));
+      result.orientationPassed = ['property','costs','back','costs-retained','pointer-back','pointer-goal','pointer-property','pointer-costs'].every(stage => at(stage)?.headingFocused && at(stage)?.headingVisible && at(stage)?.helpVisible)
+        && ['required','invalid-price'].every(stage => at(stage)?.active.tag === 'INPUT' && at(stage)?.active.text === 'Purchase price');
       result.journeyPassed = at('start')?.heading === 'What are you considering?'
         && at('required')?.heading === 'Start with the property.'
         && at('required')?.invalid.some(input => input.label === 'Purchase price')
@@ -150,7 +168,7 @@ try {
         && at('invalid-price')?.invalid.some(input => input.label === 'Purchase price')
         && retained('back', { 'Property nickname': 'Synthetic QA rental', 'Purchase price': '300000', 'Expected monthly rent': '3000', 'Down payment %': '20', 'Interest rate %': '6.875' })
         && retained('costs-retained', { 'Annual property tax': '2134.56', 'Annual insurance': '1789.50', 'Other operating costs / month': '150.25', 'Upfront rehab budget': '12780.90' })
-        && !result.sampleVisible;
+        && !result.sampleVisible && result.orientationPassed;
     }
     const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     result.screenshot = path.join(output, `qa-${width}.png`);
