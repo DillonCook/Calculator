@@ -16,6 +16,8 @@ const output = path.resolve(process.argv[3] || path.join(os.tmpdir(), 'dealcooke
 fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
+const firstUse = process.argv[4] === '--first-use';
+if (process.argv[4] && !firstUse) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -68,6 +70,8 @@ try {
   await send('Page.enable');
   await send('Network.enable');
   await send('Runtime.enable');
+  // Only the temporary, isolated QA profile is cleared; never a user's browser.
+  if (firstUse) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
   const results = [];
   for (const width of [1440, 390]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: width === 390 ? 844 : 1000, deviceScaleFactor: 1, mobile: width === 390 });
@@ -77,7 +81,56 @@ try {
       await pause(100);
     }
     await pause(750);
-    const sampleClicked = await evaluate("(() => {const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Try a sample property');if(b)b.click();return !!b;})()");
+    const journey = [];
+    const snapshot = async stage => {
+      const state = await evaluate(`({stage:${JSON.stringify(stage)},text:document.body.innerText,heading:document.querySelector('.deal-quick-start h2')?.textContent,active:{tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label'),text:(document.activeElement?.innerText||document.activeElement?.closest('label')?.textContent||'').slice(0,160)},invalid:[...document.querySelectorAll('.deal-quick-start input')].filter(x=>!x.validity.valid).map(x=>({label:x.closest('label')?.textContent,message:x.validationMessage})),inputs:[...document.querySelectorAll('.deal-quick-start input')].map(x=>({label:x.closest('label')?.textContent,value:x.value})),scrollY})`);
+      const image = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      state.screenshot = path.join(output, `journey-${width}-${stage}.png`);
+      fs.writeFileSync(state.screenshot, Buffer.from(image.data, 'base64'));
+      journey.push(state);
+    };
+    const click = async label => {
+      const found = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()===${JSON.stringify(label)});if(b)b.focus();return !!b;})()`);
+      if (!found) throw new Error(`Visible control missing: ${label}`);
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', unmodifiedText: '\r', windowsVirtualKeyCode: 13 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+      await pause(350);
+    };
+    const fill = async (label, value) => {
+      const found = await evaluate(`(() => {const input=[...document.querySelectorAll('.deal-quick-start label')].find(x=>x.firstChild?.textContent===${JSON.stringify(label)})?.querySelector('input');if(!input)return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`);
+      if (!found) throw new Error(`Input missing: ${label}`);
+      await pause(100);
+    };
+    let sampleClicked = false;
+    if (firstUse) {
+      await snapshot('start');
+      await click('Rent out a homeMonthly income and cash required');
+      await snapshot('property');
+      await click('Next: costs');
+      await snapshot('required');
+      await fill('Purchase price', '-1');
+      await fill('Expected monthly rent', '3000');
+      await click('Next: costs');
+      await snapshot('invalid-price');
+      await fill('Property nickname', 'Synthetic QA rental');
+      await fill('Purchase price', '300000');
+      await fill('Down payment %', '20');
+      await fill('Interest rate %', '6.875');
+      await click('Next: costs');
+      await snapshot('costs');
+      await fill('Annual property tax', '2134.56');
+      await fill('Annual insurance', '1789.50');
+      await fill('Other operating costs / month', '150.25');
+      await fill('Upfront rehab budget', '12780.90');
+      await click('Back');
+      await snapshot('back');
+      await click('Next: costs');
+      await snapshot('costs-retained');
+      await click('See my provisional result');
+      await snapshot('submitted');
+    } else {
+      sampleClicked = await evaluate("(() => {const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Try a sample property');if(b)b.click();return !!b;})()");
+    }
     await pause(600);
     if (width === 390) {
       await evaluate("(() => {document.querySelector('[aria-label=\"Dismiss install prompt\"]')?.click(); const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Results' && x.getClientRects().length);b?.click();})()");
@@ -85,13 +138,27 @@ try {
     }
     const result = await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),sampleVisible:document.body.innerText.includes('FICTIONAL SAMPLE'),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`);
     result.sampleClicked = sampleClicked;
+    if (firstUse) {
+      result.journey = journey;
+      result.resultVisible = await evaluate("!!document.querySelector('[aria-label=\"Deal decision summary\"]') && document.body.innerText.includes('Synthetic QA rental')");
+      const at = stage => journey.find(item => item.stage === stage);
+      const retained = (stage, values) => Object.entries(values).every(([label, value]) => at(stage)?.inputs.some(input => input.label === label && input.value === value));
+      result.journeyPassed = at('start')?.heading === 'What are you considering?'
+        && at('required')?.heading === 'Start with the property.'
+        && at('required')?.invalid.some(input => input.label === 'Purchase price')
+        && at('invalid-price')?.heading === 'Start with the property.'
+        && at('invalid-price')?.invalid.some(input => input.label === 'Purchase price')
+        && retained('back', { 'Property nickname': 'Synthetic QA rental', 'Purchase price': '300000', 'Expected monthly rent': '3000', 'Down payment %': '20', 'Interest rate %': '6.875' })
+        && retained('costs-retained', { 'Annual property tax': '2134.56', 'Annual insurance': '1789.50', 'Other operating costs / month': '150.25', 'Upfront rehab budget': '12780.90' })
+        && !result.sampleVisible;
+    }
     const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     result.screenshot = path.join(output, `qa-${width}.png`);
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => result.sampleVisible && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
