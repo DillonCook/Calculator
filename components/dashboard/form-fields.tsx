@@ -101,7 +101,9 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
               event.preventDefault();
               event.stopPropagation();
               clearCloseTimer();
-              setIsTooltipOpen((prev) => !prev);
+              // Hover/focus may already have opened help before this click.
+              // Activation must reveal it, not immediately toggle it closed.
+              setIsTooltipOpen(true);
             }}
           >
             i

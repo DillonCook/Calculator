@@ -17,7 +17,8 @@ fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
 const firstUse = process.argv[4] === '--first-use';
-if (process.argv[4] && !firstUse) throw new Error('Unknown QA journey.');
+const inputHelp = process.argv[4] === '--input-help';
+if (process.argv[4] && !firstUse && !inputHelp) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -153,6 +154,48 @@ try {
       await pause(400);
     }
     const result = await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),sampleVisible:document.body.innerText.includes('FICTIONAL SAMPLE'),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`);
+    if (inputHelp) {
+      // Exercise native pointer/focus/click order, not HTMLElement.click alone.
+      await evaluate(`(() => {document.querySelector('[aria-label="Dismiss install prompt"]')?.click();const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()==='Build');b?.click();})()`);
+      await pause(300);
+      await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && (x.getAttribute('aria-label')||x.textContent.trim()).startsWith('Expenses'));if(!b)throw Error('Expenses tab missing');b.click();})()`);
+      await pause(300);
+      const selector = 'button[aria-label="More info about Auto Tax %"]';
+      const point = await evaluate(`(() => {const b=[...document.querySelectorAll(${JSON.stringify(selector)})].find(x=>x.getClientRects().length);if(!b)throw Error('Visible tax help missing');b.scrollIntoView({block:'center',behavior:'instant'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      const fieldValues = () => evaluate(`JSON.stringify([...document.querySelectorAll('input')].filter(x=>x.getClientRects().length).map(x=>[x.getAttribute('aria-label'),x.value]))`);
+      const before = await fieldValues();
+      if (width === 390) {
+        await send('Emulation.setTouchEmulationEnabled', {enabled:true});
+        await send('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[point]});
+        await send('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]});
+      } else {
+        await send('Input.dispatchMouseEvent', {type:'mouseMoved',...point});
+        await send('Input.dispatchMouseEvent', {type:'mousePressed',...point,button:'left',clickCount:1});
+        await send('Input.dispatchMouseEvent', {type:'mouseReleased',...point,button:'left',clickCount:1});
+      }
+      await pause(250);
+      result.help = await evaluate(`(() => {const d=[...document.querySelectorAll('[role="dialog"]')].find(x=>x.textContent.includes('automatic annual property tax'));const r=d?.getBoundingClientRect();return {pointerOpened:!!d,text:d?.textContent,inViewport:!!r && r.top>=0 && r.left>=0 && r.bottom<=innerHeight && r.right<=innerWidth};})()`);
+      const helpImage = await send('Page.captureScreenshot', {format:'png',captureBeyondViewport:false});
+      result.help.screenshot = path.join(output, `help-${width}.png`);
+      fs.writeFileSync(result.help.screenshot, Buffer.from(helpImage.data,'base64'));
+      await send('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+      await send('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+      await pause(150);
+      result.help.escapeClosed = await evaluate(`!document.querySelector('.tooltip-surface[role="dialog"]')`);
+      await evaluate(`(() => {const b=[...document.querySelectorAll(${JSON.stringify(selector)})].find(x=>x.getClientRects().length);b.blur();b.focus();})()`);
+      await send('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13});
+      await send('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+      await pause(250);
+      result.help.keyboardOpened = await evaluate(`!!document.querySelector('.tooltip-surface[role="dialog"]')`);
+      await send('Input.dispatchMouseEvent', {type:'mousePressed',x:2,y:2,button:'left',clickCount:1});
+      await send('Input.dispatchMouseEvent', {type:'mouseReleased',x:2,y:2,button:'left',clickCount:1});
+      await pause(150);
+      result.help.outsideClosed = await evaluate(`!document.querySelector('.tooltip-surface[role="dialog"]')`);
+      result.help.inputsUnchanged = before === await fieldValues();
+      result.help.passed = result.help.pointerOpened && result.help.inViewport && result.help.escapeClosed && result.help.keyboardOpened && result.help.outsideClosed && result.help.inputsUnchanged;
+      await send('Emulation.setTouchEmulationEnabled', {enabled:false});
+      Object.assign(result, await evaluate(`({gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
+    }
     result.sampleClicked = sampleClicked;
     if (firstUse) {
       result.journey = journey;
@@ -175,8 +218,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
