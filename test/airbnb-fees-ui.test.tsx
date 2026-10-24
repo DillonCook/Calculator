@@ -40,7 +40,7 @@ describe('Input help activation', () => {
     const onChange = vi.fn();
     render(<Input label="Purchase price" value={300000} onChange={onChange} type="number" tooltip="The amount paid for the property." />);
     await user.click(screen.getByRole('button', {name:'More info about Purchase price'}));
-    expect(screen.getByRole('dialog')).toHaveTextContent('The amount paid for the property.');
+    expect(await screen.findByRole('dialog')).toHaveTextContent('The amount paid for the property.');
     expect(screen.getByRole('spinbutton', {name:'Purchase price'})).toHaveValue(300000);
     expect(onChange).not.toHaveBeenCalled();
   });
