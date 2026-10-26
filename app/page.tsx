@@ -2133,7 +2133,7 @@ export default function HomePage() {
   }, [saveStatus]);
 
   useEffect(() => {
-    if (!shareFeedback) return;
+    if (!shareFeedback || shareFeedback.fallbackUrl) return;
     const timer = window.setTimeout(() => setShareFeedback(null), 3200);
     return () => window.clearTimeout(timer);
   }, [shareFeedback]);
@@ -3126,7 +3126,11 @@ export default function HomePage() {
   const showShareFeedback = (
     anchor: ShareFeedbackAnchor,
     feedback: Omit<ShareFeedbackState, 'anchor'>
-  ) => setShareFeedback({ ...feedback, anchor });
+  ) => {
+    // Keep the manual recovery panel reachable instead of behind the settings sheet.
+    if (feedback.fallbackUrl && anchor === 'mobile-menu-trigger') setCompactSheetView(null);
+    setShareFeedback({ ...feedback, anchor });
+  };
 
   const shareCurrentDeal = async (anchor: ShareFeedbackAnchor = 'desktop-share') => {
     if (currentUser?.id) {
@@ -4542,11 +4546,11 @@ export default function HomePage() {
 
     const isSuccess = shareFeedback.tone === 'success';
 
-    return (
+    const toast = (
       <div
         role="status"
-        className={`absolute top-full z-[190] mt-2 w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border px-3 py-2 text-xs font-semibold shadow-soft ${
-          align === 'right' ? 'right-0' : 'left-0'
+        className={`z-[190] w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-xl border px-3 py-2 text-xs font-semibold shadow-soft ${
+          shareFeedback.fallbackUrl ? 'fixed right-4 top-4' : `absolute top-full mt-2 ${align === 'right' ? 'right-0' : 'left-0'}`
         } ${
           isSuccess
             ? 'border-emerald-300/65 bg-emerald-500 text-emerald-950 shadow-[0_12px_28px_rgba(16,185,129,0.28)]'
@@ -4555,10 +4559,24 @@ export default function HomePage() {
       >
         <p>{shareFeedback.message}</p>
         {shareFeedback.fallbackUrl ? (
-          <p className="mt-1 max-w-[16rem] truncate text-[10px] font-medium opacity-85">{shareFeedback.fallbackUrl}</p>
+          <>
+            <p className="mt-2 font-normal">Select the full link below, then copy it using your device.</p>
+            <textarea
+              aria-label="Share link"
+              readOnly
+              rows={3}
+              value={shareFeedback.fallbackUrl}
+              onFocus={(event) => event.currentTarget.select()}
+              onClick={(event) => event.currentTarget.select()}
+              className="mt-2 block w-full min-w-0 resize-none rounded border border-white/60 bg-white p-2 text-xs font-normal text-slate-950"
+            />
+            <button type="button" aria-label="Dismiss share message" className="mt-2 min-h-11 rounded border border-white/60 px-3 py-2" onClick={() => setShareFeedback(null)}>Dismiss</button>
+          </>
         ) : null}
       </div>
     );
+    // Header overflow clips a larger recovery panel on mobile. Keep it outside that container.
+    return shareFeedback.fallbackUrl ? createPortal(toast, document.body) : toast;
   };
 
   const dealIdentitySheet = (

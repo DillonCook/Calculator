@@ -2636,6 +2636,35 @@ describe('dashboard integration', () => {
     expect(screen.getAllByText(/New Deal/i).length).toBeGreaterThan(0);
   }, 20000);
 
+  it.each([false, true])('keeps a selectable full share link available after clipboard denial until dismissed (signed in: %s)', async (signedIn) => {
+    if (signedIn) authMockState.user = { id: 'share-recovery-user', email: 'synthetic@example.test' };
+    render(<HomePage />);
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new DOMException('Denied', 'NotAllowedError')) }
+    });
+
+    await user.click(screen.getAllByRole('button', { name: 'Send link' })[0]);
+    const link = await screen.findByRole('textbox', { name: 'Share link' });
+    const url = (link as HTMLTextAreaElement).value;
+    if (signedIn) {
+      expect(new URL(url).pathname).toMatch(/^\/s\/[A-Za-z0-9_-]{8}$/);
+      expect(authMockState.shareInsertCalls).toHaveLength(1);
+    } else {
+      expect(url).toContain('?s=');
+      expect(decodeDealFromShareParam(new URL(url).searchParams.get('s')!)).not.toBeNull();
+    }
+    expect(link).toHaveAttribute('readonly');
+    await user.click(link);
+    expect((link as HTMLTextAreaElement).selectionStart).toBe(0);
+    expect((link as HTMLTextAreaElement).selectionEnd).toBe(url.length);
+    await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 3400)); });
+    expect(screen.getByRole('textbox', { name: 'Share link' })).toHaveValue(url);
+    await user.click(screen.getByRole('button', { name: 'Dismiss share message' }));
+    expect(screen.queryByRole('textbox', { name: 'Share link' })).not.toBeInTheDocument();
+  }, 15000);
+
   it('share link feedback auto-dismisses after a few seconds', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
