@@ -2901,6 +2901,58 @@ describe('dashboard integration', () => {
     expect(screen.getByText('Full report link copied. Sign in for short links.')).toBeInTheDocument();
   });
 
+  it('keeps the exact report URL selectable after clipboard denial until dismissed', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new DOMException('Denied', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    window.history.pushState({}, '', '/print?scenario=synthetic-report&strategy=longTerm');
+    const expectedUrl = window.location.href;
+    render(<PrintActions scenarioToken={encodeScenario(createScenarioRecord(defaultDealInput))} strategy="longTerm" />);
+
+    await user.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+    const recovery = await screen.findByRole('textbox', { name: 'Report share link' });
+    expect(recovery).toHaveValue(expectedUrl);
+    expect(recovery).toHaveAttribute('readonly');
+    await user.click(recovery);
+    expect((recovery as HTMLTextAreaElement).selectionStart).toBe(0);
+    expect((recovery as HTMLTextAreaElement).selectionEnd).toBe(expectedUrl.length);
+    expect(screen.getByRole('status')).toHaveTextContent('Could not copy link.');
+    expect(screen.getByRole('button', { name: 'Copy Shareable Link' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Dismiss report share message' }));
+    expect(screen.queryByRole('textbox', { name: 'Report share link' })).not.toBeInTheDocument();
+  });
+
+  it('retains the attempted short report URL when copying is denied', async () => {
+    authMockState.user = { id: 'report-recovery-user', email: 'synthetic@example.com' };
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new DOMException('Denied', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    window.history.pushState({}, '', '/print?scenario=synthetic-report&strategy=airbnb');
+    render(<PrintActions scenarioToken={encodeScenario(createScenarioRecord(defaultDealInput))} strategy="airbnb" />);
+
+    await user.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+    const recovery = await screen.findByRole('textbox', { name: 'Report share link' });
+    const attemptedUrl = writeText.mock.calls[0][0] as string;
+    expect(new URL(attemptedUrl).pathname).toMatch(/^\/r\/[A-Za-z0-9_-]{8}$/);
+    expect(new URL(attemptedUrl).searchParams.get('strategy')).toBe('airbnb');
+    expect(recovery).toHaveValue(attemptedUrl);
+    expect(authMockState.shareInsertCalls).toHaveLength(1);
+    expect(screen.getByRole('status')).not.toHaveTextContent('copied.');
+  });
+
+  it('replaces report recovery with success when copying works on the next attempt', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValueOnce(new DOMException('Denied', 'NotAllowedError')).mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    render(<PrintActions />);
+    await user.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+    expect(await screen.findByRole('textbox', { name: 'Report share link' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Copy Shareable Link' }));
+    expect(await screen.findByText('Full report link copied. Sign in for short links.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Report share link' })).not.toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledTimes(2);
+  });
+
   it('copies a short print report URL for signed-in users', async () => {
     authMockState.user = {
       id: 'report-user-1',

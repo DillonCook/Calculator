@@ -19,7 +19,8 @@ const debugPort = 9337;
 const firstUse = process.argv[4] === '--first-use';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
-if (process.argv[4] && !firstUse && !inputHelp && !shareFallback) throw new Error('Unknown QA journey.');
+const reportShareFallback = process.argv[4] === '--report-share-fallback';
+if (process.argv[4] && !firstUse && !inputHelp && !shareFallback && !reportShareFallback) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -74,8 +75,9 @@ try {
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
   if (firstUse) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
-  if (shareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
+  if (shareFallback || reportShareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
+  let sampleReportHref;
   for (const width of [1440, 390]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: width === 390 ? 844 : 1000, deviceScaleFactor: 1, mobile: width === 390 });
     await send('Page.navigate', { url: url.href });
@@ -105,11 +107,17 @@ try {
       if (!found) throw new Error(`Input missing: ${label}`);
       await pause(100);
     };
-    const pointer = async label => {
+    const pointer = async (label, touch = false) => {
       const point = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && (x.getAttribute('aria-label') || x.textContent.trim())===${JSON.stringify(label)});if(!b)return null;b.scrollIntoView({block:'center',behavior:'instant'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
       if (!point) throw new Error(`Visible pointer control missing: ${label}`);
-      await send('Input.dispatchMouseEvent', {type:'mousePressed', ...point, button:'left', clickCount:1});
-      await send('Input.dispatchMouseEvent', {type:'mouseReleased', ...point, button:'left', clickCount:1});
+      if (touch) {
+        await send('Emulation.setTouchEmulationEnabled',{enabled:true});
+        await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});
+        await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      } else {
+        await send('Input.dispatchMouseEvent', {type:'mousePressed', ...point, button:'left', clickCount:1});
+        await send('Input.dispatchMouseEvent', {type:'mouseReleased', ...point, button:'left', clickCount:1});
+      }
       await pause(350);
     };
     let sampleClicked = false;
@@ -228,6 +236,48 @@ try {
       await send('Emulation.setTouchEmulationEnabled',{enabled:false});
       Object.assign(result,await evaluate(`({scrollWidth:document.documentElement.scrollWidth,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
     }
+    if (reportShareFallback) {
+      // Reuse the actual sample report link for compact layouts with no mounted anchor.
+      const reportHref = await evaluate(`document.querySelector('a[href^="/print?scenario="]')?.getAttribute('href')`) || sampleReportHref;
+      if (!reportHref) throw new Error('Report link missing from sample deal.');
+      sampleReportHref=reportHref;
+      const reportUrl = new URL(reportHref, url.origin);
+      if (reportUrl.origin!==url.origin || reportUrl.pathname!=='/print') throw new Error('Unexpected report destination.');
+      reportUrl.searchParams.set('dc_qa', '1');
+      reportUrl.searchParams.set('dc_analytics', 'off');
+      await send('Page.navigate', {url:reportUrl.href});
+      for (let attempt=0;attempt<50;attempt++) {
+        if(await evaluate(`document.readyState==='complete' && !![...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Copy Shareable Link')`)) break;
+        await pause(100);
+      }
+      await pause(750);
+      await pointer('Copy Shareable Link',width===390);
+      const readRecovery=()=>evaluate(`(() => {const f=document.querySelector('textarea[aria-label="Report share link"]');const b=document.querySelector('button[aria-label="Dismiss report share message"]');const r=f?.getBoundingClientRect();const br=b?.getBoundingClientRect();const hit=(e,r)=>!!e && !!r && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));return {present:!!f,urlMatches:!!f && f.value===location.href,readOnly:f?.readOnly,selected:!!f && f.selectionStart===0 && f.selectionEnd===f.value.length,inViewport:!!r && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight,unclipped:hit(f,r)&&hit(b,br),message:document.body.innerText.includes('Could not copy link.'),text:document.body.innerText.slice(0,500)};})()`);
+      const field=await evaluate(`(() => {const f=document.querySelector('textarea[aria-label="Report share link"]');f?.scrollIntoView({block:'center',behavior:'instant'});const r=f?.getBoundingClientRect();return r?{x:r.x+r.width/2,y:r.y+r.height/2}:null;})()`);
+      if(field) {
+        if(width===390) {
+          await send('Emulation.setTouchEmulationEnabled',{enabled:true});
+          await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[field]});
+          await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        } else {
+          await send('Input.dispatchMouseEvent',{type:'mousePressed',...field,button:'left',clickCount:1});
+          await send('Input.dispatchMouseEvent',{type:'mouseReleased',...field,button:'left',clickCount:1});
+        }
+        await pause(100);
+      }
+      result.reportShareFallback={initial:await readRecovery()};
+      await pause(3500);
+      result.reportShareFallback.afterTimeout=await readRecovery();
+      const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      result.reportShareFallback.screenshot=path.join(output,`report-share-fallback-${width}.png`);
+      fs.writeFileSync(result.reportShareFallback.screenshot,Buffer.from(image.data,'base64'));
+      if(await evaluate(`!!document.querySelector('button[aria-label="Dismiss report share message"]')`)) await pointer('Dismiss report share message',width===390);
+      result.reportShareFallback.dismissed=!(await readRecovery()).present;
+      const initial=result.reportShareFallback.initial;
+      result.reportShareFallback.passed=initial.present && initial.urlMatches && initial.readOnly && initial.selected && initial.inViewport && initial.unclipped && initial.message && result.reportShareFallback.afterTimeout.unclipped && result.reportShareFallback.dismissed;
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      Object.assign(result,await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
+    }
     result.sampleClicked = sampleClicked;
     if (firstUse) {
       result.journey = journey;
@@ -250,8 +300,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
