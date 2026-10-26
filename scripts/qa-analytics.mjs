@@ -18,7 +18,8 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'
 const debugPort = 9337;
 const firstUse = process.argv[4] === '--first-use';
 const inputHelp = process.argv[4] === '--input-help';
-if (process.argv[4] && !firstUse && !inputHelp) throw new Error('Unknown QA journey.');
+const shareFallback = process.argv[4] === '--share-fallback';
+if (process.argv[4] && !firstUse && !inputHelp && !shareFallback) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -73,6 +74,7 @@ try {
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
   if (firstUse) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
+  if (shareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
   for (const width of [1440, 390]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: width === 390 ? 844 : 1000, deviceScaleFactor: 1, mobile: width === 390 });
@@ -92,7 +94,7 @@ try {
       journey.push(state);
     };
     const click = async label => {
-      const found = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()===${JSON.stringify(label)});if(b)b.focus();return !!b;})()`);
+      const found = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && (x.getAttribute('aria-label') || x.textContent.trim())===${JSON.stringify(label)});if(b)b.focus();return !!b;})()`);
       if (!found) throw new Error(`Visible control missing: ${label}`);
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', unmodifiedText: '\r', windowsVirtualKeyCode: 13 });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
@@ -104,7 +106,7 @@ try {
       await pause(100);
     };
     const pointer = async label => {
-      const point = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()===${JSON.stringify(label)});if(!b)return null;b.scrollIntoView({block:'center',behavior:'instant'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+      const point = await evaluate(`(() => {const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && (x.getAttribute('aria-label') || x.textContent.trim())===${JSON.stringify(label)});if(!b)return null;b.scrollIntoView({block:'center',behavior:'instant'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
       if (!point) throw new Error(`Visible pointer control missing: ${label}`);
       await send('Input.dispatchMouseEvent', {type:'mousePressed', ...point, button:'left', clickCount:1});
       await send('Input.dispatchMouseEvent', {type:'mouseReleased', ...point, button:'left', clickCount:1});
@@ -196,6 +198,36 @@ try {
       await send('Emulation.setTouchEmulationEnabled', {enabled:false});
       Object.assign(result, await evaluate(`({gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
     }
+    if (shareFallback) {
+      await evaluate(`document.querySelector('[aria-label="Dismiss install prompt"]')?.click()`);
+      if (width===390) await pointer('Open settings');
+      await pointer('Send link');
+      const readFallback = () => evaluate(`(() => {const f=document.querySelector('textarea[aria-label="Share link"]');const r=f?.getBoundingClientRect();const b=[...document.querySelectorAll('button')].find(x=>x.getAttribute('aria-label')==='Dismiss share message');const br=b?.getBoundingClientRect();const hittable=(el,rect)=>!!el && !!rect && el.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));return {message:document.body.innerText.includes('Copy failed. Use this link manually.'),present:!!f,length:f?.value.length ?? 0,readOnly:f?.readOnly ?? false,selected:!!f && f.selectionStart===0 && f.selectionEnd===f.value.length,unclipped:hittable(f,r) && hittable(b,br),inViewport:!!r && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight};})()`);
+      const fieldPoint = await evaluate(`(() => {const f=document.querySelector('textarea[aria-label="Share link"]');const r=f?.getBoundingClientRect();return r?{x:r.x+r.width/2,y:r.y+r.height/2}:null;})()`);
+      if (fieldPoint) {
+        if (width===390) {
+          await send('Emulation.setTouchEmulationEnabled',{enabled:true});
+          await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[fieldPoint]});
+          await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        } else {
+          await send('Input.dispatchMouseEvent',{type:'mousePressed',...fieldPoint,button:'left',clickCount:1});
+          await send('Input.dispatchMouseEvent',{type:'mouseReleased',...fieldPoint,button:'left',clickCount:1});
+        }
+        await pause(100);
+      }
+      result.shareFallback = {initial:await readFallback()};
+      await pause(3500);
+      result.shareFallback.afterTimeout=await readFallback();
+      const recoveryImage=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      result.shareFallback.screenshot=path.join(output,`share-fallback-${width}.png`);
+      fs.writeFileSync(result.shareFallback.screenshot,Buffer.from(recoveryImage.data,'base64'));
+      const hasDismiss=await evaluate(`!![...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()==='Dismiss')`);
+      if(hasDismiss) await pointer('Dismiss share message');
+      result.shareFallback.dismissed=!(await readFallback()).present;
+      result.shareFallback.passed=result.shareFallback.initial.message && result.shareFallback.initial.length>100 && result.shareFallback.initial.readOnly && result.shareFallback.initial.selected && result.shareFallback.initial.inViewport && result.shareFallback.initial.unclipped && result.shareFallback.afterTimeout.unclipped && result.shareFallback.afterTimeout.present && result.shareFallback.dismissed;
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      Object.assign(result,await evaluate(`({scrollWidth:document.documentElement.scrollWidth,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
+    }
     result.sampleClicked = sampleClicked;
     if (firstUse) {
       result.journey = journey;
@@ -218,8 +250,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
