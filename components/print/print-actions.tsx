@@ -16,7 +16,7 @@ interface PrintActionsProps {
 }
 
 export function PrintActions({ documentTitle, scenarioToken, strategy }: PrintActionsProps) {
-  const [copyFeedback, setCopyFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<{ tone: 'success' | 'error'; message: string; fallbackUrl?: string } | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [browserLocation, setBrowserLocation] = useState<{ origin: string; href: string } | null>(null);
   useEffect(() => {
@@ -47,6 +47,7 @@ export function PrintActions({ documentTitle, scenarioToken, strategy }: PrintAc
     if (!reportUrl) return;
 
     setIsCopying(true);
+    setCopyFeedback(null);
     let urlToCopy = reportUrl;
     let copiedShortUrl = false;
     let canAttemptShortLink = false;
@@ -93,7 +94,7 @@ export function PrintActions({ documentTitle, scenarioToken, strategy }: PrintAc
         message: copiedShortUrl ? 'Short report link copied.' : canAttemptShortLink ? 'Full report link copied.' : 'Full report link copied. Sign in for short links.'
       });
     } catch {
-      setCopyFeedback({ tone: 'error', message: 'Could not copy link.' });
+      setCopyFeedback({ tone: 'error', message: 'Could not copy link. Select and copy the link below.', fallbackUrl: urlToCopy });
     } finally {
       setIsCopying(false);
     }
@@ -124,7 +125,32 @@ export function PrintActions({ documentTitle, scenarioToken, strategy }: PrintAc
       >
         Print / Save PDF
       </button>
-      {copyFeedback ? <span className={`text-xs ${copyFeedback.tone === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>{copyFeedback.message}</span> : null}
+      {copyFeedback ? (
+        <div role="status" className={`min-w-0 text-xs ${copyFeedback.fallbackUrl ? 'basis-full rounded-xl border border-rose-200 bg-white p-3 text-rose-700' : 'text-emerald-600'}`}>
+          <p>{copyFeedback.message}</p>
+          {copyFeedback.fallbackUrl ? (
+            <>
+              <textarea
+                aria-label="Report share link"
+                className="mt-2 block w-full min-w-0 resize-none rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
+                readOnly
+                rows={3}
+                value={copyFeedback.fallbackUrl}
+                onFocus={(event) => event.currentTarget.select()}
+                onClick={(event) => event.currentTarget.select()}
+              />
+              <button
+                aria-label="Dismiss report share message"
+                className="print-action-secondary mt-2 rounded-lg px-3 py-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600"
+                onClick={() => setCopyFeedback(null)}
+                type="button"
+              >
+                Dismiss
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
