@@ -122,7 +122,7 @@ import { calculateCashToClose } from '../lib/engine/finance';
 import { defaultDealInput } from '../lib/models/deal';
 import { currencyFormatter, percentFormatter } from '../lib/formatters';
 import { getTotalCashInvested } from '../lib/projection-metrics';
-import { createScenarioRecord, encodeScenario, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
+import { createScenarioRecord, decodeScenario, encodeScenario, setScenarioStorageOwner, writeScenarios } from '../lib/scenario-storage';
 import { decodeDealFromShareParam, encodeDealToShareParam } from '../lib/share-link';
 
 const getStrategyButton = (label: string) =>
@@ -1682,6 +1682,29 @@ describe('dashboard integration', () => {
     expect(within(dialog).getByRole('button', { name: 'Send feedback' })).toBeInTheDocument();
     expect((dialog.textContent ?? '').indexOf('Actions')).toBeLessThan((dialog.textContent ?? '').indexOf('Account'));
     expect(within(dialog).queryByText('Deals Vault')).not.toBeInTheDocument();
+  });
+
+  it('opens the current deal report from compact Print to PDF instead of printing settings', async () => {
+    setViewport(390);
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    try {
+      render(<HomePage />);
+      window.dispatchEvent(new Event('resize'));
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Open settings' }));
+      const dialog = screen.getByRole('dialog', { name: 'Settings' });
+      await user.click(within(dialog).getByRole('button', { name: 'Print to PDF' }));
+      expect(print).not.toHaveBeenCalled();
+      expect(open).toHaveBeenCalledWith(expect.stringMatching(/^\/print\?scenario=.+&strategy=/), '_blank', 'noopener,noreferrer');
+      const href = String(open.mock.calls[0][0]);
+      const params = new URL(href, 'https://www.dealcooker.app').searchParams;
+      expect(decodeScenario(params.get('scenario') ?? '')?.payload.purchase.dealName).toBe('Test Seed Deal');
+      expect(params.get('strategy')).toBe('longTerm');
+    } finally {
+      open.mockRestore();
+      print.mockRestore();
+    }
   });
 
   it('allows selecting one to many projection strategies on mobile', async () => {

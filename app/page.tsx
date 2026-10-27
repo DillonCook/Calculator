@@ -4272,7 +4272,7 @@ export default function HomePage() {
           type="button"
           onClick={() => {
             triggerHapticFeedback('light');
-            window.print();
+            window.open(printToPdfUrl, '_blank', 'noopener,noreferrer');
           }}
           className="tap-feedback section-action section-action-utility settings-action-button w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium"
         >
