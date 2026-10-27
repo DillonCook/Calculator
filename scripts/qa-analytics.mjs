@@ -19,7 +19,8 @@ const debugPort = 9337;
 const firstUse = process.argv[4] === '--first-use';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
-const reportShareFallback = process.argv[4] === '--report-share-fallback';
+const reportLaunch = process.argv[4] === '--report-launch';
+const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
 if (process.argv[4] && !firstUse && !inputHelp && !shareFallback && !reportShareFallback) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
@@ -236,9 +237,34 @@ try {
       await send('Emulation.setTouchEmulationEnabled',{enabled:false});
       Object.assign(result,await evaluate(`({scrollWidth:document.documentElement.scrollWidth,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x))})`));
     }
-    if (reportShareFallback) {
-      // Reuse the actual sample report link for compact layouts with no mounted anchor.
-      const reportHref = await evaluate(`document.querySelector('a[href^="/print?scenario="]')?.getAttribute('href')`) || sampleReportHref;
+    let launchedReportHref;
+    if (reportLaunch) {
+      // Capture browser boundaries only: do not open a real print dialog or an
+      // uninstrumented popup. Navigate to the captured exact URL with QA flags below.
+      await evaluate(`(() => {window.__qaPrintCalls=0;window.__qaReportUrl=null;window.print=()=>{window.__qaPrintCalls++};window.open=(href)=>{window.__qaReportUrl=String(href);return null;};document.addEventListener('click',e=>{const a=e.target.closest('a[href^="/print?scenario="]');if(a){e.preventDefault();window.__qaReportUrl=a.getAttribute('href');}},true);})()`);
+      await evaluate(`document.querySelector('[aria-label="Dismiss install prompt"]')?.click()`);
+      if (width===390) {
+        await pointer('Open settings',true);
+        await pointer('Print to PDF',true);
+      } else {
+        const point=await evaluate(`(() => {const a=[...document.querySelectorAll('a')].find(x=>x.getClientRects().length && x.getAttribute('aria-label')==='Print to PDF');if(!a)return null;a.scrollIntoView({block:'center',behavior:'instant'});const r=a.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+        if(!point) throw new Error('Visible desktop report link missing.');
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});
+        await pause(350);
+      }
+      result.reportLaunch=await evaluate(`({url:window.__qaReportUrl,printedCalculator:window.__qaPrintCalls,settingsOpen:!!document.querySelector('[role="dialog"][aria-label="Settings"]')})`);
+      launchedReportHref=result.reportLaunch.url;
+      result.reportLaunch.passed=typeof launchedReportHref==='string' && launchedReportHref.startsWith('/print?scenario=') && launchedReportHref.includes('&strategy=') && result.reportLaunch.printedCalculator===0;
+      const launchImage=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      result.reportLaunch.screenshot=path.join(output,`report-launch-${width}.png`);
+      fs.writeFileSync(result.reportLaunch.screenshot,Buffer.from(launchImage.data,'base64'));
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+    }
+    if (reportShareFallback && (!reportLaunch || result.reportLaunch.passed)) {
+      // The legacy recovery-only journey can reuse a desktop URL; report-launch
+      // must obtain its own URL through each viewport's actual visible action.
+      const reportHref = reportLaunch ? launchedReportHref : await evaluate(`document.querySelector('a[href^="/print?scenario="]')?.getAttribute('href')`) || sampleReportHref;
       if (!reportHref) throw new Error('Report link missing from sample deal.');
       sampleReportHref=reportHref;
       const reportUrl = new URL(reportHref, url.origin);
@@ -273,6 +299,17 @@ try {
       fs.writeFileSync(result.reportShareFallback.screenshot,Buffer.from(image.data,'base64'));
       if(await evaluate(`!!document.querySelector('button[aria-label="Dismiss report share message"]')`)) await pointer('Dismiss report share message',width===390);
       result.reportShareFallback.dismissed=!(await readRecovery()).present;
+      if (reportLaunch) {
+        await evaluate(`window.__qaReportPrintCalls=0;window.print=()=>{window.__qaReportPrintCalls++}`);
+        await pointer('Print / Save PDF',width===390);
+        result.reportLaunch.reportPrintCalled=await evaluate(`window.__qaReportPrintCalls===1`);
+        const pdf=await send('Page.printToPDF',{printBackground:true,preferCSSPageSize:true});
+        const bytes=Buffer.from(pdf.data,'base64');
+        result.reportLaunch.pdf=path.join(output,`report-${width}.pdf`);
+        result.reportLaunch.pdfValid=bytes.subarray(0,5).toString()==='%PDF-' && bytes.length>1000;
+        fs.writeFileSync(result.reportLaunch.pdf,bytes);
+        result.reportLaunch.passed=result.reportLaunch.passed && result.reportLaunch.reportPrintCalled && result.reportLaunch.pdfValid;
+      }
       const initial=result.reportShareFallback.initial;
       result.reportShareFallback.passed=initial.present && initial.urlMatches && initial.readOnly && initial.selected && initial.inViewport && initial.unclipped && initial.message && result.reportShareFallback.afterTimeout.unclipped && result.reportShareFallback.dismissed;
       await send('Emulation.setTouchEmulationEnabled',{enabled:false});
@@ -300,8 +337,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
