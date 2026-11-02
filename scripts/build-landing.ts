@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import sharp from 'sharp';
 import { calculateDeal } from '../lib/engine/deal-engine';
 import { defaultDealInput, type DealInputModel, type StrategyKey } from '../lib/models/deal';
 
@@ -446,7 +447,7 @@ const homepageBody = () => {
     <div class="product-window">
       <div class="window-bar"><span class="mini-brand"><img src="/assets/dealcooker-mark.png" alt="" width="26" height="30"><b>DealCooker</b></span><span class="deal-name">Tampa Duplex — Sample Deal</span><span class="free-chip">FREE</span></div>
       <div class="window-grid">
-        <div class="cash-card"><p>Monthly cash flow</p><strong>${topResults[0][1]}</strong><span>Long-Term Rental</span><div class="cash-bars">${[52,60,67,72,78,84,88,94].map((height) => `<i style="height:${height}%"></i>`).join('')}</div></div>
+        <div class="cash-card"><p>Monthly cash flow</p><strong>${topResults[0][1]}</strong><span>Long-Term Rental</span><div class="cash-bars">${Array.from({ length: 8 }, () => '<i></i>').join('')}</div></div>
         <div class="work-card"><span>Make the deal work</span><h2>Compare the supported levers behind a weak result.</h2><div><b>Workout levers</b><strong>Price + down payment</strong></div><a href="${appHref('product-preview-workout', 'homepage_cta')}">Open the workout</a></div>
       </div>
       <div class="metric-strip">${topResults.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('')}<div><span>Cash to close</span><strong>${money0.format(result.masterSummary.cashToClose)}</strong></div></div>
@@ -534,6 +535,7 @@ const resetOut = () => { fs.rmSync(OUT, { recursive: true, force: true }); fs.mk
 const write = (relative: string, content: string | NodeJS.ArrayBufferView) => { const file = path.join(OUT, relative); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, content); };
 const copy = (source: string, destination: string) => { const file = path.join(OUT, destination); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.copyFileSync(path.join(ROOT, source), file); };
 
+const build = async () => {
 resetOut();
 write('index.html', shell({
   title: 'DealCooker: Free Real Estate Deal Analyzer',
@@ -568,7 +570,11 @@ for (const page of pages) {
 copy('landing/assets/site.css', 'assets/site.css');
 copy('landing/assets/analytics.js', 'assets/analytics.js');
 copy('landing/assets/site.js', 'assets/site.js');
-copy('public/brand/dealcooker-logo.png', 'assets/dealcooker-mark.png');
+// Keep the source/app brand untouched; public pages render at most 160 CSS px.
+await sharp(path.join(ROOT, 'public/brand/dealcooker-logo.png'))
+  .resize({ width: 320 })
+  .png({ palette: true, colours: 256, effort: 10 })
+  .toFile(path.join(OUT, 'assets/dealcooker-mark.png'));
 copy('public/apple-touch-icon.png', 'assets/apple-touch-icon.png');
 copy('public/pwa-192.png', 'assets/favicon.png');
 copy('public/email/dealcooker-desktop.jpg', 'assets/dealcooker-product.jpg');
@@ -583,3 +589,9 @@ write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="htt
 write('llms.txt', `# DealCooker\n\n> DealCooker is a free real estate deal analyzer for rental, BRRRR, room-by-room, Airbnb, fix-and-flip, commercial, and strategy-comparison underwriting.\n\n## Canonical resources\n\n- [DealCooker](https://dealcooker.app/): Product overview and strategy links.\n- [Methodology](https://dealcooker.app/methodology/): Calculation definitions, model boundaries, authorship, and verification guidance.\n- [Rental property calculator](https://dealcooker.app/rental-property-calculator/): Long-term rental cash flow and return analysis.\n- [BRRRR calculator](https://dealcooker.app/brrrr-calculator/): Buy, rehab, rent, refinance, and repeat analysis.\n- [Room-by-room rental calculator](https://dealcooker.app/room-by-room-rental-calculator/): Weekly room-rental and PadSplit-style analysis.\n- [Airbnb investment calculator](https://dealcooker.app/airbnb-investment-calculator/): Short-term rental revenue, fees, costs, and returns.\n- [Fix-and-flip calculator](https://dealcooker.app/fix-and-flip-calculator/): Rehab, financing, sale, profit, ROI, and offer analysis.\n- [Commercial real estate calculator](https://dealcooker.app/commercial-real-estate-calculator/): NOI, DSCR, cash flow, and return analysis.\n- [Compare rental strategies](https://dealcooker.app/compare-rental-strategies/): Same-property strategy comparison.\n\n## Important\n\nWorked examples are generated from DealCooker's tested engine and are illustrative, pre-tax estimates. DealCooker is not an appraisal, lender quote, tax calculation, legal advice, investment advice, or guarantee. Verify all property-specific assumptions independently.\n`);
 
 console.log(`Built DealCooker landing site with ${pages.length + 2} pages in ${OUT}.`);
+};
+
+build().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
