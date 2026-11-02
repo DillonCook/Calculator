@@ -26,7 +26,7 @@ if (local) {
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4319, '127.0.0.1', resolve); });
 }
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-landing-qa-'));
+const profile = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'dealcooker-landing-qa-'));
 const port = 9345;
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -92,6 +92,20 @@ try {
         await delay(200);
         row.previewBarHeights = await evaluate(`[...document.querySelectorAll('.cash-bars i')].map(e=>e.getBoundingClientRect().height)`);
         fs.writeFileSync(path.join(output, `preview-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })).data, 'base64'));
+      }
+      if (route === '/rental-property-calculator/') {
+        const bounds = await evaluate(`(() => {const s=document.querySelector('.rental-checklist');if(!s)return null;const r=s.getBoundingClientRect();return {x:0,y:r.top+scrollY,width:innerWidth,height:r.height}})()`);
+        assert.ok(bounds, 'Approved rental guidance must render');
+        fs.writeFileSync(path.join(output, `rental-checklist-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...bounds, scale: 1 } })).data, 'base64'));
+        // Avoid measuring an in-flight smooth scroll on this long mobile section.
+        await evaluate(`document.querySelector('.rental-checklist .button').scrollIntoView({block:'center',behavior:'instant'})`);
+        await delay(200);
+        row.rentalChecklist = await evaluate(`(() => {const s=document.querySelector('.rental-checklist');const a=s.querySelector('.button');const r=a.getBoundingClientRect();return {heading:s.querySelector('h2').textContent,link:a.href,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('a')===a,listItems:s.querySelectorAll('li').length}})()`);
+        fs.writeFileSync(path.join(output, `rental-cta-${width}.json`), JSON.stringify({ ...row.rentalChecklist, geometry: await evaluate(`(() => {const a=document.querySelector('.rental-checklist .button');const r=a.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scrollY,innerHeight,scrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML?.slice(0,250)}})()`) }, null, 2));
+        fs.writeFileSync(path.join(output, `rental-cta-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        assert.equal(row.rentalChecklist.listItems, 4);
+        assert.equal(row.rentalChecklist.hit, true, 'Rental CTA must be an unclipped pointer target');
+        assert.equal(row.rentalChecklist.link, 'https://www.dealcooker.app/?utm_source=dealcooker_landing&utm_medium=organic&utm_campaign=seo_strategy_page&utm_content=rental&strategy=longTerm');
       }
       rows.push({ ...row, screenshot });
     }

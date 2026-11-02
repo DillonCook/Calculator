@@ -17,6 +17,7 @@ const expectedRoutes = [
 ];
 const contentDates = new Map(expectedRoutes.map((route) => [route, '2026-07-24']));
 for (const route of ['/', '/methodology/', '/rental-property-calculator/', '/airbnb-investment-calculator/', '/compare-rental-strategies/']) contentDates.set(route, '2026-09-12');
+contentDates.set('/rental-property-calculator/', '2026-11-02');
 const strategyRoutes = new Map([
   ['/rental-property-calculator/', 'longTerm'],
   ['/brrrr-calculator/', 'brrrr'],

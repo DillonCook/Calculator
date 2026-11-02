@@ -11,7 +11,7 @@ const SITE_ORIGIN = 'https://dealcooker.app';
 const CONTENT_DATES = {
   '/': '2026-09-12',
   '/methodology/': '2026-09-12',
-  '/rental-property-calculator/': '2026-09-12',
+  '/rental-property-calculator/': '2026-11-02',
   '/brrrr-calculator/': '2026-07-24',
   '/room-by-room-rental-calculator/': '2026-07-24',
   '/airbnb-investment-calculator/': '2026-09-12',
@@ -207,8 +207,8 @@ const formatMetrics = (strategy: StrategyKey): Array<[string, string]> => {
 const pages: Page[] = [
   {
     slug: 'rental-property-calculator',
-    title: 'Free Rental Property Calculator | DealCooker',
-    description: 'Analyze a long-term rental for free. Model cash flow, cap rate, cash-on-cash return, DSCR, ROI, IRR, reserves, financing, and a future sale.',
+    title: 'Free Rental Property Cash Flow Calculator | DealCooker',
+    description: "Estimate rental cash flow with financing, vacancy, expenses and reserves. Use a practical input checklist, then compare returns in DealCooker's free calculator.",
     eyebrow: 'Free long-term rental calculator',
     h1: 'See the whole rental deal—not just the rent minus the mortgage.',
     intro: 'Underwrite acquisition costs, financing, vacancy, management, maintenance, reserves, appreciation, and sale proceeds in one connected model.',
@@ -481,6 +481,22 @@ const homepageBody = () => {
 <section class="final-cta"><div><img src="/assets/dealcooker-mark.png" alt="" width="96" height="111"><p class="eyebrow">Your next deal deserves more than a guess.</p><h2>Cook the deal.<br><em>Keep your capital.</em></h2><a class="button button-primary" href="${appHref('final-cta', 'homepage_cta')}">Analyze a deal — free <span>↗</span></a><p>No credit card. No signup required to start.</p></div></section>`;
 };
 
+const rentalChecklist = `<section class="rental-checklist methodology-content section-shell" aria-labelledby="rental-checklist-heading"><div class="definition-grid"><article>
+<h2 id="rental-checklist-heading">Rental cash flow: what to check before you calculate</h2>
+<p>Rent minus the mortgage is only a starting point. A rental analysis also needs vacancy, taxes, insurance, operating costs and reserves. Gather property-specific evidence before treating a positive result as spendable income.</p>
+<ul>
+<li><strong>Rent and vacancy.</strong> Check leases, comparable rents and local vacancy conditions. Use your own supported assumptions, not a promise that the property will stay full.</li>
+<li><strong>Taxes and insurance.</strong> Check the tax estimate for the proposed purchase and obtain a property-specific insurance quote. In DealCooker, enter these separately from the loan terms. Do not count them again just because a lender includes them in an escrow payment.</li>
+<li><strong>Running costs and reserves.</strong> Include owner-paid utilities, HOA fees, management, maintenance and capital reserves where applicable. A reserve is a planning allowance; actual repairs and replacements can arrive unevenly.</li>
+<li><strong>Cash needed to start.</strong> Review the down payment, acquisition costs and rehab budget. Monthly cash flow does not show how much cash you need before the property starts operating.</li>
+</ul></article><article>
+<h3>Read the result in the right order</h3>
+<p>First, inspect modeled monthly cash flow after expenses, reserves and debt service. Next, compare cash-on-cash return with the cash invested; it is not the same as cap rate. Finally, review the full hold-period projection and test a lower-rent or higher-cost scenario before relying on the original result.</p>
+<p>DealCooker's modeled NOI can include reserves and strategy-dependent fixed costs, so it may differ from a lender's NOI. Read the <a class="text-link" href="https://dealcooker.app/methodology/">methodology</a> for the calculator's definitions. The long-term rental placement-fee input is informational and excluded from returns; budget actual leasing costs separately.</p>
+<p>These are pre-tax estimates, not investment advice or a forecast. Verify property facts and lender terms independently. For general context, see the CFPB's <a class="text-link" href="https://www.consumerfinance.gov/ask-cfpb/what-is-piti-en-152/">PITI explanation</a> and IRS <a class="text-link" href="https://www.irs.gov/publications/p527">residential rental-property guidance</a>. Tax-accounting rules are not the calculator's cash-flow model.</p>
+<p><a class="button button-primary" href="https://www.dealcooker.app/?utm_source=dealcooker_landing&amp;utm_medium=organic&amp;utm_campaign=seo_strategy_page&amp;utm_content=rental&amp;strategy=longTerm">Run the rental analysis — free</a></p>
+</article></div></section>`;
+
 const strategyBody = (page: Page) => {
   const currentLabel = page.strategy === 'compare' ? 'Compare strategies' : strategyLabel[page.strategy];
   const appStrategy = page.strategy === 'compare' ? undefined : page.strategy;
@@ -492,7 +508,7 @@ const strategyBody = (page: Page) => {
   return `
 <section class="strategy-hero"><div class="strategy-hero-copy"><p class="breadcrumb"><a href="/">DealCooker</a><span>/</span>${escape(currentLabel)}</p><p class="eyebrow">${escape(page.eyebrow)}</p><h1>${escape(page.h1)}</h1><p>${escape(page.intro)}</p><div class="hero-actions"><a class="button button-primary" href="${appHref(page.source, 'seo_strategy_page', appStrategy)}">Run this analysis — free <span>↗</span></a><a class="button button-quiet" href="#worked-example">See a worked example</a></div><p class="free-note"><span>✓</span> Free <span>✓</span> No signup required</p></div><div class="strategy-mark"><img src="/assets/dealcooker-mark.png" alt="" width="160" height="185"><span>${escape(currentLabel)}</span></div></section>
 <section class="direct-answer section-shell" aria-labelledby="direct-answer-heading"><p class="eyebrow">Direct answer</p><h2 id="direct-answer-heading">What this calculator does</h2><p>${escape(page.answer)}</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last substantively updated <time datetime="${dateModified}">${dateModified}</time>.</span></div></section>
-<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
+${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
 <section class="levers-section"><div class="section-shell"><div class="section-heading"><p class="eyebrow">What DealCooker models</p><h2>Change an assumption. See the whole deal move.</h2></div><div class="levers-layout"><ol>${page.levers.map((lever,index) => `<li><span>0${index+1}</span><strong>${escape(lever)}</strong></li>`).join('')}</ol><div class="metric-list"><span>DECISION OUTPUTS</span>${page.metrics.map(([label]) => `<i>${escape(label)}<b>Included</b></i>`).join('')}<i>Calculation breakdown<b>Visible</b></i><i>Share + print report<b>Included</b></i></div></div></div></section>
 <section class="strategy-work section-shell"><div><p class="eyebrow">When the deal misses</p><h2>Don’t stop at “no.”<br><em>Test the supported levers.</em></h2><p>DealCooker can test a lower purchase price and, when applicable, a larger down payment against the active strategy’s workout logic. It does not optimize interest rates, points, loan products, or every financing term.</p></div><div class="recommendation large"><span>MAKE THE DEAL WORK</span><strong>Compare supported price and equity scenarios.</strong><a class="button button-primary" href="${appHref(`${page.source}-workout`, 'seo_strategy_page', appStrategy)}">Try it free ↗</a></div></section>
 <section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Calculation methodology</p><h2>How DealCooker models this strategy</h2><p>${escape(page.methodology)}</p><a class="text-link" href="/methodology/">Read the full methodology and metric definitions ↗</a></div><aside><strong>Model boundaries</strong><p>Outputs are pre-tax estimates based on user inputs. DealCooker is not an appraisal, lender quote, legal opinion, tax calculation, or promise of performance.</p></aside></div></section>
