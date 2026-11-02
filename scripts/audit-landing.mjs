@@ -40,6 +40,7 @@ for (const route of expectedRoutes) {
   const file = routeFile(route);
   assert.ok(fs.existsSync(file), `missing generated page: ${route}`);
   const html = read(file);
+  assert.doesNotMatch(html, /\sstyle\s*=/i, `${route} must not emit inline styles blocked by the public CSP`);
   const [title] = matchAll(html, /<title>([\s\S]*?)<\/title>/gi);
   const [description] = matchAll(html, /<meta\s+name="description"\s+content="([^"]+)"/gi);
   const headings = matchAll(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/gi);
@@ -133,6 +134,12 @@ for (const route of expectedRoutes) {
 assert.doesNotMatch(sitemap, /<changefreq>|<priority>/, 'sitemap must omit unsupported freshness and priority hints');
 const generatorSource = read(path.join(root, 'scripts', 'build-landing.ts'));
 assert.doesNotMatch(generatorSource, /const BUILD_DATE|new Date\(\)\.toISOString/, 'content freshness must not be derived from build time');
+
+// The largest rendered brand mark is 160 CSS px: retain a 2x raster,
+// not the full-resolution source on every public-page visit.
+const mark = fs.readFileSync(path.join(outDir, 'assets', 'dealcooker-mark.png'));
+assert.ok(mark.length <= 64 * 1024, 'public brand mark must stay within a 64 KiB transfer budget');
+assert.equal(mark.readUInt32BE(16), 320, 'public brand mark must retain 2x detail at 160 CSS px');
 
 const css = read(path.join(outDir, 'assets', 'site.css'));
 assert.match(css, /:focus-visible/, 'site CSS must include visible keyboard focus treatment');
