@@ -410,6 +410,7 @@ const shell = (page: { title: string; description: string; slug?: string; body: 
 <html lang="en">
 <head>
   <meta charset="utf-8">
+    <meta name="google-site-verification" content="ye0FP5LPzGXPwS4_pCT6a7IVBVACzEOjliCorjXgcxI" />
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${escape(page.title)}</title>
   <meta name="description" content="${escape(page.description)}">
