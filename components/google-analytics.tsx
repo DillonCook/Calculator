@@ -7,9 +7,21 @@ const bootstrap = `(() => {
   const qaSuppressed = navigator.webdriver || params.get('dc_qa') === '1' || params.get('dc_analytics') === 'off';
   const safePaths = new Set(['/', '/legal/privacy']);
   const controlParams = new Set(['dc_analytics', 'dc_qa']);
-  const hasOnlyControlParams = Array.from(params.keys()).every((key) => controlParams.has(key));
+  const marketingParams = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'strategy']);
+  const campaigns = new Set(['homepage_cta', 'sitewide_cta', 'seo_strategy_page']);
+  const strategies = new Set(['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr', 'flip']);
+  const safeQuery = (query) => {
+    const keys = Array.from(query.keys());
+    if (keys.some((key) => query.getAll(key).length !== 1)) return false;
+    if (keys.every((key) => controlParams.has(key))) return true;
+    // Only the existing public marketing handoff is permitted, never arbitrary UTM/deal/auth data.
+    return window.location.pathname === '/' && keys.every((key) => controlParams.has(key) || marketingParams.has(key))
+      && query.get('utm_source') === 'dealcooker_landing' && query.get('utm_medium') === 'organic'
+      && campaigns.has(query.get('utm_campaign')) && /^[a-z0-9-]{1,80}$/.test(query.get('utm_content') || '')
+      && (!query.has('strategy') || strategies.has(query.get('strategy')));
+  };
   const safePath = window.location.pathname;
-  const safeLocation = safePaths.has(safePath) && !window.location.hash && (!window.location.search || hasOnlyControlParams);
+  const safeLocation = safePaths.has(safePath) && !window.location.hash && safeQuery(params);
   const disableKey = 'ga-disable-' + measurementId;
 
   window[disableKey] = !safeLocation;
@@ -19,8 +31,7 @@ const bootstrap = `(() => {
 
   const syncAnalyticsDisable = () => {
     const currentParams = new URLSearchParams(window.location.search);
-    const currentHasOnlyControlParams = Array.from(currentParams.keys()).every((key) => controlParams.has(key));
-    window[disableKey] = !safePaths.has(window.location.pathname) || Boolean(window.location.hash) || Boolean(window.location.search && !currentHasOnlyControlParams);
+    window[disableKey] = !safePaths.has(window.location.pathname) || Boolean(window.location.hash) || !safeQuery(currentParams);
   };
   const originalPushState = window.history.pushState;
   const originalReplaceState = window.history.replaceState;
@@ -41,6 +52,8 @@ const bootstrap = `(() => {
   window.gtag('js', new Date());
   window.gtag('config', measurementId, {
     send_page_view: false,
+    page_location: window.location.origin + safePath,
+    page_referrer: '',
     allow_google_signals: false,
     allow_ad_personalization_signals: false
   });
