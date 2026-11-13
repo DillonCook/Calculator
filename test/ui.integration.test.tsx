@@ -223,6 +223,77 @@ describe('dashboard integration', () => {
     ]);
   });
 
+  it('switches to Pro Mode without changing the current deal or KPIs', async () => {
+    const model = structuredClone(defaultDealInput);
+    model.longTerm.grossRentMonthly = 3500;
+    writeScenarios([createScenarioRecord(model)]);
+    render(<HomePage />);
+    const before = screen.getAllByTestId(/^kpi-/).map(node => node.textContent);
+    const price = screen.getByLabelText('Purchase price');
+    fireEvent.change(price, {target:{value:'321234.56'}});
+    const edited = screen.getAllByTestId(/^kpi-/).map(node => node.textContent);
+    expect(edited).not.toEqual(before);
+    await userEvent.click(screen.getByRole('button', {name:'Pro Mode'}));
+    expect(screen.getByRole('button', {name:'Pro Mode'})).toHaveAttribute('aria-pressed','true');
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(321234.56);
+    expect(screen.getAllByTestId(/^kpi-/).map(node => node.textContent)).toEqual(edited);
+    expect(screen.queryByText('Where the monthly money goes')).not.toBeVisible();
+    expect(document.querySelector('.deal-workout-surface')).not.toBeVisible();
+    expect(document.querySelector('.quick-scan-points')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('dealcooker-experience:v1')).toBe('pro');
+    await userEvent.click(screen.getByRole('button', {name:'Guided'}));
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(321234.56);
+    expect(screen.getByText('Where the monthly money goes')).toBeVisible();
+  });
+
+  it('keeps mobile Pro KPIs concise without changing their values',async()=>{
+    setViewport(390);
+    const model=structuredClone(defaultDealInput);model.longTerm.grossRentMonthly=3500;
+    writeScenarios([createScenarioRecord(model)]);
+    render(<HomePage/>);
+    fireEvent.click(screen.getByRole('button',{name:'Results'}));
+    expect(screen.getByText('NOI / annual debt service')).toBeVisible();
+    const before=screen.getAllByTestId(/^kpi-/).map(node=>node.textContent);
+    await userEvent.click(screen.getByRole('button',{name:'Pro Mode'}));
+    expect(screen.queryByText('NOI / annual debt service')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/^kpi-/).map(node=>node.textContent)).toEqual(before);
+  });
+
+  it.each([1280,390])('opens a blank direct-input Pro workspace at width %s and restores a guided draft', async width => {
+    setViewport(width);
+    window.localStorage.clear();
+    render(<HomePage />);
+    await userEvent.click(screen.getByRole('button',{name:/^Rent out a home/}));
+    const draft = within(screen.getByRole('region',{name:'Start a property analysis'}));
+    fireEvent.change(draft.getByLabelText('Purchase price'),{target:{value:'234567.89'}});
+    await userEvent.click(screen.getByRole('button',{name:'Pro Mode'}));
+    expect(screen.queryByRole('region',{name:'Start a property analysis'})).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('Purchase price').find(node => !node.closest('[hidden]'))).toHaveValue(0);
+    await userEvent.click(screen.getByRole('button',{name:'Guided'}));
+    expect(within(screen.getByRole('region',{name:'Start a property analysis'})).getByLabelText('Purchase price')).toHaveValue(234567.89);
+  });
+
+  it.each([1280,390])('restores Pro preference and keeps financing validation at width %s', async width => {
+    setViewport(width);
+    window.localStorage.setItem('dealcooker-experience:v1','pro');
+    render(<HomePage />);
+    expect(screen.getByRole('button',{name:'Pro Mode'})).toHaveAttribute('aria-pressed','true');
+    fireEvent.change(screen.getByLabelText('Loan term (years)'),{target:{value:'0'}});
+    if(width===390) fireEvent.click(screen.getByRole('button',{name:'Results'}));
+    expect(await screen.findByText(/Correct these financing inputs: purchase loan term/)).toBeVisible();
+    expect(screen.queryByRole('region',{name:'Analysis notices'})).not.toBeInTheDocument();
+  });
+
+  it.each(['Commercial','Long-Term','Airbnb','PadSplit','BRRRR','Flip'])('keeps %s KPIs identical when switching the same deal', async strategy => {
+    const model=structuredClone(defaultDealInput);model.longTerm.grossRentMonthly=3500;
+    writeScenarios([createScenarioRecord(model)]);
+    render(<HomePage />);
+    fireEvent.click(getStrategyButton(strategy));
+    const before=screen.getAllByTestId(/^kpi-/).map(node=>node.textContent);
+    await userEvent.click(screen.getByRole('button',{name:'Pro Mode'}));
+    expect(screen.getAllByTestId(/^kpi-/).map(node=>node.textContent)).toEqual(before);
+  });
+
   it('renders Dillon\'s provided logo in desktop and compact headers', () => {
     const expectProvidedLogo = () => {
       const brandLogo = document.querySelector('.brand-lockup img');
