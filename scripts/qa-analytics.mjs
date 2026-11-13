@@ -17,11 +17,12 @@ fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
 const firstUse = process.argv[4] === '--first-use';
+const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !firstUse && !inputHelp && !shareFallback && !reportShareFallback) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -80,6 +81,7 @@ try {
   const results = [];
   let sampleReportHref;
   for (const width of [1440, 390]) {
+    const resetScript = proMode ? await send('Page.addScriptToEvaluateOnNewDocument', {source:'localStorage.clear();'}) : null;
     await send('Emulation.setDeviceMetricsOverride', { width, height: width === 390 ? 844 : 1000, deviceScaleFactor: 1, mobile: width === 390 });
     await send('Page.navigate', { url: url.href });
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -88,6 +90,7 @@ try {
     }
     await pause(750);
     const journey = [];
+    if (resetScript) await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:resetScript.identifier});
     const snapshot = async stage => {
       const state = await evaluate(`({stage:${JSON.stringify(stage)},text:document.body.innerText,heading:document.querySelector('.deal-quick-start h2')?.textContent,active:{tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label'),text:(document.activeElement?.innerText||document.activeElement?.closest('label')?.textContent||'').slice(0,160)},invalid:[...document.querySelectorAll('.deal-quick-start input')].filter(x=>!x.validity.valid).map(x=>({label:x.closest('label')?.textContent,message:x.validationMessage})),inputs:[...document.querySelectorAll('.deal-quick-start input')].map(x=>({label:x.closest('label')?.textContent,value:x.value})),scrollY})`);
       Object.assign(state, await evaluate(`(() => {const h=document.querySelector('.deal-quick-start h2');const help=h?.nextElementSibling;const visible=el=>{const r=el?.getBoundingClientRect();return !!r && r.top>=0 && r.bottom<=innerHeight;};return {headingFocused:!!h && document.activeElement===h,headingVisible:visible(h),helpVisible:visible(help)};})()`));
@@ -122,6 +125,12 @@ try {
       await pause(350);
     };
     let sampleClicked = false;
+    let proBlankInputs = false;
+    if (proMode) {
+      await pointer('Pro Mode', width===390);
+      proBlankInputs = await evaluate(`(() => {const field=[...document.querySelectorAll('label')].find(x=>x.textContent.trim().startsWith('Purchase price'))?.querySelector('input');return !!field && !!field.getClientRects().length && !document.querySelector('.deal-quick-start')?.getClientRects().length;})()`);
+      await pointer('Guided',width===390);
+    }
     if (firstUse) {
       await snapshot('start');
       await click('Rent out a homeMonthly income and cash required');
@@ -165,6 +174,35 @@ try {
       await pause(400);
     }
     const result = await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),sampleVisible:document.body.innerText.includes('FICTIONAL SAMPLE'),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`);
+    if (proMode) {
+      const metrics = () => evaluate(`JSON.stringify([...document.querySelectorAll('[data-testid^="kpi-"]')].map(x=>x.textContent))`);
+      const inputs = () => evaluate(`JSON.stringify([...document.querySelectorAll('input,select')].map(x=>[x.closest('label')?.textContent,x.value]))`);
+      const before = {metrics:await metrics(), inputs:await inputs()};
+      await pointer('Pro Mode', width===390);
+      const visible = `el=>!!el && !!el.getClientRects().length && !el.closest('details:not([open]) :not(summary)')`;
+      result.proMode = await evaluate(`(() => {const visible=${visible};const s=document.querySelector('[aria-label="Analysis notices"]');return {selected:document.querySelector('main')?.dataset.experience==='pro',notices:visible(s),sampleNotice:!!s && s.innerText.includes('Fictional sample'),detailsClosed:!!s && !s.querySelector('details').open,workoutClosed:[...document.querySelectorAll('.deal-workout-surface')].every(x=>!!x.closest('details:not([open])'))};})()`);
+      result.proMode.metricsUnchanged = before.metrics === await metrics();
+      result.proMode.inputsUnchanged = before.inputs === await inputs();
+      result.proMode.blankDirectInputs = proBlankInputs;
+      await evaluate(`scrollTo({top:0,behavior:'instant'})`);
+      await pause(200);
+      const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      result.proMode.screenshot=path.join(output,`pro-${width}.png`);
+      fs.writeFileSync(result.proMode.screenshot,Buffer.from(image.data,'base64'));
+      await evaluate(`document.querySelector('[data-testid="kpi-priority-metric"]')?.scrollIntoView({block:'start',behavior:'instant'})`);
+      await pause(200);
+      const metricsImage=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      result.proMode.metricsScreenshot=path.join(output,`pro-metrics-${width}.png`);
+      fs.writeFileSync(result.proMode.metricsScreenshot,Buffer.from(metricsImage.data,'base64'));
+      await send('Page.reload',{ignoreCache:true});
+      await pause(1400);
+      result.proMode.persisted=await evaluate(`document.querySelector('main')?.dataset.experience==='pro'`);
+      await pointer('Guided',width===390);
+      if(width===390) await pointer('Results',true);
+      result.proMode.restoredGuidance=await evaluate(`!!document.querySelector('[aria-label="Deal decision summary"]') && !document.querySelector('[aria-label="Deal decision summary"]').closest('details:not([open])')`);
+      result.proMode.passed=Object.entries(result.proMode).filter(([key])=>!key.toLowerCase().includes('screenshot')).every(([,value])=>value===true);
+      await pointer('Pro Mode',width===390);
+    }
     if (inputHelp) {
       // Exercise native pointer/focus/click order, not HTMLElement.click alone.
       await evaluate(`(() => {document.querySelector('[aria-label="Dismiss install prompt"]')?.click();const b=[...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()==='Build');b?.click();})()`);
@@ -337,8 +375,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;

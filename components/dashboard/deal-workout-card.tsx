@@ -11,6 +11,7 @@ interface DealWorkoutCardProps {
   strategy: StrategyKey;
   targetIrrPercent: number;
   onApply: (scenario: DealWorkoutScenario) => void;
+  compact?: boolean;
 }
 
 const formatAdjustmentPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
@@ -30,7 +31,12 @@ const scenarioActionLabel = (scenario: DealWorkoutScenario) => {
   return 'Apply this fix';
 };
 
-export function DealWorkoutCard({ model, strategy, targetIrrPercent, onApply }: DealWorkoutCardProps) {
+export function DealWorkoutCard(props: DealWorkoutCardProps) {
+  if (props.compact) return <details className="pro-on-demand"><summary>Financing alternatives</summary><DealWorkoutContent {...props} /></details>;
+  return <DealWorkoutContent {...props} />;
+}
+
+function DealWorkoutContent({ model, strategy, targetIrrPercent, onApply }: DealWorkoutCardProps) {
   const recommendation = useMemo(() => buildDealWorkoutRecommendation(model, strategy), [model, strategy]);
   const shouldShowInlinePriceCut = ['purchase', 'longTerm', 'airbnb', 'padSplit', 'brrrr'].includes(strategy);
   const isCashDeal = model.purchase.financingType === 'cash';

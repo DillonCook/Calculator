@@ -25,9 +25,11 @@ interface Props {
   strategy: StrategyKey;
   output: StrategyOutput;
   onChange?: (model: DealInputModel) => void;
+  compact?: boolean;
+  omitWorkoutNotice?: boolean;
 }
 
-export function DecisionBrief({ model, strategy, output, onChange }: Props) {
+export function DecisionBrief({ model, strategy, output, onChange, compact = false, omitWorkoutNotice = false }: Props) {
   const verdict = getDecisionVerdict(model,strategy,output);
   const capital = getCapitalTiming(output);
   const flip = output.calculationBreakdown?.flipMeta;
@@ -42,6 +44,21 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
     <h2>More information needed</h2>
     <div role="alert"><p>Correct these financing inputs in Build before relying on results:</p><ul>{debtIssues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>
     <p className="decision-help">Terms are entered in years; 0.5 means six months. Zero interest and zero down are supported. Other calculations are not a verified result until these terms are corrected.</p>
+  </section>;
+  if (compact) return <section className="pro-analysis-notices" aria-label="Analysis notices">
+    <p>{isSample ? 'Fictional sample' : reviewed ? 'Assumptions marked reviewed by author' : 'Provisional • assumptions need review'} · Before income tax · Estimates, not guarantees.</p>
+    <p>Tax: {model.purchase.propertyTaxAnnualOverride === null ? 'estimated' : 'entered'} · Insurance: {model.purchase.insuranceAnnualOverride === null ? 'estimated' : 'entered'} · Modeled reserves included in return calculations.</p>
+    {strategy === 'brrrr' ? <p>Refinance cash left: {money(capital.cashLeftAfterRefinance ?? 0)}; upfront funding: {money(capital.upfront)}. These are not the same measure.</p> : null}
+    {output.longTermTurnaroundSummary?.enabled ? <p>Stabilized income shown; one year at current income is modeled before stabilization.</p> : null}
+    {capital.futureContributions > 0 ? <p>Additional hold contributions: {money(capital.futureContributions)}.</p> : null}
+    {capital.saleShortfall > 0 ? <p>Additional cash required at sale: {money(capital.saleShortfall)}.</p> : null}
+    {capital.excessFunding > 0 ? <p>Borrowed cash remaining: {money(capital.excessFunding)}. Not earned income; full debt still requires repayment.</p> : null}
+    {strategy === 'longTerm' && model.longTerm.tenantPlacementFeePercent > 0 ? <p>Placement fee is not included in returns. Add leasing costs to your expense plan.</p> : null}
+    {workout && onChange ? <aside className="decision-warning">
+      <p>Last adjustment: price {money(workout.purchasePrice)} → {money(model.purchase.purchasePrice)}; down payment {percent(workout.downPaymentPercent)} → {percent(model.purchase.downPaymentPercent)}. Lower debt payments may require more cash upfront.</p>
+      <button type="button" className="decision-text-button" onClick={()=>onChange({...model,purchase:{...model.purchase,purchasePrice:workout.purchasePrice,downPaymentPercent:workout.downPaymentPercent},analysis:{...model.analysis,lastWorkout:undefined,assumptionsReviewed:false}})}>Undo last workout change</button>
+    </aside> : null}
+    <details className="pro-on-demand"><summary>Assumptions & analysis details</summary><DecisionBrief omitWorkoutNotice model={model} strategy={strategy} output={output} onChange={onChange} /></details>
   </section>;
   return <section className="decision-brief" aria-label="Deal decision summary">
     <header className="decision-brief-header">
@@ -60,7 +77,7 @@ export function DecisionBrief({ model, strategy, output, onChange }: Props) {
       {output.longTermTurnaroundSummary?.enabled ? <p className="decision-help">Stabilized monthly income shown. This model assumes one year at current income before stabilization.</p> : null}
       <MoneyBars rows={getMoneyWaterfall(output)} />
     </>}
-    {workout && onChange ? <aside className="decision-warning">
+    {workout && onChange && !omitWorkoutNotice ? <aside className="decision-warning">
       <p>Last adjustment: price {money(workout.purchasePrice)} → {money(model.purchase.purchasePrice)}; down payment {percent(workout.downPaymentPercent)} → {percent(model.purchase.downPaymentPercent)}. Lower debt payments may require more cash upfront. Recheck your goals after any change.</p>
       <button type="button" className="decision-text-button" onClick={()=>onChange({...model,purchase:{...model.purchase,purchasePrice:workout.purchasePrice,downPaymentPercent:workout.downPaymentPercent},analysis:{...model.analysis,lastWorkout:undefined,assumptionsReviewed:false}})}>Undo last workout change</button>
     </aside> : null}

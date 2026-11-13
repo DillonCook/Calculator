@@ -6,6 +6,7 @@ import { useDealEditor } from '@/lib/use-deal-editor';
 import { buildNewDealPayload, buildSampleDealPayload, SAMPLE_DEAL_NAME } from '@/lib/deal-templates';
 import { DecisionBrief } from '@/components/dashboard/decision-brief';
 import { DealQuickStart } from '@/components/dashboard/deal-quick-start';
+import { ExperienceSwitch, useExperienceMode } from '@/components/dashboard/experience-mode';
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -930,7 +931,9 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [quickStartDismissed,setQuickStartDismissed] = useState(false);
-  const showQuickStart = !quickStartDismissed && model.purchase.ownershipMode === 'purchase' && model.purchase.purchasePrice <= 0;
+  const { mode: experienceMode, selectMode: selectExperienceMode, isPro } = useExperienceMode();
+  const quickStartAvailable = !quickStartDismissed && model.purchase.ownershipMode === 'purchase' && model.purchase.purchasePrice <= 0;
+  const showQuickStart = !isPro && quickStartAvailable;
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
   const pendingNewDealDraftRef = useRef<{ initialDealName: string; previousDealId: string; previousPayload: DealInputModel; scenarioId: string } | null>(null);
 
@@ -1455,7 +1458,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.capRate)}
             numericValue={metricOutput.capRate}
             numericValueKind="percent"
-            helper={metricOutput.strategy==='brrrr' ? "Annual NOI / refinance ARV" : "Annual NOI / acquisition price or owned basis"}
+            helper={isPro ? undefined : metricOutput.strategy==='brrrr' ? "Annual NOI / refinance ARV" : "Annual NOI / acquisition price or owned basis"}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1468,7 +1471,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.cashOnCashReturn)}
             numericValue={metricOutput.cashOnCashReturn}
             numericValueKind="percent"
-            helper={metricOutput.strategy==='brrrr'?"Annual post-refinance cash flow / cash left in deal":"Annual cash flow / initial cash invested"}
+            helper={isPro ? undefined : metricOutput.strategy==='brrrr'?"Annual post-refinance cash flow / cash left in deal":"Annual cash flow / initial cash invested"}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1482,7 +1485,7 @@ export default function HomePage() {
             numericValue={metricOutput.dscr}
             numericValueKind="ratio"
             numericValueBaseline={1}
-            helper="NOI / annual debt service"
+            helper={isPro ? undefined : "NOI / annual debt service"}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1495,7 +1498,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.roi)}
             numericValue={metricOutput.roi}
             numericValueKind="percent"
-            helper={`${metricOutput.strategy==='flip'?model.flip.holdingMonths+'-month':model.assumptions.holdYears+'-year'} total profit / all cash contributed`}
+            helper={`${metricOutput.strategy==='flip'?model.flip.holdingMonths+'-month':model.assumptions.holdYears+'-year'} ${isPro ? 'total' : 'total profit / all cash contributed'}`}
             winner={metricModeLabel}
             layout={layout}
             inlineValueScale="large"
@@ -1508,7 +1511,7 @@ export default function HomePage() {
             value={percentFormatter.format(metricOutput.irr)}
             numericValue={metricOutput.irr}
             numericValueKind="percent"
-            helper="Annualized return from dated cash contributions and distributions"
+            helper={isPro ? undefined : "Annualized return from dated cash contributions and distributions"}
             winner={metricModeLabel}
             definitions={[
               {
@@ -1605,7 +1608,7 @@ export default function HomePage() {
         : 'border-accent/45 bg-accent/12 text-slate-100'
     : '';
   const quickScanPoints = quickScanDetails[activeStrategy];
-  const strategyQuickScan = isQuickScanVisible ? { title: activeStrategyLabel, points: quickScanPoints } : undefined;
+  const strategyQuickScan = !isPro && isQuickScanVisible ? { title: activeStrategyLabel, points: quickScanPoints } : undefined;
   const orderedHeadlineMetricIds = normalizeHeadlineMetricOrder(headlineMetricOrder);
   const showTargetIrrInput =
     model.purchase.financingType === 'cash' &&
@@ -4898,7 +4901,7 @@ export default function HomePage() {
     </section>
   ) : (
     <>
-      <DecisionBrief model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} />
+      <DecisionBrief compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} />
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div className="space-y-4">
           <div className="results-hero-main priority-kpi-stable relative isolate">
@@ -5040,7 +5043,7 @@ export default function HomePage() {
           </div>
         </section>
       ) : (
-        <DealWorkoutCard
+        <DealWorkoutCard compact={isPro}
           model={model}
           strategy={activeStrategy}
           targetIrrPercent={model.assumptions.targetIrrPercent}
@@ -6017,7 +6020,7 @@ export default function HomePage() {
                 ))}
               </div>
             ) : (
-              <DealWorkoutCard
+              <DealWorkoutCard compact={isPro}
                 model={model}
                 strategy={activeStrategy}
                 targetIrrPercent={model.assumptions.targetIrrPercent}
@@ -6148,9 +6151,10 @@ export default function HomePage() {
   );
 
   return (
-    <main className={`calculator-workspace app-shell-fade relative isolate min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
+    <main data-experience={experienceMode} className={`calculator-workspace app-shell-fade relative isolate min-h-screen overflow-x-clip px-3 py-5 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10${isLightMode ? ' theme-light' : ''}`}>
       <div className={`relative z-10 mx-auto max-w-[112rem] space-y-5${showQuickStart ? ' mainstream-guided-root' : ''}`}>
-        {showQuickStart ? <DealQuickStart
+        <ExperienceSwitch mode={experienceMode} onChange={selectExperienceMode} />
+        {quickStartAvailable ? <div className="quick-start-container" hidden={isPro}><DealQuickStart
           base={model}
           onAdvanced={()=>{setQuickStartDismissed(true);}}
           onSample={()=>{setQuickStartDismissed(true);loadSampleDeal();}}
@@ -6158,7 +6162,7 @@ export default function HomePage() {
             updateModel(next);setActiveStrategy(strategy);setCompactSelectedStrategies([strategy]);
             setQuickStartDismissed(true);setCompactMode('results');setIsOnboardingOpen(false);
           }}
-        /> : null}
+        /></div> : null}
         {isMobileViewport ? (
           <header className={`app-header-shell section-shell section-shell-utility relative z-[70] rounded-2xl p-4 shadow-soft backdrop-blur${isHeaderModalOpen ? ' pointer-events-none' : ''}`}>
             <div className="space-y-3">
@@ -6606,7 +6610,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {compactReadiness.ready ? <DecisionBrief model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} /> : null}
+        {compactReadiness.ready ? <DecisionBrief compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} /> : null}
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           {!compactReadiness.ready ? (
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
@@ -6759,7 +6763,7 @@ export default function HomePage() {
                   </div>
                 </section>
               ) : (
-                <DealWorkoutCard
+                <DealWorkoutCard compact={isPro}
                   model={model}
                   strategy={activeStrategy}
                   targetIrrPercent={model.assumptions.targetIrrPercent}
