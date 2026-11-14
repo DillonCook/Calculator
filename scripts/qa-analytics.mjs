@@ -16,7 +16,8 @@ const output = path.resolve(process.argv[3] || path.join(os.tmpdir(), 'dealcooke
 fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
-const firstUse = process.argv[4] === '--first-use';
+const strategyDrafts = process.argv[4] === '--strategy-drafts';
+const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
 const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
@@ -133,6 +134,37 @@ try {
     }
     if (firstUse) {
       await snapshot('start');
+      if (strategyDrafts) {
+        const select = label => pointer(label,width===390);
+        await select('Rent out a homeMonthly income and cash required');
+        await fill('Purchase price','300000');
+        await fill('Expected monthly rent','3200.50');
+        await select('Back');
+        await select('Renovate and sellProfit, holding costs and maximum offer');
+        await snapshot('flip-fresh');
+        await select('Next: costs');
+        await snapshot('flip-required');
+        // Keep collecting the exact old/new behavior even when old code advances.
+        if (await evaluate("!![...document.querySelectorAll('input')].find(x=>x.closest('label')?.textContent==='Annual property tax')")) await select('Back');
+        await fill('Expected resale value','390000');
+        await select('Back');
+        await select('Vacation rentalBookings, cleaning and host fees');
+        await snapshot('airbnb-fresh');
+        await fill('Expected monthly booking revenue','4800.75');
+        await select('Back');
+        await select('Renovate and sellProfit, holding costs and maximum offer');
+        await snapshot('flip-restored');
+        await select('Back');
+        await select('Vacation rentalBookings, cleaning and host fees');
+        await snapshot('airbnb-restored');
+        await select('Back');
+        await select('Rent out a homeMonthly income and cash required');
+        await snapshot('rental-restored');
+        await fill('Purchase price','');
+        await fill('Expected monthly rent','');
+        await select('Back');
+        await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      }
       await click('Rent out a homeMonthly income and cash required');
       await snapshot('property');
       await click('Next: costs');
@@ -359,6 +391,13 @@ try {
       result.resultVisible = await evaluate("!!document.querySelector('[aria-label=\"Deal decision summary\"]') && document.body.innerText.includes('Synthetic QA rental')");
       const at = stage => journey.find(item => item.stage === stage);
       const retained = (stage, values) => Object.entries(values).every(([label, value]) => at(stage)?.inputs.some(input => input.label === label && input.value === value));
+      if (strategyDrafts) result.strategyDraftsPassed = retained('flip-fresh',{'Expected resale value':'','Purchase price':'300000'})
+        && retained('airbnb-fresh',{'Expected monthly booking revenue':''})
+        && at('flip-required')?.heading==='Start with the property.'
+        && at('flip-required')?.invalid.some(input=>input.label==='Expected resale value')
+        && retained('flip-restored',{'Expected resale value':'390000'})
+        && retained('airbnb-restored',{'Expected monthly booking revenue':'4800.75'})
+        && retained('rental-restored',{'Expected monthly rent':'3200.50'});
       result.orientationPassed = ['property','costs','back','costs-retained','pointer-back','pointer-goal','pointer-property','pointer-costs'].every(stage => at(stage)?.headingFocused && at(stage)?.headingVisible && at(stage)?.helpVisible)
         && ['required','invalid-price'].every(stage => at(stage)?.active.tag === 'INPUT' && at(stage)?.active.text === 'Purchase price');
       result.journeyPassed = at('start')?.heading === 'What are you considering?'
@@ -375,8 +414,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
