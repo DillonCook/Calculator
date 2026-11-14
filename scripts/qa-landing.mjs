@@ -77,15 +77,17 @@ try {
   };
   await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable'); await send('Log.enable');
   await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+  // Preserve explicit QA silence across native internal-link navigation, without changing link hrefs.
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `if(location.origin===${JSON.stringify(origin)}){const u=new URL(location.href);u.searchParams.set('dc_qa','1');u.searchParams.set('dc_analytics','off');history.replaceState(null,'',u.href);}` });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__qaLcp=[];new PerformanceObserver(list=>window.__qaLcp.push(...list.getEntries().map(e=>({time:e.startTime,size:e.size,tag:e.element?.tagName,text:e.element?.textContent?.slice(0,100)})))).observe({type:'largest-contentful-paint',buffered:true});` });
   for (const width of [390, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 });
     await send('Emulation.setTouchEmulationEnabled', { enabled: width === 390 });
-    for (const route of ['/', '/rental-property-calculator/']) {
+    for (const route of ['/', '/rental-property-calculator/', '/methodology/']) {
       await send('Page.navigate', { url: `${origin}${route}?dc_qa=1&dc_analytics=off` });
       await delay(1500);
       const row = await evaluate(`(() => {const nav=performance.getEntriesByType('navigation')[0];return {url:location.href,width:innerWidth,documentWidth:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,title:document.title,lcp:window.__qaLcp,ttfb:nav.responseStart-nav.startTime,domReady:nav.domContentLoadedEventEnd,load:nav.loadEventEnd,gaLoaded:Boolean(window.__dealcookerGaLoaded),resourceBytes:performance.getEntriesByType('resource').map(r=>({name:r.name,bytes:r.encodedBodySize})),cta:[...document.querySelectorAll('a')].filter(a=>a.href.startsWith('https://www.dealcooker.app/')).map(a=>({text:a.textContent.trim(),href:a.href})),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).map(i=>i.src)}})()`);
-      const screenshot = path.join(output, `${route === '/' ? 'home' : 'rental'}-${width}.png`);
+      const screenshot = path.join(output, `${route === '/' ? 'home' : route === '/methodology/' ? 'methodology' : 'rental'}-${width}.png`);
       fs.writeFileSync(screenshot, Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })).data, 'base64'));
       if (route === '/') {
         await evaluate(`document.querySelector('.cash-bars').scrollIntoView({block:'center'})`);
@@ -106,6 +108,40 @@ try {
         assert.equal(row.rentalChecklist.listItems, 4);
         assert.equal(row.rentalChecklist.hit, true, 'Rental CTA must be an unclipped pointer target');
         assert.equal(row.rentalChecklist.link, 'https://www.dealcooker.app/?utm_source=dealcooker_landing&utm_medium=organic&utm_campaign=seo_strategy_page&utm_content=rental&strategy=longTerm');
+      }
+      if (route === '/methodology/') {
+        const bounds = await evaluate(`(() => {const s=document.querySelector('#compare-metrics');if(!s)return null;const r=s.getBoundingClientRect();return {x:0,y:r.top+scrollY,width:innerWidth,height:r.height}})()`);
+        assert.ok(bounds, 'Metric comparison guide must render');
+        fs.writeFileSync(path.join(output, `metric-guide-full-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...bounds, scale: 1 } })).data, 'base64'));
+        await evaluate(`document.querySelector('#compare-metrics').scrollIntoView({block:'start',behavior:'instant'})`);
+        fs.writeFileSync(path.join(output, `metric-guide-top-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        row.metricGuide = await evaluate(`(() => {const s=document.querySelector('#compare-metrics');return {heading:s.querySelector('h2').textContent,cards:s.querySelectorAll('article').length,steps:s.querySelectorAll('li').length,links:[...s.querySelectorAll('a')].map(a=>a.getAttribute('href'))}})()`);
+        assert.equal(row.metricGuide.cards, 4);
+        assert.equal(row.metricGuide.steps, 3);
+        row.metricGuide.nativeTargets = [];
+        for (const [index, targetRoute] of ['/rental-property-calculator/', '/brrrr-calculator/'].entries()) {
+          if (index) { await send('Page.navigate', { url: `${origin}/methodology/?dc_qa=1&dc_analytics=off` }); await delay(500); }
+          await evaluate(`document.querySelectorAll('#compare-metrics a')[${index}].scrollIntoView({block:'center',behavior:'instant'})`);
+          const target = await evaluate(`(() => {const a=document.querySelectorAll('#compare-metrics a')[${index}];const r=a.getClientRects()[0];const x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:document.elementFromPoint(x,y)?.closest('a')===a,href:a.getAttribute('href')}})()`);
+          assert.equal(target.hit, true, 'Worked-example link must be an unclipped native target');
+          fs.writeFileSync(path.join(output, `metric-guide-links-${index}-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          if (width === 390) {
+            await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: target.x, y: target.y }] });
+            await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          } else {
+            await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+            await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+          }
+          await delay(750);
+          const destination = await evaluate(`({pathname:location.pathname,hash:location.hash,qa:new URL(location.href).searchParams.get('dc_qa'),gaLoaded:Boolean(window.__dealcookerGaLoaded),heading:document.querySelector('#worked-example h2')?.textContent})`);
+          assert.equal(destination.pathname, targetRoute);
+          assert.equal(destination.hash, '#worked-example');
+          assert.equal(destination.qa, '1');
+          assert.equal(destination.gaLoaded, false);
+          assert.equal(destination.heading, 'Follow the assumptions into the result.');
+          row.metricGuide.nativeTargets.push({ ...target, destination });
+          fs.writeFileSync(path.join(output, `metric-guide-destination-${index}-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        }
       }
       rows.push({ ...row, screenshot });
     }

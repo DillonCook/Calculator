@@ -17,7 +17,7 @@
     "landing:build": "tsx scripts/build-landing.ts",
     "landing:audit": "node scripts/audit-landing.mjs",
     "landing:responsive": "node scripts/responsive-audit.mjs",
-    "landing:verify": "npm run landing:build && npm run landing:audit && node --test test/landing-rental-content.test.mjs"
+    "landing:verify": "npm run landing:build && npm run landing:audit && node --test test/landing-rental-content.test.mjs test/landing-metric-guide.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

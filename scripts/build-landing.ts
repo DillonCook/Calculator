@@ -10,7 +10,7 @@ const APP_ORIGIN = 'https://www.dealcooker.app';
 const SITE_ORIGIN = 'https://dealcooker.app';
 const CONTENT_DATES = {
   '/': '2026-09-12',
-  '/methodology/': '2026-09-12',
+  '/methodology/': '2026-11-14',
   '/rental-property-calculator/': '2026-11-02',
   '/brrrr-calculator/': '2026-07-24',
   '/room-by-room-rental-calculator/': '2026-07-24',
@@ -519,8 +519,26 @@ ${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}<sect
 <section class="page-cta"><div><p class="eyebrow">Free real estate underwriting</p><h2>Bring the property.<br>DealCooker brings the model.</h2><a class="button button-primary" href="${appHref(`${page.source}-final`, 'seo_strategy_page', appStrategy)}">Analyze a deal — free ↗</a><p>No credit card. No signup required to start.</p></div></section>`;
 };
 
+const metricReadingGuide = `<section id="compare-metrics" class="methodology-content section-shell" aria-labelledby="compare-metrics-heading">
+<h2 id="compare-metrics-heading">NOI vs cash flow; cap rate vs cash-on-cash return</h2>
+<p>These numbers answer different questions. Start with the property’s operations, then its debt payments, then the cash you have invested. A favorable percentage alone does not make a deal affordable or a forecast reliable.</p>
+<div class="definition-grid">
+<article><h3>NOI: does the property cover its operating costs?</h3><p>Use modeled NOI to inspect income after vacancy and operating costs, before debt service. Positive NOI is not the cash left after paying the loan.</p></article>
+<article><h3>Cash flow: what remains after debt service?</h3><p>Use monthly cash flow to inspect the modeled operating surplus or shortfall after required debt payments. Check whether reserves are included; repairs and vacancies do not arrive evenly each month.</p></article>
+<article><h3>Cap rate: how does NOI compare with the property basis?</h3><p>Use cap rate to relate annual modeled NOI to the strategy’s property basis, not to your down payment. It does not tell you your cash return after the loan payments.</p></article>
+<article><h3>Cash-on-cash return: what does the invested cash produce?</h3><p>Compare annual pre-tax cash flow with modeled cash invested. Inspect that cash amount, not just the down payment: closing costs and project cash can also matter. A larger down payment changes both debt service and invested cash, so do not assume it improves the percentage.</p></article>
+</div>
+<h3>Keep the model boundaries in view</h3>
+<p>DealCooker’s NOI may include reserves and financing-dependent fixed costs such as PMI. Its cap rate is therefore not necessarily a conventional unlevered cap rate. Most acquisition views use purchase price as the basis; BRRRR uses ARV. Compare like definitions and periods, not just labels.</p>
+<h3>Read a rental result in this order</h3>
+<ol><li>Check the income, expenses and reserves behind NOI, then the loan payments behind cash flow.</li><li>Review cash invested alongside cash-on-cash return. For BRRRR, distinguish starting cash from cash left after refinance.</li><li>Review the hold period, exit assumptions, ROI and IRR. Cash-on-cash return alone does not capture the timing or proceeds of a future sale.</li></ol>
+<p>Follow the <a class="text-link" href="/rental-property-calculator/#worked-example">rental worked example</a> or inspect the <a class="text-link" href="/brrrr-calculator/#worked-example">BRRRR example</a>. Replace illustrative inputs with verified property facts before relying on a result.</p>
+<p>General reference: <a class="text-link" href="https://jpmorgan.com/insights/real-estate/commercial-term-lending/cash-on-cash-return-cocr-in-real-estate" rel="external">JPMorgan Chase’s cash-on-cash return explanation</a> supports the distinction between operating cash yield and full-hold returns. It does not validate DealCooker’s model conventions. Reference checked November 14, 2026; educational context, not investment advice.</p>
+</section>`;
+
 const methodologyBody = () => `
 <section class="methodology-hero"><div class="section-shell"><p class="eyebrow">Transparent underwriting</p><h1>DealCooker methodology</h1><p>How the calculator turns property assumptions into cash flow, debt coverage, returns, and strategy comparisons.</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last substantively updated <time datetime="${contentDate('/methodology/')}">${contentDate('/methodology/')}</time>.</span></div></div></section>
+${metricReadingGuide}
 <section class="methodology-content section-shell">
   <div class="direct-answer"><p class="eyebrow">Short version</p><h2>What DealCooker calculates</h2><p>DealCooker is a pre-tax real estate underwriting model. It connects acquisition cash, financing, strategy-specific income and expenses, reserves, debt service, refinance events, and sale assumptions into one traceable projection.</p></div>
   <div class="definition-grid">
@@ -562,7 +580,7 @@ write('index.html', shell({
 }));
 write('methodology/index.html', shell({
   title: 'DealCooker Methodology: Real Estate Calculator Formulas',
-  description: 'See how DealCooker calculates NOI, cash flow, cap rate, DSCR, cash-on-cash return, ROI, and IRR across real estate strategies.',
+  description: "Understand NOI vs cash flow and cap rate vs cash-on-cash return. Read DealCooker's metric definitions, model limits and worked rental examples.",
   slug: 'methodology',
   body: methodologyBody(),
   schema: [
