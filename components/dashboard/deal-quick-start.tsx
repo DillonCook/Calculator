@@ -21,7 +21,11 @@ export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
   const [strategy,setStrategy] = useState<'longTerm'|'airbnb'|'flip'>('longTerm');
   const [name,setName] = useState('');
   const [price,setPrice] = useState('');
-  const [income,setIncome] = useState('');
+  // Monthly rent, booking revenue and a one-time resale value are distinct inputs.
+  // Keep each draft in memory so revisiting a goal never silently changes its meaning.
+  const [incomeDrafts,setIncomeDrafts] = useState({longTerm:'',airbnb:'',flip:''});
+  const income = incomeDrafts[strategy];
+  const setIncome = (value: string) => setIncomeDrafts(previous=>({...previous,[strategy]:value}));
   const [cash,setCash] = useState(false);
   const [down,setDown] = useState(base.purchase.downPaymentPercent*100);
   const [rate,setRate] = useState(Number((base.purchase.interestRate*100).toFixed(3)));
