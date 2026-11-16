@@ -2366,6 +2366,9 @@ export default function HomePage() {
     if (landingStrategy && !hasSharedDeal) {
       activeDealUiStatePresenceRef.current = { hasActiveStrategy: true, hasProjectionStrategies: true };
       setActiveStrategy(landingStrategy);
+      // These strategies are not offered by the three-goal quick start.
+      // Keep the requested workbench visible instead of asking for another goal.
+      if (landingStrategy === 'purchase' || landingStrategy === 'padSplit' || landingStrategy === 'brrrr') setQuickStartDismissed(true);
       setCompactSelectedStrategies([landingStrategy]);
       setModel((current) => ({
         ...current,

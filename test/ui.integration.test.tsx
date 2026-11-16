@@ -223,6 +223,50 @@ describe('dashboard integration', () => {
     ]);
   });
 
+  it.each([
+    ['purchase', 'Commercial'], ['padSplit', 'PadSplit'], ['brrrr', 'BRRRR']
+  ])('opens the requested %s landing workbench instead of unrelated starter goals', async (strategy, label) => {
+    window.localStorage.clear();
+    writeScenarios([]);
+    window.history.replaceState({}, '', `/?utm_source=dealcooker_landing&strategy=${strategy}`);
+    render(<HomePage />);
+    await waitFor(() => expect(screen.queryByRole('region', {name:'Start a property analysis'})).not.toBeInTheDocument());
+    expect(getStrategyButton(label)).toHaveClass('btn-selector-active');
+    expect(screen.getByLabelText('Purchase price')).toBeVisible();
+    expect(screen.getByRole('button', {name:'Guided'})).toHaveAttribute('aria-pressed','true');
+    expect(window.location.search).toBe('');
+    expect(window.localStorage.getItem('dealcooker-experience:v1')).toBeNull();
+  });
+
+  it.each([
+    '?utm_source=dealcooker_landing&strategy=longTerm',
+    '?utm_source=dealcooker_landing&strategy=airbnb',
+    '?utm_source=dealcooker_landing&strategy=flip',
+    '?utm_source=dealcooker_landing&strategy=BRRRR',
+    '?strategy=brrrr',
+    ''
+  ])('retains supported or generic first-use guidance for %s', async search => {
+    window.localStorage.clear();
+    writeScenarios([]);
+    window.history.replaceState({}, '', `/${search}`);
+    render(<HomePage />);
+    expect(await screen.findByRole('region', {name:'Start a property analysis'})).toBeVisible();
+    expect(screen.getByRole('button', {name:/^Rent out a home/})).toBeVisible();
+    expect(screen.getByRole('button', {name:'Guided'})).toHaveAttribute('aria-pressed','true');
+  });
+
+  it('does not let a landing strategy replace the strategy in a shared deal', async () => {
+    window.localStorage.clear();
+    writeScenarios([]);
+    const encoded=encodeDealToShareParam({...defaultDealInput,uiState:{activeStrategy:'airbnb',projectionStrategies:['airbnb']}});
+    window.history.replaceState({},'',`/?s=${encoded}&utm_source=dealcooker_landing&strategy=brrrr`);
+    render(<HomePage/>);
+    await waitFor(()=>expect(getStrategyButton('Airbnb')).toHaveClass('btn-selector-active'));
+    expect(getStrategyButton('BRRRR')).not.toHaveClass('btn-selector-active');
+    expect(await screen.findByRole('status')).toHaveTextContent('Imported shared deal:');
+    expect(window.location.search).not.toContain('strategy=');
+  });
+
   it('switches to Pro Mode without changing the current deal or KPIs', async () => {
     const model = structuredClone(defaultDealInput);
     model.longTerm.grossRentMonthly = 3500;

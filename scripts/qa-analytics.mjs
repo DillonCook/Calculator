@@ -17,13 +17,14 @@ fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
 const strategyDrafts = process.argv[4] === '--strategy-drafts';
+const landingEntry = process.argv[4] === '--landing-entry';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
 const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -77,7 +78,7 @@ try {
   await send('Network.enable');
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
-  if (firstUse) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
+  if (firstUse || landingEntry) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
   if (shareFallback || reportShareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
   let sampleReportHref;
@@ -127,6 +128,45 @@ try {
     };
     let sampleClicked = false;
     let proBlankInputs = false;
+    if (landingEntry) {
+      for (const [strategy,label,workbench] of [['purchase','Commercial',true],['padSplit','PadSplit',true],['brrrr','BRRRR',true],['longTerm','Long-Term',false],['airbnb','Airbnb',false],['flip','Flip',false],['','',false]]) {
+        const entry = new URL(url);
+        if (strategy) {
+          entry.searchParams.set('utm_source','dealcooker_landing');
+          entry.searchParams.set('strategy',strategy);
+        }
+        await send('Page.navigate',{url:entry.href});
+        await pause(1800);
+        const state = await evaluate(`(() => {
+          const visible=el=>!!el?.getClientRects().length;
+          const wizard=document.querySelector('.deal-quick-start');
+          const price=[...document.querySelectorAll('label')].filter(visible).find(x=>x.firstChild?.textContent==='Purchase price')?.querySelector('input');
+          const desktop=document.querySelector('[aria-label="Desktop strategy selector"] .btn-selector-active');
+          const mobile=document.querySelector('button[aria-label="Choose strategy"]');
+          return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,wizard:visible(wizard),priceVisible:visible(price),activeLabel:innerWidth===390?mobile?.innerText:desktop?.textContent,experience:document.querySelector('main')?.dataset.experience,location:location.href,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),gaLoaded:!!window.__dealcookerGaLoaded,errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};
+        })()`);
+        state.strategy=strategy || 'generic';
+        state.expectedWorkbench=workbench;
+        state.entryPassed=workbench ? !state.wizard && state.priceVisible && state.activeLabel?.trim().includes(label) && state.experience==='guided' : state.wizard;
+        if (workbench && state.entryPassed) {
+          let selectionLabel=label;
+          if(width===390) {
+            await pointer('Choose strategy',true);
+            selectionLabel=await evaluate(`(() => {const b=[...document.querySelectorAll('[role="dialog"] button')].find(x=>x.querySelector('p')?.textContent===${JSON.stringify(label)});return b?.getAttribute('aria-label') || b?.textContent.trim();})()`);
+            if(!selectionLabel) throw new Error(`Strategy sheet option missing: ${label}`);
+          }
+          await pointer(selectionLabel,width===390);
+          state.nativeSelectionPassed=await evaluate(`!document.querySelector('.deal-quick-start')?.getClientRects().length && document.body.innerText.includes(${JSON.stringify(label)})`);
+          state.entryPassed &&=state.nativeSelectionPassed;
+        }
+        const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+        state.screenshot=path.join(output,`entry-${state.strategy}-${width}.png`);
+        fs.writeFileSync(state.screenshot,Buffer.from(image.data,'base64'));
+        results.push(state);
+      }
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      continue;
+    }
     if (proMode) {
       await pointer('Pro Mode', width===390);
       proBlankInputs = await evaluate(`(() => {const field=[...document.querySelectorAll('label')].find(x=>x.textContent.trim().startsWith('Purchase price'))?.querySelector('input');return !!field && !!field.getClientRects().length && !document.querySelector('.deal-quick-start')?.getClientRects().length;})()`);
@@ -414,8 +454,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && results.every(result => (firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!landingEntry || results.length===14) && results.every(result => (landingEntry ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
