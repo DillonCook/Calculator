@@ -14,7 +14,7 @@ const CONTENT_DATES = {
   '/rental-property-calculator/': '2026-11-02',
   '/brrrr-calculator/': '2026-07-24',
   '/room-by-room-rental-calculator/': '2026-07-24',
-  '/airbnb-investment-calculator/': '2026-09-12',
+  '/airbnb-investment-calculator/': '2026-11-16',
   '/fix-and-flip-calculator/': '2026-07-24',
   '/commercial-real-estate-calculator/': '2026-07-24',
   '/compare-rental-strategies/': '2026-09-12',
@@ -277,7 +277,7 @@ const pages: Page[] = [
   {
     slug: 'airbnb-investment-calculator',
     title: 'Free Airbnb Investment Calculator | DealCooker',
-    description: 'Analyze an Airbnb or short-term rental for free using nightly rate, occupancy, stay length, cleaning, platform fees, management, reserves, ROI, and IRR.',
+    description: 'Estimate Airbnb cash flow from gross booking revenue, not just payouts. Separate cleaning charges, cleaner costs and host fees, then inspect the free worked example.',
     eyebrow: 'Free Airbnb / STR calculator',
     h1: 'Turn nights, rates, and operating drag into an investable decision.',
     intro: 'Model the revenue upside and the real costs of short-term rental operations—including cleaning, platform fees, management, furnishing, and reserves.',
@@ -498,6 +498,26 @@ const rentalChecklist = `<section class="rental-checklist methodology-content se
 <p><a class="button button-primary" href="https://www.dealcooker.app/?utm_source=dealcooker_landing&amp;utm_medium=organic&amp;utm_campaign=seo_strategy_page&amp;utm_content=rental&amp;strategy=longTerm">Run the rental analysis — free</a></p>
 </article></div></section>`;
 
+const airbnbRevenueGuide = `<section id="airbnb-revenue-guide" class="methodology-content section-shell" aria-labelledby="airbnb-revenue-heading">
+<h2 id="airbnb-revenue-heading">Airbnb revenue is not the same as your payout</h2>
+<p>A guest's total price, your gross booking revenue and the deposit in your bank account are different amounts. Start with the revenue before deductions, then model the costs once. Do not enter a net payout and then deduct the same host fees again.</p>
+<div class="definition-grid"><article>
+<h3>Building the estimate from nightly inputs?</h3>
+<p>Use ADR for the nightly room rate, not a nightly amount that already includes cleaning or taxes. Nights per month and Occupancy % determine occupied nights; Avg nights per booking determines estimated turns. Use consistent availability and occupancy assumptions, so blocked nights are not removed twice.</p>
+<p>Cleaning fee charged is income per booking. Cleaner cost / turn is a separate expense. Enter the full amounts on each side, not only the difference between them. Shorter stays can mean more cleaning turns even with the same occupied nights.</p>
+</article><article>
+<h3>Already have an annual revenue estimate?</h3>
+<p>Annual revenue (optional) takes total annual booking revenue including cleaning charges, before host fees and excluding taxes. A positive override replaces nightly revenue and cleaning revenue; cleaning charges are not added again. Occupancy and stay length still determine cleaner costs, so review those inputs even when revenue is overridden.</p>
+<p>Check what an outside estimate includes before using it. A forecast is not verified income, and a payout may already have host or co-host fees removed. Do not assume the two numbers can be substituted.</p>
+</article></div>
+<h3>Check your actual fees, then inspect cash flow</h3>
+<p>Set Platform fee % from the host fee that applies to your listing and bookings, not the guest service fee or a universal advertised rate. DealCooker applies it to room revenue plus cleaning charges. Management and reserve percentages use room revenue in nightly mode, but the supplied gross revenue in override mode. Review your management agreement separately if its fee base differs.</p>
+<p>Airbnb's <a class="text-link" href="https://www.airbnb.com/help/article/459" rel="external">payout explanation</a> separates booking charges from host fees and co-host payouts. Its <a class="text-link" href="https://www.airbnb.com/help/article/1857" rel="external">service-fee guidance</a> shows where to find a reservation's host fee in Earnings. Reference checked November 16, 2026; fee structures can change.</p>
+<p>DealCooker is a pre-tax investment model, not a bank-deposit reconciliation. Review owner expenses, taxes, insurance, reserves, furnishing and debt payments as well; payout alone is not profit. Verify local operating and tax requirements independently.</p>
+<p>Inspect the <a class="text-link" href="#worked-example">illustrative Airbnb worked example</a>, then replace its assumptions with your own supported inputs.</p>
+<p><a class="button button-primary" href="${appHref('airbnb', 'seo_strategy_page', 'airbnb')}">Run the Airbnb analysis — free</a></p>
+</section>`;
+
 const strategyBody = (page: Page) => {
   const currentLabel = page.strategy === 'compare' ? 'Compare strategies' : strategyLabel[page.strategy];
   const appStrategy = page.strategy === 'compare' ? undefined : page.strategy;
@@ -509,7 +529,7 @@ const strategyBody = (page: Page) => {
   return `
 <section class="strategy-hero"><div class="strategy-hero-copy"><p class="breadcrumb"><a href="/">DealCooker</a><span>/</span>${escape(currentLabel)}</p><p class="eyebrow">${escape(page.eyebrow)}</p><h1>${escape(page.h1)}</h1><p>${escape(page.intro)}</p><div class="hero-actions"><a class="button button-primary" href="${appHref(page.source, 'seo_strategy_page', appStrategy)}">Run this analysis — free <span>↗</span></a><a class="button button-quiet" href="#worked-example">See a worked example</a></div><p class="free-note"><span>✓</span> Free <span>✓</span> No signup required</p></div><div class="strategy-mark"><img src="/assets/dealcooker-mark.png" alt="" width="160" height="185"><span>${escape(currentLabel)}</span></div></section>
 <section class="direct-answer section-shell" aria-labelledby="direct-answer-heading"><p class="eyebrow">Direct answer</p><h2 id="direct-answer-heading">What this calculator does</h2><p>${escape(page.answer)}</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last substantively updated <time datetime="${dateModified}">${dateModified}</time>.</span></div></section>
-${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
+${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}${page.slug === 'airbnb-investment-calculator' ? `${airbnbRevenueGuide}\n` : ''}<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
 <section class="levers-section"><div class="section-shell"><div class="section-heading"><p class="eyebrow">What DealCooker models</p><h2>Change an assumption. See the whole deal move.</h2></div><div class="levers-layout"><ol>${page.levers.map((lever,index) => `<li><span>0${index+1}</span><strong>${escape(lever)}</strong></li>`).join('')}</ol><div class="metric-list"><span>DECISION OUTPUTS</span>${page.metrics.map(([label]) => `<i>${escape(label)}<b>Included</b></i>`).join('')}<i>Calculation breakdown<b>Visible</b></i><i>Share + print report<b>Included</b></i></div></div></div></section>
 <section class="strategy-work section-shell"><div><p class="eyebrow">When the deal misses</p><h2>Don’t stop at “no.”<br><em>Test the supported levers.</em></h2><p>DealCooker can test a lower purchase price and, when applicable, a larger down payment against the active strategy’s workout logic. It does not optimize interest rates, points, loan products, or every financing term.</p></div><div class="recommendation large"><span>MAKE THE DEAL WORK</span><strong>Compare supported price and equity scenarios.</strong><a class="button button-primary" href="${appHref(`${page.source}-workout`, 'seo_strategy_page', appStrategy)}">Try it free ↗</a></div></section>
 <section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Calculation methodology</p><h2>How DealCooker models this strategy</h2><p>${escape(page.methodology)}</p><a class="text-link" href="/methodology/">Read the full methodology and metric definitions ↗</a></div><aside><strong>Model boundaries</strong><p>Outputs are pre-tax estimates based on user inputs. DealCooker is not an appraisal, lender quote, legal opinion, tax calculation, or promise of performance.</p></aside></div></section>
