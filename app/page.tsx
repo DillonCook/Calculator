@@ -870,6 +870,7 @@ export default function HomePage() {
   const [compactInputSection, setCompactInputSection] = useState<CompactInputSection>('core');
   const [desktopInputSection, setDesktopInputSection] = useState<CompactInputSection>('core');
   const [desktopWorkspaceMode, setDesktopWorkspaceMode] = useState<DesktopWorkspaceMode>('build');
+  const [inputRecoveryTarget, setInputRecoveryTarget] = useState<'desktop' | 'compact' | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showAllCommercialMobileOutputs, setShowAllCommercialMobileOutputs] = useState(false);
   const [showAllLongTermTurnaroundMobileOutputs, setShowAllLongTermTurnaroundMobileOutputs] = useState(false);
@@ -1983,6 +1984,30 @@ export default function HomePage() {
       }
     };
   }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!inputRecoveryTarget) return;
+    // Wait for the selected input view to mount before moving focus.
+    const frame = window.requestAnimationFrame(() => {
+      const target = inputRecoveryTarget === 'desktop' ? desktopCoreInputButtonRef.current : compactCoreInputButtonRef.current;
+      target?.focus({preventScroll:true});
+      target?.scrollIntoView?.({block:'center',behavior:'instant'});
+      setInputRecoveryTarget(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [inputRecoveryTarget]);
+
+  const completeDesktopInputs = () => {
+    setDesktopWorkspaceMode('build');
+    setDesktopInputSection('core');
+    setInputRecoveryTarget('desktop');
+  };
+
+  const completeCompactInputs = () => {
+    setCompactMode('inputs');
+    setCompactInputSection('core');
+    setInputRecoveryTarget('compact');
+  };
 
   const completeOnboarding = () => {
     setIsOnboardingOpen(false);
@@ -4897,7 +4922,7 @@ export default function HomePage() {
       <button
         type="button"
         className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
-        onClick={() => setCompactMode('inputs')}
+        onClick={completeCompactInputs}
       >
         Complete inputs
       </button>
@@ -5068,7 +5093,7 @@ export default function HomePage() {
       <button
         type="button"
         className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
-        onClick={() => setCompactMode('inputs')}
+        onClick={completeCompactInputs}
       >
         Complete inputs
       </button>
@@ -7100,10 +7125,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     className="btn-primary mt-5 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold"
-                    onClick={() => {
-                      setDesktopWorkspaceMode('build');
-                      setDesktopInputSection('core');
-                    }}
+                    onClick={completeDesktopInputs}
                   >
                     Complete inputs
                   </button>
