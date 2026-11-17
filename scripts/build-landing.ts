@@ -15,7 +15,7 @@ const CONTENT_DATES = {
   '/brrrr-calculator/': '2026-07-24',
   '/room-by-room-rental-calculator/': '2026-07-24',
   '/airbnb-investment-calculator/': '2026-11-16',
-  '/fix-and-flip-calculator/': '2026-07-24',
+  '/fix-and-flip-calculator/': '2026-11-17',
   '/commercial-real-estate-calculator/': '2026-07-24',
   '/compare-rental-strategies/': '2026-09-12',
 } as const;
@@ -300,7 +300,7 @@ const pages: Page[] = [
   {
     slug: 'fix-and-flip-calculator',
     title: 'Free Fix and Flip Calculator | DealCooker',
-    description: 'Analyze a fix-and-flip for free with rehab contingency, hard-money interest and points, holding costs, selling costs, profit, ROI, and max allowable offer.',
+    description: 'Check hard-money points, minimum interest and holding costs in a free fix-and-flip analysis. Understand the full-balance model before comparing a lender quote.',
     eyebrow: 'Free fix-and-flip calculator',
     h1: 'Price the risk before the renovation starts.',
     intro: 'See the acquisition, financing, rehab, holding, and sale waterfall—and solve for the offer price that protects your target profit and ROI.',
@@ -518,6 +518,26 @@ const airbnbRevenueGuide = `<section id="airbnb-revenue-guide" class="methodolog
 <p><a class="button button-primary" href="${appHref('airbnb', 'seo_strategy_page', 'airbnb')}">Run the Airbnb analysis — free</a></p>
 </section>`;
 
+const flipFinancingGuide = `<section id="flip-financing-guide" class="methodology-content section-shell" aria-labelledby="flip-financing-heading">
+<h2 id="flip-financing-heading">Hard-money flip costs: check the loan, not just the rate</h2>
+<p>A quoted interest rate is only part of a flip's financing cost. Bring the written loan terms, rehab budget and expected time to sale. Match each charge to the model once before relying on the profit estimate.</p>
+<div class="definition-grid"><article>
+<h3>Separate points from interest</h3>
+<p>One point is one percent of the loan amount, not the purchase price. DealCooker applies hard-money points to the modeled hard-money balance and treats other lender fees separately. Entering points does not automatically reduce the entered interest rate; use the rate and fees in your actual quote.</p>
+<p>The CFPB's <a class="text-link" href="https://www.consumerfinance.gov/ask-cfpb/what-are-discount-points-and-lender-credits-and-how-do-they-work-en-136/" rel="external">points explanation</a> notes that lenders may also use the word for upfront percentage fees without a rate reduction. Its residential mortgage guidance is general context, not the terms of a business-purpose flip loan.</p>
+</article><article>
+<h3>Know which balance earns interest</h3>
+<p>With hard money enabled, DealCooker applies loan-to-cost to purchase price plus rehab including contingency. It calculates interest on the full modeled loan balance for the longer of your holding period and the minimum-interest months. A faster sale may still leave the minimum interest payable.</p>
+<p>This simplified model does not model a staged rehab draw schedule. For example, LendingOne's <a class="text-link" href="https://lendingone.com/loan-types/fix-and-flip-loans" rel="external">published fix-and-flip product</a> advertises no interest on undrawn rehab funds. That is an example of differing terms, not a lender recommendation and not a guarantee of cash savings. Compare your own draw schedule and payoff quote separately; do not change the stated rate to disguise a balance mismatch.</p>
+</article></div>
+<h3>Check the hold and exit, not just the renovation</h3>
+<p>Holding period should cover acquisition through the modeled sale, not only construction. Property taxes, insurance and applicable fixed or variable costs continue during that hold, alongside modeled financing costs. Do not add a second copy of modeled interest or other already-entered charges to a general holding-cost allowance.</p>
+<p>Check loan extensions, draw fees and payoff charges against your written terms; do not assume the calculator generates every lender charge. Then test a longer hold and lower sale price as separate scenarios. Even below a minimum-interest floor, a longer hold can add property costs and change cash-flow timing.</p>
+<p>Inspect cash invested and net profit after selling costs and debt payoff, not the sale price alone. These are pre-tax estimates, not a lender quote, appraisal or promise of return. References checked November 17, 2026; published loan features can change.</p>
+<p>Start with the <a class="text-link" href="#worked-example">illustrative flip worked example</a>, then replace its assumptions with your property facts and loan terms.</p>
+<p><a class="button button-primary" href="${appHref('flip', 'seo_strategy_page', 'flip')}">Run the flip analysis — free</a></p>
+</section>`;
+
 const strategyBody = (page: Page) => {
   const currentLabel = page.strategy === 'compare' ? 'Compare strategies' : strategyLabel[page.strategy];
   const appStrategy = page.strategy === 'compare' ? undefined : page.strategy;
@@ -529,7 +549,7 @@ const strategyBody = (page: Page) => {
   return `
 <section class="strategy-hero"><div class="strategy-hero-copy"><p class="breadcrumb"><a href="/">DealCooker</a><span>/</span>${escape(currentLabel)}</p><p class="eyebrow">${escape(page.eyebrow)}</p><h1>${escape(page.h1)}</h1><p>${escape(page.intro)}</p><div class="hero-actions"><a class="button button-primary" href="${appHref(page.source, 'seo_strategy_page', appStrategy)}">Run this analysis — free <span>↗</span></a><a class="button button-quiet" href="#worked-example">See a worked example</a></div><p class="free-note"><span>✓</span> Free <span>✓</span> No signup required</p></div><div class="strategy-mark"><img src="/assets/dealcooker-mark.png" alt="" width="160" height="185"><span>${escape(currentLabel)}</span></div></section>
 <section class="direct-answer section-shell" aria-labelledby="direct-answer-heading"><p class="eyebrow">Direct answer</p><h2 id="direct-answer-heading">What this calculator does</h2><p>${escape(page.answer)}</p><div class="trust-line"><span>Published by DealCooker. Product owner: <a href="${AUTHOR.url}">${AUTHOR.name}</a>, ${AUTHOR.role}.</span><span>Last substantively updated <time datetime="${dateModified}">${dateModified}</time>.</span></div></section>
-${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}${page.slug === 'airbnb-investment-calculator' ? `${airbnbRevenueGuide}\n` : ''}<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
+${page.slug === 'rental-property-calculator' ? `${rentalChecklist}\n` : ''}${page.slug === 'airbnb-investment-calculator' ? `${airbnbRevenueGuide}\n` : ''}${page.slug === 'fix-and-flip-calculator' ? `${flipFinancingGuide}\n` : ''}<section class="worked-example section-shell" id="worked-example"><div class="section-heading split"><div><p class="eyebrow">Worked example</p><h2>Follow the assumptions into the result.</h2></div><p>Illustrative inputs only—not a property recommendation. Replace every assumption with verified numbers before making a decision.</p></div><div class="example-grid"><div class="example-inputs"><span>INPUTS</span>${page.inputs.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div><div class="example-arrow">→</div><div class="example-results"><span>MODELED OUTPUT</span>${page.metrics.map(([label,value]) => `<div><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')}</div></div><p class="example-note">This example is generated from DealCooker’s calculation engine during the site build, so the displayed outputs stay tied to the product’s math.</p></section>
 <section class="levers-section"><div class="section-shell"><div class="section-heading"><p class="eyebrow">What DealCooker models</p><h2>Change an assumption. See the whole deal move.</h2></div><div class="levers-layout"><ol>${page.levers.map((lever,index) => `<li><span>0${index+1}</span><strong>${escape(lever)}</strong></li>`).join('')}</ol><div class="metric-list"><span>DECISION OUTPUTS</span>${page.metrics.map(([label]) => `<i>${escape(label)}<b>Included</b></i>`).join('')}<i>Calculation breakdown<b>Visible</b></i><i>Share + print report<b>Included</b></i></div></div></div></section>
 <section class="strategy-work section-shell"><div><p class="eyebrow">When the deal misses</p><h2>Don’t stop at “no.”<br><em>Test the supported levers.</em></h2><p>DealCooker can test a lower purchase price and, when applicable, a larger down payment against the active strategy’s workout logic. It does not optimize interest rates, points, loan products, or every financing term.</p></div><div class="recommendation large"><span>MAKE THE DEAL WORK</span><strong>Compare supported price and equity scenarios.</strong><a class="button button-primary" href="${appHref(`${page.source}-workout`, 'seo_strategy_page', appStrategy)}">Try it free ↗</a></div></section>
 <section class="method-section"><div class="section-shell method-grid"><div><p class="eyebrow">Calculation methodology</p><h2>How DealCooker models this strategy</h2><p>${escape(page.methodology)}</p><a class="text-link" href="/methodology/">Read the full methodology and metric definitions ↗</a></div><aside><strong>Model boundaries</strong><p>Outputs are pre-tax estimates based on user inputs. DealCooker is not an appraisal, lender quote, legal opinion, tax calculation, or promise of performance.</p></aside></div></section>
