@@ -83,11 +83,11 @@ try {
   for (const width of [390, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 });
     await send('Emulation.setTouchEmulationEnabled', { enabled: width === 390 });
-    for (const route of ['/', '/rental-property-calculator/', '/methodology/', '/airbnb-investment-calculator/']) {
+    for (const route of ['/', '/rental-property-calculator/', '/methodology/', '/airbnb-investment-calculator/', '/fix-and-flip-calculator/']) {
       await send('Page.navigate', { url: `${origin}${route}?dc_qa=1&dc_analytics=off` });
       await delay(1500);
       const row = await evaluate(`(() => {const nav=performance.getEntriesByType('navigation')[0];return {url:location.href,width:innerWidth,documentWidth:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth,title:document.title,lcp:window.__qaLcp,ttfb:nav.responseStart-nav.startTime,domReady:nav.domContentLoadedEventEnd,load:nav.loadEventEnd,gaLoaded:Boolean(window.__dealcookerGaLoaded),resourceBytes:performance.getEntriesByType('resource').map(r=>({name:r.name,bytes:r.encodedBodySize})),cta:[...document.querySelectorAll('a')].filter(a=>a.href.startsWith('https://www.dealcooker.app/')).map(a=>({text:a.textContent.trim(),href:a.href})),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).map(i=>i.src)}})()`);
-      const screenshot = path.join(output, `${route === '/' ? 'home' : route === '/methodology/' ? 'methodology' : route === '/airbnb-investment-calculator/' ? 'airbnb' : 'rental'}-${width}.png`);
+      const screenshot = path.join(output, `${route === '/' ? 'home' : route === '/methodology/' ? 'methodology' : route === '/airbnb-investment-calculator/' ? 'airbnb' : route === '/fix-and-flip-calculator/' ? 'flip' : 'rental'}-${width}.png`);
       fs.writeFileSync(screenshot, Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })).data, 'base64'));
       if (route === '/') {
         await evaluate(`document.querySelector('.cash-bars').scrollIntoView({block:'center'})`);
@@ -171,6 +171,36 @@ try {
         assert.equal(row.airbnbGuide.destination.heading, 'Follow the assumptions into the result.');
         assert.ok(row.airbnbGuide.destination.top >= 0 && row.airbnbGuide.destination.top < 900, 'Example heading must be in view');
         fs.writeFileSync(path.join(output, `airbnb-guide-example-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      if (route === '/fix-and-flip-calculator/') {
+        const bounds = await evaluate(`(() => {const s=document.querySelector('#flip-financing-guide');if(!s)return null;const r=s.getBoundingClientRect();return {x:0,y:r.top+scrollY,width:innerWidth,height:r.height}})()`);
+        assert.ok(bounds, 'Flip financing guide must render');
+        fs.writeFileSync(path.join(output, `flip-guide-full-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...bounds, scale: 1 } })).data, 'base64'));
+        await evaluate(`document.querySelector('#flip-financing-guide .button').scrollIntoView({block:'center',behavior:'instant'})`);
+        row.flipGuide = await evaluate(`(() => {const s=document.querySelector('#flip-financing-guide'),a=s.querySelector('.button'),r=a.getBoundingClientRect();return {heading:s.querySelector('h2').textContent,cards:s.querySelectorAll('article').length,cta:a.href,ctaHit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('a')===a}})()`);
+        assert.equal(row.flipGuide.heading, 'Hard-money flip costs: check the loan, not just the rate');
+        assert.equal(row.flipGuide.cards, 2);
+        assert.equal(row.flipGuide.ctaHit, true, 'Flip CTA must be unclipped');
+        assert.equal(row.flipGuide.cta, 'https://www.dealcooker.app/?utm_source=dealcooker_landing&utm_medium=organic&utm_campaign=seo_strategy_page&utm_content=flip&strategy=flip');
+        fs.writeFileSync(path.join(output, `flip-guide-cta-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        await evaluate(`document.querySelector('#flip-financing-guide a[href="#worked-example"]').scrollIntoView({block:'center',behavior:'instant'})`);
+        const target = await evaluate(`(() => {const a=document.querySelector('#flip-financing-guide a[href="#worked-example"]'),r=a.getClientRects()[0],x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:document.elementFromPoint(x,y)?.closest('a')===a}})()`);
+        assert.equal(target.hit, true, 'Flip example link must be an unclipped native target');
+        if (width === 390) {
+          await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: target.x, y: target.y }] });
+          await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } else {
+          await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+          await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+        }
+        await delay(750);
+        row.flipGuide.destination = await evaluate(`({pathname:location.pathname,hash:location.hash,qa:new URL(location.href).searchParams.get('dc_qa'),heading:document.querySelector('#worked-example h2')?.textContent,top:document.querySelector('#worked-example h2')?.getBoundingClientRect().top})`);
+        assert.equal(row.flipGuide.destination.pathname, route);
+        assert.equal(row.flipGuide.destination.hash, '#worked-example');
+        assert.equal(row.flipGuide.destination.qa, '1');
+        assert.equal(row.flipGuide.destination.heading, 'Follow the assumptions into the result.');
+        assert.ok(row.flipGuide.destination.top >= 0 && row.flipGuide.destination.top < 900, 'Example heading must be in view');
+        fs.writeFileSync(path.join(output, `flip-guide-example-${width}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
       }
       rows.push({ ...row, screenshot });
     }
