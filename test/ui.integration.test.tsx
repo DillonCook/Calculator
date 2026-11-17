@@ -367,6 +367,56 @@ describe('dashboard integration', () => {
     expect(screen.queryByLabelText('Estimated monthly cash flow')).not.toBeInTheDocument();
   });
 
+  it.each(['Projection', 'Compare'] as const)('orients desktop input recovery from %s without changing the deal', async view => {
+    const user = userEvent.setup();
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {configurable:true,value:scroll});
+    const model = structuredClone(defaultDealInput);
+    model.purchase.purchasePrice = 321234.56;
+    model.longTerm.grossRentMonthly = 0;
+    writeScenarios([createScenarioRecord(model)]);
+    render(<HomePage />);
+    const sections = screen.getByRole('navigation', {name:'Deal input sections'});
+    await user.click(within(sections).getByRole('button', {name:/Expenses/}));
+    selectDesktopWorkspace(view);
+    const recover = screen.getByRole('button', {name:'Complete inputs'});
+    recover.focus();
+    await user.keyboard('{Enter}');
+    const basics = await screen.findByRole('button', {name:/^Deal Basics,/});
+    await waitFor(() => expect(basics).toHaveFocus());
+    expect(basics).toHaveAttribute('aria-pressed','true');
+    expect(scroll).toHaveBeenCalled();
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(321234.56);
+    await user.click(screen.getByLabelText('Purchase price'));
+    await user.type(screen.getByLabelText('Purchase price'), '7');
+    expect(screen.getByLabelText('Purchase price')).toHaveFocus();
+  });
+
+  it.each(['Results', 'Projections'] as const)('orients compact input recovery from %s without changing the deal', async view => {
+    setViewport(390);
+    const user = userEvent.setup();
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {configurable:true,value:scroll});
+    const model = structuredClone(defaultDealInput);
+    model.purchase.purchasePrice = 321234.56;
+    model.longTerm.grossRentMonthly = 0;
+    writeScenarios([createScenarioRecord(model)]);
+    render(<HomePage />);
+    await user.click(screen.getByRole('tab', {name:/^Expenses/}));
+    await user.click(within(screen.getByRole('navigation', {name:'Mobile view switcher'})).getByRole('button', {name:view}));
+    const recover = screen.getByRole('button', {name:'Complete inputs'});
+    recover.focus();
+    await user.keyboard('{Enter}');
+    const basics = await screen.findByRole('tab', {name:/^Deal Basics/});
+    await waitFor(() => expect(basics).toHaveFocus());
+    expect(basics).toHaveAttribute('aria-selected','true');
+    expect(scroll).toHaveBeenCalled();
+    expect(screen.getByLabelText('Purchase price')).toHaveValue(321234.56);
+    await user.click(screen.getByLabelText('Purchase price'));
+    await user.type(screen.getByLabelText('Purchase price'), '7');
+    expect(screen.getByLabelText('Purchase price')).toHaveFocus();
+  });
+
   it('starts blank when no scenarios are saved', () => {
     window.localStorage.clear();
     render(<HomePage />);
