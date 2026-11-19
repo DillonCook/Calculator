@@ -4,7 +4,7 @@ import { getDebtTermIssues } from '@/lib/debt-terms';
 import { getNegativeValueStyle } from '@/lib/negative-value-color';
 import { getGoalComparisonRows } from '@/lib/goal-comparisons';
 import { readWorkoutSnapshot } from '@/lib/workout-snapshot';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Ref } from 'react';
 import { trackProductEvent } from '@/lib/product-analytics';
 import type { DealInputModel, StrategyKey, StrategyOutput } from '@/lib/models/deal';
 import { getMoneyWaterfall, getCapitalTiming, getDecisionVerdict, getReturnDrivers, applySensitivity, type MoneyRow, type SensitivityChanges } from '@/lib/mainstream-insights';
@@ -27,9 +27,10 @@ interface Props {
   onChange?: (model: DealInputModel) => void;
   compact?: boolean;
   omitWorkoutNotice?: boolean;
+  headingRef?: Ref<HTMLHeadingElement>;
 }
 
-export function DecisionBrief({ model, strategy, output, onChange, compact = false, omitWorkoutNotice = false }: Props) {
+export function DecisionBrief({ model, strategy, output, onChange, compact = false, omitWorkoutNotice = false, headingRef }: Props) {
   const verdict = getDecisionVerdict(model,strategy,output);
   const capital = getCapitalTiming(output);
   const flip = output.calculationBreakdown?.flipMeta;
@@ -40,7 +41,7 @@ export function DecisionBrief({ model, strategy, output, onChange, compact = fal
   const isSample = model.analysis?.kind==='sample' || model.purchase.dealName.includes('Sample Deal');
   const changePreferences = (values: Partial<NonNullable<DealInputModel['analysis']>>) => onChange?.({...model,analysis:{...model.analysis,...values}});
   const debtIssues=getDebtTermIssues(model,strategy);
-  if(debtIssues.length) return <section className="decision-brief" aria-label="Deal decision summary">
+  if(debtIssues.length) return <section className="decision-brief" aria-label="Deal decision summary" style={{scrollMarginTop:'1rem'}}>
     <h2>More information needed</h2>
     <div role="alert"><p>Correct these financing inputs in Build before relying on results:</p><ul>{debtIssues.map(issue=><li key={issue}>{issue}</li>)}</ul></div>
     <p className="decision-help">Terms are entered in years; 0.5 means six months. Zero interest and zero down are supported. Other calculations are not a verified result until these terms are corrected.</p>
@@ -60,10 +61,10 @@ export function DecisionBrief({ model, strategy, output, onChange, compact = fal
     </aside> : null}
     <details className="pro-on-demand"><summary>Assumptions & analysis details</summary><DecisionBrief omitWorkoutNotice model={model} strategy={strategy} output={output} onChange={onChange} /></details>
   </section>;
-  return <section className="decision-brief" aria-label="Deal decision summary">
+  return <section className="decision-brief" aria-label="Deal decision summary" style={{scrollMarginTop:'1rem'}}>
     <header className="decision-brief-header">
       <span className="decision-eyebrow">{isSample?'Fictional sample':reviewed?'Assumptions marked reviewed by author':'Provisional • assumptions need review'}</span>
-      <h2 data-verdict={verdict.status}>{verdict.label}</h2>
+      <h2 ref={headingRef} tabIndex={-1} data-verdict={verdict.status}>{verdict.label}</h2>
       {strategy!=='flip' ? <div className="decision-monthly-headline"><output aria-label="Estimated monthly cash flow" data-value-tone={output.monthlyCashFlow < 0 ? 'negative' : output.monthlyCashFlow > 0 ? 'positive' : 'neutral'} style={getNegativeValueStyle(output.monthlyCashFlow,{kind:'currency'})}>{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(output.monthlyCashFlow)}</output><span> / month</span><small>Estimated cash after costs and debt payments</small></div> : null}
       <p>Before income tax • modeled reserves included • estimates, not guarantees.</p>
     </header>

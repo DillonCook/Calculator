@@ -932,6 +932,8 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [quickStartDismissed,setQuickStartDismissed] = useState(false);
+  const [quickStartResultFocusPending,setQuickStartResultFocusPending] = useState(false);
+  const quickStartResultHeadingRef = useRef<HTMLHeadingElement>(null);
   const { mode: experienceMode, selectMode: selectExperienceMode, isPro } = useExperienceMode();
   const quickStartAvailable = !quickStartDismissed && model.purchase.ownershipMode === 'purchase' && model.purchase.purchasePrice <= 0;
   const showQuickStart = !isPro && quickStartAvailable;
@@ -1996,6 +1998,19 @@ export default function HomePage() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [inputRecoveryTarget]);
+
+  useEffect(() => {
+    if (!quickStartResultFocusPending) return;
+    // A completed guided form unmounts its submit button. Hand focus to the
+    // mounted result once, never on ordinary recalculation or view changes.
+    const frame = window.requestAnimationFrame(() => {
+      const heading = quickStartResultHeadingRef.current;
+      heading?.focus({preventScroll:true});
+      heading?.closest('section')?.scrollIntoView?.({block:'start',behavior:'instant'});
+      setQuickStartResultFocusPending(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [quickStartResultFocusPending]);
 
   const completeDesktopInputs = () => {
     setDesktopWorkspaceMode('build');
@@ -4929,7 +4944,7 @@ export default function HomePage() {
     </section>
   ) : (
     <>
-      <DecisionBrief compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} />
+      <DecisionBrief headingRef={quickStartResultHeadingRef} compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} />
       <section className="section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-4 shadow-soft">
         <div className="space-y-4">
           <div className="results-hero-main priority-kpi-stable relative isolate">
@@ -6189,6 +6204,7 @@ export default function HomePage() {
           onStart={(next,strategy)=>{
             updateModel(next);setActiveStrategy(strategy);setCompactSelectedStrategies([strategy]);
             setQuickStartDismissed(true);setCompactMode('results');setIsOnboardingOpen(false);
+            setQuickStartResultFocusPending(true);
           }}
         /></div> : null}
         {isMobileViewport ? (
@@ -6638,7 +6654,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {compactReadiness.ready ? <DecisionBrief compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} /> : null}
+        {compactReadiness.ready ? <DecisionBrief headingRef={quickStartResultHeadingRef} compact={isPro} model={model} strategy={activeStrategy} output={result[activeStrategy]} onChange={next=>updateModel(next)} /> : null}
         <section ref={desktopResultsSectionRef} className="desktop-outcome-ribbon section-shell section-shell-projection accent-edge accent-edge-projection isolate overflow-hidden rounded-2xl p-3 shadow-soft xl:p-4">
           {!compactReadiness.ready ? (
             <div className="decision-empty-state decision-empty-state-centered" aria-live="polite">
