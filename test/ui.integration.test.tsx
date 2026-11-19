@@ -224,6 +224,48 @@ describe('dashboard integration', () => {
   });
 
   it.each([
+    [1280, /^Rent out a home/, 'Expected monthly rent', '3000'],
+    [390, /^Rent out a home/, 'Expected monthly rent', '3000'],
+    [1280, /^Vacation rental/, 'Expected monthly booking revenue', '4500'],
+    [390, /^Vacation rental/, 'Expected monthly booking revenue', '4500'],
+    [1280, /^Renovate and sell/, 'Expected resale value', '390000'],
+    [390, /^Renovate and sell/, 'Expected resale value', '390000'],
+  ] as const)('hands guided completion focus to the result heading at %s for %s', async (width, goal, incomeField, income) => {
+    window.localStorage.clear();
+    writeScenarios([]);
+    setViewport(width);
+    const user = userEvent.setup();
+    render(<HomePage />);
+    const wizard = await screen.findByRole('region', {name:'Start a property analysis'});
+    expect(within(wizard).getByRole('heading')).not.toHaveFocus();
+    await user.click(within(wizard).getByRole('button', {name:goal}));
+    await user.click(within(wizard).getByRole('button', {name:'Next: costs'}));
+    expect(screen.queryByRole('region', {name:'Deal decision summary'})).not.toBeInTheDocument();
+    await user.type(within(wizard).getByLabelText('Purchase price'), '300000');
+    expect(within(wizard).getByLabelText('Purchase price')).toHaveFocus();
+    await user.type(within(wizard).getByLabelText(incomeField), income);
+    await user.click(within(wizard).getByRole('button', {name:'Next: costs'}));
+    await user.type(within(wizard).getByLabelText('Annual property tax'), '-1');
+    await user.click(within(wizard).getByRole('button', {name:'See my provisional result'}));
+    expect(within(wizard).getByRole('heading', {name:'Add the costs you know.'})).toBeVisible();
+    expect(screen.queryByRole('region', {name:'Deal decision summary'})).not.toBeInTheDocument();
+    await user.clear(within(wizard).getByLabelText('Annual property tax'));
+    await user.type(within(wizard).getByLabelText('Annual property tax'), '2134.56');
+    await user.click(within(wizard).getByRole('button', {name:'See my provisional result'}));
+    const summary = await screen.findByRole('region', {name:'Deal decision summary'});
+    const heading = within(summary).getByRole('heading', {level:2});
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(summary).toHaveTextContent('Provisional');
+    expect(summary).toHaveTextContent('Before income tax');
+    expect(heading).toHaveAttribute('tabindex', '-1');
+    expect(summary).toHaveStyle({scrollMarginTop:'1rem'});
+    await user.click(screen.getByRole('button', {name:'Pro Mode'}));
+    await user.click(screen.getByRole('button', {name:'Guided'}));
+    expect(screen.getByRole('button', {name:'Guided'})).toHaveFocus();
+    expect(within(screen.getByRole('region', {name:'Deal decision summary'})).getByRole('heading', {level:2})).not.toHaveFocus();
+  });
+
+  it.each([
     ['purchase', 'Commercial'], ['padSplit', 'PadSplit'], ['brrrr', 'BRRRR']
   ])('opens the requested %s landing workbench instead of unrelated starter goals', async (strategy, label) => {
     window.localStorage.clear();

@@ -19,13 +19,14 @@ const debugPort = 9337;
 const strategyDrafts = process.argv[4] === '--strategy-drafts';
 const landingEntry = process.argv[4] === '--landing-entry';
 const inputRecovery = process.argv[4] === '--input-recovery';
+const resultFocus = process.argv[4] === '--result-focus';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
 const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !inputRecovery) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -79,7 +80,7 @@ try {
   await send('Network.enable');
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
-  if (firstUse || landingEntry || inputRecovery) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
+  if (firstUse || landingEntry || inputRecovery || resultFocus) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
   if (shareFallback || reportShareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
   let sampleReportHref;
@@ -129,6 +130,48 @@ try {
     };
     let sampleClicked = false;
     let proBlankInputs = false;
+    if (resultFocus) {
+      for (const activation of ['keyboard','pointer']) {
+        await send('Page.navigate',{url:url.href});
+        await pause(1800);
+        const select = label => activation==='keyboard' ? click(label) : pointer(label,width===390);
+        await select('Rent out a homeMonthly income and cash required');
+        await select('Next: costs');
+        const required = await evaluate(`document.activeElement?.closest('label')?.firstChild?.textContent==='Purchase price' && !!document.querySelector('.deal-quick-start')`);
+        await fill('Property nickname','Synthetic QA rental');
+        await fill('Purchase price','300000');
+        await fill('Expected monthly rent','3000');
+        await fill('Down payment %','20');
+        await fill('Interest rate %','6.875');
+        await select('Next: costs');
+        await fill('Annual property tax','-1');
+        await select('See my provisional result');
+        const invalidCost = await evaluate(`document.activeElement?.closest('label')?.firstChild?.textContent==='Annual property tax' && !!document.querySelector('.deal-quick-start')`);
+        await fill('Annual property tax','2134.56');
+        await fill('Annual insurance','1789.50');
+        await fill('Other operating costs / month','150.25');
+        await fill('Upfront rehab budget','12780.90');
+        await select('See my provisional result');
+        await pause(350);
+        const state = await evaluate(`(() => {const s=document.querySelector('.decision-brief');const h=s?.querySelector('h2');const notice=s?.querySelector('.decision-eyebrow');const metric=s?.querySelector('[aria-label="Estimated monthly cash flow"]');const visible=e=>{const r=e?.getBoundingClientRect();return !!r && r.top>=0 && r.left>=0 && r.bottom<=innerHeight && r.right<=innerWidth;};return {heading:h?.textContent,headingFocused:!!h && document.activeElement===h,headingVisible:visible(h),noticeVisible:visible(notice),metricVisible:visible(metric),metric:metric?.textContent,active:{tag:document.activeElement?.tagName,text:(document.activeElement?.textContent||'').slice(0,160)},scrollY};})()`);
+        const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+        state.screenshot=path.join(output,`result-focus-${width}-${activation}.png`);
+        fs.writeFileSync(state.screenshot,Buffer.from(image.data,'base64'));
+        await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+        await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+        await pause(150);
+        state.tabIntoSummary=await evaluate(`!!document.activeElement?.closest('.decision-brief') && document.activeElement?.tagName==='SUMMARY'`);
+        await select('Pro Mode');
+        await select('Guided');
+        state.noRefocus=await evaluate(`document.activeElement?.getAttribute('aria-pressed')==='true' && document.activeElement?.textContent==='Guided'`);
+        Object.assign(state,await evaluate(`({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:[...Object.keys(localStorage),...Object.keys(sessionStorage)].filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`));
+        Object.assign(state,{activation,required,invalidCost});
+        state.resultFocusPassed=required && invalidCost && state.headingFocused && state.headingVisible && state.noticeVisible && state.metricVisible && state.metric==='$283.12' && state.tabIntoSummary && state.noRefocus;
+        results.push(state);
+        await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      }
+      continue;
+    }
     if (inputRecovery) {
       for (const view of width===390 ? ['Results','Projections'] : ['Projection','Compare']) {
         for (const activation of ['pointer','keyboard']) {
@@ -491,8 +534,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && results.every(result => (inputRecovery ? result.recoveryPassed : landingEntry ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
