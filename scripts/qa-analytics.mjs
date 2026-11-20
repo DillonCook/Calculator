@@ -18,6 +18,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'
 const debugPort = 9337;
 const strategyDrafts = process.argv[4] === '--strategy-drafts';
 const landingEntry = process.argv[4] === '--landing-entry';
+const landingGoal = process.argv[4] === '--landing-goal';
 const inputRecovery = process.argv[4] === '--input-recovery';
 const resultFocus = process.argv[4] === '--result-focus';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
@@ -26,7 +27,7 @@ const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -80,7 +81,7 @@ try {
   await send('Network.enable');
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
-  if (firstUse || landingEntry || inputRecovery || resultFocus) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
+  if (firstUse || landingEntry || landingGoal || inputRecovery || resultFocus) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
   if (shareFallback || reportShareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
   let sampleReportHref;
@@ -130,6 +131,55 @@ try {
     };
     let sampleClicked = false;
     let proBlankInputs = false;
+    if (landingGoal) {
+      for (const [strategy,goal,field,amount] of [
+        ['longTerm','Rent out a homeMonthly income and cash required','Expected monthly rent','3000'],
+        ['airbnb','Vacation rentalBookings, cleaning and host fees','Expected monthly booking revenue','4800.75'],
+        ['flip','Renovate and sellProfit, holding costs and maximum offer','Expected resale value','390000']
+      ]) {
+        const state={strategy,width};
+        const select=label=>pointer(label,width===390);
+        const complete=async()=>{
+          await select('Next: costs');
+          const required=await evaluate(`document.activeElement?.closest('label')?.firstChild?.textContent==='Purchase price'`);
+          await fill('Property nickname','Synthetic QA entry');
+          await fill('Purchase price','300000');
+          await fill(field,amount);
+          await fill('Down payment %','20');
+          await fill('Interest rate %','6.875');
+          await select('Next: costs');
+          await fill('Annual property tax','2134.56');
+          await fill('Annual insurance','1789.50');
+          await fill('Other operating costs / month','150.25');
+          await fill('Upfront rehab budget','12780.90');
+          await select('See my provisional result');
+          return {required,...await evaluate(`({summary:document.querySelector('.decision-brief')?.innerText,focused:document.activeElement===document.querySelector('.decision-brief h2')})`)};
+        };
+        const entry=new URL(url);entry.searchParams.set('utm_source','dealcooker_landing');entry.searchParams.set('strategy',strategy);
+        await send('Page.navigate',{url:entry.href});await pause(1800);
+        state.entry=await evaluate(`({heading:document.querySelector('.deal-quick-start h2')?.textContent,blank:[...document.querySelectorAll('.deal-quick-start input')].filter(x=>x.required).every(x=>x.value===''),goal:document.querySelector('.deal-quick-start')?.innerText.includes(${JSON.stringify('Goal: '+goal.replace(/Monthly income.*|Bookings,.*|Profit,.*/,''))}),field:!![...document.querySelectorAll('.deal-quick-start label')].find(x=>x.firstChild?.textContent===${JSON.stringify(field)}),location:location.href})`);
+        const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+        state.screenshot=path.join(output,`landing-goal-${strategy}-${width}.png`);fs.writeFileSync(state.screenshot,Buffer.from(image.data,'base64'));
+        const matched=state.entry.heading==='Start with the property.' && state.entry.field && state.entry.blank && state.entry.goal;
+        if(matched) {
+          await fill(field,'12345');await select('Back');
+          state.back=await evaluate(`document.querySelector('.deal-quick-start h2')?.textContent==='What are you considering?'`);
+          await select(goal);
+          state.draft=await evaluate(`!![...document.querySelectorAll('.deal-quick-start label')].find(x=>x.firstChild?.textContent===${JSON.stringify(field)})?.querySelector('input')?.value.includes('12345')`);
+          await fill(field,'');
+          await select('Pro Mode');await select('Guided');
+          state.noReset=await evaluate(`document.querySelector('.deal-quick-start h2')?.textContent==='Start with the property.'`);
+          state.tagged=await complete();
+        }
+        await send('Page.navigate',{url:url.href});await pause(1800);await select(goal);
+        state.manual=await complete();
+        state.entryPassed=matched && state.back && state.draft && state.noReset && state.tagged.required && state.manual.required && state.tagged.focused && state.manual.focused && !!state.manual.summary && state.tagged.summary===state.manual.summary;
+        Object.assign(state,await evaluate(`({scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:[...Object.keys(localStorage),...Object.keys(sessionStorage)].filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`));
+        results.push(state);
+      }
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      continue;
+    }
     if (resultFocus) {
       for (const activation of ['keyboard','pointer']) {
         await send('Page.navigate',{url:url.href});
@@ -223,11 +273,11 @@ try {
           const price=[...document.querySelectorAll('label')].filter(visible).find(x=>x.firstChild?.textContent==='Purchase price')?.querySelector('input');
           const desktop=document.querySelector('[aria-label="Desktop strategy selector"] .btn-selector-active');
           const mobile=document.querySelector('button[aria-label="Choose strategy"]');
-          return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,wizard:visible(wizard),priceVisible:visible(price),activeLabel:innerWidth===390?mobile?.innerText:desktop?.textContent,experience:document.querySelector('main')?.dataset.experience,location:location.href,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),gaLoaded:!!window.__dealcookerGaLoaded,errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};
+          return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,wizard:visible(wizard),heading:wizard?.querySelector('h2')?.textContent,priceVisible:visible(price),activeLabel:innerWidth===390?mobile?.innerText:desktop?.textContent,experience:document.querySelector('main')?.dataset.experience,location:location.href,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),gaLoaded:!!window.__dealcookerGaLoaded,errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};
         })()`);
         state.strategy=strategy || 'generic';
         state.expectedWorkbench=workbench;
-        state.entryPassed=workbench ? !state.wizard && state.priceVisible && state.activeLabel?.trim().includes(label) && state.experience==='guided' : state.wizard;
+        state.entryPassed=workbench ? !state.wizard && state.priceVisible && state.activeLabel?.trim().includes(label) && state.experience==='guided' : state.wizard && state.heading===(strategy?'Start with the property.':'What are you considering?');
         if (workbench && state.entryPassed) {
           let selectionLabel=label;
           if(width===390) {
@@ -534,8 +584,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
