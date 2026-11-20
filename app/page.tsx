@@ -4756,6 +4756,7 @@ export default function HomePage() {
                     </div>
                     <Link
                       href={printToPdfUrl}
+                      prefetch={false}
                       onClick={() => void trackAnalyticsEvent('print_opened', { surface: 'deal_identity', strategy: activeStrategy })}
                       className="btn-primary btn-pdf inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-medium"
                       target="_blank"
@@ -6523,6 +6524,7 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={printToPdfUrl}
+                    prefetch={false}
                     onClick={() => void trackAnalyticsEvent('print_opened', { surface: 'desktop_header', strategy: activeStrategy })}
                     className={`${desktopUtilityButtonClassName} hoverbox-trigger btn-pdf`}
                     aria-label="Print to PDF"

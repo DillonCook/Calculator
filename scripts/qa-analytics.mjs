@@ -17,7 +17,8 @@ fs.mkdirSync(output, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dealcooker-analytics-qa-'));
 const debugPort = 9337;
 const strategyDrafts = process.argv[4] === '--strategy-drafts';
-const landingEntry = process.argv[4] === '--landing-entry';
+const reportIdle = process.argv[4] === '--report-idle';
+const landingEntry = process.argv[4] === '--landing-entry' || reportIdle;
 const landingGoal = process.argv[4] === '--landing-goal';
 const inputRecovery = process.argv[4] === '--input-recovery';
 const resultFocus = process.argv[4] === '--result-focus';
@@ -53,11 +54,15 @@ try {
   let id = 0;
   const pending = new Map();
   const analyticsRequests = [];
+  const idleReportRequests = [];
   const exceptions = [];
   ws.on('message', raw => {
     const message = JSON.parse(String(raw));
     if (message.method === 'Network.requestWillBeSent' && /\/api\/analytics\/events|google-analytics\.com|googletagmanager\.com/.test(message.params.request.url)) {
       analyticsRequests.push(message.params.request.url);
+    }
+    if (reportIdle && message.method === 'Network.requestWillBeSent' && new URL(message.params.request.url).pathname === '/print') {
+      idleReportRequests.push({url:message.params.request.url,type:message.params.type,prefetch:message.params.request.headers['Next-Router-Prefetch']});
     }
     if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
     if (!message.id || !pending.has(message.id)) return;
@@ -584,8 +589,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, exceptions, results };
+  const passed = (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, idleReportRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
