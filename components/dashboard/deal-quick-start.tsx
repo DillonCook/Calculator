@@ -4,12 +4,13 @@ import type { DealInputModel, StrategyKey } from '@/lib/models/deal';
 
 interface Props {
   base: DealInputModel;
+  initialStrategy?: 'longTerm'|'airbnb'|'flip';
   onStart: (model: DealInputModel,strategy: StrategyKey) => void;
   onSample: () => void;
   onAdvanced: () => void;
 }
-export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
-  const [step,setStep] = useState(0);
+export function DealQuickStart({base,initialStrategy,onStart,onSample,onAdvanced}:Props) {
+  const [step,setStep] = useState(initialStrategy ? 1 : 0);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previousStep = useRef(step);
   useEffect(() => {
@@ -18,7 +19,7 @@ export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
     headingRef.current?.focus({preventScroll:true});
     headingRef.current?.scrollIntoView?.({block:'start', behavior:'instant'});
   }, [step]);
-  const [strategy,setStrategy] = useState<'longTerm'|'airbnb'|'flip'>('longTerm');
+  const [strategy,setStrategy] = useState<'longTerm'|'airbnb'|'flip'>(initialStrategy ?? 'longTerm');
   const [name,setName] = useState('');
   const [price,setPrice] = useState('');
   // Monthly rent, booking revenue and a one-time resale value are distinct inputs.
@@ -59,6 +60,7 @@ export function DealQuickStart({base,onStart,onSample,onAdvanced}:Props) {
     <h2 ref={headingRef} tabIndex={-1} style={{scrollMarginTop:'1rem'}}>{step===0?'What are you considering?':step===1?'Start with the property.':'Add the costs you know.'}</h2>
     <p className="decision-help">{step===0?'Get a clear first result. Refine the details when you are ready.':step===1?'Estimates are fine for a first pass. Nothing here is independently verified.':'Unknown tax and insurance use starting rate estimates. Confirm every assumption before making an offer.'}</p>
     <nav className="quick-start-progress" aria-label="First analysis progress">{['Your goal','Property','Costs'].map((label,index)=><span key={label} aria-current={step===index?'step':undefined}>{index+1}. {label}</span>)}</nav>
+    {step>0?<p className="decision-help">Goal: {strategy==='flip'?'Renovate and sell':strategy==='airbnb'?'Vacation rental':'Rent out a home'}</p>:null}
     {step===0?<>
       <div className="quick-start-goals">{([['longTerm','Rent out a home','Monthly income and cash required'],['airbnb','Vacation rental','Bookings, cleaning and host fees'],['flip','Renovate and sell','Profit, holding costs and maximum offer']] as const).map(([key,label,detail])=><button key={key} type="button" onClick={()=>{setStrategy(key);setStep(1);}}>
         <span className="quick-start-goal-copy"><strong>{label}</strong><span>{detail}</span></span>

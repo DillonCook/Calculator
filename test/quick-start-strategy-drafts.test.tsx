@@ -82,3 +82,33 @@ it('retains an explicitly cleared estimate without clearing a different strategy
   await user.click(screen.getByRole('button', {name:/^Vacation rental/}));
   expect(screen.getByLabelText('Expected monthly booking revenue')).toHaveValue(null);
 });
+
+it.each([
+  ['longTerm', /^Rent out a home/, 'Expected monthly rent', '3200.50'],
+  ['airbnb', /^Vacation rental/, 'Expected monthly booking revenue', '4800.75'],
+  ['flip', /^Renovate and sell/, 'Expected resale value', '390000'],
+] as const)('submits an identical %s model for tagged and manually chosen goals', async (strategy, goal, field, amount) => {
+  const user=userEvent.setup();
+  const onStart=vi.fn();
+  const base=structuredClone(defaultDealInput);
+  const before=structuredClone(base);
+  const submit=async()=>{
+    await user.type(screen.getByLabelText('Purchase price'),'300000');
+    await user.type(screen.getByLabelText(field),amount);
+    await user.click(screen.getByRole('button',{name:'Next: costs'}));
+    expect(screen.getByText(/The result is provisional/)).toBeVisible();
+    await user.type(screen.getByLabelText('Annual property tax'),'2134.56');
+    await user.type(screen.getByLabelText('Annual insurance'),'1789.50');
+    await user.click(screen.getByRole('button',{name:'See my provisional result'}));
+  };
+  const manual=render(<DealQuickStart base={base} onStart={onStart} onSample={vi.fn()} onAdvanced={vi.fn()}/>);
+  await user.click(screen.getByRole('button',{name:goal}));
+  await submit();
+  manual.unmount();
+  render(<DealQuickStart initialStrategy={strategy} base={base} onStart={onStart} onSample={vi.fn()} onAdvanced={vi.fn()}/>);
+  expect(screen.getByRole('heading',{name:'Start with the property.'})).not.toHaveFocus();
+  await submit();
+  expect(onStart).toHaveBeenCalledTimes(2);
+  expect(onStart.mock.calls[1]).toEqual(onStart.mock.calls[0]);
+  expect(base).toEqual(before);
+});

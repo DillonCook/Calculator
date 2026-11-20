@@ -281,13 +281,13 @@ describe('dashboard integration', () => {
   });
 
   it.each([
-    '?utm_source=dealcooker_landing&strategy=longTerm',
-    '?utm_source=dealcooker_landing&strategy=airbnb',
-    '?utm_source=dealcooker_landing&strategy=flip',
+
     '?utm_source=dealcooker_landing&strategy=BRRRR',
     '?strategy=brrrr',
+    '?strategy=airbnb',
+    '?utm_source=other&strategy=flip',
     ''
-  ])('retains supported or generic first-use guidance for %s', async search => {
+  ])('retains generic first-use guidance for %s', async search => {
     window.localStorage.clear();
     writeScenarios([]);
     window.history.replaceState({}, '', `/${search}`);
@@ -297,11 +297,38 @@ describe('dashboard integration', () => {
     expect(screen.getByRole('button', {name:'Guided'})).toHaveAttribute('aria-pressed','true');
   });
 
-  it('does not let a landing strategy replace the strategy in a shared deal', async () => {
+  it.each([
+    ['longTerm','Expected monthly rent','Rent out a home'],
+    ['airbnb','Expected monthly booking revenue','Vacation rental'],
+    ['flip','Expected resale value','Renovate and sell']
+  ])('carries the explicit %s landing goal into its blank guided property form', async (strategy, field, goal) => {
+    window.localStorage.clear();
+    writeScenarios([]);
+    window.history.replaceState({}, '', `/?utm_source=dealcooker_landing&strategy=${strategy}`);
+    const user = userEvent.setup();
+    render(<HomePage />);
+    const wizard = await screen.findByRole('region', {name:'Start a property analysis'});
+    expect(within(wizard).getByRole('heading', {name:'Start with the property.'})).toBeVisible();
+    expect(within(wizard).getByText(`Goal: ${goal}`)).toBeVisible();
+    expect(within(wizard).getByLabelText(field)).toHaveValue(null);
+    expect(within(wizard).getByLabelText('Purchase price')).toHaveValue(null);
+    expect(screen.getByRole('button', {name:'Guided'})).toHaveAttribute('aria-pressed','true');
+    expect(window.location.search).toBe('');
+    await user.type(within(wizard).getByLabelText(field), '3500');
+    await user.click(within(wizard).getByRole('button', {name:'Back'}));
+    expect(within(wizard).getByRole('button', {name:/^Rent out a home/})).toBeVisible();
+    await user.click(within(wizard).getByRole('button', {name:new RegExp(`^${goal}`)}));
+    expect(within(wizard).getByLabelText(field)).toHaveValue(3500);
+    await user.click(screen.getByRole('button', {name:'Pro Mode'}));
+    await user.click(screen.getByRole('button', {name:'Guided'}));
+    expect(within(wizard).getByLabelText(field)).toHaveValue(3500);
+  });
+
+  it.each(['brrrr','flip','longTerm'])('does not let a %s landing strategy replace the strategy in a shared deal', async landingStrategy => {
     window.localStorage.clear();
     writeScenarios([]);
     const encoded=encodeDealToShareParam({...defaultDealInput,uiState:{activeStrategy:'airbnb',projectionStrategies:['airbnb']}});
-    window.history.replaceState({},'',`/?s=${encoded}&utm_source=dealcooker_landing&strategy=brrrr`);
+    window.history.replaceState({},'',`/?s=${encoded}&utm_source=dealcooker_landing&strategy=${landingStrategy}`);
     render(<HomePage/>);
     await waitFor(()=>expect(getStrategyButton('Airbnb')).toHaveClass('btn-selector-active'));
     expect(getStrategyButton('BRRRR')).not.toHaveClass('btn-selector-active');

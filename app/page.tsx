@@ -932,6 +932,7 @@ export default function HomePage() {
   const [prunedLocalCount, setPrunedLocalCount] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [quickStartDismissed,setQuickStartDismissed] = useState(false);
+  const [quickStartEntryStrategy,setQuickStartEntryStrategy] = useState<'longTerm'|'airbnb'|'flip'|undefined>(undefined);
   const [quickStartResultFocusPending,setQuickStartResultFocusPending] = useState(false);
   const quickStartResultHeadingRef = useRef<HTMLHeadingElement>(null);
   const { mode: experienceMode, selectMode: selectExperienceMode, isPro } = useExperienceMode();
@@ -2409,6 +2410,7 @@ export default function HomePage() {
       // These strategies are not offered by the three-goal quick start.
       // Keep the requested workbench visible instead of asking for another goal.
       if (landingStrategy === 'purchase' || landingStrategy === 'padSplit' || landingStrategy === 'brrrr') setQuickStartDismissed(true);
+      else setQuickStartEntryStrategy(landingStrategy);
       setCompactSelectedStrategies([landingStrategy]);
       setModel((current) => ({
         ...current,
@@ -6198,6 +6200,10 @@ export default function HomePage() {
       <div className={`relative z-10 mx-auto max-w-[112rem] space-y-5${showQuickStart ? ' mainstream-guided-root' : ''}`}>
         <ExperienceSwitch mode={experienceMode} onChange={selectExperienceMode} />
         {quickStartAvailable ? <div className="quick-start-container" hidden={isPro}><DealQuickStart
+          // Initial attribution is consumed once, before interaction; later mode
+          // switches keep this instance and its in-memory drafts mounted.
+          key={quickStartEntryStrategy ?? 'generic'}
+          initialStrategy={quickStartEntryStrategy}
           base={model}
           onAdvanced={()=>{setQuickStartDismissed(true);}}
           onSample={()=>{setQuickStartDismissed(true);loadSampleDeal();}}
