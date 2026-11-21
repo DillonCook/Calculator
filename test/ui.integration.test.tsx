@@ -518,6 +518,24 @@ describe('dashboard integration', () => {
     expect(status).toHaveClass('text-emerald-100','bg-emerald-500/15');
   });
 
+  it.each([1440,390])('keeps failed backup import feedback scoped for readable theme styling at width %s', async width => {
+    setViewport(width);
+    window.localStorage.clear();
+    render(<HomePage />);
+    const user=userEvent.setup();
+    const inputBefore=screen.queryByLabelText('Purchase price');
+    const priceBefore=inputBefore ? (inputBefore as HTMLInputElement).value : null;
+    await user.click(screen.getByRole('button',{name:'Open settings'}));
+    await user.click(screen.getByRole('button',{name:'Import backup'}));
+    await user.upload(screen.getByLabelText('Import deal vault backup'),new File(['{"deals":[]}'],'empty-backup.json',{type:'application/json'}));
+    const status=await screen.findByText('No DealCooker deals were found in that backup file.');
+    expect(status).toHaveAttribute('role','status');
+    expect(status).toHaveClass('sync-feedback-error');
+    expect(status).toHaveClass('text-red-100','bg-red-500/15');
+    if(inputBefore) expect((inputBefore as HTMLInputElement).value).toBe(priceBefore);
+    expect(authMockState.cloudUpsertCalls).toHaveLength(0);
+  });
+
   it('keeps desktop onboarding targets mounted as the tour advances', async () => {
     setViewport(1440);
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {

@@ -5106,6 +5106,11 @@ html {
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
+.theme-light .sync-feedback-error {
+  color: #991b1b;
+  background-color: #fee2e2;
+}
+
 .theme-light .sync-feedback-success {
   color: #065f46;
   background-color: #d1fae5;
