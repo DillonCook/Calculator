@@ -506,6 +506,18 @@ describe('dashboard integration', () => {
     expect(within(desktopEmptyState as HTMLElement).queryByRole('button', { name: 'Complete inputs' })).not.toBeInTheDocument();
   });
 
+  it.each([1440,390])('keeps sample-success feedback scoped for readable theme styling at width %s', async width => {
+    setViewport(width);
+    window.localStorage.clear();
+    render(<HomePage />);
+    const user=userEvent.setup();
+    await user.click(screen.getByRole('button',{name:'Try a sample property'}));
+    const status=await screen.findByText('Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.');
+    expect(status).toHaveAttribute('role','status');
+    expect(status).toHaveClass('sync-feedback-success');
+    expect(status).toHaveClass('text-emerald-100','bg-emerald-500/15');
+  });
+
   it('keeps desktop onboarding targets mounted as the tour advances', async () => {
     setViewport(1440);
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {

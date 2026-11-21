@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import WebSocket from 'ws';
+import sharp from 'sharp';
 
 const url = new URL(process.argv[2] || 'http://127.0.0.1:3027/');
 if (!['http://127.0.0.1:3027', 'https://www.dealcooker.app'].includes(url.origin) || url.pathname !== '/') {
@@ -23,12 +24,13 @@ const landingGoal = process.argv[4] === '--landing-goal';
 const inputRecovery = process.argv[4] === '--input-recovery';
 const resultFocus = process.argv[4] === '--result-focus';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
+const sampleFeedback = process.argv[4] === '--sample-feedback';
 const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !sampleFeedback && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -134,6 +136,50 @@ try {
       }
       await pause(350);
     };
+    if (sampleFeedback) {
+      for (const theme of ['light', 'dark']) {
+        const reset = await send('Page.addScriptToEvaluateOnNewDocument', {source:`localStorage.clear();localStorage.setItem('dealcooker-light-mode:v1',${JSON.stringify(theme==='light'?'1':'0')});`});
+        await send('Page.navigate', {url:url.href});
+        for (let attempt=0;attempt<50;attempt++) {
+          if (await evaluate(`!![...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()==='Try a sample property')`)) break;
+          await pause(100);
+        }
+        await pause(300);
+        await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:reset.identifier});
+        await pointer('Try a sample property',width===390);
+        await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent.startsWith('Sample deal loaded.'));s?.scrollIntoView({block:'center',behavior:'instant'});})()`);
+        const state=await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent.startsWith('Sample deal loaded.'));if(!s)throw Error('Real sample feedback missing');const r=s.getBoundingClientRect();const c=getComputedStyle(s);const ancestors=[];for(let el=s;el;el=el.parentElement){const st=getComputedStyle(el);ancestors.push({tag:el.tagName,opacity:st.opacity,filter:st.filter});}return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,theme:document.body.classList.contains('theme-light')?'light':'dark',sampleVisible:/fictional sample/i.test(document.body.innerText),text:s.textContent,foreground:c.color,background:c.backgroundColor,fontSize:c.fontSize,ancestors,rect:{x:r.x,y:r.y,width:r.width,height:r.height},gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};})()`);
+        const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+        const png=Buffer.from(image.data,'base64');
+        state.screenshot=path.join(output,`sample-feedback-${width}-${theme}.png`);
+        fs.writeFileSync(state.screenshot,png);
+        // Sample actual painted padding, not an assumed opaque background. Text
+        // begins below this strip; quarter-width points avoid rounded borders.
+        const {data,info}=await sharp(png).removeAlpha().raw().toBuffer({resolveWithObject:true});
+        const rgb=state.foreground.match(/[\d.]+/g)?.map(Number);
+        if (!rgb || rgb.length!==3) throw Error('Expected opaque RGB feedback text');
+        const luminance=channels=>channels.map(x=>x/255).map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4).reduce((sum,x,i)=>sum+x*[0.2126,0.7152,0.0722][i],0);
+        state.samples=[0.25,0.5,0.75].map(fraction=>{
+          const x=Math.round(state.rect.x+state.rect.width*fraction);
+          const y=Math.round(state.rect.y+4);
+          if(x<0 || x>=info.width || y<0 || y>=info.height)throw Error('Feedback sample outside screenshot');
+          const offset=(y*info.width+x)*info.channels;
+          const background=[...data.subarray(offset,offset+3)];
+          const a=luminance(rgb),b=luminance(background);
+          return {x,y,background,contrast:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)};
+        });
+        state.minimumContrast=Math.min(...state.samples.map(x=>x.contrast));
+        if (width===390) await pointer('Results',true);
+        state.sampleVisible=await evaluate(`/fictional sample/i.test(document.body.innerText)`);
+        state.feedbackPassed=state.theme===theme && (theme!=='light' || state.background.startsWith('rgb(')) && state.minimumContrast>=4.5 && state.ancestors.every(x=>x.opacity==='1' && x.filter==='none') && state.text==='Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.' && state.sampleVisible;
+        await pause(3800);
+        state.dismissed=await evaluate(`![...document.querySelectorAll('[role="status"]')].some(x=>x.textContent.startsWith('Sample deal loaded.'))`);
+        state.feedbackPassed &&= state.dismissed;
+        results.push(state);
+        await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      }
+      continue;
+    }
     let sampleClicked = false;
     let proBlankInputs = false;
     if (landingGoal) {
@@ -589,8 +635,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, idleReportRequests, exceptions, results };
+  const passed = (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!sampleFeedback || results.length===4) && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!sampleFeedback || result.feedbackPassed) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: sampleFeedback ? 'sample-feedback' : reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, idleReportRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;

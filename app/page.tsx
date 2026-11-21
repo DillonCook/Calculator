@@ -1608,7 +1608,7 @@ export default function HomePage() {
     ? syncFeedback.tone === 'error'
       ? 'border-red-400/50 bg-red-500/15 text-red-100'
       : syncFeedback.tone === 'success'
-        ? 'border-emerald-400/45 bg-emerald-500/15 text-emerald-100'
+        ? 'sync-feedback-success border-emerald-400/45 bg-emerald-500/15 text-emerald-100'
         : 'border-accent/45 bg-accent/12 text-slate-100'
     : '';
   const quickScanPoints = quickScanDetails[activeStrategy];
