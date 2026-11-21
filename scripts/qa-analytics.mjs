@@ -24,13 +24,16 @@ const landingGoal = process.argv[4] === '--landing-goal';
 const inputRecovery = process.argv[4] === '--input-recovery';
 const resultFocus = process.argv[4] === '--result-focus';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
+const errorFeedback = process.argv[4] === '--error-feedback';
 const sampleFeedback = process.argv[4] === '--sample-feedback';
+const feedbackJourney = sampleFeedback || errorFeedback;
+const feedbackMessage = errorFeedback ? 'No DealCooker deals were found in that backup file.' : 'Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.';
 const proMode = process.argv[4] === '--pro-mode';
 const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !sampleFeedback && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !feedbackJourney && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -56,10 +59,12 @@ try {
   let id = 0;
   const pending = new Map();
   const analyticsRequests = [];
+  const mutationRequests = [];
   const idleReportRequests = [];
   const exceptions = [];
   ws.on('message', raw => {
     const message = JSON.parse(String(raw));
+    if (errorFeedback && message.method === 'Network.requestWillBeSent' && message.params.request.method !== 'GET') mutationRequests.push({url:message.params.request.url,method:message.params.request.method});
     if (message.method === 'Network.requestWillBeSent' && /\/api\/analytics\/events|google-analytics\.com|googletagmanager\.com/.test(message.params.request.url)) {
       analyticsRequests.push(message.params.request.url);
     }
@@ -136,22 +141,39 @@ try {
       }
       await pause(350);
     };
-    if (sampleFeedback) {
+    if (feedbackJourney) {
       for (const theme of ['light', 'dark']) {
-        const reset = await send('Page.addScriptToEvaluateOnNewDocument', {source:`localStorage.clear();localStorage.setItem('dealcooker-light-mode:v1',${JSON.stringify(theme==='light'?'1':'0')});`});
+        const reset = await send('Page.addScriptToEvaluateOnNewDocument', {source:`localStorage.clear();${errorFeedback?"localStorage.setItem('dealcooker-onboarding-seen:v1','1');":''}localStorage.setItem('dealcooker-light-mode:v1',${JSON.stringify(theme==='light'?'1':'0')});`});
         await send('Page.navigate', {url:url.href});
         for (let attempt=0;attempt<50;attempt++) {
-          if (await evaluate(`!![...document.querySelectorAll('button')].find(x=>x.getClientRects().length && x.textContent.trim()==='Try a sample property')`)) break;
+          if (await evaluate(`!![...document.querySelectorAll('button')].find(x=>x.getClientRects().length && (x.getAttribute('aria-label')||x.textContent.trim())===${JSON.stringify(errorFeedback?'Open settings':'Try a sample property')})`)) break;
           await pause(100);
         }
         await pause(300);
         await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:reset.identifier});
-        await pointer('Try a sample property',width===390);
-        await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent.startsWith('Sample deal loaded.'));s?.scrollIntoView({block:'center',behavior:'instant'});})()`);
-        const state=await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent.startsWith('Sample deal loaded.'));if(!s)throw Error('Real sample feedback missing');const r=s.getBoundingClientRect();const c=getComputedStyle(s);const ancestors=[];for(let el=s;el;el=el.parentElement){const st=getComputedStyle(el);ancestors.push({tag:el.tagName,opacity:st.opacity,filter:st.filter});}return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,theme:document.body.classList.contains('theme-light')?'light':'dark',sampleVisible:/fictional sample/i.test(document.body.innerText),text:s.textContent,foreground:c.color,background:c.backgroundColor,fontSize:c.fontSize,ancestors,rect:{x:r.x,y:r.y,width:r.width,height:r.height},gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};})()`);
+
+        const readInputs=()=>evaluate(`JSON.stringify([...document.querySelectorAll('input[type="number"]')].filter(x=>x.getClientRects().length).map(x=>[x.getAttribute('aria-label'),x.value]))`);
+        const inputsBefore=await readInputs();
+        if (errorFeedback) {
+          // Empty valid backup exits before storage/cloud writes or error logging.
+          const fixture=path.join(output,'synthetic-empty-backup.json');
+          fs.writeFileSync(fixture,'{"deals":[]}');
+          await pointer('Open settings',width===390);
+          await send('Page.setInterceptFileChooserDialog',{enabled:true});
+          await pointer('Import backup',width===390);
+          const {root}=await send('DOM.getDocument');
+          const {nodeId}=await send('DOM.querySelector',{nodeId:root.nodeId,selector:'input[aria-label="Import deal vault backup"]'});
+          await send('DOM.setFileInputFiles',{nodeId,files:[fixture]});
+          await pause(150);
+          await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+          await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+          await pause(450);
+        } else await pointer('Try a sample property',width===390);
+        await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent===${JSON.stringify(feedbackMessage)});s?.scrollIntoView({block:'center',behavior:'instant'});})()`);
+        const state=await evaluate(`(() => {const s=[...document.querySelectorAll('[role="status"]')].find(x=>x.textContent===${JSON.stringify(feedbackMessage)});if(!s)throw Error('Real feedback missing');const r=s.getBoundingClientRect();const c=getComputedStyle(s);const ancestors=[];for(let el=s;el;el=el.parentElement){const st=getComputedStyle(el);ancestors.push({tag:el.tagName,opacity:st.opacity,filter:st.filter});}return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,theme:document.body.classList.contains('theme-light')?'light':'dark',sampleVisible:/fictional sample/i.test(document.body.innerText),text:s.textContent,foreground:c.color,background:c.backgroundColor,fontSize:c.fontSize,ancestors,rect:{x:r.x,y:r.y,width:r.width,height:r.height},gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:Object.keys(localStorage).filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)};})()`);
         const image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
         const png=Buffer.from(image.data,'base64');
-        state.screenshot=path.join(output,`sample-feedback-${width}-${theme}.png`);
+        state.screenshot=path.join(output,`${errorFeedback?'error':'sample'}-feedback-${width}-${theme}.png`);
         fs.writeFileSync(state.screenshot,png);
         // Sample actual painted padding, not an assumed opaque background. Text
         // begins below this strip; quarter-width points avoid rounded borders.
@@ -169,11 +191,14 @@ try {
           return {x,y,background,contrast:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)};
         });
         state.minimumContrast=Math.min(...state.samples.map(x=>x.contrast));
-        if (width===390) await pointer('Results',true);
+        state.inputsBefore=JSON.parse(inputsBefore);
+        state.inputsAfter=JSON.parse(await readInputs());
+        state.inputsUnchanged=state.inputsBefore.length>0 && JSON.stringify(state.inputsBefore)===JSON.stringify(state.inputsAfter);
+        if (sampleFeedback && width===390) await pointer('Results',true);
         state.sampleVisible=await evaluate(`/fictional sample/i.test(document.body.innerText)`);
-        state.feedbackPassed=state.theme===theme && (theme!=='light' || state.background.startsWith('rgb(')) && state.minimumContrast>=4.5 && state.ancestors.every(x=>x.opacity==='1' && x.filter==='none') && state.text==='Sample deal loaded. Edit the assumptions or duplicate it before using real numbers.' && state.sampleVisible;
+        state.feedbackPassed=state.theme===theme && (theme!=='light' || state.background.startsWith('rgb(')) && state.minimumContrast>=4.5 && state.ancestors.every(x=>x.opacity==='1' && x.filter==='none') && state.text===feedbackMessage && (errorFeedback ? state.inputsUnchanged && !state.sampleVisible : state.sampleVisible);
         await pause(3800);
-        state.dismissed=await evaluate(`![...document.querySelectorAll('[role="status"]')].some(x=>x.textContent.startsWith('Sample deal loaded.'))`);
+        state.dismissed=await evaluate(`![...document.querySelectorAll('[role="status"]')].some(x=>x.textContent===${JSON.stringify(feedbackMessage)})`);
         state.feedbackPassed &&= state.dismissed;
         results.push(state);
         await send('Emulation.setTouchEmulationEnabled',{enabled:false});
@@ -635,8 +660,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!sampleFeedback || results.length===4) && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!sampleFeedback || result.feedbackPassed) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: sampleFeedback ? 'sample-feedback' : reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, idleReportRequests, exceptions, results };
+  const passed = mutationRequests.length === 0 && (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!feedbackJourney || results.length===4) && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (feedbackJourney ? result.feedbackPassed : resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: errorFeedback ? 'error-feedback' : sampleFeedback ? 'sample-feedback' : reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, mutationRequests, idleReportRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;

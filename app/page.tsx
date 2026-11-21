@@ -1606,7 +1606,7 @@ export default function HomePage() {
     : 'transition duration-200 ease-out';
   const syncFeedbackClassName = syncFeedback
     ? syncFeedback.tone === 'error'
-      ? 'border-red-400/50 bg-red-500/15 text-red-100'
+      ? 'sync-feedback-error border-red-400/50 bg-red-500/15 text-red-100'
       : syncFeedback.tone === 'success'
         ? 'sync-feedback-success border-emerald-400/45 bg-emerald-500/15 text-emerald-100'
         : 'border-accent/45 bg-accent/12 text-slate-100'
