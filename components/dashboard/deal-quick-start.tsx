@@ -68,7 +68,7 @@ export function DealQuickStart({base,initialStrategy,onStart,onSample,onAdvanced
       </button>)}</div>
       <div className="quick-start-actions quick-start-alternatives"><button type="button" className="section-action" onClick={onSample}>Try a sample property</button><button type="button" className="decision-text-button" onClick={onAdvanced}>More strategies / advanced workbench</button></div>
     </>:null}
-    {step===1?<form onSubmit={e=>{e.preventDefault();next();}}>
+    {step===1?<><form onSubmit={e=>{e.preventDefault();next();}}>
       <div className="decision-form-grid">
         <label>Property nickname<input value={name} onChange={e=>setName(e.target.value)} placeholder="Optional" maxLength={120}/></label>
         <label>Purchase price<input type="number" min="0.01" step="any" required value={price} onChange={e=>setPrice(e.target.value)}/></label>
@@ -78,7 +78,12 @@ export function DealQuickStart({base,initialStrategy,onStart,onSample,onAdvanced
       <label className="quick-start-checkbox"><input type="checkbox" checked={cash} onChange={e=>setCash(e.target.checked)}/>Pay cash (no purchase loan)</label>
       {!cash?<div className="decision-form-grid"><label>Down payment %<input type="number" min="0" max="100" step="any" value={down} onChange={e=>setDown(Number(e.target.value))}/></label><label>Interest rate %<input type="number" min="0" step="any" value={rate} onChange={e=>setRate(Number(e.target.value))}/></label><p className="decision-help">{base.purchase.loanTermYears}-year loan. Change term and advanced financing in Build.</p></div>:null}
       <div className="quick-start-actions"><button type="button" onClick={()=>setStep(0)}>Back</button><button type="submit" className="btn-primary">Next: costs</button></div>
-    </form>:null}
+    </form>
+      <div className="quick-start-alternatives">
+        <p className="decision-help">Explore a fictional rental example instead of these inputs.</p>
+        <button type="button" className="section-action" onClick={onSample}>Try a sample property</button>
+      </div>
+    </>:null}
     {step===2?<form onSubmit={e=>{e.preventDefault();finish();}}>
       <div className="decision-form-grid">
         <label>Annual property tax<input type="number" min="0" step="any" value={tax} onChange={e=>setTax(e.target.value)} placeholder="Unknown — use estimate"/></label>
