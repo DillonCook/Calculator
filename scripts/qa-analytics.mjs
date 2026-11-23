@@ -21,6 +21,7 @@ const strategyDrafts = process.argv[4] === '--strategy-drafts';
 const reportIdle = process.argv[4] === '--report-idle';
 const landingEntry = process.argv[4] === '--landing-entry' || reportIdle;
 const landingGoal = process.argv[4] === '--landing-goal';
+const starterSample = process.argv[4] === '--starter-sample';
 const inputRecovery = process.argv[4] === '--input-recovery';
 const resultFocus = process.argv[4] === '--result-focus';
 const firstUse = process.argv[4] === '--first-use' || strategyDrafts;
@@ -33,7 +34,7 @@ const inputHelp = process.argv[4] === '--input-help';
 const shareFallback = process.argv[4] === '--share-fallback';
 const reportLaunch = process.argv[4] === '--report-launch';
 const reportShareFallback = process.argv[4] === '--report-share-fallback' || reportLaunch;
-if (process.argv[4] && !feedbackJourney && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
+if (process.argv[4] && !starterSample && !feedbackJourney && !firstUse && !proMode && !inputHelp && !shareFallback && !reportShareFallback && !landingEntry && !landingGoal && !inputRecovery && !resultFocus) throw new Error('Unknown QA journey.');
 const child = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--disable-gpu', '--disable-background-networking', '--no-first-run',
   '--no-default-browser-check', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, 'about:blank'
@@ -64,7 +65,7 @@ try {
   const exceptions = [];
   ws.on('message', raw => {
     const message = JSON.parse(String(raw));
-    if (errorFeedback && message.method === 'Network.requestWillBeSent' && message.params.request.method !== 'GET') mutationRequests.push({url:message.params.request.url,method:message.params.request.method});
+    if ((errorFeedback || starterSample) && message.method === 'Network.requestWillBeSent' && message.params.request.method !== 'GET') mutationRequests.push({url:message.params.request.url,method:message.params.request.method});
     if (message.method === 'Network.requestWillBeSent' && /\/api\/analytics\/events|google-analytics\.com|googletagmanager\.com/.test(message.params.request.url)) {
       analyticsRequests.push(message.params.request.url);
     }
@@ -93,7 +94,7 @@ try {
   await send('Network.enable');
   await send('Runtime.enable');
   // Only the temporary, isolated QA profile is cleared; never a user's browser.
-  if (firstUse || landingEntry || landingGoal || inputRecovery || resultFocus) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
+  if (firstUse || landingEntry || landingGoal || starterSample || inputRecovery || resultFocus) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear();' });
   if (shareFallback || reportShareFallback) await send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Synthetic QA clipboard denial','NotAllowedError')}}});" });
   const results = [];
   let sampleReportHref;
@@ -207,6 +208,46 @@ try {
     }
     let sampleClicked = false;
     let proBlankInputs = false;
+    if (starterSample) {
+      // The unchanged generic goal-chooser action is the sample positive control.
+      // Each fresh guest entry uses only an isolated local sample, never an account.
+      let control;
+      for (const strategy of ['generic','longTerm','airbnb','flip','manual']) {
+        const entry = new URL(url);
+        if (!['generic','manual'].includes(strategy)) {
+          entry.searchParams.set('utm_source','dealcooker_landing');
+          entry.searchParams.set('strategy',strategy);
+        }
+        await send('Page.navigate',{url:entry.href});await pause(1800);
+        if (strategy==='manual') await pointer('Rent out a homeMonthly income and cash required',width===390);
+        const state = {strategy,width,activation:strategy==='manual'?'keyboard':width===390?'touch':'mouse'};
+        state.before = await evaluate(`(() => {const s=document.querySelector('.deal-quick-start');const b=[...s.querySelectorAll('button')].find(x=>x.textContent.trim()==='Try a sample property');return {heading:s.querySelector('h2')?.textContent,present:!!b,type:b?.type,context:s.innerText.includes('Explore a fictional rental example instead of these inputs.'),requiredBlank:[...s.querySelectorAll('input[required]')].every(x=>x.value===''),location:location.href};})()`);
+        if (state.before.present) {
+          await evaluate(`(() => {const b=[...document.querySelectorAll('.deal-quick-start button')].find(x=>x.textContent.trim()==='Try a sample property');b.scrollIntoView({block:'center',behavior:'instant'});})()`);
+          await pause(150);
+          state.hit = await evaluate(`(() => {const b=[...document.querySelectorAll('.deal-quick-start button')].find(x=>x.textContent.trim()==='Try a sample property');const r=b.getBoundingClientRect();return b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)) && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight;})()`);
+        }
+        let image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+        state.beforeScreenshot=path.join(output,`starter-sample-${strategy}-${width}-before.png`);fs.writeFileSync(state.beforeScreenshot,Buffer.from(image.data,'base64'));
+        if (state.before.present && state.hit) {
+          if(strategy==='manual') await click('Try a sample property');
+          else await pointer('Try a sample property',width===390);
+          await pause(400);
+          if (width===390) await pointer('Results',true);
+          await pause(200);
+          state.after=await evaluate(`({sampleVisible:/fictional sample/i.test(document.querySelector('.decision-brief')?.innerText||''),quickStartHidden:!document.querySelector('.deal-quick-start') || !document.querySelector('.deal-quick-start').getClientRects().length,metrics:[...document.querySelectorAll('[data-testid^="kpi-"]')].map(x=>x.textContent),summary:document.querySelector('.decision-brief')?.innerText,numericalInputs:[...document.querySelectorAll('input[type="number"]')].filter(x=>x.getClientRects().length).map(x=>[x.getAttribute('aria-label'),x.value])})`);
+          if(strategy==='generic') control=state.after;
+          state.sameSample=!!control && !!state.after.summary && JSON.stringify(state.after)===JSON.stringify(control);
+          image=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+          state.afterScreenshot=path.join(output,`starter-sample-${strategy}-${width}-after.png`);fs.writeFileSync(state.afterScreenshot,Buffer.from(image.data,'base64'));
+        }
+        Object.assign(state,await evaluate(`({scrollWidth:document.documentElement.scrollWidth,gaLoaded:!!window.__dealcookerGaLoaded,trackingKeys:[...Object.keys(localStorage),...Object.keys(sessionStorage)].filter(x=>/analytics|milestones/.test(x)),errors:performance.getEntriesByType('resource').filter(x=>/api\\/analytics\\/events/.test(x.name)).map(x=>x.name)})`));
+        state.sampleRoutePassed=state.before.present && state.before.type==='button' && state.hit && state.sameSample && state.after.sampleVisible && state.after.quickStartHidden && (strategy==='generic' || (state.before.context && state.before.heading==='Start with the property.' && state.before.requiredBlank));
+        results.push(state);
+        await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      }
+      continue;
+    }
     if (landingGoal) {
       for (const [strategy,goal,field,amount] of [
         ['longTerm','Rent out a homeMonthly income and cash required','Expected monthly rent','3000'],
@@ -660,8 +701,8 @@ try {
     fs.writeFileSync(result.screenshot, Buffer.from(screenshot.data, 'base64'));
     results.push(result);
   }
-  const passed = mutationRequests.length === 0 && (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!feedbackJourney || results.length===4) && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (feedbackJourney ? result.feedbackPassed : resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
-  const receipt = { url: url.href, journey: errorFeedback ? 'error-feedback' : sampleFeedback ? 'sample-feedback' : reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, mutationRequests, idleReportRequests, exceptions, results };
+  const passed = mutationRequests.length === 0 && (!starterSample || results.length===10) && (!reportIdle || idleReportRequests.length === 0) && analyticsRequests.length === 0 && exceptions.length === 0 && (!feedbackJourney || results.length===4) && (!resultFocus || results.length===4) && (!inputRecovery || results.length===8) && (!landingEntry || results.length===14) && (!landingGoal || results.length===6) && results.every(result => (starterSample ? result.sampleRoutePassed : feedbackJourney ? result.feedbackPassed : resultFocus ? result.resultFocusPassed : inputRecovery ? result.recoveryPassed : landingEntry || landingGoal ? result.entryPassed : firstUse ? result.resultVisible && result.journeyPassed : result.sampleVisible) && (!strategyDrafts || result.strategyDraftsPassed) && (!proMode || result.proMode?.passed) && (!inputHelp || result.help?.passed) && (!shareFallback || result.shareFallback?.passed) && (!reportShareFallback || result.reportShareFallback?.passed) && (!reportLaunch || result.reportLaunch?.passed) && result.scrollWidth <= result.width && !result.gaLoaded && result.trackingKeys.length === 0 && result.errors.length === 0);
+  const receipt = { url: url.href, journey: starterSample ? 'starter-sample' : errorFeedback ? 'error-feedback' : sampleFeedback ? 'sample-feedback' : reportIdle ? 'report-idle' : landingGoal ? 'landing-goal' : resultFocus ? 'result-focus' : inputRecovery ? 'input-recovery' : landingEntry ? 'landing-entry' : strategyDrafts ? 'strategy-drafts' : firstUse ? 'blank-rental' : proMode ? 'pro-mode' : inputHelp ? 'sample-input-help' : shareFallback ? 'sample-share-fallback' : reportLaunch ? 'sample-report-launch' : reportShareFallback ? 'sample-report-share-fallback' : 'sample', generatedAt: new Date().toISOString(), passed, analyticsRequests, mutationRequests, idleReportRequests, exceptions, results };
   fs.writeFileSync(path.join(output, 'browser-smoke.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
   if (!passed) process.exitCode = 1;
